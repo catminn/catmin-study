@@ -1,0 +1,37 @@
+{
+  // 云端共享记忆：替代原来跑在 Windows 电脑上的 mcp-memory-service
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "catmin-memory",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": false,
+  // 先部署在测试域名；验证完成后把两处 memory-new 改成 memory（见 README 第 5 步）
+  "routes": [{ "pattern": "memory.catmin.io", "custom_domain": true }],
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "catmin-study",
+      "database_id": "323ae84c-ae93-4a14-88c4-45f6dd33e7ab",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vectorize": [
+    { "binding": "VEC", "index_name": "catmin-memory-bge-m3" }
+  ],
+  "kv_namespaces": [
+    { "binding": "OAUTH_KV", "id": "9b81acd5c608428792e7af7d5a9735a6" }
+  ],
+  "ai": { "binding": "AI" },
+
+  "vars": {
+    "EMBED_MODEL": "@cf/baai/bge-m3",
+    "EMBED_DIM": "1024",
+    "PUBLIC_URL": "https://memory.catmin.io"
+  }
+  // 机密（用 wrangler secret put 设置，不写在这里）：
+  //   OWNER_PASSWORD  授权页面的口令
+  //   CONSENT_SECRET  32 位以上随机串，用来记住授权
+  //   ADMIN_TOKEN     迁移/重建索引用的管理口令
+}

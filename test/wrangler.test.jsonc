@@ -1,0 +1,10 @@
+{
+  "name": "catmin-memory-test",
+  "main": "entry.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "d1_databases": [{ "binding": "DB", "database_name": "catmin-study", "database_id": "local-test", "migrations_dir": "../migrations" }],
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "local-kv" }],
+  "vars": { "EMBED_MODEL": "fake", "EMBED_DIM": "1024", "PUBLIC_URL": "http://localhost:8799",
+            "OWNER_PASSWORD": "test-pass-123", "ADMIN_TOKEN": "admin-token-0123456789abcdef" }
+}
