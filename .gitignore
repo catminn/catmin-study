@@ -6,3 +6,5 @@ test/.wrangler/
 
 migration/
 test/dev.log
+test/site.log
+test/jar

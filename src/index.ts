@@ -3,8 +3,9 @@ import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
 import { authorize } from "./auth";
 import { mcpFetch } from "./mcp";
 import { type Env as BaseEnv, getByHash, insertMemory, normTags, reindexMissing } from "./store";
+import { type SiteEnv, siteFetch } from "./site";
 
-export type Env = BaseEnv & { PUBLIC_URL: string };
+export type Env = BaseEnv & SiteEnv & { PUBLIC_URL: string; SITE_HOST?: string };
 
 async function adminAuthorized(request: Request, env: Env) {
   const h = request.headers.get("Authorization") ?? "";
@@ -96,6 +97,8 @@ function providerFor(env: Env) {
 
 export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    // study.catmin.io 是网站；其余域名（memory.catmin.io）是共享记忆 MCP
+    if (env.SITE_HOST && new URL(request.url).host === env.SITE_HOST) return siteFetch(request, env, ctx);
     return providerFor(env).fetch(request, env, ctx);
   },
 } satisfies ExportedHandler<Env>;

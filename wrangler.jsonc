@@ -7,7 +7,12 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": false,
   // 先部署在测试域名；验证完成后把两处 memory-new 改成 memory（见 README 第 5 步）
-  "routes": [{ "pattern": "memory.catmin.io", "custom_domain": true }],
+  "routes": [
+    { "pattern": "memory.catmin.io", "custom_domain": true },
+    { "pattern": "study.catmin.io", "custom_domain": true }
+  ],
+  // 网站静态文件；所有请求先经过 Worker（要先检查登录）
+  "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": true },
 
   "d1_databases": [
     {
@@ -28,10 +33,14 @@
   "vars": {
     "EMBED_MODEL": "@cf/baai/bge-m3",
     "EMBED_DIM": "1024",
-    "PUBLIC_URL": "https://memory.catmin.io"
+    "PUBLIC_URL": "https://memory.catmin.io",
+    "SITE_HOST": "study.catmin.io",
+    // 网站 API 模式的花费上限（美元），到了就停
+    "DAILY_LIMIT_USD": "1",
+    "MONTHLY_LIMIT_USD": "10"
   }
   // 机密（用 wrangler secret put 设置，不写在这里）：
   //   OWNER_PASSWORD  授权页面的口令
-  //   CONSENT_SECRET  32 位以上随机串，用来记住授权
+  //   ANTHROPIC_API_KEY / OPENAI_API_KEY  网站 API 模式用（在 Cloudflare 后台设置）
   //   ADMIN_TOKEN     迁移/重建索引用的管理口令
 }
