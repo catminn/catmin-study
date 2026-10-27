@@ -16,6 +16,7 @@ import {
   updateMemoryRow,
 } from "./store";
 import { isoToSec, parseTimeExpr } from "./timeexpr";
+import { STUDY_TOOLS } from "./study";
 
 type Args = Record<string, any>;
 type Tool = {
@@ -434,5 +435,7 @@ export const TOOLS: Tool[] = [
     },
   },
 ];
+
+TOOLS.push(...(STUDY_TOOLS as Tool[]));
 
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
