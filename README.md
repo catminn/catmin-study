@@ -48,3 +48,11 @@
 ## 和原服务相比少了什么
 
 原服务的高级工具（记忆合并 consolidate、知识图谱 graph/explore、质量评分 quality、信念 beliefs 等）没有搬过来。日常的存、搜、改、删和错题都在。需要哪个以后再加。
+
+## 主神空间：artifact 和网站如何保持同步
+
+- **唯一源头**：`page/zhushen.html`。网站版由 `scripts/build-site.py` 从它生成；artifact 版发布的是同一份（唯一差别是 `cloudOn` 那一行，网站版多一个 `!window.__SITE`）。
+- **改页面的流程**：改 `page/zhushen.html` → 本地测试 → 推送 GitHub（网站自动部署）→ 用同一份内容发布 artifact（artifact 版把 `cloudOn` 那行换成不带 `__SITE` 的写法）。
+- **漏网检查**：如果有人在别的对话里直接改了线上 artifact，把它用 Artifact 的 read 保存下来，运行
+  `python3 scripts/check-drift.py <保存的html>`，一致返回 0，有差异返回 1 并打印差异。有差异就把改动合并回 `page/zhushen.html`，再走上面的流程。
+- 存档（进度、聊天记录）两边本来就共用云端的 `study_state`，不需要同步代码。
