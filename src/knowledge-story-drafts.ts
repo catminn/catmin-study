@@ -1,6 +1,6 @@
 // Pure, spoiler-safe authoring gate. This layer designs OPTIONAL narrative drafts;
 // the world engine remains the only authority for committed scenes/events.
-import { suggestLearningOpportunities, type CoursePack, type Context } from "./learning-adapter";
+import { suggestLearningOpportunities, type CoursePack, type Context } from "./learning-adapter.ts";
 export type SourceRef = { fileId:string; revision:string; passageId:string; verified:boolean };
 export type KnowledgeNote = { conceptId:string; sourceRefs:SourceRef[]; claim:string; review:"pending"|"approved"|"rejected" };
 export type StoryBeat = { kind:"observe"|"investigate"|"dialogue"|"reflect"; text:string; supportedCueIds:string[]; conceptIds:string[]; optional:boolean };
