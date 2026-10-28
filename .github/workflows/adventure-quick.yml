@@ -1,0 +1,19 @@
+name: Contextual adventure quick actions
+on:
+  pull_request:
+    paths:
+      - 'public/adventure.html'
+      - 'public/adventure-quick.mjs'
+      - 'test/adventure-quick.test.mjs'
+      - '.github/workflows/adventure-quick.yml'
+permissions:
+  contents: read
+jobs:
+  quick-actions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test test/adventure-quick.test.mjs
