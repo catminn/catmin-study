@@ -1,0 +1,170 @@
+{
+  "schema": "dm-intent-fixtures-v1",
+  "scope": "MATH1920 abstract sandbox; no fictional content",
+  "owner": {
+    "experience": "ChatGPT",
+    "implementation": "Claude"
+  },
+  "notes": [
+    "These are behavioral test fixtures, not production schema.",
+    "Numbers, rewards, and thresholds belong to the implementation owner.",
+    "No input in this file authorizes hidden-world disclosure."
+  ],
+  "cases": [
+    {
+      "id": "ask-gradient",
+      "input": "梯度是什么？",
+      "intent": [
+        "ASK"
+      ],
+      "mode": "TEACH",
+      "worldCommit": false,
+      "academicEvidence": "exposure_only",
+      "expected": "brief_definition_and_example"
+    },
+    {
+      "id": "learn-chapter",
+      "input": "从头教我梯度这一章",
+      "intent": [
+        "LEARN"
+      ],
+      "mode": "TEACH",
+      "worldCommit": false,
+      "academicEvidence": "coverage_not_mastery",
+      "expected": "tracked_lesson_with_resume_cursor"
+    },
+    {
+      "id": "practice-direct",
+      "input": "直接出五道题，不要剧情",
+      "intent": [
+        "PRACTICE"
+      ],
+      "mode": "PRACTICE",
+      "worldCommit": false,
+      "expected": "no_forced_narrative"
+    },
+    {
+      "id": "hint-only",
+      "input": "给我一个提示，不要完整答案",
+      "intent": [
+        "ASK"
+      ],
+      "mode": "TEACH",
+      "worldCommit": false,
+      "expected": "minimal_hint"
+    },
+    {
+      "id": "thinking",
+      "input": "先让我自己想想",
+      "intent": [
+        "ASK"
+      ],
+      "mode": "HOLD",
+      "worldCommit": false,
+      "expected": "no_unsolicited_solution"
+    },
+    {
+      "id": "draft",
+      "input": "我想试试利用梯度，不过先别执行",
+      "intent": [
+        "EXPLORE"
+      ],
+      "commitment": "tentative",
+      "worldCommit": false,
+      "expected": "evaluate_idea_not_execute"
+    },
+    {
+      "id": "act-explicit",
+      "input": "现在执行刚才已经确认的唯一方案",
+      "intent": [
+        "ACT"
+      ],
+      "commitment": "explicit",
+      "worldCommit": "conditional_on_rules",
+      "expected": "single_idempotent_action"
+    },
+    {
+      "id": "act-ambiguous",
+      "input": "执行刚才那个方案",
+      "context": "two_different_pending_proposals",
+      "intent": [
+        "ACT"
+      ],
+      "worldCommit": false,
+      "expected": "clarify_which_proposal"
+    },
+    {
+      "id": "lesson-plus-action",
+      "input": "先教我怎么算偏导，然后照这个方法执行",
+      "intent": [
+        "MIXED"
+      ],
+      "worldCommit": "only_after_teaching_and_revalidation",
+      "expected": "do_not_commit_prematurely"
+    },
+    {
+      "id": "math-correct-game-fail",
+      "input": "我的梯度推导经过确认，现在执行",
+      "context": "game_roll_fails",
+      "intent": [
+        "ACT"
+      ],
+      "worldCommit": true,
+      "expected": "retain_academic_evidence_despite_game_failure"
+    },
+    {
+      "id": "alternative-method",
+      "input": "我先把 (t+1)^2 展开再求导，结果是 2t+2",
+      "intent": [
+        "PRACTICE"
+      ],
+      "worldCommit": false,
+      "expected": "accept_valid_alternative_derivation"
+    },
+    {
+      "id": "reasoning-flawed",
+      "input": "x^2+y^2 在 (1,2) 的梯度是 (2,4)，因为任何函数都把坐标乘二",
+      "intent": [
+        "PRACTICE"
+      ],
+      "worldCommit": false,
+      "expected": "correct_result_invalid_general_reasoning"
+    },
+    {
+      "id": "interrupt-resume",
+      "input": "讲到这里我想先问另一个问题，之后继续",
+      "intent": [
+        "MIXED"
+      ],
+      "worldCommit": false,
+      "expected": "nested_learning_session_resumes_exact_cursor"
+    },
+    {
+      "id": "ignore-nudge",
+      "input": "别提醒我复习了，我现在只想冒险",
+      "intent": [
+        "EXPLORE"
+      ],
+      "worldCommit": false,
+      "expected": "suppress_learning_nudges_without_penalty"
+    },
+    {
+      "id": "unverified-deadline",
+      "input": "我好像明天考试，但是不太确定",
+      "intent": [
+        "ASK"
+      ],
+      "worldCommit": false,
+      "expected": "ask_or_verify_source_no_fake_urgency"
+    },
+    {
+      "id": "repeat-evidence",
+      "input": "我再说一遍刚才同样的推导",
+      "intent": [
+        "PRACTICE"
+      ],
+      "worldCommit": false,
+      "expected": "no_duplicate_mastery_or_rewards"
+    }
+  ]
+}
