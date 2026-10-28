@@ -67,6 +67,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
       if (q.includes("BADJSON")) special = "不是json";
       else if (q.includes("自己算")) special = JSON.stringify({ intents: ["ASK"], explicitCommit: false, quiet: "on", evaluation: null });
       else if (q.includes("给我提示")) special = JSON.stringify({ intents: ["ASK"], explicitCommit: false, quiet: "off", evaluation: null });
+      else if (q.includes("执行方案 A")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, planRef: "previous", planIndex: 1, evaluation: null });
       else if (q.includes("区别")) special = C(["ASK"], false, false, null);
       else if (q.includes("系统讲")) special = C(["LEARN"], false, false, null);
       else if (q.includes("刷5题")) special = C(["PRACTICE"], false, false, null, true);

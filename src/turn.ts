@@ -13,6 +13,7 @@ export const ROUTING = {
   crossCheckCorrect: true, // 模型认为“正确且推理有效”时，必须由第二个模型独立确认才算 confirmed
   topicId: "math1920.sandbox",
   maxInput: 4000,
+  planSoftTtlMs: 30 * 60 * 1000, // 超过这个时间的方案不会被删除，只是执行前要重新确认
 };
 
 export interface Deps {
@@ -33,6 +34,7 @@ function ensureSchema(env: SiteEnv) {
   ready ??= env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_turns (turn_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, response TEXT, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_plans (plan_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, status TEXT NOT NULL, text TEXT NOT NULL, created_at REAL NOT NULL)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_plan_meta (plan_id TEXT PRIMARY KEY, world_seq INTEGER NOT NULL, reconfirm INTEGER NOT NULL DEFAULT 0)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_insight_use (event_id TEXT PRIMARY KEY, insight_key TEXT NOT NULL, is_first INTEGER NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_flags (session_id TEXT PRIMARY KEY, quiet INTEGER NOT NULL)`),
     env.DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_insight_first ON adventure_insight_use(insight_key) WHERE is_first=1`),
@@ -62,6 +64,7 @@ export interface Classification {
   pauseStory: boolean;
   insightKey: string | null;
   planRef: "none" | "previous" | "inline";
+  planIndex: number | null;
   quiet: "on" | "off" | "none";
   evaluation: null | { correctness: string; reasoning: string; assistance: string };
 }
@@ -84,13 +87,15 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
   if (pr !== "none" && pr !== "previous" && pr !== "inline") return { ok: false, why: "planRef 不合法" };
   const q = x.quiet === undefined ? "none" : x.quiet;
   if (q !== "on" && q !== "off" && q !== "none") return { ok: false, why: "quiet 不合法" };
+  const pi = x.planIndex === undefined || x.planIndex === null ? null : x.planIndex;
+  if (pi !== null && !(Number.isInteger(pi) && (pi as number) >= 1 && (pi as number) <= 9)) return { ok: false, why: "planIndex 不合法" };
   let ev: Classification["evaluation"] = null;
   if (x.evaluation !== null && x.evaluation !== undefined) {
     const e = x.evaluation;
     if (!isObj(e) || !CORRECT.has(e.correctness as string) || !REASON.has(e.reasoning as string) || !ASSIST.has(e.assistance as string)) return { ok: false, why: "evaluation 不合法" };
     ev = { correctness: e.correctness as string, reasoning: e.reasoning as string, assistance: e.assistance as string };
   }
-  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, quiet: q as Classification["quiet"], evaluation: ev } };
+  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, planIndex: pi as number | null, quiet: q as Classification["quiet"], evaluation: ev } };
 }
 
 const CLASSIFY_PROMPT = (input: string, paused: boolean, ctx: string) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
@@ -105,9 +110,10 @@ ${ctx}
 - pauseStory：玩家是否明确要求离开故事去纯刷题（如“不要剧情”“先刷题”）；故事里顺便作答不算；
 - insightKey：这次解答用到的核心思路的稳定短标识（小写英文数字和连字符，如 expand-then-differentiate）；同一个思路换说法重复出现必须用同一个标识，没有评估时为 null；
 - planRef：玩家要执行行动时，指令本身是否把行动说清楚了。"inline"=指令自己说明了要做什么；"previous"=指代之前商量/草拟过的方案（如“刚才那个”）；"none"=不涉及执行。指代不清也写 "previous"；
+- planIndex：玩家点名方案序号时（“方案 A/第二个/B”分别对应 1/2…），填整数 1–9；否则 null；
 - quiet：玩家说“让我自己想想/别提示”→"on"；玩家主动求提示、要答案、或明确说可以提示了→"off"；否则 "none"；
 - evaluation：玩家给出了数学解答时填 {correctness, reasoning, assistance}，否则 null。correctness∈correct/incorrect/partial/unknown；reasoning∈valid/partial/invalid/not_assessed（答案对但理由不成立要写 invalid；独立正确的非标准方法写 valid）；assistance∈none/minor_hint/major_hint/worked_solution/unknown（玩家在得到提示后作答要如实标注）。
-格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"planRef":"none","quiet":"none","evaluation":null}`;
+格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"planRef":"none","planIndex":null,"quiet":"none","evaluation":null}`;
 
 const VERIFY_PROMPT = (input: string) => `[[VERIFY]] 先不要看玩家的结论，自己独立把题目解出来，再核对玩家的解答：结论是否正确，且推理是否确实成立（不是碰巧对，也不是照抄了提示）。只输出 JSON：{"ownAnswer":"你自己解出的最终结果","agree":true|false}。
 玩家输入：${input}`;
@@ -237,16 +243,35 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   if (intents.includes("ACT") && !cls.explicitCommit) {
     visible = "已记下计划，还没有执行。需要执行时直接告诉我。";
     await env.DB.prepare("INSERT OR IGNORE INTO adventure_plans (plan_id,session_id,status,text,created_at) VALUES (?,?,'draft',?,?)").bind("turn:" + turnId, sessionId, input.slice(0, 200), Date.now() / 1000).run();
+    await env.DB.prepare("INSERT OR IGNORE INTO adventure_plan_meta (plan_id,world_seq,reconfirm) VALUES (?,?,0)").bind("turn:" + turnId, sess.world_seq).run();
   }
   let planOk = true;
   let planId: string | null = null;
   if (wantsAct && cls.planRef !== "inline") {
-    // 指代“刚才的方案”：必须真的有一个未执行的草案，并且一次只消费一个；没有就不执行
-    const plan = await env.DB.prepare("SELECT plan_id FROM adventure_plans WHERE session_id=? AND status='draft' ORDER BY created_at DESC LIMIT 1").bind(sessionId).first<{ plan_id: string }>();
-    if (!plan) {
+    // 指代“刚才的方案”：必须有明确的草案，一次只消费一个。多个候选绝不默认选最近的，要请玩家指明；
+    // 世界变了或过了很久的草案不会被删除，但执行前要玩家按当前情况再确认一次。
+    const drafts = (await env.DB.prepare("SELECT p.plan_id, p.text, p.created_at, COALESCE(m.world_seq,0) AS ws, COALESCE(m.reconfirm,0) AS rc FROM adventure_plans p LEFT JOIN adventure_plan_meta m ON m.plan_id=p.plan_id WHERE p.session_id=? AND p.status='draft' ORDER BY p.created_at ASC").bind(sessionId).all<any>()).results;
+    const letter = (n: number) => String.fromCharCode(65 + n);
+    let pick: any = null;
+    if (!drafts.length) {
       planOk = false;
       visible = "我没有找到一个待执行的方案。先告诉我你想怎么做，确认之后再说“执行”。";
-    } else planId = plan.plan_id;
+    } else if (cls.planIndex) {
+      pick = drafts[cls.planIndex - 1] ?? null;
+      if (!pick) { planOk = false; visible = "没有这个编号的方案。现在有 " + drafts.length + " 个：" + drafts.map((d: any, n: number) => "方案 " + letter(n) + "：" + d.text.slice(0, 40)).join("；") + "。没有执行。"; }
+    } else if (drafts.length === 1) pick = drafts[0];
+    else {
+      planOk = false;
+      visible = "现在有 " + drafts.length + " 个待执行的方案，我不会替你选：" + drafts.map((d: any, n: number) => "方案 " + letter(n) + "：" + d.text.slice(0, 40)).join("；") + "。请说“执行方案 A”这样指明。没有执行。";
+    }
+    if (pick && planOk) {
+      const stale = pick.ws !== sess.world_seq || Date.now() / 1000 - pick.created_at > ROUTING.planSoftTtlMs / 1000;
+      if (stale && !pick.rc) {
+        planOk = false;
+        await env.DB.prepare("INSERT INTO adventure_plan_meta (plan_id,world_seq,reconfirm) VALUES (?,?,1) ON CONFLICT(plan_id) DO UPDATE SET reconfirm=1").bind(pick.plan_id, sess.world_seq).run();
+        visible = "这个方案是之前定的（" + (pick.ws !== sess.world_seq ? "之后世界已经发生了变化" : "已经过了一段时间") + "），我没有直接执行。要按现在的情况执行吗？确认的话再说一次“执行”。";
+      } else planId = pick.plan_id;
+    }
   }
   if (wantsAct && planOk) {
     if (sess.status !== "active" && !cls.storyResume) visible = "故事现在是暂停状态，没有执行行动。说“继续”就能回到刚才。";
