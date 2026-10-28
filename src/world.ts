@@ -3,6 +3,7 @@
 // 契约：content/contracts/world-content-semantics-v1.md（ChatGPT 设计分支）。
 import { readContentInternal } from "./content";
 import type { SiteEnv } from "./site";
+import { ACTION_ALIASES } from "./adventure";
 
 export const WORLD_CONFIG = { version: "world-1.1.0", maxChain: 4, npcMemoryLayers: new Set(["heardClaims", "npcBeliefs", "confirmedNpcKnowledge"]), allowedEffects: new Set(["set_flag", "lock_flag", "advance_scene", "set_npc_location", "change_npc_relation", "record_fact_discovery", "grant_item", "remove_item", "record_npc_memory"]) };
 
@@ -136,7 +137,7 @@ function matches(tr: any, t: Pending): boolean {
   if (tr.sceneId && tr.sceneId !== t.scene) return false; // 触发发生时所在的场景
   if (t.type === "action_resolved") {
     if (tr.outcome && tr.outcome !== (t.success ? "success" : "failure")) return false;
-    if (tr.actionTemplateId && tr.actionTemplateId !== t.actionTemplate) return false;
+    if (tr.actionTemplateId && (ACTION_ALIASES[tr.actionTemplateId] ?? tr.actionTemplateId) !== t.actionTemplate) return false;
   } else if (t.type === "fact_discovered") {
     if (tr.factId && tr.factId !== t.factId) return false;
   } else if (t.type === "dialogue_choice_committed") {

@@ -2,7 +2,7 @@
 // 服务器规则优先于模型输出：模型不能自己提交行动、不能指定依据事件、不能把待验证说成已确认。
 //   POST /api/adventure/turn {sessionId, turnId, inputText}   同 turnId 重试返回原回复，不重复调用模型/不重复提交
 import type { SiteEnv } from "./site";
-import { applyTrigger, replayPublicOutcomes, type PublicEvent } from "./world";
+import { applyTrigger, availableChoices, availableMoves, commitChoice, commitTravel, publicSceneInfo, replayPublicOutcomes, type PublicEvent } from "./world";
 import { ACTIONS, CONCEPTS, CONFIG, postAction } from "./adventure";
 import { postEvent } from "./events";
 
@@ -82,6 +82,8 @@ export interface Classification {
   planIndex: number | null;
   tutorSolution: boolean;
   newTask: boolean;
+  choiceId: string | null;
+  moveTo: string | null;
   conceptId: string | null;
   actionTemplate: string;
   quiet: "on" | "off" | "none";
@@ -118,10 +120,10 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
     if (!isObj(e) || !CORRECT.has(e.correctness as string) || !REASON.has(e.reasoning as string) || !ASSIST.has(e.assistance as string)) return { ok: false, why: "evaluation 不合法" };
     ev = { correctness: e.correctness as string, reasoning: e.reasoning as string, assistance: e.assistance as string };
   }
-  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, resumeTarget: rt as Classification["resumeTarget"], pauseStory: pause, insightKey: ik as string | null, planRef: pr, planIndex: pi as number | null, tutorSolution: x.tutorSolution === true, newTask: x.newTask === true, conceptId: cid, actionTemplate: at, quiet: q as Classification["quiet"], evaluation: ev } };
+  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, resumeTarget: rt as Classification["resumeTarget"], pauseStory: pause, insightKey: ik as string | null, planRef: pr, planIndex: pi as number | null, tutorSolution: x.tutorSolution === true, newTask: x.newTask === true, moveTo: typeof x.moveTo === "string" && /^[a-z0-9][a-z0-9_.-]{0,79}$/.test(x.moveTo) ? x.moveTo : null, choiceId: typeof x.choiceId === "string" && /^[a-z0-9][a-z0-9_.-]{0,79}$/.test(x.choiceId) ? x.choiceId : null, conceptId: cid, actionTemplate: at, quiet: q as Classification["quiet"], evaluation: ev } };
 }
 
-const CLASSIFY_PROMPT = (input: string, paused: boolean, ctx: string) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
+const CLASSIFY_PROMPT = (input: string, paused: boolean, ctx: string, choices: string[] = [], moves: string[] = []) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
 玩家输入：${input}
 当前故事${paused ? "已暂停（玩家在刷题）" : "进行中"}。
 ${ctx}
@@ -137,12 +139,14 @@ ${ctx}
 - planRef：玩家要执行行动时，指令本身是否把行动说清楚了。"inline"=指令自己说明了要做什么；"previous"=指代之前商量/草拟过的方案（如“刚才那个”）；"none"=不涉及执行。指代不清也写 "previous"；
 - planIndex：玩家点名方案序号时（“方案 A/第二个/B”分别对应 1/2…），填整数 1–9；否则 null；
 - conceptId：这次数学解答主要用到的知识点，只能是 math1920.derivative-basics（一元求导）、math1920.partial-derivative（偏导数）、math1920.gradient（梯度）、math1920.directional-derivative（方向导数）、math1920.chain-rule-multivariable（多元链式法则）之一，不确定或没有解答时 null；
-- actionId：玩家要执行的行动属于哪种：apply-derivative-method（用求导方法）、determine-local-steepest-ascent（用梯度找局部最陡上升方向）、estimate-change-in-one-variable（估计单变量变化，偏导）、predict-change-along-chosen-direction（预测沿选定方向的变化，方向导数）、derive-rate-along-parametric-path（沿参数路径求变化率，多元链式法则）、plain-action（与数学无关的普通行动或说不清）；
+- actionId：玩家要执行的行动属于哪种：apply-derivative-method（用求导方法）、determine-local-steepest-ascent（用梯度找局部最陡上升方向，也包括“应用梯度方法”）、estimate-change-in-one-variable（估计单变量变化，偏导）、predict-change-along-chosen-direction（预测沿选定方向的变化，方向导数）、derive-rate-along-parametric-path（沿参数路径求变化率，多元链式法则）、propose-safety-plan（提出安全方案/计划并要求执行，与数学无关）、plain-action（与数学无关的普通行动或说不清）；
+- choiceId：${choices.length ? "玩家明确要做下面某个对话选择时填它的 id，否则 null。可选：" + choices.join("、") : "没有可选的对话选择，一律 null"}；
+- moveTo：${moves.length ? "玩家明确要前往下面某个地点时填它的 id，否则 null。可选（id=玩家看到的标签）：" + moves.join("、") : "没有可前往的地点，一律 null"}；
 - tutorSolution：玩家要求导师完整演示/给出带步骤的完整解答（本回合你会给出完整解法）→ true；
 - newTask：玩家这次提交的解答针对的是与之前不同的新题 → true；
 - quiet：玩家说“让我自己想想/别提示”→"on"；玩家主动求提示、要答案、说“我算出来了/我做完了/我有答案了”（哪怕还没给出答案）、或明确说可以提示了→"off"；否则 "none"；
 - evaluation：玩家给出了数学解答时填 {correctness, reasoning, assistance}，否则 null。correctness∈correct/incorrect/partial/unknown；reasoning∈valid/partial/invalid/not_assessed（答案对但理由不成立要写 invalid；独立正确的非标准方法写 valid）；assistance∈none/minor_hint/major_hint/worked_solution/unknown（玩家在得到提示后作答要如实标注）。
-格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"resumeTarget":"unspecified","pauseStory":false,"insightKey":null,"planRef":"none","planIndex":null,"tutorSolution":false,"newTask":false,"conceptId":null,"actionId":"plain-action","quiet":"none","evaluation":null}`;
+格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"resumeTarget":"unspecified","pauseStory":false,"insightKey":null,"planRef":"none","planIndex":null,"choiceId":null,"moveTo":null,"tutorSolution":false,"newTask":false,"conceptId":null,"actionId":"plain-action","quiet":"none","evaluation":null}`;
 
 const VERIFY_PROMPT = (input: string) => `[[VERIFY]] 先不要看玩家的结论，自己独立把题目解出来，再核对玩家的解答：结论是否正确，且推理是否确实成立（不是碰巧对，也不是照抄了提示）。只输出 JSON：{"ownAnswer":"你自己解出的最终结果","agree":true|false}。
 玩家输入：${input}`;
@@ -252,12 +256,14 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   const uncertain = (code: string, message: string): Result => ({ status: 200, body: { ok: true, uncertainty: true, code, message, intentSegments: [], academicEvaluation: null, gameCommit: null, narration: "", visibleFeedback: message } });
   // 1. 意图识别
   const ctx = await recentContext(env, sessionId);
+  const choiceList = await availableChoices(env, sessionId).catch(() => []);
+  const moveList = await availableMoves(env, sessionId).catch(() => []);
   let cls: Classification | null = null;
   let why = "";
   let raw = "";
   try {
     for (let attempt = 0; attempt < 3 && !cls; attempt++) {
-      raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused", ctx), [1500, 3000, 3000][attempt]);
+      raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused", ctx, choiceList.map((c) => c.choiceId), moveList.map((m) => m.sceneId + "=" + m.label)), [1500, 3000, 3000][attempt]);
       const v = validateClassification(parseJson(raw));
       if (v.ok) cls = v.value;
       else why = v.why;
@@ -355,7 +361,30 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       } else planId = pick.plan_id;
     }
   }
-  if (wantsAct && planOk) {
+  // 对话选择：玩家明确提交一个当前可选的对话选择 → 服务端触发 dialogue_choice_committed 事件（不掷骰）
+  let choiceDone = false;
+  let moved = false;
+  if (cls.choiceId && cls.explicitCommit && sess.status === "active") {
+    const pick = choiceList.find((c) => c.choiceId === cls.choiceId);
+    if (pick) {
+      choiceDone = true;
+      try {
+        const r = await commitChoice(env, { sessionId, commitId: "t-" + turnId, choiceId: pick.choiceId, npcId: pick.npcId });
+        worldEvents = r.status === 200 ? (r.body as any).worldEvents ?? [] : [];
+      } catch { worldEvents = []; }
+      if (!worldEvents.length) visible = "这个选择现在没有引起任何变化。";
+    }
+  }
+  // 移动：玩家明确前往当前场景允许的地点 → 服务端更新场景并触发 scene_entered 事件链（不掷骰）
+  if (!choiceDone && cls.moveTo && cls.explicitCommit && sess.status === "active" && moveList.some((m) => m.sceneId === cls.moveTo)) {
+    choiceDone = true;
+    try {
+      const r = await commitTravel(env, { sessionId, commitId: "t-" + turnId, target: cls.moveTo });
+      worldEvents = r.status === 200 ? (r.body as any).worldEvents ?? [] : [];
+      moved = r.status === 200;
+    } catch { worldEvents = []; }
+  }
+  if (wantsAct && planOk && !choiceDone) {
     if (sess.status !== "active" && !cls.storyResume) visible = "故事现在是暂停状态，没有执行行动。说“继续”就能回到刚才。";
     else {
       if (sess.status !== "active") await env.DB.prepare("UPDATE adventure_sessions SET status='active', updated_at=? WHERE id=?").bind(Date.now() / 1000, sessionId).run();
@@ -418,7 +447,9 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   else if (cls.quiet === "off" || cls.evaluation) quiet = false; // 主动求提示或提交了答案，静默结束
   if (quiet !== !!qrow?.quiet) await env.DB.prepare("INSERT INTO adventure_flags (session_id,quiet) VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET quiet=excluded.quiet").bind(sessionId, quiet ? 1 : 0).run();
   const route = ROUTING.reply[main] ?? ROUTING.reply.ASK;
-  const facts = commit ? `已提交的事实（只能叙述这些）：判定${commit.success ? "成功" : "失败"}（骰点${commit.roll}+知识加成${commit.bonus}，对 DC${commit.dc}）。${worldEvents.length ? "服务器确认的世界结果（只能据此叙述，可以润色措辞，但不能增加新事实）：" + worldEvents.map((w) => w.publicOutcome).join(" / ") + "。除此之外不要编造别的变化。" : "具体的环境变化、后果和故事推进服务器还没有给出，所以只能说“判定成功/失败，具体后果尚未确定”这类话；绝不能编造门打开、敌人退走、场景切换、目标达成或时间流逝。允许一句不带新事实的过渡，如“你按计划尝试，检定成功”。"}` : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。";
+  const sceneInfo = worldEvents.length || moved ? await publicSceneInfo(env, sessionId).catch(() => ({ active: false } as { active: boolean; publicText?: string })) : { active: false } as { active: boolean; publicText?: string };
+  const sceneFact = sceneInfo.publicText ? "（当前场景的公开描述，可据此叙述，不要超出它：" + sceneInfo.publicText + "）" : "";
+  const facts = sceneFact + (commit ? `已提交的事实（只能叙述这些）：判定${commit.success ? "成功" : "失败"}（骰点${commit.roll}+知识加成${commit.bonus}，对 DC${commit.dc}）。${worldEvents.length ? "服务器确认的世界结果（只能据此叙述，可以润色措辞，但不能增加新事实）：" + worldEvents.map((w) => w.publicOutcome).join(" / ") + "。除此之外不要编造别的变化。" : "具体的环境变化、后果和故事推进服务器还没有给出，所以只能说“判定成功/失败，具体后果尚未确定”这类话；绝不能编造门打开、敌人退走、场景切换、目标达成或时间流逝。允许一句不带新事实的过渡，如“你按计划尝试，检定成功”。"}` : moved && !worldEvents.length ? "玩家移动到了新的场景，服务器没有额外的事件结果；只能根据上面给出的场景公开描述叙述。" : worldEvents.length ? "玩家提交了一个选择或移动。服务器确认的世界结果（只能据此叙述，可以润色措辞，但不能增加新事实）：" + worldEvents.map((w) => w.publicOutcome).join(" / ") + "。除此之外不要编造别的变化。" : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。");
   const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `（内部记录，界面会另外显示标签，回复里不要出现这些字段名或英文标签）这位玩家本次解答的判定：${academic.correctness==='correct'?'结论正确':'结论有问题'}，${academic.reasoning==='valid'?'推理成立':'推理有缺陷'}。用自然的话告诉玩家结果和原因，不要写“学术评估”“correct”之类。` : ""}按玩家要的篇幅回答，别用任务菜单打断。玩家答对后，默认用一句话简短补充另一种方法或检查办法，并告诉他想深入可以继续问，不要强制展开；但玩家处于静默状态、或说了“只告诉我对不对”“让我自己想”“不要剧透步骤”时，不要主动给。玩家只是说“先别执行”这类暂缓时，回答“好，先不执行。你可以继续完善方案，或直接问我相关知识”，不要强迫他交步骤；只有他明确让你评估方案时才邀请他写出步骤。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n${ctx}\n玩家说“刚才的方法/那个/上一个”时，指上面最近对话里的内容，按那个理解，不要反问“你指哪个方法”。\n玩家输入：${input}`;
   let narration = "";
   let retry: { tier: string; provider: string; prompt: string; maxTok: number } | undefined;
@@ -442,6 +473,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       academicEvaluation: academic,
       gameCommit: commit,
       worldEvents,
+      ...(sceneInfo.publicText && (worldEvents.length || moved) ? { scene: { publicText: sceneInfo.publicText } } : {}),
       learningSessionDelta: { status: cur.status, segment: cur.segment, worldSeq: cur.world_seq, resumeCursor: { lessonOpen: cursor.open, lessonSegment: cursor.segment, nestedDepth: cursor.nested, resumeAsked: cursor.asked } },
       narration,
       quietMode: quiet,
