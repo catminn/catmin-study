@@ -21,7 +21,9 @@
     "A neutral continuation advances player-facing narration from authorized scene and committed consequences without inventing or committing an unchosen world event.",
     "After failed actions, read-only observations or successful travel, the DM preserves scene continuity and offers legal choices without compulsory mathematics or duplicate effects.",
     "Contextual action suggestions must be regenerated from the current committed scene, NPC availability and authorized player-visible facts; stale or hidden actions cannot remain selectable after a state change.",
-    "Suggestions are optional affordances, not the only legal input path: valid free-text actions remain possible, and neither Observe nor Continue commits a suggested action."
+    "Suggestions are optional affordances, not the only legal input path: valid free-text actions remain possible, and neither Observe nor Continue commits a suggested action.",
+    "Narration must preserve authored, player-authorized scene anchors and distinct NPC public voices; it may add sensory texture but cannot manufacture a discovery, player commitment or NPC private knowledge.",
+    "A failed legal action should produce a tangible, in-world consequence and remaining agency; raw internal IDs, unexplained system jargon and unsolicited roll dumps are not substitutes for story."
   ],
   "sequences": [
     {
@@ -1038,6 +1040,189 @@
           }
         }
       ]
+    },
+    {
+      "id": "narrative-public-text-anchors-and-momentum",
+      "setup": {
+        "worldSeq": 150,
+        "story": "active",
+        "currentScene": "demo-glasshouse",
+        "fictionalScenario": "Synthetic glasshouse, not the first formal world. Authorized publicText: Rain taps on the glass roof; a copper wind chime hangs still by the window; a blank card lies on the table. An ordinary door is visibly open. No writing, secret passage, or hidden character has been revealed."
+      },
+      "steps": [
+        {
+          "input": "看看四周。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 150,
+            "mode": "STORY",
+            "narrationMustGroundIn": [
+              "rain on glass roof",
+              "still copper wind chime",
+              "blank card"
+            ],
+            "narrationMustNotInvent": [
+              "writing on the blank card",
+              "secret passage",
+              "unrevealed person"
+            ],
+            "internalEngineLanguage": false,
+            "forcedQuiz": false
+          }
+        },
+        {
+          "input": "我凑近看那张卡片，但先不拿。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 150,
+            "observationOnly": true,
+            "cardStillBlank": true,
+            "inventoryUnchanged": true,
+            "unearnedFactReveal": false,
+            "narration": "specific_sensory_observation_without_uncommitted_discovery"
+          }
+        },
+        {
+          "input": "继续。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 150,
+            "sceneContinuity": "same_glasshouse",
+            "narration": "fresh_grounded_public_beat_or_short_in_world_prompt",
+            "verbatimOpeningRepeated": false,
+            "autoTravel": false,
+            "mathGate": false
+          }
+        },
+        {
+          "input": "我从那扇明确开放的门出去。",
+          "context": "Server confirms a legal public route and destination publicText.",
+          "expect": {
+            "commit": "only_after_validation",
+            "worldSeq": "increment_only_if_committed",
+            "arrivalNarration": "grounded_in_destination_public_text",
+            "staleSceneDescription": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-voice-differentiation-without-invented-knowledge",
+      "setup": {
+        "worldSeq": 160,
+        "story": "active",
+        "currentScene": "demo-foyer",
+        "fictionalScenario": "Synthetic foyer with two publicly present placeholder NPCs. The caretaker speaks in short, restrained phrases; the courier speaks quickly and asks lively questions. Both may describe the visible rain; neither has been told the player's private observation or the other's private beliefs. No dialogue choice is committed."
+      },
+      "steps": [
+        {
+          "input": "我问看门人，外面是不是在下雨。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 160,
+            "npcVoice": "caretaker_short_restrained",
+            "npcSpeech": "bounded_to_public_weather",
+            "inventedPrivateKnowledge": false,
+            "relationshipChanged": false
+          }
+        },
+        {
+          "input": "再问信使同样的问题。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 160,
+            "npcVoice": "courier_quick_lively_distinct_from_caretaker",
+            "npcSpeech": "bounded_to_public_weather",
+            "npcVoicesInterchangeable": false,
+            "relationshipChanged": false
+          }
+        },
+        {
+          "input": "看门人一定知道信使心里在想什么吧？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 160,
+            "privateBeliefLeaked": false,
+            "unverifiedClaimPromoted": false,
+            "npcResponse": "uncertainty_in_character_without_out_of_world_diagnostics"
+          }
+        },
+        {
+          "input": "算了，我自己看看门口，不再跟他们说话。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 160,
+            "mode": "STORY",
+            "npcDialogueForced": false,
+            "playerSpeechInvented": false,
+            "narration": "authorized_public_foyer_observation"
+          }
+        }
+      ]
+    },
+    {
+      "id": "failed-action-has-tangible-prose-and-honest-mechanics",
+      "setup": {
+        "worldSeq": 170,
+        "story": "active",
+        "currentScene": "demo-workshop",
+        "fictionalScenario": "Synthetic workshop. Player can try turning a stiff valve or take a visibly open ordinary exit. Deterministic legal valve attempt fails; authorized public outcome: valve remains stuck and player's sleeve gets wet. No math gate. Hidden RNG seed and private facts are never narrated."
+      },
+      "steps": [
+        {
+          "input": "我试着拧动那个阀门。",
+          "context": "Server commits the legal attempt with a failed game outcome.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 171,
+            "gameSuccess": false,
+            "narrationMustGroundIn": [
+              "valve remains stuck",
+              "sleeve gets wet"
+            ],
+            "narration": "in_world_consequence_not_raw_event_dump",
+            "rawInternalIdentifiers": false,
+            "unaskedRollNumbers": false,
+            "mathGate": false
+          }
+        },
+        {
+          "input": "那我现在还能做什么？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 171,
+            "contextActionsInclude": [
+              "Inspect valve",
+              "Use ordinary exit"
+            ],
+            "failureNotUndone": true,
+            "unearnedSuccessNarrated": false,
+            "forcedQuiz": false
+          }
+        },
+        {
+          "input": "继续。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 171,
+            "sceneContinuity": "same_workshop",
+            "failureConsequencePreserved": true,
+            "failedAttemptReplayed": false,
+            "autoSelectExit": false
+          }
+        },
+        {
+          "input": "刚才失败的判定是怎么来的？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 171,
+            "explanation": "authorized_game_mechanics_only",
+            "narrativeModeMayShiftForExplicitQuestion": true,
+            "hiddenRngOrPrivateWorldDataLeaked": false,
+            "retroactiveOutcomeChanged": false
+          }
+        }
+      ]
     }
   ],
   "testHarnessNotes": [
@@ -1052,6 +1237,8 @@
     "For neutral Continue and Observe, compare narrated facts against the server-authorized public scene/outcome projection; do not count plausible but uncommitted fiction as a pass.",
     "Check scene, event and reward state after each step, especially that repeated Continue never replays scene entry, consumes an offered route, or turns an ending notice into consent.",
     "For contextual-action sequences, inspect the visible suggestion labels after every turn as well as the server scene/NPC/fact state; never infer pass from correct narration alone.",
-    "Use synthetic scene/action labels only. Assert stale-action rejection, no private option leakage and no forced mathematics; the UI transport and action derivation implementation belong to Claude."
+    "Use synthetic scene/action labels only. Assert stale-action rejection, no private option leakage and no forced mathematics; the UI transport and action derivation implementation belong to Claude.",
+    "For prose-quality sequences, grade both grounded narrative anchors and prohibited inventions using the synthetic authorized publicText; stylistic plausibility alone is insufficient.",
+    "Assess NPC voices across consecutive turns and explicitly distinguish voluntary out-of-world mechanical explanation from unsolicited internal diagnostics."
   ]
 }
