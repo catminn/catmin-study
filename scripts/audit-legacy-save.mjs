@@ -8,6 +8,7 @@
 import { readFile, open } from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { inspectLegacyState, makeLegacyBackup } from '../public/study-core.mjs';
 export async function auditExport(inputPath, outputPath) {
  if (!inputPath || !outputPath || resolve(inputPath) === resolve(outputPath)) throw new Error('Specify distinct input and backup paths');
@@ -24,7 +25,7 @@ export async function auditExport(inputPath, outputPath) {
  return { inputSha256: createHash('sha256').update(raw).digest('hex'), backupId: backup.backupId,
    backupFile: resolve(outputPath), inspection, verified: true };
 }
-if (process.argv[1] && import.meta.url === new URL('file://' + resolve(process.argv[1])).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
  const [input, output] = process.argv.slice(2);
  auditExport(input, output).then(report => {
    // Paths supplied explicitly; never print raw saved data to logs.
