@@ -67,9 +67,13 @@ export interface Classification {
 }
 export function validateClassification(x: unknown): { ok: true; value: Classification } | { ok: false; why: string } {
   if (!isObj(x)) return { ok: false, why: "不是对象" };
-  const it = x.intents;
-  if (!Array.isArray(it) || !it.length || it.length > 5 || !it.every((v) => typeof v === "string" && INTENTS.has(v))) return { ok: false, why: "intents 不合法" };
-  if (typeof x.explicitCommit !== "boolean") return { ok: false, why: "explicitCommit 必须是布尔" };
+  // 对模型的小偏差宽容：未知意图丢掉（如 MIXED），拿不到任何有效意图时按 EXPLORE 处理；缺少 explicitCommit 当作 false（更安全）
+  const rawIt = Array.isArray(x.intents) ? x.intents : typeof x.intents === "string" ? [x.intents] : null;
+  if (!rawIt) return { ok: false, why: "intents 缺失" };
+  const it = rawIt.filter((v) => typeof v === "string" && INTENTS.has(v)).slice(0, 5);
+  if (!it.length) it.push("EXPLORE");
+  if (x.explicitCommit !== undefined && typeof x.explicitCommit !== "boolean") return { ok: false, why: "explicitCommit 必须是布尔" };
+  x.explicitCommit = x.explicitCommit === true;
   const resume = x.storyResume === undefined ? false : x.storyResume;
   if (typeof resume !== "boolean") return { ok: false, why: "storyResume 不合法" };
   const pause = x.pauseStory === undefined ? false : x.pauseStory;
@@ -86,7 +90,7 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
     if (!isObj(e) || !CORRECT.has(e.correctness as string) || !REASON.has(e.reasoning as string) || !ASSIST.has(e.assistance as string)) return { ok: false, why: "evaluation 不合法" };
     ev = { correctness: e.correctness as string, reasoning: e.reasoning as string, assistance: e.assistance as string };
   }
-  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, quiet: q as Classification["quiet"], evaluation: ev } };
+  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, quiet: q as Classification["quiet"], evaluation: ev } };
 }
 
 const CLASSIFY_PROMPT = (input: string, paused: boolean) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
@@ -156,14 +160,23 @@ async function pickBasis(env: SiteEnv, sessionId: string, chosen: string | null)
 async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: string, input: string, sess: any, chosen: string | null = null): Promise<Result> {
   const uncertain = (code: string, message: string): Result => ({ status: 200, body: { ok: true, uncertainty: true, code, message, intentSegments: [], academicEvaluation: null, gameCommit: null, narration: "", visibleFeedback: message } });
   // 1. 意图识别
-  let cls: Classification;
+  let cls: Classification | null = null;
+  let why = "";
+  let raw = "";
   try {
-    const raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused"), 400);
-    const v = validateClassification(parseJson(raw));
-    if (!v.ok) return uncertain("classification_failed", "这句话我没能可靠地理解，没有做任何改动。请换个说法再试一次。");
-    cls = v.value;
+    for (let attempt = 0; attempt < 2 && !cls; attempt++) {
+      raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused"), 400);
+      const v = validateClassification(parseJson(raw));
+      if (v.ok) cls = v.value;
+      else why = v.why;
+    }
   } catch {
-    return uncertain("model_unavailable", "模型暂时不可用，没有做任何改动，进度已保留。");
+    return uncertain("model_unavailable", "模型暂时不可用，没有提交任何行动，进度已保留。");
+  }
+  if (!cls) {
+    const r = uncertain("classification_failed", "这句话我没能可靠地理解，没有提交任何行动。请换个说法再试一次。");
+    r.body.detail = why + " | " + raw.slice(0, 300);
+    return r;
   }
   const intents = cls.intents;
 
@@ -184,7 +197,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
     evalEventId = "turn:" + turnId + ":eval";
     const ev = { id: evalEventId, type: "knowledge_attempt", topicId: ROUTING.topicId, at: Date.now(), ...cls.evaluation, verification, context: "adventure", transfer: false };
     const pr = await postEvent(env, ev);
-    if (pr.status !== 200) return uncertain("event_failed", "学习记录没写进去，没有做任何改动。");
+    if (pr.status !== 200) return uncertain("event_failed", "学习记录没写进去，没有提交任何行动。");
     let firstUse = true;
     if (cls.insightKey) {
       const ins = await env.DB.prepare("INSERT OR IGNORE INTO adventure_insight_use (event_id,insight_key,is_first) VALUES (?,?,1)").bind(evalEventId, sessionId + "|" + cls.insightKey).run();
@@ -252,7 +265,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   if (quiet !== !!qrow?.quiet) await env.DB.prepare("INSERT INTO adventure_flags (session_id,quiet) VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET quiet=excluded.quiet").bind(sessionId, quiet ? 1 : 0).run();
   const route = ROUTING.reply[main] ?? ROUTING.reply.ASK;
   const facts = commit ? `已提交的事实（只能叙述这些）：骰点${commit.roll}+知识加成${commit.bonus} 对 DC${commit.dc}，${commit.success ? "成功" : "失败"}。` : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。";
-  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `学术评估：${academic.correctness}/${academic.reasoning}/${academic.assistance}（${academic.verification}）。` : ""}按玩家要的篇幅回答，别用任务菜单打断。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n玩家输入：${input}`;
+  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `（内部记录，界面会另外显示标签，回复里不要出现这些字段名或英文标签）这位玩家本次解答的判定：${academic.correctness==='correct'?'结论正确':'结论有问题'}，${academic.reasoning==='valid'?'推理成立':'推理有缺陷'}。用自然的话告诉玩家结果和原因，不要写“学术评估”“correct”之类。` : ""}按玩家要的篇幅回答，别用任务菜单打断。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n玩家输入：${input}`;
   let narration = "";
   try {
     narration = await deps.complete(route.tier, route.provider, prompt, main === "LEARN" ? 1500 : 700);

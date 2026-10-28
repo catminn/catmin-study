@@ -4,7 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>冒险中学习 · 切片</title>
+<script>window.MathJax={tex:{inlineMath:[["$","$"],["\\(","\\)"]],displayMath:[["$$","$$"],["\\[","\\]"]]},svg:{fontCache:"global"},startup:{typeset:false}};</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg-full.js"></script>
 <style>
+.md{white-space:normal}.md p{margin:.4em 0}.md h1,.md h2,.md h3{font-size:1.05em;margin:.8em 0 .3em}.md ul,.md ol{padding-left:1.3em;margin:.3em 0}.md code{font-family:var(--mono);font-size:.9em}
+
 :root{--bg:#f6f5f2;--panel:#fff;--fg:#1d1d1f;--dim:#6b6b70;--line:#e3e1dc;--accent:#3b5bdb;--ok:#2b8a3e;--warn:#c92a2a;--mono:ui-monospace,Menlo,monospace}
 @media (prefers-color-scheme:dark){:root{--bg:#141416;--panel:#1d1d21;--fg:#ececf0;--dim:#9a9aa3;--line:#2c2c32;--accent:#7c93ff;--ok:#69db7c;--warn:#ff8787}}
 *{box-sizing:border-box}
@@ -57,16 +63,18 @@ const api=async(p,body)=>{const r=await fetch(p,body?{method:"POST",headers:{"co
 function bar(s){const b=$("#bar");b.replaceChildren();const add=(t,c)=>{const e=document.createElement("span");e.className="pill"+(c?" "+c:"");e.textContent=t;b.append(e)};
   add(s.status==="paused"?"故事暂停中":"故事进行中",s.status==="paused"?"paused":"");add("世界事件 "+s.worldSeq);add("教学进度 "+s.segment)}
 async function refresh(){let r=await api("/api/adventure/session?id="+encodeURIComponent(SID));if(r.status===404)r=await api("/api/adventure/session",{sessionId:SID,op:"start"});if(r.j&&r.j.status)bar(r.j)}
-function bubble(text,cls){const d=document.createElement("div");d.className="msg "+(cls||"");d.textContent=text;log.append(d);d.scrollIntoView({block:"end"});return d}
+function bubble(text,cls,md){const d=document.createElement("div");d.className="msg "+(cls||"");
+  if(md&&window.marked&&window.DOMPurify){d.classList.add("md");d.innerHTML=DOMPurify.sanitize(marked.parse(text,{breaks:true}));if(window.MathJax&&MathJax.typesetPromise)MathJax.typesetPromise([d]).catch(()=>{})}else d.textContent=text;
+  log.append(d);d.scrollIntoView({block:"end"});return d}
 function tag(box,t,c){const e=document.createElement("span");e.className="tag "+(c||"");e.textContent=t;box.append(e)}
 const IN={ASK:"提问",LEARN:"学习",PRACTICE:"练习",EXPLORE:"探索",ACT:"行动"};
 const CO={correct:"答案正确",incorrect:"答案不对",partial:"部分正确",unknown:"正确性未知"},RE={valid:"推理成立",partial:"推理部分成立",invalid:"推理不成立",not_assessed:"推理未评估"},AS={none:"独立完成",minor_hint:"小提示",major_hint:"大提示",worked_solution:"看了解答",unknown:"提示未知"},VE={confirmed:"已确认",pending:"待验证",rejected:"被驳回"};
 function render(o){
-  const d=bubble(o.narration||o.visibleFeedback||"（没有回复）");const m=document.createElement("div");m.className="meta";
+  const d=bubble(o.narration||o.visibleFeedback||"（没有回复）","",!!o.narration);const m=document.createElement("div");m.className="meta";
   (o.intentSegments||[]).forEach(i=>tag(m,IN[i]||i));
   const a=o.academicEvaluation;if(a){tag(m,CO[a.correctness]||a.correctness,a.correctness==="correct"?"ok":"");tag(m,RE[a.reasoning]||a.reasoning,a.reasoning==="valid"?"ok":a.reasoning==="invalid"?"warn":"");tag(m,AS[a.assistance]||a.assistance);tag(m,VE[a.verification]||a.verification,a.verification==="confirmed"?"ok":"");if(a.repeatedInsight)tag(m,"重复思路，不加成")}
   const g=o.gameCommit;if(g){tag(m,"骰点 "+g.roll+(g.bonus?" +"+g.bonus+" 知识":"")+" 对 DC "+g.dc,"");tag(m,g.success?"成功":"失败",g.success?"ok":"warn")}
-  if(o.uncertainty)tag(m,"不确定，未做任何改动","warn");
+  if(o.uncertainty)tag(m,"不确定，未提交行动","warn");if(o.detail)tag(m,"诊断："+o.detail.slice(0,160));
   if(o.visibleFeedback&&o.narration)tag(m,o.visibleFeedback);
   if(m.childNodes.length)d.append(m);
   if(o.learningSessionDelta)bar(o.learningSessionDelta)}
