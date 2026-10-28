@@ -61,3 +61,25 @@ export async function readContentInternal(env: SiteEnv, kind: string, id: string
     : await env.DB.prepare("SELECT rev, body FROM adventure_content WHERE kind=? AND id=? AND rev=?").bind(kind, id, rev).first<{ rev: number; body: string }>();
   return r ? { rev: r.rev, content: JSON.parse(r.body) } : null;
 }
+
+// 只读比对（管理员）：把一个内容包与线上最新修订逐条比较，只返回计数，不写入、不返回正文或 id。
+export async function compareContent(env: SiteEnv, b: any): Promise<R> {
+  await ensure(env);
+  const recs = b && Array.isArray(b.records) ? b.records : null;
+  if (!recs || recs.length > 2000) return bad(400, "bad_request", "需要 {records:[{kind,id,content}]}");
+  let identical = 0, different = 0, missing = 0, invalid = 0;
+  const kinds = new Set<string>(), prefixes = new Set<string>(), seen = new Set<string>();
+  for (const r of recs) {
+    if (!r || !(CONTENT_KINDS as readonly string[]).includes(r.kind) || !idOk(r.kind, r.id) || !r.content || typeof r.content !== "object") { invalid++; continue; }
+    kinds.add(r.kind); prefixes.add(r.id.includes(":") ? r.id.slice(0, r.id.indexOf(":")) : ""); seen.add(r.kind + " " + r.id);
+    const last = await env.DB.prepare("SELECT body FROM adventure_content WHERE kind=? AND id=? ORDER BY rev DESC LIMIT 1").bind(r.kind, r.id).first<{ body: string }>();
+    if (!last) missing++; else if (last.body === JSON.stringify(r.content)) identical++; else different++;
+  }
+  // 线上同命名空间、同类、但不在包里的记录数（导入不会删除它们）
+  let onlineNotInBundle = 0;
+  for (const k of kinds) for (const pre of prefixes) {
+    const rs = await env.DB.prepare(pre ? "SELECT DISTINCT id FROM adventure_content WHERE kind=? AND id LIKE ?" : "SELECT DISTINCT id FROM adventure_content WHERE kind=? AND id NOT LIKE '%:%'").bind(...(pre ? [k, pre + ":%"] : [k])).all<{ id: string }>();
+    for (const x of rs.results ?? []) if (!seen.has(k + " " + x.id)) onlineNotInBundle++;
+  }
+  return { status: 200, body: { ok: true, records: recs.length, identical, different, missing, invalid, onlineNotInBundle } };
+}

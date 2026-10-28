@@ -23,6 +23,7 @@ function ensure(env: SiteEnv) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_threads (session_id TEXT NOT NULL, thread_id TEXT NOT NULL, audience TEXT NOT NULL, carryover TEXT NOT NULL, status TEXT NOT NULL, opened_by TEXT NOT NULL, resolved_by TEXT, PRIMARY KEY (session_id,thread_id))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_fact_src (session_id TEXT NOT NULL, fact_id TEXT NOT NULL, source_ref TEXT NOT NULL, scene_id TEXT NOT NULL, PRIMARY KEY (session_id,fact_id))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_pin (session_id TEXT PRIMARY KEY, world_id TEXT NOT NULL, world_rev INTEGER NOT NULL, ns INTEGER NOT NULL DEFAULT 0)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_pin_rev (session_id TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, rev INTEGER NOT NULL, PRIMARY KEY (session_id,kind,id))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_applied (session_id TEXT NOT NULL, event_key TEXT NOT NULL, action_id TEXT NOT NULL, public_outcome TEXT, PRIMARY KEY (session_id,event_key))`),
   ]).then(async (r) => { await env.DB.prepare("ALTER TABLE adventure_world_pin ADD COLUMN ns INTEGER NOT NULL DEFAULT 0").run().catch(() => null); return r; }).catch((e) => { ready = null; throw e; }));
@@ -51,7 +52,11 @@ async function listWorlds(env: SiteEnv): Promise<Pin[]> {
 async function chooseWorld(env: SiteEnv, requested?: string): Promise<Pin | null> {
   const all = await listWorlds(env);
   if (requested !== undefined) { const m = all.filter((w) => w.id === requested); return m.length === 1 ? m[0] : null; }
-  return all.length === 1 ? all[0] : null;
+  if (all.length === 1) return all[0];
+  // 世界不唯一：只有管理员显式设置了默认世界时，新会话才固定到它；否则失败关闭
+  const d = await env.DB.prepare("SELECT value FROM adventure_world_config WHERE key='defaultWorldId'").first<{ value: string }>().catch(() => null);
+  const m = d ? all.filter((w) => w.id === d.value) : [];
+  return m.length === 1 ? m[0] : null;
 }
 const sstore = (pin: Pin, local: string) => (pin.ns ? pin.id + ":" + local : local);
 async function writePin(env: SiteEnv, sid: string, w: Pin): Promise<void> {
@@ -84,6 +89,37 @@ export async function pinWorldForSession(env: SiteEnv, sid: string, worldId: str
   if (!w) return false;
   await writePin(env, sid, w);
   return true;
+}
+// —— 管理员：新旧世界并存 ——（只返回计数/世界 id，不返回会话 id 或正文）
+async function worldSummary(env: SiteEnv) {
+  const all = await listWorlds(env);
+  const d = await env.DB.prepare("SELECT value FROM adventure_world_config WHERE key='defaultWorldId'").first<{ value: string }>();
+  return { worlds: all.map((w) => ({ worldId: w.id, namespaced: !!w.ns, rev: w.rev })), defaultWorldId: d?.value ?? null };
+}
+export async function getDefaultWorld(env: SiteEnv): Promise<{ status: number; body: unknown }> {
+  await ensure(env);
+  return { status: 200, body: { ok: true, ...(await worldSummary(env)) } };
+}
+// 默认世界只影响“之后新开、且没有显式选择世界”的会话；已固定的会话永不改变。null 清除。
+export async function setDefaultWorld(env: SiteEnv, b: any): Promise<{ status: number; body: unknown }> {
+  await ensure(env);
+  if (!b || !("worldId" in b)) return { status: 400, body: { ok: false, error: "bad_request" } };
+  if (b.worldId === null) { await env.DB.prepare("DELETE FROM adventure_world_config WHERE key='defaultWorldId'").run(); return getDefaultWorld(env); }
+  if (typeof b.worldId !== "string" || (await listWorlds(env)).filter((w) => w.id === b.worldId).length !== 1) return { status: 404, body: { ok: false, error: "unknown_world" } };
+  await env.DB.prepare("INSERT INTO adventure_world_config (key,value) VALUES ('defaultWorldId',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(b.worldId).run();
+  return getDefaultWorld(env);
+}
+// 把所有已有世界状态、但还没固定的会话显式固定到唯一的旧版（无前缀）世界，并快照当时修订。需要 {confirm:true}。
+// 旧版世界不是恰好 1 个 → 409，什么都不做。已固定的会话不动。幂等。
+export async function pinLegacySessions(env: SiteEnv, b: any): Promise<{ status: number; body: unknown }> {
+  await ensure(env);
+  const legacy = (await listWorlds(env)).filter((w) => !w.ns);
+  if (legacy.length !== 1) return { status: 409, body: { ok: false, error: "legacy_world_not_unique", legacyWorlds: legacy.length } };
+  const rows = (await env.DB.prepare("SELECT w.session_id AS sid, p.session_id AS pinned FROM adventure_world w LEFT JOIN adventure_world_pin p ON p.session_id=w.session_id").all<{ sid: string; pinned: string | null }>()).results ?? [];
+  const todo = rows.filter((r) => !r.pinned);
+  if (!b || b.confirm !== true) return { status: 200, body: { ok: true, dryRun: true, sessions: rows.length, alreadyPinned: rows.length - todo.length, wouldPin: todo.length } };
+  for (const r of todo) await writePin(env, r.sid, legacy[0]);
+  return { status: 200, body: { ok: true, sessions: rows.length, alreadyPinned: rows.length - todo.length, pinned: todo.length } };
 }
 // 读世界内容（会话固定的世界与修订）。ref 可为 localId 或本世界的 <worldId>:<localId>。
 export async function readWorldContent(env: SiteEnv, sid: string, kind: string, ref: unknown): Promise<{ rev: number; content: any } | null> {

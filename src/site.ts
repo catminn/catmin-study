@@ -7,7 +7,8 @@ import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
 import { handleTurn } from "./turn";
 import { commitChoice, commitTravel, snapshotStats } from "./world";
-import { putContent, listContent } from "./content";
+import { putContent, listContent, compareContent } from "./content";
+import { pinLegacySessions, getDefaultWorld, setDefaultWorld } from "./world";
 import { publicSceneInfo } from "./world";
 import { approveProposal, courseStatus, getProposal, proposePack, removeFolder, setFolder, syncCourse } from "./coursesync";
 import { auditStats, declineOffer, getProfile, putProfile } from "./learning";
@@ -517,8 +518,8 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
       const st = await snapshotStats(env, url.searchParams.get("id") || "");
       return json({ ok: true, snapshot: st });
     }
-    if (p === "/api/adventure/content") {
-      // 内容库管理员通道：登录会话还不够，必须在请求头再带一次主口令（X-Owner-Password）；失败 5 次锁 15 分钟。
+    if (p === "/api/adventure/content" || p.startsWith("/api/adventure/admin/")) {
+      // 内容库/世界管理员通道：登录会话还不够，必须在请求头再带一次主口令（X-Owner-Password）；失败 5 次锁 15 分钟。
       const ip = req.headers.get("CF-Connecting-IP") ?? "local";
       const fk = "cfail:" + ip;
       if (Number((await env.OAUTH_KV.get(fk)) ?? 0) >= 5) return err("locked", "尝试次数过多，请稍后再试", 429);
@@ -527,8 +528,14 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
         await env.OAUTH_KV.put(fk, String(Number((await env.OAUTH_KV.get(fk)) ?? 0) + 1), { expirationTtl: 900 });
         return err("forbidden", "内容库仅限管理员", 403);
       }
-      if (req.method === "PUT") return asJson(await putContent(env, await req.json().catch(() => null)));
-      if (req.method === "GET") return asJson(await listContent(env, url)); // 只返回元数据，正文永不经 HTTP 返回
+      if (p === "/api/adventure/admin/compare" && req.method === "POST") return asJson(await compareContent(env, await req.json().catch(() => null))); // 只读：只返回计数
+      if (p === "/api/adventure/admin/pin-legacy" && req.method === "POST") return asJson(await pinLegacySessions(env, await req.json().catch(() => null)));
+      if (p === "/api/adventure/admin/default-world") {
+        if (req.method === "GET") return asJson(await getDefaultWorld(env));
+        if (req.method === "PUT") return asJson(await setDefaultWorld(env, await req.json().catch(() => null)));
+      }
+      if (p === "/api/adventure/content" && req.method === "PUT") return asJson(await putContent(env, await req.json().catch(() => null)));
+      if (p === "/api/adventure/content" && req.method === "GET") return asJson(await listContent(env, url)); // 只返回元数据，正文永不经 HTTP 返回
       return err("not_found", "没有这个接口", 404);
     }
     if (p === "/api/rewards/balance" && req.method === "GET") return asJson(await getBalance(env));
