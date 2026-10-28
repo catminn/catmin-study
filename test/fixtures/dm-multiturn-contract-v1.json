@@ -1,6 +1,6 @@
 {
   "schema": "dm-multiturn-contract-v1",
-  "purpose": "Stateful, spoiler-free acceptance sequences for the MATH 1920 sandbox. These are behavioral contracts; the existing single-turn run-fixtures.py does not execute them.",
+  "purpose": "Stateful, spoiler-free multi-turn DM acceptance sequences using synthetic sandbox worlds and course examples. These behavioral contracts are not executed by the existing single-turn fixture runner.",
   "ownership": {
     "experience": "ChatGPT",
     "implementation": "Claude"
@@ -28,8 +28,9 @@
     "A committed heard claim survives lawful travel but remains attributed testimony until independently authorized verification; a player's assertion or a narrator's confident wording never upgrades it.",
     "A public route preview, draft or question is not a committed choice; route closures require explicit server-owned effects and eligibility checks, not narrator implication.",
     "Returning to a previous scene never rewinds committed costs or relationships; latent route consequences remain unspoken until an authorized public outcome makes them observable.",
-    "Course application matching uses exact registered IDs at runtime; legacy aliases are an explicit validated authoring migration, never a silent in-session rewrite.",
-    "A shared application tag does not authorize offers from unenrolled courses or infer mastery, and an optional learningOffer never blocks ordinary story actions."
+    "Runtime learning matching may canonicalize explicitly registered legacy aliases in a read-only projection, but must never rewrite pinned world content; unknown application tags must fail closed even if the scene and course use the same unknown string.",
+    "A shared application tag does not authorize offers from unenrolled courses or infer mastery, and an optional learningOffer never blocks ordinary story actions.",
+    "A canonical learning-application match still requires a visible authorized scene cue, enrolled approved course, player consent and director eligibility; an offer never commits a world action or mastery evidence."
   ],
   "sequences": [
     {
@@ -1676,45 +1677,47 @@
       ]
     },
     {
-      "id": "learning-legacy-application-requires-explicit-migration",
+      "id": "learning-legacy-application-normalized-read-only",
       "setup": {
         "worldSeq": 250,
         "story": "active",
         "currentScene": "demo-ramp",
-        "fictionalScenario": "Synthetic scene still declares legacy application infer-slope, while approved concept only declares canonical terrain.infer-change-direction. The current adapter performs exact string matching; alias mapping exists only in a separate authoring taxonomy. No authorized revision migration has occurred."
+        "fictionalScenario": "Synthetic ramp with a visible nonnumeric public cue. Approved enrolled math1920 concept uses terrain.infer-change-direction; the scene's authored affordance still stores legacy infer-slope. The registered taxonomy maps the alias at runtime; director allows one optional offer. The world record and pinned revision remain unchanged."
       },
       "steps": [
         {
-          "input": "看看坡道，有什么可以研究的？",
+          "input": "先观察这段公开的坡道。",
           "expect": {
             "commit": false,
             "worldSeq": 250,
-            "ordinaryObservationAvailable": true,
-            "legacyAliasAutoMatched": false,
-            "learningOfferFromMismatchedTag": false,
-            "worldContentAutoMigrated": false
+            "authorizedPublicCueDescribed": true,
+            "knownAliasNormalizedForEligibility": true,
+            "optionalOfferAtMostOne": true,
+            "worldContentRewritten": false,
+            "privateApplicationIdShown": false,
+            "inventedMeasurements": false
           }
         },
         {
-          "input": "那我就沿着已经公开的普通通道走，不做数学。",
-          "context": "A separate lawful travel is available without the learning opportunity.",
+          "input": "我暂时不想学这个，先看看别的。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 250,
+            "declineHonored": true,
+            "repeatedOffer": false,
+            "forcedQuiz": false,
+            "worldContentRewritten": false
+          }
+        },
+        {
+          "input": "沿着已经开放的普通通道走。",
+          "context": "The synthetic nonacademic travel is lawful; the prior refusal must not block it.",
           "expect": {
             "commit": true,
             "worldSeq": 251,
             "ordinaryRouteAllowed": true,
-            "quizDemanded": false,
-            "hiddenFactsExposed": false
-          }
-        },
-        {
-          "input": "为什么刚才没提示我计算？",
-          "context": "Player asks out of world for an explanation. This is a read-only query, not permission to rewrite content or reveal private records.",
-          "expect": {
-            "commit": false,
-            "worldSeq": 251,
-            "explanationWithoutPrivateIds": true,
-            "aliasSilentlyApplied": false,
-            "learningReward": false
+            "learningPenalty": false,
+            "automaticMasteryEvidence": false
           }
         }
       ]
@@ -1772,6 +1775,52 @@
           }
         }
       ]
+    },
+    {
+      "id": "learning-identical-unknown-applications-fail-closed",
+      "setup": {
+        "worldSeq": 270,
+        "story": "active",
+        "currentScene": "demo-gallery",
+        "fictionalScenario": "Synthetic gallery with an authorized visible cue. An enrolled, structurally valid manually imported course concept and the scene affordance BOTH use identical unregistered application label unlisted.synthetic-application. The label is neither canonical nor a declared alias; director would otherwise permit an offer. This deliberately exercises unknown-on-both-sides collision rather than a one-sided mismatch."
+      },
+      "steps": [
+        {
+          "input": "看看展板上公开写了什么。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 270,
+            "ordinaryObservationAvailable": true,
+            "registeredApplicationMatch": false,
+            "learningOfferFromUnknownTag": false,
+            "unknownTagGuessedAsCanonical": false,
+            "worldFactsUnchanged": true
+          }
+        },
+        {
+          "input": "这个能不能拿来解释一点相关的数学？",
+          "context": "The learner explicitly asks a conceptual question; no registered scene-linked offer or evidence grant is authorized.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 270,
+            "voluntaryGeneralExplanationAllowed": true,
+            "unknownTagNotActivated": true,
+            "sceneLearningOffer": false,
+            "automaticMasteryEvidence": false
+          }
+        },
+        {
+          "input": "那先走公开的普通出口。",
+          "context": "An unrelated nonacademic exit is lawful.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 271,
+            "ordinaryRouteAllowed": true,
+            "forcedQuiz": false,
+            "hiddenFactsExposed": false
+          }
+        }
+      ]
     }
   ],
   "testHarnessNotes": [
@@ -1790,7 +1839,8 @@
     "For prose-quality sequences, grade both grounded narrative anchors and prohibited inventions using the synthetic authorized publicText; stylistic plausibility alone is insufficient.",
     "Assess NPC voices across consecutive turns and explicitly distinguish voluntary out-of-world mechanical explanation from unsolicited internal diagnostics.",
     "For route-consequence sequences, distinguish physical backtracking from state rollback; grade the visible consequence and the prohibition on prematurely revealing latent server-private flags.",
-    "For cross-course offers, compare approved course concept IDs and scene affordance application IDs exactly; test the legacy-alias mismatch against the current adapter before claiming migration support.",
-    "Natural-learning prose acceptance requires checking actual DM text for unsolicited quiz imperatives, invented numeric evidence, and repeated offers after decline; fixture expectations alone are not a model pass."
+    "For cross-course offers, compare approved course scope after registered application canonicalization. The server normalizes known aliases before calling the exact-match adapter; test that this read-only normalization does not rewrite pinned content.",
+    "Natural-learning prose acceptance requires checking actual DM text for unsolicited quiz imperatives, invented numeric evidence, and repeated offers after decline; fixture expectations alone are not a model pass.",
+    "For unknown-tag collision, use a structurally valid manually imported course pack and scene with the same unregistered application; inspect actual server learningOffer eligibility. Equal unknown strings must fail closed even if visible cues and enrollment are present."
   ]
 }
