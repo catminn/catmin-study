@@ -2,6 +2,7 @@
 // 服务器规则优先于模型输出：模型不能自己提交行动、不能指定依据事件、不能把待验证说成已确认。
 //   POST /api/adventure/turn {sessionId, turnId, inputText}   同 turnId 重试返回原回复，不重复调用模型/不重复提交
 import type { SiteEnv } from "./site";
+import { sceneRequest, narrationViolatesSceneContract } from "./scene-intent";
 import { applyTrigger, availableChoices, availableMoves, commitChoice, commitTravel, publicSceneInfo, replayPublicOutcomes, type PublicEvent } from "./world";
 import { ACTIONS, CONCEPTS, CONFIG, postAction } from "./adventure";
 import { postEvent } from "./events";
@@ -276,6 +277,9 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
     r.body.detail = why + " | len=" + raw.length + " | " + raw.slice(0, 500) + (raw.length > 500 ? " …… " + raw.slice(-250) : "");
     return r;
   }
+  const sceneReq=sceneRequest(input,moveList);
+  if(sceneReq.moveTo && sess.status==="active"){cls.moveTo=sceneReq.moveTo;cls.explicitCommit=true;cls.planRef="inline";cls.intents=["ACT"];}
+  else if(sceneReq.observation && sess.status==="active"){cls.intents=["EXPLORE"];cls.explicitCommit=false;cls.evaluation=null;}
   const intents = cls.intents;
 
   // 2. 学术评估记录（独立于骰子；待验证的不发奖励、不给加成）
@@ -449,7 +453,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   const route = ROUTING.reply[main] ?? ROUTING.reply.ASK;
   const sceneInfo = sess.status === "active" ? await publicSceneInfo(env, sessionId).catch(() => ({ active: false } as { active: boolean; publicText?: string })) : { active: false } as { active: boolean; publicText?: string };
   const sceneFact = sceneInfo.publicText ? "（玩家当前所在场景的公开描述。玩家观察、张望、探索、问周围有什么，或说“继续”而没有待办数学内容时，直接据此沉浸式描写，不要超出它，不要编造它没写的隐藏事实或人物身份；这是静态环境，不需要任何“提交”。" + sceneInfo.publicText + "）" : "";
-  const facts = sceneFact + (commit ? `已提交的事实（只能叙述这些）：判定${commit.success ? "成功" : "失败"}（骰点${commit.roll}+知识加成${commit.bonus}，对 DC${commit.dc}）。${worldEvents.length ? "服务器确认的世界结果（只能据此叙述，可以润色措辞，但不能增加新事实）：" + worldEvents.map((w) => w.publicOutcome).join(" / ") + "。除此之外不要编造别的变化。" : "具体的环境变化、后果和故事推进服务器还没有给出，所以只能说“判定成功/失败，具体后果尚未确定”这类话；绝不能编造门打开、敌人退走、场景切换、目标达成或时间流逝。允许一句不带新事实的过渡，如“你按计划尝试，检定成功”。"}` : moved && !worldEvents.length ? "玩家移动到了新的场景，服务器没有额外的事件结果；只能根据上面给出的场景公开描述叙述。" : worldEvents.length ? "玩家提交了一个选择或移动。服务器确认的世界结果（只能据此叙述，可以润色措辞，但不能增加新事实）：" + worldEvents.map((w) => w.publicOutcome).join(" / ") + "。除此之外不要编造别的变化。" : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。");
+  const facts = sceneFact + (commit ? `已提交的事实（只能叙述这些）：判定${commit.success ? "成功" : "失败"}（骰点${commit.roll}+知识加成${commit.bonus}，对 DC${commit.dc}）。${worldEvents.length ? "服务器确认的世界结果（只能据此叙述，可以润色措辞，但不能增加新事实）：" + worldEvents.map((w) => w.publicOutcome).join(" / ") + "。除此之外不要编造别的变化。" : "具体的环境变化、后果和故事推进服务器还没有给出，所以只能说“判定成功/失败，具体后果尚未确定”这类话；绝不能编造门打开、敌人退走、场景切换、目标达成或时间流逝。允许一句不带新事实的过渡，如“你按计划尝试，检定成功”。"}` : moved && !worldEvents.length ? "玩家移动到了新的场景，服务器没有额外的事件结果；只能根据上面给出的场景公开描述叙述。" : worldEvents.length ? "玩家提交了一个选择或移动。服务器确认的世界结果（只能据此叙述，可以润色措辞，但不能增加新事实）：" + worldEvents.map((w) => w.publicOutcome).join(" / ") + "。除此之外不要编造别的变化。" : sceneInfo.active ? "当前没有新的世界状态变化；可以直接描写已公开的静态环境。观察不需要提交任何行动，也不能要求数学验证。" : "目前没有可用的场景资料，不要编造具体世界事实。");
   const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `（内部记录，界面会另外显示标签，回复里不要出现这些字段名或英文标签）这位玩家本次解答的判定：${academic.correctness==='correct'?'结论正确':'结论有问题'}，${academic.reasoning==='valid'?'推理成立':'推理有缺陷'}。用自然的话告诉玩家结果和原因，不要写“学术评估”“correct”之类。` : ""}按玩家要的篇幅回答，别用任务菜单打断。玩家答对后，默认用一句话简短补充另一种方法或检查办法，并告诉他想深入可以继续问，不要强制展开；但玩家处于静默状态、或说了“只告诉我对不对”“让我自己想”“不要剧透步骤”时，不要主动给。玩家只是说“先别执行”这类暂缓时，回答“好，先不执行。你可以继续完善方案，或直接问我相关知识”，不要强迫他交步骤；只有他明确让你评估方案时才邀请他写出步骤。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n${ctx}\n面向玩家绝不使用内部措辞，如“探索意图”“具体世界行动”“没有提交”“验证数学方法”“服务器”“场景ID”；玩家想去某处却没成功时，用世界里的阻碍说一句（如“那条路现在走不通”）并提示他还能做什么。玩家说“继续/继续刚才的”且没有待验证的数学内容时，接着当前场景往下描写，不要要求他交数学方法。玩家说“刚才的方法/那个/上一个”时，指上面最近对话里的内容，按那个理解，不要反问“你指哪个方法”。\n玩家输入：${input}`;
   let narration = "";
   let retry: { tier: string; provider: string; prompt: string; maxTok: number } | undefined;
@@ -460,6 +464,8 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
     narration = "";
     visible = visible || "回复模型暂时不可用，但记录和进度都已保存。";
   }
+  if(sceneReq.observation && sceneInfo.active && sceneInfo.publicText &&
+    (!narration.trim() || narrationViolatesSceneContract(narration))) narration=sceneInfo.publicText;
   const cur = await env.DB.prepare("SELECT status, segment, world_seq FROM adventure_sessions WHERE id=?").bind(sessionId).first<any>();
   return {
     status: 200,
