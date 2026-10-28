@@ -42,6 +42,7 @@ function ensureSchema(env: SiteEnv) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_action_meta (action_id TEXT PRIMARY KEY, template TEXT NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_insight_use (event_id TEXT PRIMARY KEY, insight_key TEXT NOT NULL, is_first INTEGER NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_flags (session_id TEXT PRIMARY KEY, quiet INTEGER NOT NULL)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_cursor (session_id TEXT PRIMARY KEY, lesson_open INTEGER NOT NULL, lesson_segment INTEGER NOT NULL, nested_depth INTEGER NOT NULL DEFAULT 0, resume_asked INTEGER NOT NULL DEFAULT 0, updated_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_insight_first ON adventure_insight_use(insight_key) WHERE is_first=1`),
   ])
     .catch((e) => {
@@ -74,6 +75,7 @@ export interface Classification {
   intents: string[];
   explicitCommit: boolean;
   storyResume: boolean;
+  resumeTarget: "lesson" | "story" | "unspecified";
   pauseStory: boolean;
   insightKey: string | null;
   planRef: "none" | "previous" | "inline";
@@ -96,6 +98,8 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
   x.explicitCommit = x.explicitCommit === true;
   const resume = x.storyResume === undefined ? false : x.storyResume;
   if (typeof resume !== "boolean") return { ok: false, why: "storyResume 不合法" };
+  const rt = x.resumeTarget === undefined || x.resumeTarget === null ? "unspecified" : x.resumeTarget;
+  if (rt !== "lesson" && rt !== "story" && rt !== "unspecified") return { ok: false, why: "resumeTarget 不合法" };
   const pause = x.pauseStory === undefined ? false : x.pauseStory;
   if (typeof pause !== "boolean") return { ok: false, why: "pauseStory 不合法" };
   const ik = x.insightKey === undefined || x.insightKey === null ? null : x.insightKey;
@@ -114,7 +118,7 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
     if (!isObj(e) || !CORRECT.has(e.correctness as string) || !REASON.has(e.reasoning as string) || !ASSIST.has(e.assistance as string)) return { ok: false, why: "evaluation 不合法" };
     ev = { correctness: e.correctness as string, reasoning: e.reasoning as string, assistance: e.assistance as string };
   }
-  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, planIndex: pi as number | null, tutorSolution: x.tutorSolution === true, newTask: x.newTask === true, conceptId: cid, actionTemplate: at, quiet: q as Classification["quiet"], evaluation: ev } };
+  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, resumeTarget: rt as Classification["resumeTarget"], pauseStory: pause, insightKey: ik as string | null, planRef: pr, planIndex: pi as number | null, tutorSolution: x.tutorSolution === true, newTask: x.newTask === true, conceptId: cid, actionTemplate: at, quiet: q as Classification["quiet"], evaluation: ev } };
 }
 
 const CLASSIFY_PROMPT = (input: string, paused: boolean, ctx: string) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
@@ -127,6 +131,7 @@ ${ctx}
 - 注意：玩家只说“先让我自己想想”这类，intents 用 ["ASK"] 并且 quiet="on"，不要判成 PRACTICE；
 - explicitCommit：玩家是否明确要求“现在就执行”。只是计划、设想、“先不要执行”都必须是 false；
 - storyResume：玩家是否要求回到刚才的故事/继续；
+- resumeTarget：storyResume 为 true 时，玩家说的“继续”指什么："lesson"=继续刚才的课/题，"story"=回到故事，"unspecified"=只说“继续”看不出来；
 - pauseStory：玩家是否明确要求离开故事去纯刷题（如“不要剧情”“先刷题”）；故事里顺便作答不算；
 - insightKey：这次解答用到的核心思路的稳定短标识（小写英文数字和连字符，如 expand-then-differentiate）；同一个思路换说法重复出现必须用同一个标识，没有评估时为 null；
 - planRef：玩家要执行行动时，指令本身是否把行动说清楚了。"inline"=指令自己说明了要做什么；"previous"=指代之前商量/草拟过的方案（如“刚才那个”）；"none"=不涉及执行。指代不清也写 "previous"；
@@ -137,7 +142,7 @@ ${ctx}
 - newTask：玩家这次提交的解答针对的是与之前不同的新题 → true；
 - quiet：玩家说“让我自己想想/别提示”→"on"；玩家主动求提示、要答案、说“我算出来了/我做完了/我有答案了”（哪怕还没给出答案）、或明确说可以提示了→"off"；否则 "none"；
 - evaluation：玩家给出了数学解答时填 {correctness, reasoning, assistance}，否则 null。correctness∈correct/incorrect/partial/unknown；reasoning∈valid/partial/invalid/not_assessed（答案对但理由不成立要写 invalid；独立正确的非标准方法写 valid）；assistance∈none/minor_hint/major_hint/worked_solution/unknown（玩家在得到提示后作答要如实标注）。
-格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"planRef":"none","planIndex":null,"tutorSolution":false,"newTask":false,"conceptId":null,"actionId":"plain-action","quiet":"none","evaluation":null}`;
+格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"resumeTarget":"unspecified","pauseStory":false,"insightKey":null,"planRef":"none","planIndex":null,"tutorSolution":false,"newTask":false,"conceptId":null,"actionId":"plain-action","quiet":"none","evaluation":null}`;
 
 const VERIFY_PROMPT = (input: string) => `[[VERIFY]] 先不要看玩家的结论，自己独立把题目解出来，再核对玩家的解答：结论是否正确，且推理是否确实成立（不是碰巧对，也不是照抄了提示）。只输出 JSON：{"ownAnswer":"你自己解出的最终结果","agree":true|false}。
 玩家输入：${input}`;
@@ -193,6 +198,16 @@ export async function handleTurn(env: SiteEnv, body: unknown, deps: Deps): Promi
     await env.DB.prepare("DELETE FROM adventure_turns WHERE turn_id=? AND response IS NULL").bind(turnId).run().catch(() => {});
     throw e;
   }
+}
+
+export type Cursor = { open: boolean; segment: number; nested: number; asked: boolean };
+export async function getCursor(env: SiteEnv, sid: string): Promise<Cursor> {
+  await ensureSchema(env);
+  const r = await env.DB.prepare("SELECT lesson_open, lesson_segment, nested_depth, resume_asked FROM adventure_cursor WHERE session_id=?").bind(sid).first<any>();
+  return r ? { open: !!r.lesson_open, segment: r.lesson_segment, nested: r.nested_depth, asked: !!r.resume_asked } : { open: false, segment: 0, nested: 0, asked: false };
+}
+export async function putCursor(env: SiteEnv, sid: string, c: Cursor) {
+  await env.DB.prepare("INSERT INTO adventure_cursor (session_id,lesson_open,lesson_segment,nested_depth,resume_asked,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(session_id) DO UPDATE SET lesson_open=excluded.lesson_open, lesson_segment=MAX(adventure_cursor.lesson_segment, excluded.lesson_segment), nested_depth=excluded.nested_depth, resume_asked=excluded.resume_asked, updated_at=excluded.updated_at").bind(sid, c.open ? 1 : 0, c.segment, c.nested, c.asked ? 1 : 0, Date.now() / 1000).run();
 }
 
 // 行动的知识依据：默认取本会话里最近一条可用证据；玩家也可以指定一条。服务器检查归属、已确认、答对且推理有效、没被用过、不是重复思路。
@@ -368,13 +383,32 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
     }
   }
 
-  // 4. 故事暂停/恢复：刷题暂停故事；ASK/LEARN 不改变世界
+  // 4. 故事暂停/恢复 + ResumeCursor：课程游标与世界序号互不影响；嵌套提问不丢游标；“继续”有歧义时只问一句，不改状态
   let status = sess.status as string;
+  const cur0 = await getCursor(env, sessionId);
+  let cursor = cur0;
   if (!commit) {
-    if (cls.pauseStory && !wantsAct && status === "active") status = "paused";
-    else if (cls.storyResume && status === "paused") status = "active";
+    if (cls.pauseStory && !wantsAct && status === "active") {
+      status = "paused";
+      cursor = { open: true, segment: sess.segment, nested: 0, asked: false };
+    } else if (cls.storyResume && status === "paused") {
+      const t = cls.resumeTarget;
+      if (t === "lesson" && cursor.open) {
+        visible = visible || `好，回到刚才的课（第 ${cursor.segment} 段），故事先保持暂停。`;
+        cursor = { ...cursor, nested: 0, asked: false };
+      } else if (t === "unspecified" && cursor.open && !cursor.asked) {
+        visible = `你是想继续刚才的课（第 ${cursor.segment} 段），还是回到故事？告诉我一个就行，我现在什么都没改。`;
+        cursor = { ...cursor, asked: true };
+      } else {
+        status = "active";
+        cursor = { ...cursor, asked: false };
+      }
+    } else if (status === "paused" && cursor.open && !cls.storyResume && (intents.includes("ASK") || intents.includes("LEARN"))) {
+      cursor = { ...cursor, nested: cursor.nested + 1 }; // 嵌套提问：游标不动
+    }
     if (status !== sess.status) await env.DB.prepare("UPDATE adventure_sessions SET status=?, updated_at=? WHERE id=?").bind(status, Date.now() / 1000, sessionId).run();
   } else status = "active";
+  if (JSON.stringify(cursor) !== JSON.stringify(cur0)) await putCursor(env, sessionId, cursor);
 
   // 5. 回复：按主要意图选模型；叙述只能引用已提交的事实
   const main = intents.includes("LEARN") ? "LEARN" : intents.includes("ACT") && commit ? "ACT" : intents[0];
@@ -408,7 +442,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       academicEvaluation: academic,
       gameCommit: commit,
       worldEvents,
-      learningSessionDelta: { status: cur.status, segment: cur.segment, worldSeq: cur.world_seq },
+      learningSessionDelta: { status: cur.status, segment: cur.segment, worldSeq: cur.world_seq, resumeCursor: { lessonOpen: cursor.open, lessonSegment: cursor.segment, nestedDepth: cursor.nested, resumeAsked: cursor.asked } },
       narration,
       quietMode: quiet,
       visibleFeedback: visible,

@@ -1,9 +1,9 @@
 // 检查私有内容包能不能被服务器世界引擎 v0 接受。只输出计数和错误类别，不输出任何剧情文字或内容 id。
 // 用法：node scripts/check-bundle-engine-compat.mjs <private-bundle.json>
 import { readFileSync } from 'node:fs';
-const TRIGGERS = new Set(['scene_entered', 'action_resolved']); // v0 已实现；其余类型会被引擎忽略
-const EFFECTS = new Set(['set_flag', 'advance_scene', 'set_npc_location', 'change_npc_relation', 'record_fact_discovery']);
-const LEAVES = ['flag', 'scene', 'npcRelation', 'npcLocation', 'factKnown'];
+const TRIGGERS = new Set(['scene_entered', 'action_resolved', 'fact_discovered', 'dialogue_choice_committed', 'world_flag_changed']); // world-1.1.0
+const EFFECTS = new Set(['set_flag', 'lock_flag', 'advance_scene', 'set_npc_location', 'change_npc_relation', 'record_fact_discovery', 'grant_item', 'remove_item', 'record_npc_memory']);
+const LEAVES = ['flag', 'scene', 'npcRelation', 'npcLocation', 'factKnown', 'hasItem', 'npcMemory'];
 function leavesOk(c) {
   if (c === undefined || c === null) return true;
   if (Array.isArray(c)) return c.every(leavesOk);
@@ -26,7 +26,8 @@ try {
   for (const e of by('event')) {
     const c = e.content, t = c.trigger ?? {};
     if (!TRIGGERS.has(t.type)) unsupportedTrigger++;
-    if (typeof c.publicOutcome !== 'string' || !c.publicOutcome.trim()) noPublic++;
+    const po = c.publicOutcome;
+    if (!((typeof po === 'string' && po.trim()) || (po && typeof po === 'object' && typeof po.text === 'string' && po.text.trim()))) noPublic++; // 字符串，或 {text,...授权元数据}
     if (!leavesOk(c.preconditions)) bad('事件有引擎不认识的前置条件写法');
     for (const ef of c.effects ?? []) {
       if (!EFFECTS.has(ef.type)) bad('事件使用 v0 未支持的 effect 类型（该事件会被整条拒绝）');

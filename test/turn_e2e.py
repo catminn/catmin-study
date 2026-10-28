@@ -169,6 +169,41 @@ c, r = post("/api/rewards", {"rewardId": "pt-r2", "sourceEventId": evp, "points"
 check("同一学习证据不能第二次领奖励", c == 409, r)
 c, r = post("/api/rewards", {"rewardId": "pt-r3", "sourceEventId": "turn:never:eval", "points": 5, "at": 1})
 check("不存在的证据不能领奖励", c in (404, 409, 422), r)
+# ResumeCursor：嵌套提问不丢课程游标、不动世界序号；“继续”有歧义只问一句且不改状态
+post("/api/adventure/session", {"sessionId": "RC", "op": "start"})
+post("/api/adventure/session", {"sessionId": "RC", "op": "progress", "segment": 2})
+c, o = turn("先去刷5题，不要剧情。", sid="RC"); d = o["learningSessionDelta"]
+check("RC1 刷题暂停：留下课程游标（第 2 段）", d["status"] == "paused" and d["resumeCursor"]["lessonOpen"] and d["resumeCursor"]["lessonSegment"] == 2, o)
+c, o = turn("梯度和偏导的区别是什么？", sid="RC"); d = o["learningSessionDelta"]
+check("RC2 嵌套提问：游标不动、世界序号不变、嵌套深度 1", d["status"] == "paused" and d["resumeCursor"]["lessonSegment"] == 2 and d["resumeCursor"]["nestedDepth"] == 1 and d["worldSeq"] == 0, o)
+c, o = turn("梯度和偏导的区别是什么？", sid="RC"); check("RC3 再嵌套一层：深度 2", o["learningSessionDelta"]["resumeCursor"]["nestedDepth"] == 2, o)
+post("/api/adventure/session", {"sessionId": "RC", "op": "progress", "segment": 3})
+c, o = turn("继续", sid="RC"); d = o["learningSessionDelta"]
+check("RC4 “继续”有歧义：只问一句，状态/游标/世界序号都不变", d["status"] == "paused" and d["resumeCursor"]["resumeAsked"] and "还是回到故事" in o["visibleFeedback"] and d["worldSeq"] == 0 and d["resumeCursor"]["lessonSegment"] == 3, o)
+c, o = turn("继续课程", sid="RC"); d = o["learningSessionDelta"]
+check("RC5 选择继续课：故事保持暂停，嵌套深度清零，回到游标", d["status"] == "paused" and d["resumeCursor"]["nestedDepth"] == 0 and not d["resumeCursor"]["resumeAsked"] and "第 3 段" in o["visibleFeedback"], o)
+c, o = turn("回到故事", sid="RC"); d = o["learningSessionDelta"]
+check("RC6 选择回故事：恢复进行，世界序号仍不变", d["status"] == "active" and d["worldSeq"] == 0, o)
+post("/api/adventure/session", {"sessionId": "RC2", "op": "start"})
+c, o = turn("先去刷5题，不要剧情。", sid="RC2"); c, o = turn("继续", sid="RC2"); c, o = turn("继续", sid="RC2")
+check("RC7 问过一次仍说不清：不再追问，按回故事处理（不会卡死）", o["learningSessionDelta"]["status"] == "active", o)
+post("/api/adventure/session", {"sessionId": "RC3", "op": "start"}); c, o = turn("继续", sid="RC3")
+check("RC8 没有课程游标时“继续”不追问", "还是回到故事" not in o["visibleFeedback"], o)
+
+# 导演提示冷却（只有数据结构）
+def dir_(op, now, topic="tA", sid="DR"): return s.get(B + "/__director", params={"op": op, "sid": sid, "topic": topic, "now": now}).json()
+t0 = 1793200000000
+check("DR1 初始允许", dir_("check", t0)["allow"] is True)
+dir_("prompt", t0)
+check("DR2 同主题 20 分钟内冷却", dir_("check", t0 + 19 * 60000) == {"allow": False, "reason": "cooldown"})
+check("DR3 别的主题不受影响", dir_("check", t0 + 60000, topic="tB")["allow"] is True)
+check("DR4 20 分钟后恢复", dir_("check", t0 + 20 * 60000)["allow"] is True)
+dir_("refuse", t0); dir_("prompt", t0 + 21 * 60000, topic="tB"); r = dir_("refuse", t0 + 21 * 60000, topic="tB")
+check("DR5 当天拒绝两次后不再提示（任何主题）", r == {"allow": False, "reason": "refused_today"} and dir_("check", t0 + 60 * 60000, topic="tC")["reason"] == "refused_today")
+check("DR6 第二天恢复", dir_("check", t0 + 25 * 3600 * 1000, topic="tC")["allow"] is True)
+dir_("prompt", t0, sid="DR2"); dir_("refuse", t0, sid="DR2"); dir_("refuse", t0, sid="DR2")
+check("DR7 同一次提示重复记拒绝不重复计数", dir_("check", t0 + 25 * 60000, sid="DR2")["allow"] is True)
+check("DR8 “我想继续探索”抑制一段时间，之后恢复", dir_("explore", t0, sid="DR3")["reason"] == "suppressed" and dir_("check", t0 + 31 * 60000, sid="DR3")["allow"] is True)
 check("坏请求被拒", turn("")[0] == 400 and post("/api/adventure/turn", {"sessionId": "S"})[0] == 400)
 check("不存在的会话", turn("hi", sid="nope")[0] == 404)
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)

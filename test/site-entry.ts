@@ -1,5 +1,6 @@
 // 本地测试：假 AI 向量 + 假 Vectorize + 假的 Anthropic/OpenAI 流式接口
 import base from "./entry";
+import { canPrompt, recordPrompt, recordRefusal, suppressExplore } from "../src/director";
 const realFetch = globalThis.fetch;
 function fakeStream(provider: string, text: string) {
   const enc = new TextEncoder();
@@ -76,6 +77,9 @@ globalThis.fetch = (async (input: any, init?: any) => {
       else if (q.includes("系统讲")) special = C(["LEARN"], false, false, null);
       else if (q.includes("刷5题")) special = C(["PRACTICE"], false, false, null, true);
       else if (q.includes("先不要执行")) special = C(["ASK", "LEARN", "ACT"], false, false, null, false, null, "inline");
+      else if (q.includes("继续课程")) special = JSON.stringify({ intents: ["EXPLORE"], explicitCommit: false, storyResume: true, resumeTarget: "lesson", evaluation: null });
+      else if (q.includes("回到故事")) special = JSON.stringify({ intents: ["EXPLORE"], explicitCommit: false, storyResume: true, resumeTarget: "story", evaluation: null });
+      else if (q.trim() === "继续") special = JSON.stringify({ intents: ["EXPLORE"], explicitCommit: false, storyResume: true, evaluation: null });
       else if (q.includes("继续并执行")) special = C(["ACT"], true, true, null, false, null, "inline");
       else if (q.includes("刚才")) special = C(["ACT"], true, false, null, false, null, "previous");
       else if (q.includes("执行")) special = C(["ACT"], true, false, null, false, null, "inline");
@@ -96,6 +100,16 @@ export default {
     const u = new URL(req.url);
     if (u.pathname === "/__gcalls") return Response.json((globalThis as any).__gcalls.splice(0));
     if (u.pathname === "/__replyfail") { (globalThis as any).__replyfail = u.searchParams.get("on") === "1"; return new Response("ok"); }
+    if (u.pathname === "/__director") {
+      const sid = u.searchParams.get("sid")!, topic = u.searchParams.get("topic") || "t", now = Number(u.searchParams.get("now"));
+      return (async () => {
+        const op = u.searchParams.get("op");
+        if (op === "prompt") await recordPrompt(env, sid, topic, now);
+        else if (op === "refuse") await recordRefusal(env, sid, topic);
+        else if (op === "explore") await suppressExplore(env, sid, now);
+        return Response.json(await canPrompt(env, sid, topic, now));
+      })();
+    }
     if (u.pathname === "/__expire401") { (globalThis as any).__expire401 = u.searchParams.get("on") === "1"; return new Response("ok"); }
     return (base as any).fetch(req, env, ctx);
   },

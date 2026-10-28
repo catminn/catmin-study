@@ -23,6 +23,7 @@ function ensureSchema(env: SiteEnv) {
   ready ??= env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_actions (action_id TEXT PRIMARY KEY, basis_event_id TEXT UNIQUE, config_version TEXT NOT NULL, roll INTEGER NOT NULL, bonus INTEGER NOT NULL, dc INTEGER NOT NULL, success INTEGER NOT NULL, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_evidence_concept (event_id TEXT PRIMARY KEY, concept_id TEXT NOT NULL)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_cursor (session_id TEXT PRIMARY KEY, lesson_open INTEGER NOT NULL, lesson_segment INTEGER NOT NULL, nested_depth INTEGER NOT NULL DEFAULT 0, resume_asked INTEGER NOT NULL DEFAULT 0, updated_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_sessions (id TEXT PRIMARY KEY, status TEXT NOT NULL, segment INTEGER NOT NULL, world_seq INTEGER NOT NULL, updated_at REAL NOT NULL)`),
   ]).catch((e) => {
     ready = null;
@@ -101,13 +102,18 @@ export async function sessionOp(env: SiteEnv, body: unknown): Promise<Result> {
   } else {
     const s = await env.DB.prepare("SELECT 1 FROM adventure_sessions WHERE id=?").bind(id).first();
     if (!s) return fail(404, "not_found", "会话不存在");
-    if (op === "pause") await env.DB.prepare("UPDATE adventure_sessions SET status='paused', updated_at=? WHERE id=?").bind(now, id).run();
+    if (op === "pause") {
+      await env.DB.prepare("UPDATE adventure_sessions SET status='paused', updated_at=? WHERE id=?").bind(now, id).run();
+      // 暂停时在当前学习进度处留下课程游标（不动世界序号）
+      await env.DB.prepare("INSERT INTO adventure_cursor (session_id,lesson_open,lesson_segment,nested_depth,resume_asked,updated_at) SELECT id,1,segment,0,0,? FROM adventure_sessions WHERE id=? ON CONFLICT(session_id) DO UPDATE SET lesson_open=1, lesson_segment=MAX(lesson_segment, excluded.lesson_segment), updated_at=excluded.updated_at").bind(now, id).run();
+    }
     if (op === "resume") await env.DB.prepare("UPDATE adventure_sessions SET status='active', updated_at=? WHERE id=?").bind(now, id).run();
     if (op === "progress") {
       const seg = body.segment;
       if (!Number.isSafeInteger(seg) || (seg as number) < 0 || (seg as number) > 10000) return fail(400, "bad_request", "segment 不合法");
       // 只增不减：重试/乱序不会让进度倒退；世界事件序号不受学习进度影响
       await env.DB.prepare("UPDATE adventure_sessions SET segment=MAX(segment,?), updated_at=? WHERE id=?").bind(seg, now, id).run();
+      await env.DB.prepare("UPDATE adventure_cursor SET lesson_segment=MAX(lesson_segment,?), updated_at=? WHERE session_id=? AND lesson_open=1").bind(seg, now, id).run();
     }
   }
   return getSession(env, id);

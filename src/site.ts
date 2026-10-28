@@ -6,6 +6,7 @@
 import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
 import { handleTurn } from "./turn";
+import { commitChoice, commitTravel } from "./world";
 import { putContent, listContent } from "./content";
 import { getSession, postAction, sessionOp } from "./adventure";
 import { getBalance, listEvents, postEvent, postReward } from "./events";
@@ -480,6 +481,8 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/rewards" && req.method === "POST") return asJson(await postReward(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/turn" && req.method === "POST")
       return asJson(await handleTurn(env, await req.json().catch(() => null), { budgetOk: () => budgetOk(env), complete: (t, pr, x, m) => completeOnce(env, t, pr, x, m) }));
+    if (p === "/api/adventure/travel" && req.method === "POST") return asJson(await commitTravel(env, await req.json().catch(() => null)));
+    if (p === "/api/adventure/choice" && req.method === "POST") return asJson(await commitChoice(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/action" && req.method === "POST") return asJson(await postAction(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/session" && req.method === "POST") return asJson(await sessionOp(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/session" && req.method === "GET") return asJson(await getSession(env, url.searchParams.get("id") || ""));

@@ -21,3 +21,11 @@
 1. 事件触发条件的最小集合（比如：进入场景 / 行动成功 / 行动失败 / 发现）。
 2. NPC 状态字段（关系值？已知事实？位置？）。
 3. 世界变化由谁确认：我建议服务器规则确认，模型只叙述。
+
+## 5. 世界引擎 world-1.1.0（Claude，无剧透）
+- 触发器：`scene_entered` `action_resolved`（可带 `fallback:true`：仅当同一次行动没有任何事件给出公开结果时才触发）`fact_discovered{factId}` `dialogue_choice_committed{choiceId,npcId?,sceneId?}` `world_flag_changed{flagKey,nextValue?}`。循环由 maxChain=4 与“同一次提交里同一事件只应用一次”共同限制。
+- effects：`set_flag` `lock_flag`（一次写入：未设置→设置；同值→无操作；不同值→整条事件拒绝，用于结局锁）`advance_scene` `set_npc_location` `change_npc_relation`（value=档位字符串，同时追加 relationshipHistory）`record_fact_discovery` `grant_item` `remove_item`（没有该物品则整条事件拒绝）`record_npc_memory{target:npc, layer:heardClaims|npcBeliefs|confirmedNpcKnowledge, value}`。`revealsFacts` 自动等价于 record_fact_discovery 并触发 `fact_discovered`。
+- 条件叶子新增：`{hasItem}` `{npcMemory:{npc,layer,item}}`。NPC 的转述/信念不会变成玩家或世界事实。
+- publicOutcome：字符串，或 `{text, ...授权元数据}`（元数据留在服务端，玩家只拿到 text）。
+- scene.stateEffects：数组，写法同 effects（不含 advance_scene）；进入该场景时应用一次，非法则整体忽略。
+- 玩家提交入口（登录会话）：`POST /api/adventure/travel {sessionId, commitId, target, expectedVersion?}`；`POST /api/adventure/choice {sessionId, commitId, choiceId, npcId?, expectedVersion?}`。列出 choices、讨论、ASK 都不改变世界；同 commitId 同内容重放返回原结果，不同内容 409；版本过期 409；不可用的目标/选择统一 422 `not_available`。
