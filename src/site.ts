@@ -483,8 +483,20 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/adventure/action" && req.method === "POST") return asJson(await postAction(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/session" && req.method === "POST") return asJson(await sessionOp(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/session" && req.method === "GET") return asJson(await getSession(env, url.searchParams.get("id") || ""));
-    if (p === "/api/adventure/content" && req.method === "PUT") return asJson(await putContent(env, await req.json().catch(() => null)));
-    if (p === "/api/adventure/content" && req.method === "GET") return asJson(await listContent(env, url));
+    if (p === "/api/adventure/content") {
+      // 内容库管理员通道：登录会话还不够，必须在请求头再带一次主口令（X-Owner-Password）；失败 5 次锁 15 分钟。
+      const ip = req.headers.get("CF-Connecting-IP") ?? "local";
+      const fk = "cfail:" + ip;
+      if (Number((await env.OAUTH_KV.get(fk)) ?? 0) >= 5) return err("locked", "尝试次数过多，请稍后再试", 429);
+      const pw = req.headers.get("X-Owner-Password") ?? "";
+      if (!env.OWNER_PASSWORD || !pw || !(await safeEq(pw, env.OWNER_PASSWORD))) {
+        await env.OAUTH_KV.put(fk, String(Number((await env.OAUTH_KV.get(fk)) ?? 0) + 1), { expirationTtl: 900 });
+        return err("forbidden", "内容库仅限管理员", 403);
+      }
+      if (req.method === "PUT") return asJson(await putContent(env, await req.json().catch(() => null)));
+      if (req.method === "GET") return asJson(await listContent(env, url)); // 只返回元数据，正文永不经 HTTP 返回
+      return err("not_found", "没有这个接口", 404);
+    }
     if (p === "/api/rewards/balance" && req.method === "GET") return asJson(await getBalance(env));
     if (p === "/api/google/status") return json(await googleStatus(env));
     if (p === "/api/google/disconnect" && req.method === "POST") {

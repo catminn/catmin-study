@@ -32,15 +32,16 @@ export async function putContent(env: SiteEnv, b: any): Promise<R> {
   return { status: 200, body: { ok: true, kind: b.kind, id: b.id, rev } };
 }
 
-// 列表只给元数据，不回传正文，避免误贴进日志/聊天。
-export async function listContent(env: SiteEnv, url: URL): Promise<R> {
+// 列表只给元数据（管理员通道）。正文永不经 HTTP 返回；引擎在服务端用 readContentInternal 读取。
+export async function listContent(env: SiteEnv, _url: URL): Promise<R> {
   await ensure(env);
-  const kind = url.searchParams.get("kind"), id = url.searchParams.get("id");
-  if (kind && id) {
-    const r = await env.DB.prepare("SELECT rev, body, created_at FROM adventure_content WHERE kind=? AND id=? ORDER BY rev DESC LIMIT 1").bind(kind, id).first<{ rev: number; body: string; created_at: string }>();
-    if (!r) return bad(404, "not_found", "没有这条内容");
-    return { status: 200, body: { ok: true, kind, id, rev: r.rev, createdAt: r.created_at, content: JSON.parse(r.body) } };
-  }
   const rs = await env.DB.prepare("SELECT kind, id, MAX(rev) AS rev, LENGTH(body) AS bytes FROM adventure_content GROUP BY kind, id ORDER BY kind, id").all();
   return { status: 200, body: { ok: true, items: rs.results } };
+}
+
+// 仅服务端内部使用（DM 上下文）。不得把返回值原样放进玩家可见的响应。
+export async function readContentInternal(env: SiteEnv, kind: string, id: string): Promise<{ rev: number; content: any } | null> {
+  await ensure(env);
+  const r = await env.DB.prepare("SELECT rev, body FROM adventure_content WHERE kind=? AND id=? ORDER BY rev DESC LIMIT 1").bind(kind, id).first<{ rev: number; body: string }>();
+  return r ? { rev: r.rev, content: JSON.parse(r.body) } : null;
 }

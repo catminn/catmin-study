@@ -4,7 +4,7 @@
 
 ## 1. 剧透保护
 - 正式剧情、隐藏设定、NPC 秘密**不进 GitHub、不进共享记忆**。
-- 唯一入口：登录后 `PUT /api/adventure/content`（存进网站私有 D1）；`GET /api/adventure/content` 列表只给元数据。
+- 唯一入口：`PUT /api/adventure/content`（存进网站私有 D1）。**管理员通道**：除登录会话外，请求头必须再带 `X-Owner-Password`（主口令），否则 403；失败 5 次锁 15 分钟。`GET` 只返回元数据，正文永不经 HTTP 返回；引擎用服务端内部函数读取，且不得把原文放进玩家可见响应。导出接口不含内容库。
 - 请求：`{kind, id, content}`；kind ∈ world / npc / event / knowledge-link / scene；id 为小写字母数字 `._-`；单条 ≤ 64KB；同 id 重复写入自动增加版本（rev），内容未变不增版本。
 - 引擎目前**不读取**内容（沙盒用占位）；正式内容的字段结构由 ChatGPT 定义，Claude 再接入。
 
