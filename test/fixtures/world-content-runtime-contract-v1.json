@@ -68,6 +68,44 @@
           }
         ]
       }
+    },
+    "sceneThreadOpening": {
+      "kind": "scene",
+      "id": "demo-thread-scene",
+      "openThreads": [
+        {
+          "id": "demo-thread-a",
+          "authorizedAudience": "player",
+          "carryover": "eligible"
+        }
+      ]
+    },
+    "eventThreadOpening": {
+      "kind": "event",
+      "id": "demo-thread-discovery",
+      "trigger": {
+        "type": "action_resolved",
+        "actionTemplateId": "demo-inspect",
+        "outcome": "success"
+      },
+      "openThreads": [
+        {
+          "id": "demo-thread-b",
+          "authorizedAudience": "server_private",
+          "carryover": "eligible"
+        }
+      ]
+    },
+    "eventThreadResolution": {
+      "kind": "event",
+      "id": "demo-thread-resolution",
+      "trigger": {
+        "type": "dialogue_choice_committed",
+        "choiceId": "demo-thread-choice"
+      },
+      "resolvesThreads": [
+        "demo-thread-a"
+      ]
     }
   },
   "triggerFamilies": [
@@ -295,6 +333,66 @@
         "Do not guess a default ending, invent missing facts or expose private diagnostics.",
         "Return a recoverable server-side error path for the engine owner to handle."
       ]
+    },
+    {
+      "id": "thread-scene-entry-only",
+      "given": "A placeholder scene declares an unresolved player thread and has an available travel choice.",
+      "when": "The player previews the destination, then commits entry once, then revisits it.",
+      "expect": [
+        "Preview or route listing opens no thread.",
+        "Only committed scene entry opens the declared thread with a source commit reference.",
+        "Revisit and same-commit replay do not duplicate or reopen the thread."
+      ]
+    },
+    {
+      "id": "thread-event-discovery-not-narration",
+      "given": "A private unresolved thread is declared on a discovery event, not the current scene.",
+      "when": "The DM speculates about it, the player fails an inspection, then a matching event successfully commits.",
+      "expect": [
+        "Narration and failed inspection do not open the thread.",
+        "The committed event opens the reference once and records its authoritative origin.",
+        "No hidden description or private thread id is returned in player-facing output."
+      ]
+    },
+    {
+      "id": "thread-resolution-requires-commit",
+      "given": "A previously committed unresolved thread is referenced by an event's resolvesThreads.",
+      "when": "The player discusses a resolution, then commits the resolving event and retries it.",
+      "expect": [
+        "Discussion, draft and uncommitted academic answers leave the thread unresolved.",
+        "Only a successfully committed event resolves the active thread.",
+        "Retry is idempotent and cannot create a second closure or reopen the thread."
+      ]
+    },
+    {
+      "id": "thread-snapshot-filters-local-and-closed",
+      "given": "One eligible unresolved thread, one eligible resolved thread and one local_only unresolved thread have committed origins.",
+      "when": "A valid terminal ending snapshot is created.",
+      "expect": [
+        "Only the eligible still-unresolved thread is included with openedByCommitRef.",
+        "Resolved and local_only threads remain source history but are absent from carryover.",
+        "The snapshot does not invent a missing thread or include a solution or prose."
+      ]
+    },
+    {
+      "id": "thread-audience-projection",
+      "given": "A chapter snapshot retains one player-authorized thread and one server_private thread.",
+      "when": "The next chapter requests player-facing DM context and the private server continuity view.",
+      "expect": [
+        "The player projection includes only the authorized, committed player thread where carryover policy allows.",
+        "The server_private thread remains absent from public context, choices and metadata.",
+        "Neither projection grants a new fact, reward or mastery evidence."
+      ]
+    },
+    {
+      "id": "thread-preflight-invalid-or-unknown",
+      "given": "A synthetic package has a duplicate thread id, invalid audience, missing carryover or resolvesThreads reference to an undeclared id.",
+      "when": "Content preflight runs and a stale content revision is used for snapshot construction.",
+      "expect": [
+        "Invalid declarations and unknown references block import with spoiler-free category/count diagnostics.",
+        "Resolving a not-yet-open thread cannot manufacture a resolved thread state.",
+        "Snapshot with mismatched source revision or missing opening provenance fails closed."
+      ]
     }
   ],
   "integrationNotes": [
@@ -304,7 +402,8 @@
     "No formal story content, hidden identities, puzzle answers or actual world ids are included.",
     "Do not mark these cases passed until run against an isolated server with placeholder content.",
     "Ending semantics and preflight cases are design contracts only; current runtime behavior and test execution are unverified.",
-    "Chapter-opening continuity snapshot cases are proposed narrative acceptance contracts, not a runtime implementation or executed tests."
+    "Chapter-opening continuity snapshot cases are proposed narrative acceptance contracts, not a runtime implementation or executed tests.",
+    "Unresolved thread declarations and resolution cases are proposed authoring contracts; no runtime implementation or end-to-end passing claim is made."
   ],
   "runtimeShapes": {
     "chapterOpeningSnapshot": {
@@ -347,9 +446,10 @@
       ],
       "openThreads": [
         {
-          "threadRef": "demo-unresolved-thread",
+          "threadRef": "demo-thread-b",
           "status": "unresolved",
-          "audience": "server_private"
+          "audience": "server_private",
+          "openedByCommitRef": "demo-thread-discovery-commit"
         }
       ],
       "learningEvidenceRefs": [
