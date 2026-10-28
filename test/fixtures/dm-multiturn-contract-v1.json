@@ -11,7 +11,9 @@
     "A lesson-first request never commits the action before the lesson and renewed authorization.",
     "Quiet mode persists across ordinary non-answer turns, without leaking steps.",
     "Knowledge evidence must be verified, unconsumed, session-scoped and causally relevant to the specific action; correctness is separate from game success.",
-    "No sequence authorizes hidden-world disclosure or production state changes."
+    "No sequence authorizes hidden-world disclosure or production state changes.",
+    "Correctly copying a tutor's worked solution may demonstrate exposure and mathematical correctness but is not independent mastery evidence; self-claims do not override assistance provenance.",
+    "After prior help, a genuinely new task solved without task-specific assistance can provide fresh transfer evidence after independent verification; prior assistance must not permanently block progress."
   ],
   "sequences": [
     {
@@ -213,12 +215,97 @@
           }
         }
       ]
+    },
+    {
+      "id": "worked-solution-copy-is-not-independent",
+      "setup": {
+        "worldSeq": 30,
+        "story": "paused",
+        "topic": "math1920.gradient",
+        "pendingPlans": [],
+        "priorTaskHelp": "none"
+      },
+      "steps": [
+        {
+          "input": "请完整演示 f(x,y)=x²+3y² 在 (1,2) 的梯度，连步骤一起给我。",
+          "context": "Tutor explicitly supplies partial derivatives 2x and 6y, then gradient (2,12).",
+          "expect": {
+            "commit": false,
+            "assistanceProvided": "worked_solution",
+            "independentEvidence": false,
+            "worldSeq": 30
+          }
+        },
+        {
+          "input": "我自己算的：偏导是 2x、6y，所以 ∇f(1,2)=(2,12)。",
+          "context": "Player repeats the exact worked steps from the immediately preceding tutor answer, despite claiming independent work.",
+          "expect": {
+            "commit": false,
+            "academicCorrectness": "correct",
+            "mathematicalReasoning": "valid",
+            "assistance": "worked_solution",
+            "independentMasteryEvidence": false,
+            "worldSeq": 30,
+            "reason": "A correct reproduction is not an independently derived solution."
+          }
+        },
+        {
+          "input": "那我换个说法：沿 x 方向变化率是 2，沿 y 方向是 12。这能算一次新的独立掌握吗？",
+          "context": "Same task and same idea as the tutor's worked example; no new independent derivation.",
+          "expect": {
+            "commit": false,
+            "newIndependentEvidence": false,
+            "duplicateMasteryReward": false,
+            "assistance": "not_none",
+            "worldSeq": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": "fresh-transfer-after-worked-example",
+      "setup": {
+        "worldSeq": 31,
+        "story": "paused",
+        "topic": "math1920.gradient",
+        "priorHelp": "Tutor fully solved f(x,y)=x²+3y² at (1,2) and player copied it.",
+        "priorEvidence": "copied_worked_solution_not_independent"
+      },
+      "steps": [
+        {
+          "input": "再给我一道不同的梯度题。我自己做，不要任何提示。",
+          "context": "New task: g(x,y)=2x²+y² at (3,1). No worked solution or hint is given for this new task.",
+          "expect": {
+            "commit": false,
+            "quiet": true,
+            "solutionLeak": false,
+            "newTask": true,
+            "worldSeq": 31
+          }
+        },
+        {
+          "input": "g 的偏导分别是 4x 和 2y，所以 ∇g(3,1)=(12,2)。",
+          "context": "New task, complete derivation supplied by player without hints on this task; cross-check mathematical reasoning independently.",
+          "expect": {
+            "commit": false,
+            "academicCorrectness": "correct",
+            "mathematicalReasoning": "valid",
+            "assistanceForCurrentTask": "none",
+            "independentTransferEvidence": "eligible_only_after_verification",
+            "priorCopyDoesNotDisqualifyForever": true,
+            "duplicateInsightBonus": "not_automatically_granted",
+            "worldSeq": 31
+          }
+        }
+      ]
     }
   ],
   "testHarnessNotes": [
     "Run only against isolated sandbox sessions and fake state; never real user saves.",
     "Assert server commit and learning event tables, not only narration text.",
     "For conditional outcomes, set deterministic game RNG and explicitly legal action fixtures.",
-    "Do not infer real model pass/fail from this specification; run fixtures before claiming success."
+    "Do not infer real model pass/fail from this specification; run fixtures before claiming success.",
+    "Preserve task IDs and tutor-output assistance provenance across turns; checking only the latest player message is insufficient for independence attribution.",
+    "Distinguish correctness, validity of mathematical steps, task-level assistance, independent transfer and duplicate insight/reward eligibility."
   ]
 }
