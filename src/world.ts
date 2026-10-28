@@ -14,6 +14,7 @@ function ensure(env: SiteEnv) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_npc (session_id TEXT NOT NULL, npc_id TEXT NOT NULL, location TEXT, relation TEXT, PRIMARY KEY (session_id,npc_id))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_facts (session_id TEXT NOT NULL, fact_id TEXT NOT NULL, PRIMARY KEY (session_id,fact_id))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_applied (session_id TEXT NOT NULL, event_key TEXT NOT NULL, action_id TEXT NOT NULL, public_outcome TEXT, PRIMARY KEY (session_id,event_key))`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_choices (session_id TEXT NOT NULL, action_id TEXT NOT NULL, kind TEXT NOT NULL, choice_id TEXT NOT NULL, npc_id TEXT, PRIMARY KEY (session_id,action_id))`),
   ]).catch((e) => { ready = null; throw e; }));
 }
 
@@ -164,4 +165,53 @@ export async function replayPublicOutcomes(env: SiteEnv, sid: string, actionId: 
   await ensure(env);
   const rs = await env.DB.prepare("SELECT public_outcome FROM adventure_world_applied WHERE session_id=? AND action_id=? AND public_outcome IS NOT NULL").bind(sid, actionId).all<{ public_outcome: string }>();
   return rs.results.map((r) => ({ publicOutcome: r.public_outcome }));
+}
+
+// Commit only server-validated choices. This is an authenticated route through siteFetch.
+// The caller never submits events, effects or hidden facts.
+export async function commitWorldChoice(env: SiteEnv, input: any): Promise<{status:number;body:unknown}> {
+  const sid = input?.sessionId, actionId = input?.actionId, choiceId = input?.choiceId;
+  const kind = input?.kind, npcId = input?.npcId;
+  if (![sid, actionId, choiceId].every(x => typeof x === "string" && /^[a-zA-Z0-9._:-]{1,100}$/.test(x)))
+    return { status:400, body:{ok:false,error:"bad_choice_request"} };
+  if (kind !== "scene" && kind !== "dialogue") return { status:400, body:{ok:false,error:"bad_choice_kind"} };
+  if (!(await env.DB.prepare("SELECT id FROM adventure_sessions WHERE id=?").bind(sid).first()))
+    return { status:404, body:{ok:false,error:"session_not_found"} };
+  const st = await ensureState(env, sid);
+  if (!st) return { status:409, body:{ok:false,error:"world_not_loaded"} };
+  await ensure(env);
+  const prev = await env.DB.prepare("SELECT kind,choice_id,npc_id FROM adventure_world_choices WHERE session_id=? AND action_id=?").bind(sid, actionId).first<{kind:string;choice_id:string;npc_id:string|null}>();
+  if (prev) {
+    if (prev.kind !== kind || prev.choice_id !== choiceId || (prev.npc_id ?? null) !== (npcId ?? null))
+      return { status:409, body:{ok:false,error:"choice_id_reused"} };
+    const worldEvents = await replayPublicOutcomes(env, sid, actionId);
+    return { status:200, body:{ok:true,replay:true,worldEvents} };
+  }
+  if (kind === "scene") {
+    const sc = await sceneContent(env, st.scene);
+    if (!Array.isArray(sc?.choices) || !sc.choices.includes(choiceId) || !(await sceneContent(env, choiceId)))
+      return {status:409,body:{ok:false,error:"choice_unavailable"}};
+  } else {
+    if (typeof npcId !== "string" || !/^[a-z0-9._-]{1,80}$/.test(npcId))
+      return {status:400,body:{ok:false,error:"bad_npc"}};
+    const npc = (await readContentInternal(env, "npc", npcId))?.content;
+    const row = await env.DB.prepare("SELECT location FROM adventure_world_npc WHERE session_id=? AND npc_id=?").bind(sid,npcId).first<{location:string}>();
+    const location = row?.location ?? npc?.initial?.locationId;
+    if (!npc || location !== st.scene || !Array.isArray(npc.dialogueCards) || !npc.dialogueCards.some((c:any) => c.id === choiceId))
+      return {status:409,body:{ok:false,error:"dialogue_unavailable"}};
+  }
+  // Compare-and-swap on the world version prevents applying an obsolete scene choice.
+  // Commit the choice and scene move together in one D1 batch.
+  const stmts = [
+    env.DB.prepare("INSERT OR IGNORE INTO adventure_world_choices (session_id,action_id,kind,choice_id,npc_id) VALUES (?,?,?,?,?)").bind(sid,actionId,kind,choiceId,kind==="dialogue"?npcId:null),
+  ];
+  if (kind === "scene") stmts.push(env.DB.prepare("UPDATE adventure_world SET scene_id=?,version=version+1 WHERE session_id=? AND scene_id=? AND version=?").bind(choiceId,sid,st.scene,st.version));
+  const result = await env.DB.batch(stmts);
+  if (result[0].meta.changes !== 1 || (kind === "scene" && result[1].meta.changes !== 1))
+    return {status:409,body:{ok:false,error:"choice_race_retry"}};
+  const worldEvents = await applyTrigger(env,sid,{
+    type: kind === "scene" ? "scene_entered" : "dialogue_choice_committed",
+    actionId, choiceId, npcId
+  });
+  return {status:200,body:{ok:true,replay:false,worldEvents}};
 }
