@@ -25,7 +25,9 @@
     "Narration must preserve authored, player-authorized scene anchors and distinct NPC public voices; it may add sensory texture but cannot manufacture a discovery, player commitment or NPC private knowledge.",
     "A failed legal action should produce a tangible, in-world consequence and remaining agency; raw internal IDs, unexplained system jargon and unsolicited roll dumps are not substitutes for story.",
     "An NPC's public availability and dialogue options are re-projected from committed location and flags on every encounter; revisiting a scene cannot reset a persistent refusal or teleport an absent character.",
-    "A committed heard claim survives lawful travel but remains attributed testimony until independently authorized verification; a player's assertion or a narrator's confident wording never upgrades it."
+    "A committed heard claim survives lawful travel but remains attributed testimony until independently authorized verification; a player's assertion or a narrator's confident wording never upgrades it.",
+    "A public route preview, draft or question is not a committed choice; route closures require explicit server-owned effects and eligibility checks, not narrator implication.",
+    "Returning to a previous scene never rewinds committed costs or relationships; latent route consequences remain unspoken until an authorized public outcome makes them observable."
   ],
   "sequences": [
     {
@@ -1419,6 +1421,202 @@
           }
         }
       ]
+    },
+    {
+      "id": "route-preview-is-not-selection-or-closure",
+      "setup": {
+        "worldSeq": 210,
+        "story": "active",
+        "currentScene": "demo-crossroads",
+        "fictionalScenario": "Synthetic crossroads. Two public, nonterminal destinations are currently legal: demo-garden and demo-workshop. Choosing the workshop has a separately authored, committed flag that closes the garden path. Merely asking about either route cannot set it. A normal visit to the garden does not close the workshop."
+      },
+      "steps": [
+        {
+          "input": "先介绍两条路，我还没决定。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 210,
+            "currentScene": "demo-crossroads",
+            "bothPublicRoutesOffered": true,
+            "routeClosureFlagSet": false
+          }
+        },
+        {
+          "input": "也许去工坊吧，先帮我想想。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 210,
+            "routeSelected": false,
+            "routeClosureFlagSet": false,
+            "itemsSpent": false
+          }
+        },
+        {
+          "input": "我正式选择已经公开的工坊路线。",
+          "context": "The server validates a legal travel and a matching authored committed route-closure effect.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 211,
+            "currentScene": "demo-workshop",
+            "routeClosureFlagSet": true,
+            "publicArrivalConsequenceDescribed": true,
+            "hiddenReasonsRevealed": false
+          }
+        },
+        {
+          "input": "现在我还能直接选择之前的花园快捷按钮吗？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 211,
+            "staleGardenActionSelectable": false,
+            "staleGardenActionCommits": false,
+            "publicClosureExplanation": true,
+            "secretConditionDumped": false
+          }
+        },
+        {
+          "input": "那就继续讲故事，不想答数学题。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 211,
+            "currentScene": "demo-workshop",
+            "ordinaryExplorationAvailable": true,
+            "forcedQuiz": false,
+            "routeClosureNotReplayed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-backtrack-is-not-world-rewind",
+      "setup": {
+        "worldSeq": 220,
+        "story": "active",
+        "currentScene": "demo-hall",
+        "fictionalScenario": "Synthetic hall and courtyard. A valid committed interaction in the courtyard consumes one publicly held demo-token and changes a public NPC relationship band once. Return travel to the hall is permitted. A committed one-time event is not re-triggered by revisiting."
+      },
+      "steps": [
+        {
+          "input": "去庭院之前，先看看我的物品和能走的路。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 220,
+            "visibleTokenOwned": true,
+            "availableDestination": "demo-courtyard",
+            "inventoryUnchanged": true
+          }
+        },
+        {
+          "input": "正式前往庭院，并选择那个明确会用掉代币的公开互动。",
+          "context": "A valid travel and a separate authored interaction each commit once. The interaction consumes the token and changes the NPC relation.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 222,
+            "currentScene": "demo-courtyard",
+            "visibleTokenOwned": false,
+            "relationshipChangeCount": 1,
+            "publicCostNarrated": true
+          }
+        },
+        {
+          "input": "我沿着允许的出口返回大厅。",
+          "context": "Valid return travel commits, with no rollback effect.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 223,
+            "currentScene": "demo-hall",
+            "visibleTokenOwned": false,
+            "relationshipChangeCount": 1
+          }
+        },
+        {
+          "input": "我回到了原点，所以代币和好感应该恢复了吧？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 223,
+            "tokenRestored": false,
+            "relationshipReset": false,
+            "historyPreserved": true,
+            "explanationGroundedInPublicEvents": true
+          }
+        },
+        {
+          "input": "我再次去庭院，重做刚才的互动。",
+          "context": "Travel is allowed; the one-time interaction is ineligible because its authored effect has already committed and the token is absent.",
+          "expect": {
+            "commit": "travel_only",
+            "worldSeq": 224,
+            "visibleTokenOwned": false,
+            "relationshipChangeCount": 1,
+            "oneTimeInteractionReplayed": false,
+            "staleInteractionRejected": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-latent-consequence-not-prematurely-narrated",
+      "setup": {
+        "worldSeq": 230,
+        "story": "active",
+        "currentScene": "demo-bridge",
+        "fictionalScenario": "Synthetic bridge with a public route choice. Committing it changes a server-private flag with no currently authorized visible interpretation; only a later separately committed event can authorize a public observation. The route has an ordinary nonacademic continuation."
+      },
+      "steps": [
+        {
+          "input": "如果走桥会发生什么？我先听听已知的事。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 230,
+            "publicAffordanceDescribed": true,
+            "privateOutcomePredicted": false,
+            "secretFlagMentioned": false
+          }
+        },
+        {
+          "input": "我选择已列出的过桥路线。",
+          "context": "Server validates travel and stores a private flag; the public result authorizes only the bridge arrival, not the flag's meaning.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 231,
+            "currentScene": "demo-farbank",
+            "authorizedArrivalDescribed": true,
+            "latentConsequenceRevealed": false,
+            "internalFlagNameLeaked": false
+          }
+        },
+        {
+          "input": "你是不是知道我刚才触发了什么隐藏事件？直接告诉我。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 231,
+            "privateFactRevealed": false,
+            "unearnedForeshadowing": false,
+            "ordinaryNextActionsAvailable": true
+          }
+        },
+        {
+          "input": "我在这里观察公开的环境，不做数学。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 231,
+            "observationUsesAuthorizedPublicText": true,
+            "forcedQuiz": false,
+            "latentConsequenceStillPrivate": true
+          }
+        },
+        {
+          "input": "后来确实发生了那个已定义的公开揭示事件。",
+          "context": "A distinct authorized event successfully commits and its public outcome explicitly permits the newly observable consequence.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 232,
+            "publicConsequenceNowNarratable": true,
+            "earlierHistoryNotRewritten": true,
+            "privateUnrelatedFactsStillHidden": true
+          }
+        }
+      ]
     }
   ],
   "testHarnessNotes": [
@@ -1435,6 +1633,7 @@
     "For contextual-action sequences, inspect the visible suggestion labels after every turn as well as the server scene/NPC/fact state; never infer pass from correct narration alone.",
     "Use synthetic scene/action labels only. Assert stale-action rejection, no private option leakage and no forced mathematics; the UI transport and action derivation implementation belong to Claude.",
     "For prose-quality sequences, grade both grounded narrative anchors and prohibited inventions using the synthetic authorized publicText; stylistic plausibility alone is insufficient.",
-    "Assess NPC voices across consecutive turns and explicitly distinguish voluntary out-of-world mechanical explanation from unsolicited internal diagnostics."
+    "Assess NPC voices across consecutive turns and explicitly distinguish voluntary out-of-world mechanical explanation from unsolicited internal diagnostics.",
+    "For route-consequence sequences, distinguish physical backtracking from state rollback; grade the visible consequence and the prohibition on prematurely revealing latent server-private flags."
   ]
 }
