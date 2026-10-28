@@ -98,3 +98,41 @@ A later chapter may inherit consequences only from the **successfully committed*
 **Consistency boundary.** Preserve provenance and per-field visibility when merging chapter state; contradictory NPC claims remain claims. If the source ending, world version, content revision or provenance cannot be verified, fail closed and request an engineering recovery path rather than inventing a default ending. A new chapter may select which authorized references to use, but must never infer unrecorded facts from an ending label. The snapshot is not an instruction to generate Chapter 2 or to expose its content.
 
 **Authoring handoff.** The narrative author supplies which classes of consequences are eligible to persist and how they may influence opening narration; Claude decides physical schema, atomic write timing, replay keys, retention and APIs. These requirements are acceptance criteria only. No snapshot migration or real user state modification is authorized by this document.
+
+
+## Unresolved thread authoring and carryover (v1; spoiler-free content contract)
+
+This resolves the \`openThreads\` authoring question from the chapter snapshot handoff. It is a **content contract proposal for engine integration**, not a claim that the runtime already supports these fields. A thread is an unresolved clue, obligation or consequence **reference**, not a quest summary or a guessed answer.
+
+Minimal content declarations, with placeholder ids:
+
+\`\`\`json
+{
+  "scene": {
+    "id": "demo-arrival",
+    "openThreads": [
+      {"id": "demo-question-a", "authorizedAudience": "player", "carryover": "eligible"}
+    ]
+  },
+  "event": {
+    "id": "demo-discovery",
+    "openThreads": [
+      {"id": "demo-question-b", "authorizedAudience": "server_private", "carryover": "eligible"}
+    ]
+  },
+  "resolutionEvent": {
+    "id": "demo-resolution",
+    "resolvesThreads": ["demo-question-a"]
+  }
+}
+\`\`\`
+
+**Meaning and timing.** \`scene.openThreads\` opens a thread only after that scene is **actually entered by a committed server transition**; use it only when entering the scene itself establishes the unresolved matter. If a player must inspect, ask, discover or choose first, attach \`openThreads\` to the corresponding **committed event**, not to the scene. \`event.openThreads\` takes effect only when that event commits. \`event.resolvesThreads\` closes previously opened threads only after that event commits. Neither a preview, offered route, dialogue draft, narrator suggestion, failed action nor a mathematical answer by itself can open or resolve a thread. This is narrative meaning; Claude owns the atomic storage and trigger implementation.
+
+**Fields.** Each thread declaration has a stable, opaque, non-spoiler \`id\` (unique definition per world), \`authorizedAudience\` in \`player | server_private\`, and explicit \`carryover\` in \`eligible | local_only\`. No default eligibility is inferred: missing or invalid \`carryover\` fails preflight. \`resolvesThreads\` is an array of declared thread ids, not prose or hidden solutions. Unknown or duplicate declarations, incompatible audience changes, and unsupported field shapes are blocking authoring errors. An event resolving a not-yet-open thread must not invent its existence or silently mark it resolved. A closed thread does not reopen on scene revisit or event replay; a genuinely new recurring obligation needs a new id and a new committed opening.
+
+**Snapshot selection.** At a successfully locked ending, collect only threads whose opening was committed, whose resolution was **not** committed, and whose \`carryover\` is \`eligible\`. Each snapshot reference records \`threadRef\`, \`status: "unresolved"\`, \`audience\`, and \`openedByCommitRef\`; it never includes the thread's hidden solution or story prose. \`local_only\` threads remain part of the source-world history but are not copied into the next-chapter snapshot. Snapshot replay must preserve the same set, never reopen or double-close a thread. Source revision mismatches or missing opening provenance fail closed.
+
+**DM visibility.** A \`player\` thread may be included in the next chapter's authorized narration context only if the opening commit is recorded and the carryover policy permits it. A \`server_private\` thread may be retained as a private reference for future server rules, but is **never** included in player-facing DM context or public metadata. An authorized thread reference is not permission to invent its answer, infer hidden motives, or promote a rumor to a confirmed fact. The next chapter may naturally recall an unresolved question when relevant; it must not force a recap or a quiz.
+
+**Boundary for implementation.** These authoring fields do not themselves grant facts, items, rewards or learning mastery. Claude decides persistence, event ordering, import validation and the actual projection API. The content author must only supply the references and authorizations. No real story ids or secret descriptions belong in this public contract.
