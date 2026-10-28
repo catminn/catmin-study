@@ -20,3 +20,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - name: Test world events on local Worker and D1
+        run: |
+          python3 -m pip install --user requests
+          printf 'OWNER_PASSWORD=test-pass-123\nADMIN_TOKEN=local-test-admin-token-1234567890\n' > .dev.vars
+          npx wrangler d1 migrations apply catmin-study --local
+          npx wrangler dev --local --ip 127.0.0.1 --port 8800 --var SITE_HOST:127.0.0.1:8800 > /tmp/world-worker.log 2>&1 &
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8800/ >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          python3 test/world_choice_compat_e2e.py
+
