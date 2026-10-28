@@ -141,4 +141,13 @@ put("scene", "x-a", {"choices": ["e-endbad"]})
 c, b = travel("E5", "e5a", "e-endbad", confirmEnding=True); check("E17 ending 缺 costNotice 的场景一律不可用", c == 422 and b["code"] == "not_available", b)
 txt = json.dumps(seen2, ensure_ascii=False)
 check("E18 玩家响应不含结局 id / lock_flag / ending_locked", all(k not in txt for k in ["END-B", "ending_locked", "lock_flag", "e-endb"]), txt)
+
+# ---- 章节开场快照（占位）----
+def snap(sid): return requests.get(B + "/api/adventure/ending-snapshot", params={"id": sid}, headers=adm).json()
+check("S1 终局提交成功后建立了一份快照（E2 → END-B）", snap("E2").get("snapshot", {}).get("snapshots") == 1, snap("E2"))
+check("S2 同 commitId 重放后仍只有一份快照", snap("E2")["snapshot"]["snapshots"] == 1)
+check("S3 未走到结局的会话（E1）没有快照；被拒绝/未确认的结局（E3、E5）也没有", snap("E1")["snapshot"] is None and snap("E3")["snapshot"] is None and snap("E5")["snapshot"] is None)
+st = snap("E4")["snapshot"]
+check("S4 另一个会话（E4 → END-A）有独立快照，字段只有计数", st is not None and st["learningRefs"] == 0 and st["openThreads"] == 0, st)
+check("S5 玩家会话不能读快照计数（403），响应也不含任何 id", requests.get(B + "/api/adventure/ending-snapshot", params={"id": "E2"}, headers={"Cookie": s.headers["Cookie"]}).status_code == 403 and "END-B" not in json.dumps(snap("E2")))
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)

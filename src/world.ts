@@ -19,6 +19,7 @@ function ensure(env: SiteEnv) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_rel_history (session_id TEXT NOT NULL, npc_id TEXT NOT NULL, n INTEGER NOT NULL, relation TEXT NOT NULL, PRIMARY KEY (session_id,npc_id,n))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_commits (session_id TEXT NOT NULL, commit_id TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY (session_id,commit_id))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_ending_notice (session_id TEXT NOT NULL, target TEXT NOT NULL, ending_id TEXT NOT NULL, world_version INTEGER NOT NULL, shown_at REAL NOT NULL, PRIMARY KEY (session_id,target))`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_ending_snapshot (session_id TEXT PRIMARY KEY, ending_commit_id TEXT NOT NULL, snapshot TEXT NOT NULL, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_applied (session_id TEXT NOT NULL, event_key TEXT NOT NULL, action_id TEXT NOT NULL, public_outcome TEXT, PRIMARY KEY (session_id,event_key))`),
   ]).catch((e) => { ready = null; throw e; }));
 }
@@ -321,6 +322,7 @@ async function commitOp(env: SiteEnv, body: unknown, kind: "travel" | "choice"):
     outcomes = await applyTrigger(env, sid, { type: "scene_entered", actionId }, st2.scene);
     // stateEffects 产生的二次触发（如 world_flag_changed）
     for (const t of next.filter((n) => n.type !== "scene_entered")) outcomes.push(...(await applyChained(env, sid, actionId, t)));
+    if (dest.ending !== undefined) await createEndingSnapshot(env, sid, b.commitId, endingOf(dest)!.id, b.target);
   } else {
     // 只有内容里确实存在、且挂在当前场景的选择才算数；否则不泄露存在与否，统一 not_available
     const evs = await allEvents(env);
@@ -407,4 +409,69 @@ export async function worldIntro(env: SiteEnv, sid: string): Promise<PublicEvent
   if (!st || st.version !== 0) return st ? await replayPublicOutcomes(env, sid, "init") : [];
   await applyTrigger(env, sid, { type: "scene_entered", actionId: "init" });
   return replayPublicOutcomes(env, sid, "init");
+}
+
+// ---- 章节开场快照（契约：world-content-semantics-v1「Chapter-opening continuity snapshot」）----
+// 终局 travel 与其 scene_entered 结局锁成功提交之后创建；每个会话至多一份（INSERT OR IGNORE），重放不会产生第二份。
+// 快照全部是引用，不含叙述文字；完整快照只在服务器内部，玩家/DM 只能拿 snapshotProjection 的授权视图。
+export const SNAPSHOT_CONFIG = { schemaVersion: 1, carryoverPolicyVersion: "carry-1" };
+async function createEndingSnapshot(env: SiteEnv, sid: string, commitId: string, endingId: string, endingScene: string): Promise<void> {
+  const locked = await flagGet(env, sid, "ending_locked");
+  if (locked !== JSON.stringify(endingId)) return; // 没有匹配的结局锁：不建快照
+  const st = await ensureState(env, sid);
+  if (!st) return;
+  const all = async (q: string, ...a: any[]) => (await env.DB.prepare(q).bind(sid, ...a).all<any>()).results ?? [];
+  const wr = await env.DB.prepare("SELECT id, MAX(rev) AS rev FROM adventure_content WHERE kind='world' GROUP BY id LIMIT 2").all<{ id: string; rev: number }>().catch(() => ({ results: [] as { id: string; rev: number }[] }));
+  if (wr.results.length !== 1) return; // 世界来源不可唯一确认：失败关闭，不建快照
+  const world = { rev: wr.results[0].rev };
+  const sceneRev = (await readContentInternal(env, "scene", endingScene).catch(() => null))?.rev ?? 0;
+  const applied = await all("SELECT event_key FROM adventure_world_applied WHERE session_id=? ORDER BY event_key");
+  const appliedKeys = new Set(applied.map((r) => String(r.event_key)));
+  const facts = await all("SELECT fact_id FROM adventure_world_facts WHERE session_id=? ORDER BY fact_id");
+  const npcs = await all("SELECT npc_id, relation FROM adventure_world_npc WHERE session_id=? ORDER BY npc_id");
+  const hist = await all("SELECT npc_id, n FROM adventure_world_rel_history WHERE session_id=? ORDER BY npc_id, n");
+  const mem = await all("SELECT npc_id, layer, item FROM adventure_world_npc_memory WHERE session_id=? ORDER BY npc_id, layer, item");
+  const items = await all("SELECT item_id FROM adventure_world_items WHERE session_id=? ORDER BY item_id");
+  const snap = {
+    snapshotSchemaVersion: SNAPSHOT_CONFIG.schemaVersion,
+    sourceWorldRef: wr.results[0].id, sourceWorldVersion: st.version, sourceContentRevision: { world: world.rev, endingScene: sceneRev }, engineVersion: WORLD_CONFIG.version,
+    endingRef: endingId, endingCommitRef: commitId,
+    // 玩家已知事实：来源是已提交事件（具体来源事件键集合只作审计引用），受众=该玩家
+    confirmedFacts: facts.map((f) => ({ factRef: f.fact_id, provenance: { committedEvents: [...appliedKeys].length }, audience: "player" })),
+    npcContinuity: npcs.map((n) => ({
+      npcRef: n.npc_id, relationBand: n.relation ?? null,
+      relationshipHistoryRefs: hist.filter((h) => h.npc_id === n.npc_id).map((h) => n.npc_id + "#" + h.n),
+      heardClaims: mem.filter((m) => m.npc_id === n.npc_id && m.layer === "heardClaims").map((m) => m.item),
+      beliefs: mem.filter((m) => m.npc_id === n.npc_id && m.layer === "npcBeliefs").map((m) => m.item),
+      confirmedKnowledge: mem.filter((m) => m.npc_id === n.npc_id && m.layer === "confirmedNpcKnowledge").map((m) => m.item),
+    })),
+    inventory: items.map((i) => ({ itemRef: i.item_id })),
+    openThreads: [], // 未解线索只能来自内容显式标注的引用；引擎不推断
+    learningEvidenceRefs: [], // 学习事件当前未与会话绑定；仅在以后有显式证据引用时写入，快照不重复发奖
+    carryoverPolicyVersion: SNAPSHOT_CONFIG.carryoverPolicyVersion,
+  };
+  await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_ending_snapshot (session_id,ending_commit_id,snapshot,created_at) VALUES (?,?,?,?)").bind(sid, commitId, JSON.stringify(snap), Date.now() / 1000).run();
+}
+// 授权投影：只有玩家已知事实、可见关系档位、持有物品；不含结局 id、NPC 私有信念/知识、内部提交引用。
+// 来源不可核验（快照版本/政策版本不符）→ 失败关闭返回 null。
+export async function snapshotProjection(env: SiteEnv, sid: string): Promise<{ facts: string[]; relations: { npc: string; band: string | null }[]; items: string[] } | null> {
+  await ensure(env);
+  const r = await env.DB.prepare("SELECT snapshot FROM adventure_world_ending_snapshot WHERE session_id=?").bind(sid).first<{ snapshot: string }>();
+  if (!r) return null;
+  let s: any;
+  try { s = JSON.parse(r.snapshot); } catch { return null; }
+  if (s.snapshotSchemaVersion !== SNAPSHOT_CONFIG.schemaVersion || s.carryoverPolicyVersion !== SNAPSHOT_CONFIG.carryoverPolicyVersion) return null;
+  return {
+    facts: s.confirmedFacts.filter((f: any) => f.audience === "player").map((f: any) => f.factRef),
+    relations: s.npcContinuity.map((n: any) => ({ npc: n.npcRef, band: n.relationBand })),
+    items: s.inventory.map((i: any) => i.itemRef),
+  };
+}
+// 管理员计数视图（测试/运维用）：只给分类计数，不给任何 id
+export async function snapshotStats(env: SiteEnv, sid: string): Promise<Record<string, number> | null> {
+  await ensure(env);
+  const rows = await env.DB.prepare("SELECT snapshot FROM adventure_world_ending_snapshot WHERE session_id=?").bind(sid).all<{ snapshot: string }>();
+  if (!rows.results.length) return null;
+  const s = JSON.parse(rows.results[0].snapshot);
+  return { snapshots: rows.results.length, facts: s.confirmedFacts.length, npcs: s.npcContinuity.length, items: s.inventory.length, heard: s.npcContinuity.reduce((a: number, n: any) => a + n.heardClaims.length, 0), beliefs: s.npcContinuity.reduce((a: number, n: any) => a + n.beliefs.length, 0), openThreads: s.openThreads.length, learningRefs: s.learningEvidenceRefs.length };
 }

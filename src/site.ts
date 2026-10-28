@@ -6,7 +6,7 @@
 import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
 import { handleTurn } from "./turn";
-import { commitChoice, commitTravel } from "./world";
+import { commitChoice, commitTravel, snapshotStats } from "./world";
 import { putContent, listContent } from "./content";
 import { publicSceneInfo } from "./world";
 import { getSession, postAction, sessionOp } from "./adventure";
@@ -488,6 +488,13 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/adventure/session" && req.method === "POST") return asJson(await sessionOp(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/session" && req.method === "GET") return asJson(await getSession(env, url.searchParams.get("id") || ""));
     if (p === "/api/adventure/world" && req.method === "GET") return json(await publicSceneInfo(env, url.searchParams.get("id") || ""));
+    if (p === "/api/adventure/ending-snapshot" && req.method === "GET") {
+      // 管理员计数视图：同内容库通道的口令校验；响应只有分类计数，快照本体永不经 HTTP
+      const pw = req.headers.get("X-Owner-Password") ?? "";
+      if (!env.OWNER_PASSWORD || !pw || !(await safeEq(pw, env.OWNER_PASSWORD))) return err("forbidden", "仅限管理员", 403);
+      const st = await snapshotStats(env, url.searchParams.get("id") || "");
+      return json({ ok: true, snapshot: st });
+    }
     if (p === "/api/adventure/content") {
       // 内容库管理员通道：登录会话还不够，必须在请求头再带一次主口令（X-Owner-Password）；失败 5 次锁 15 分钟。
       const ip = req.headers.get("CF-Connecting-IP") ?? "local";
