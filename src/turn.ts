@@ -32,6 +32,7 @@ let ready: Promise<unknown> | null = null;
 function ensureSchema(env: SiteEnv) {
   ready ??= env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_turns (turn_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, response TEXT, created_at REAL NOT NULL)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_plans (plan_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, status TEXT NOT NULL, text TEXT NOT NULL, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_insight_use (event_id TEXT PRIMARY KEY, insight_key TEXT NOT NULL, is_first INTEGER NOT NULL)`),
     env.DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_insight_first ON adventure_insight_use(insight_key) WHERE is_first=1`),
   ])
@@ -59,6 +60,7 @@ export interface Classification {
   storyResume: boolean;
   pauseStory: boolean;
   insightKey: string | null;
+  planRef: "none" | "previous" | "inline";
   evaluation: null | { correctness: string; reasoning: string; assistance: string };
 }
 export function validateClassification(x: unknown): { ok: true; value: Classification } | { ok: false; why: string } {
@@ -72,13 +74,15 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
   if (typeof pause !== "boolean") return { ok: false, why: "pauseStory 不合法" };
   const ik = x.insightKey === undefined || x.insightKey === null ? null : x.insightKey;
   if (ik !== null && (typeof ik !== "string" || !/^[a-z0-9][a-z0-9_.-]{0,59}$/.test(ik))) return { ok: false, why: "insightKey 不合法" };
+  const pr = x.planRef === undefined ? "none" : x.planRef;
+  if (pr !== "none" && pr !== "previous" && pr !== "inline") return { ok: false, why: "planRef 不合法" };
   let ev: Classification["evaluation"] = null;
   if (x.evaluation !== null && x.evaluation !== undefined) {
     const e = x.evaluation;
     if (!isObj(e) || !CORRECT.has(e.correctness as string) || !REASON.has(e.reasoning as string) || !ASSIST.has(e.assistance as string)) return { ok: false, why: "evaluation 不合法" };
     ev = { correctness: e.correctness as string, reasoning: e.reasoning as string, assistance: e.assistance as string };
   }
-  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, evaluation: ev } };
+  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, evaluation: ev } };
 }
 
 const CLASSIFY_PROMPT = (input: string, paused: boolean) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
@@ -90,8 +94,9 @@ const CLASSIFY_PROMPT = (input: string, paused: boolean) => `[[CLASSIFY]] 你是
 - storyResume：玩家是否要求回到刚才的故事/继续；
 - pauseStory：玩家是否明确要求离开故事去纯刷题（如“不要剧情”“先刷题”）；故事里顺便作答不算；
 - insightKey：这次解答用到的核心思路的稳定短标识（小写英文数字和连字符，如 expand-then-differentiate）；同一个思路换说法重复出现必须用同一个标识，没有评估时为 null；
+- planRef：玩家要执行行动时，指令本身是否把行动说清楚了。"inline"=指令自己说明了要做什么；"previous"=指代之前商量/草拟过的方案（如“刚才那个”）；"none"=不涉及执行。指代不清也写 "previous"；
 - evaluation：玩家给出了数学解答时填 {correctness, reasoning, assistance}，否则 null。correctness∈correct/incorrect/partial/unknown；reasoning∈valid/partial/invalid/not_assessed（答案对但理由不成立要写 invalid；独立正确的非标准方法写 valid）；assistance∈none/minor_hint/major_hint/worked_solution/unknown（玩家在得到提示后作答要如实标注）。
-格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"evaluation":null}`;
+格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"planRef":"none","evaluation":null}`;
 
 const VERIFY_PROMPT = (input: string) => `[[VERIFY]] 独立核对下面玩家的数学解答：结论是否正确，且推理是否确实成立（不是碰巧对）。只输出 JSON：{"agree":true|false}。
 玩家输入：${input}`;
@@ -174,8 +179,21 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   let commit: Record<string, unknown> | null = null;
   let visible = "";
   const wantsAct = intents.includes("ACT") && cls.explicitCommit;
-  if (intents.includes("ACT") && !cls.explicitCommit) visible = "已记下计划，还没有执行。需要执行时直接告诉我。";
-  if (wantsAct) {
+  if (intents.includes("ACT") && !cls.explicitCommit) {
+    visible = "已记下计划，还没有执行。需要执行时直接告诉我。";
+    await env.DB.prepare("INSERT OR IGNORE INTO adventure_plans (plan_id,session_id,status,text,created_at) VALUES (?,?,'draft',?,?)").bind("turn:" + turnId, sessionId, input.slice(0, 200), Date.now() / 1000).run();
+  }
+  let planOk = true;
+  let planId: string | null = null;
+  if (wantsAct && cls.planRef !== "inline") {
+    // 指代“刚才的方案”：必须真的有一个未执行的草案，并且一次只消费一个；没有就不执行
+    const plan = await env.DB.prepare("SELECT plan_id FROM adventure_plans WHERE session_id=? AND status='draft' ORDER BY created_at DESC LIMIT 1").bind(sessionId).first<{ plan_id: string }>();
+    if (!plan) {
+      planOk = false;
+      visible = "我没有找到一个待执行的方案。先告诉我你想怎么做，确认之后再说“执行”。";
+    } else planId = plan.plan_id;
+  }
+  if (wantsAct && planOk) {
     if (sess.status !== "active" && !cls.storyResume) visible = "故事现在是暂停状态，没有执行行动。说“继续”就能回到刚才。";
     else {
       if (sess.status !== "active") await env.DB.prepare("UPDATE adventure_sessions SET status='active', updated_at=? WHERE id=?").bind(Date.now() / 1000, sessionId).run();
@@ -187,6 +205,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       const r = await postAction(env, { actionId: "turn:" + turnId, basisEventId: basis?.id ?? null });
       if (r.status === 200) {
         commit = r.body.outcome as Record<string, unknown>;
+        if (planId) await env.DB.prepare("UPDATE adventure_plans SET status='consumed' WHERE plan_id=? AND status='draft'").bind(planId).run();
         if (!r.body.replay) await env.DB.prepare("UPDATE adventure_sessions SET world_seq=world_seq+1, updated_at=? WHERE id=?").bind(Date.now() / 1000, sessionId).run();
       } else visible = String(r.body.message ?? "行动没有提交");
     }

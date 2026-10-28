@@ -63,14 +63,15 @@ globalThis.fetch = (async (input: any, init?: any) => {
     const q = (lastText.split("玩家输入：")[1] || "").split("\n")[0].trim();
     let special: string | null = null;
     if (lastText.includes("[[CLASSIFY]]")) {
-      const C = (i: string[], c: boolean, r: boolean, e: any, p = false, k: string | null = null) => JSON.stringify({ intents: i, explicitCommit: c, storyResume: r, pauseStory: p, insightKey: k, evaluation: e });
+      const C = (i: string[], c: boolean, r: boolean, e: any, p = false, k: string | null = null, pr = "none") => JSON.stringify({ intents: i, explicitCommit: c, storyResume: r, pauseStory: p, insightKey: k, planRef: pr, evaluation: e });
       if (q.includes("BADJSON")) special = "不是json";
       else if (q.includes("区别")) special = C(["ASK"], false, false, null);
       else if (q.includes("系统讲")) special = C(["LEARN"], false, false, null);
       else if (q.includes("刷5题")) special = C(["PRACTICE"], false, false, null, true);
-      else if (q.includes("先不要执行")) special = C(["ASK", "LEARN", "ACT"], false, false, null);
-      else if (q.includes("继续并执行")) special = C(["ACT"], true, true, null);
-      else if (q.includes("执行")) special = C(["ACT"], true, false, null);
+      else if (q.includes("先不要执行")) special = C(["ASK", "LEARN", "ACT"], false, false, null, false, null, "inline");
+      else if (q.includes("继续并执行")) special = C(["ACT"], true, true, null, false, null, "inline");
+      else if (q.includes("刚才")) special = C(["ACT"], true, false, null, false, null, "previous");
+      else if (q.includes("执行")) special = C(["ACT"], true, false, null, false, null, "inline");
       else if (q.includes("乘 2")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "invalid", assistance: "none" });
       else if (q.includes("先展开") || q.includes("再说一遍")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "none" }, false, "expand-then-differentiate");
       else if (q.includes("提示后")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "major_hint" });
