@@ -39,7 +39,7 @@ put("scene", "wb:other", {"choices": [], "publicText": "PB-OTHER"})
 put("scene", "wa:start", {"choices": ["s2", "wb:other", "wa:s2"], "publicText": "PA-START-3"})
 start("MA3", worldId="wa")
 labels = world("MA3").get("options", [])
-check("M6 别的世界的限定引用被拒（不回落）；本世界的限定引用等同 localId", len(labels) == 2, labels)
+check("M6 别的世界的限定引用被拒（不回落）；本世界的限定引用等同 localId（与 s2 是同一目的地，合并为 1 项）", len(labels) == 1, labels)
 check("M7 玩家响应不含 worldId/限定 id", "wb:" not in json.dumps(world("MA3")) and "wa:" not in json.dumps(world("MA3")))
 # 内容里写本世界的限定引用（作者规范写法）：与 localId 等价
 put("world", "wq:world", {"startSceneRef": "wq:start"})

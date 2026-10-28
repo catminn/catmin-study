@@ -214,6 +214,11 @@ check("LG1 已固定的旧世界会话：场景新修订不可见", wpt("LG") !=
 check("LG2 已固定的旧世界会话：固定之后新增的事件不可见", "LATE-EVENT" not in outs(o), outs(o))
 s.post(B + "/api/adventure/session", json={"sessionId": "LH", "op": "start"})
 check("LG3 新会话读到新修订", wpt("LH") == "LEGACY-NEW-REV", wpt("LH"))
+# 回归（#62 截图）：可前往列表不含当前场景本身，也不重复
+put("scene", "x-a", {"choices": ["x-a", "t-b", "t-b", "s-c"]})
+s.post(B + "/api/adventure/session", json={"sessionId": "NM", "op": "start"}); travel("NM", "nm-t0", "x-a")
+check("NM1 可前往列表不含当前场景、不重复（x-a 自指+重复目的地 → 只剩 2 个）", opts("NM") == 2, opts("NM"))
+c, b = travel("NM", "nm-t1", "x-a"); check("NM2 原地转场被拒", c == 422, b)
 # 世界绑定（#50）：会话固定 worldId 与内容修订；内容库新增别的世界后，已固定的会话不串用，未固定的新会话不猜世界（失败关闭）
 wact = lambda sid: s.get(B + "/api/adventure/world", params={"id": sid}).json().get("active")
 before = wact("P1")

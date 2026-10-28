@@ -494,7 +494,7 @@ async function commitOp(env: SiteEnv, body: unknown, kind: "travel" | "choice"):
   let outcomes: PublicEvent[] = [];
   if (kind === "travel") {
     const sc = await sceneContent(env, sid, st.scene);
-    const dest = sc && Array.isArray(sc.choices) && sc.choices.includes(b.target) ? await sceneContent(env, sid, b.target) : null;
+    const dest = sc && Array.isArray(sc.choices) && sc.choices.includes(b.target) && b.target !== st.scene ? await sceneContent(env, sid, b.target) : null;
     if (!dest || !(await entryOk(env, sid, st.scene, dest))) return wfail(422, "not_available", "现在去不了那里");
     if (dest.ending !== undefined) {
       const en = endingOf(dest);
@@ -588,7 +588,10 @@ export async function availableMoves(env: SiteEnv, sid: string): Promise<{ scene
   const sc = await sceneContent(env, sid, st.scene);
   if (!sc || !Array.isArray(sc.choices)) return [];
   const out: { sceneId: string; label: string }[] = [];
+  const seen = new Set<string>();
   for (const id of sc.choices) {
+    if (id === st.scene || seen.has(id)) continue; // 不列出当前所在场景（原地“前往”）与重复目的地
+    seen.add(id);
     const dest = await sceneContent(env, sid, id);
     if (!dest || !(await entryOk(env, sid, st.scene, dest))) continue;
     const label = (sc.choiceLabels && typeof sc.choiceLabels[id] === "string" && sc.choiceLabels[id]) || "地点" + (out.length + 1);
