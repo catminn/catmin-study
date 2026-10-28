@@ -9,6 +9,7 @@ import { handleTurn } from "./turn";
 import { commitChoice, commitTravel, snapshotStats } from "./world";
 import { putContent, listContent } from "./content";
 import { publicSceneInfo } from "./world";
+import { auditStats, declineOffer, getProfile, putProfile } from "./learning";
 import { getSession, postAction, sessionOp } from "./adventure";
 import { getBalance, listEvents, postEvent, postReward } from "./events";
 import { GErr, finishAuth, googleDisconnect, googleStatus, googleTool, startAuth } from "./google";
@@ -488,6 +489,14 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/adventure/session" && req.method === "POST") return asJson(await sessionOp(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/session" && req.method === "GET") return asJson(await getSession(env, url.searchParams.get("id") || ""));
     if (p === "/api/adventure/world" && req.method === "GET") return json(await publicSceneInfo(env, url.searchParams.get("id") || ""));
+    if (p === "/api/adventure/learning-profile" && req.method === "GET") { const pr = await getProfile(env); return json({ ok: true, enrolledCourseIds: pr.enrolledCourseIds, optedOutCourseIds: pr.optedOutCourseIds, avoidLearning: pr.avoidLearning }); }
+    if (p === "/api/adventure/learning-profile" && req.method === "PUT") return asJson(await putProfile(env, await req.json().catch(() => null)));
+    if (p === "/api/adventure/learning-offer/decline" && req.method === "POST") { const b: any = await req.json().catch(() => null); return asJson(await declineOffer(env, b?.sessionId, b?.conceptId)); }
+    if (p === "/api/adventure/learning-audit" && req.method === "GET") { // 管理员：只有分类计数
+      const pw = req.headers.get("X-Owner-Password") ?? "";
+      if (!env.OWNER_PASSWORD || !pw || !(await safeEq(pw, env.OWNER_PASSWORD))) return err("forbidden", "仅限管理员", 403);
+      return json({ ok: true, audit: await auditStats(env) });
+    }
     if (p === "/api/adventure/ending-snapshot" && req.method === "GET") {
       // 管理员计数视图：同内容库通道的口令校验；响应只有分类计数，快照本体永不经 HTTP
       const pw = req.headers.get("X-Owner-Password") ?? "";

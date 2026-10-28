@@ -51,3 +51,11 @@
 - 规则：已关闭的线索不会因重访或重放重开；关闭从未开启的线索、受众/携带策略与已有记录冲突、同一事件既开又关、结构非法 → 事件整条拒绝（场景声明整体忽略），不部分应用。表 `adventure_world_threads`（含 opened_by 提交引用、resolved_by）。
 - 快照：终局锁成功后，`openThreads` 只带“已开启、未解决、carryover=eligible”的 `{threadRef,status:"unresolved",audience,openedByCommitRef}`；local_only 不带；缺开启来源 → 不建快照。授权投影 `snapshotProjection.openThreads` 只含 audience=player；server_private 永不进入玩家/DM 视图。管理员计数视图含 openThreadsPlayer/Private/projectedOpenThreads（仅计数）。
 - 预检脚本新增 error：openThreads/resolvesThreads 结构非法、缺 authorizedAudience/carryover、线索 id 重复声明、resolvesThreads 引用未声明线索、同一事件既开又关。
+
+## 8. 学习机会（课程无关，world-1.2 之上）
+- 课程包：内容库 kind=`course`，id=课程 id，content={id,version,concepts:[{id,courseId,title,prerequisites,applications}]}。每次写入产生新修订（rev），审计里记录 `课程id@rev`。结构非法或 content.id≠id 一律 400；跨包前置概念引用在运行时整体校验，不合法则整体失败关闭（不提示）。
+- 场景声明（作者写，公开）：`publicCues:[{id,evidence,visible?}]` + `learningAffordances:[{id,publicCueIds,application,eligibleConceptIds,prompt}]`。机会只能引用本场景已声明且 `evidence` 非空的公开线索；线索不齐则不触发。预检脚本会报结构错误。
+- 玩家档案（登录后）：`GET/PUT /api/adventure/learning-profile` {enrolledCourseIds,optedOutCourseIds?,avoidLearning?}。已学概念由服务器按“已确认、答案正确、推理有效、非代解”的学习证据推导（概念 id 必须与课程包概念 id 一致才算数，否则当作没学过——失败关闭）；客户端写 learnedConceptIds 会 400。
+- 回合响应可含 `learningOffer:{affordanceId,conceptId,prompt}`（至多一条，非强制，仅 UI/DM 参考）。它不改世界、不判定、不发奖、不写事实。玩家明确要学（LEARN 意图）时才无视“不想被提示”和冷却；否则受导演冷却约束（同概念 20 分钟、当日拒绝 2 次后不再提示），静默状态下不提示。`POST /api/adventure/learning-offer/decline` {sessionId,conceptId} 记录拒绝。
+- 审计：表 adventure_learning_audit（offered/withheld/none/declined + 原因 + 课程包修订）；管理员 `GET /api/adventure/learning-audit` 只返回分类计数。
+- 自动生成的剧情不得直接写入 canonical world；只允许作为 draft/支线候选，经隐藏事实/因果/学习正确性审查后发布（本引擎不提供自动写入通道）。

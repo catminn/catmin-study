@@ -66,6 +66,19 @@ try {
         else if ((ef.type === 'lock_flag' || ef.type === 'set_flag') && ef.target === 'ending_locked') bad('场景入场效果提前写入 ending_locked');
       }
     }
+    if (sc.learningAffordances !== undefined || sc.publicCues !== undefined) { // 学习机会：线索必须是公开证据，机会只能引用本场景已声明的线索
+      const cues = Array.isArray(sc.publicCues) ? sc.publicCues : null, affs = Array.isArray(sc.learningAffordances) ? sc.learningAffordances : null;
+      if (!cues || !affs) bad('scene.publicCues / learningAffordances 结构非法（须为数组且成对出现）');
+      else {
+        const cueIds = new Set(cues.filter(c => c && typeof c.id === 'string' && typeof c.evidence === 'string' && c.evidence.trim()).map(c => c.id));
+        if (cueIds.size !== cues.length) bad('scene.publicCues 含缺少 id/evidence 或 id 重复的线索');
+        const affIds = new Set();
+        for (const a of affs) {
+          if (!a || typeof a.id !== 'string' || typeof a.application !== 'string' || typeof a.prompt !== 'string' || !a.prompt.trim() || !Array.isArray(a.publicCueIds) || !a.publicCueIds.length || !Array.isArray(a.eligibleConceptIds) || !a.eligibleConceptIds.length || affIds.has(a.id)) bad('learningAffordance 结构非法或 id 重复');
+          else { affIds.add(a.id); if (!a.publicCueIds.every(c => cueIds.has(c))) bad('learningAffordance 引用了本场景没有声明的公开线索（运行时不会触发）'); }
+        }
+      }
+    }
     if (sc.entryRequirements !== undefined && !leavesOk(sc.entryRequirements)) bad('scene.entryRequirements 含引擎不认识的条件写法');
     if (sc.ending !== undefined) {
       const en = sc.ending;

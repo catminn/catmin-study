@@ -1,0 +1,217 @@
+{
+  "schema": "dm-experience-cases-v1",
+  "note": "All settings and descriptions are fictional, public and nonspecific. No private plot, NPC, puzzle answer or production content.",
+  "sequences": [
+    {
+      "id": "curiosity-without-math",
+      "steps": [
+        {
+          "kind": "observe",
+          "input": "看看四周",
+          "publicScene": "街上有石板路、钟楼和一小片积水。",
+          "mustNarrate": true,
+          "reply": "你看到脚下石板接缝处积着浅水，远处钟楼映在水面上。"
+        },
+        {
+          "kind": "explore",
+          "input": "我就想随便走走，不做题",
+          "publicScene": "街上有石板路。",
+          "reply": "你沿街道慢慢走，四处张望，暂时没有做出新的决定。"
+        },
+        {
+          "kind": "observe",
+          "input": "仔细看看街面",
+          "publicScene": "石板有水痕。",
+          "mustNarrate": true,
+          "reply": "脚下的石板泛着潮气，水痕沿缝隙延伸。"
+        }
+      ]
+    },
+    {
+      "id": "terrain-inquiry-voluntary",
+      "steps": [
+        {
+          "kind": "observe",
+          "input": "水往哪边流？",
+          "publicScene": "石板上有积水，两条道路坡度不同。",
+          "hasRelevantMathClue": true,
+          "mustNarrate": true,
+          "reply": "你看到地面的水痕沿石板接缝延伸，不过只凭这一眼还很难确定整条街的高低。"
+        },
+        {
+          "kind": "explore",
+          "input": "地图的标注为什么和水流不一样",
+          "publicScene": "两张地图存在不同标注。",
+          "hasRelevantMathClue": true,
+          "reply": "两张地图对同一段坡向的标注不一致。你可以沿着水流找一个参照点，也可以检查标高是否基于不同的基准。"
+        },
+        {
+          "kind": "lesson",
+          "input": "能解释一下梯度吗",
+          "mathRequested": true,
+          "reply": "梯度向量指向函数局部增长最快的方向；负梯度则给出局部下降最快的方向。"
+        }
+      ]
+    },
+    {
+      "id": "travel-authority",
+      "steps": [
+        {
+          "kind": "travel",
+          "input": "前往石桥",
+          "committed": true,
+          "publicScene": "桥边的栏杆潮湿。",
+          "authorizedOutcome": "转场成功",
+          "mustNarrate": true,
+          "reply": "你到达石桥边，栏杆上还留着细小的水珠，脚下能听见水声。"
+        },
+        {
+          "kind": "observe",
+          "input": "看看四周",
+          "publicScene": "桥边的栏杆潮湿。",
+          "mustNarrate": true,
+          "reply": "你看见桥下水流穿过桥洞，远处路口仍有人走动。"
+        }
+      ]
+    },
+    {
+      "id": "failure-without-invented-arrival",
+      "steps": [
+        {
+          "kind": "travel",
+          "input": "走进锁着的房间",
+          "committed": false,
+          "reply": "门仍紧闭着。你可以寻找钥匙，或先观察门锁。"
+        },
+        {
+          "kind": "npc",
+          "input": "问守门人有没有别的路",
+          "reply": "守门人摇摇头，说他只看守这里，别的道路他并不清楚。"
+        }
+      ]
+    },
+    {
+      "id": "continue-story",
+      "steps": [
+        {
+          "kind": "explore",
+          "input": "继续刚才的",
+          "publicScene": "钟楼的街口。",
+          "mustNarrate": true,
+          "reply": "你仍站在街道转角，钟声刚停，远处的脚步声渐渐近了。"
+        },
+        {
+          "kind": "npc",
+          "input": "我不想回答数学题，先问问那人",
+          "reply": "他看了看你，问你是不是在找什么地方。"
+        }
+      ]
+    },
+    {
+      "id": "player-skips-math",
+      "steps": [
+        {
+          "kind": "explore",
+          "input": "我不求梯度，自己沿着路找",
+          "hasRelevantMathClue": true,
+          "reply": "你沿街道绕了一圈，顺着路面的高低变化寻找方向。"
+        },
+        {
+          "kind": "observe",
+          "input": "有什么能看见的标记吗",
+          "publicScene": "路边有浅色标记。",
+          "mustNarrate": true,
+          "reply": "你注意到路边石块有几道浅色划痕，方向与道路平行。"
+        }
+      ]
+    }
+  ],
+  "negative": [
+    {
+      "id": "engine-speak",
+      "turn": {
+        "kind": "observe",
+        "input": "看看四周",
+        "publicScene": "街上有石板路。",
+        "mustNarrate": true,
+        "reply": "本回合没有提交具体世界行动，所以无法描述周围。"
+      },
+      "expect": [
+        "internal_mechanics_leaked",
+        "observation_refused",
+        "missing_grounded_scene_narration"
+      ]
+    },
+    {
+      "id": "math-gate",
+      "turn": {
+        "kind": "explore",
+        "input": "继续剧情",
+        "reply": "必须先解答数学题才能继续。"
+      },
+      "expect": [
+        "forced_math_gate",
+        "unmotivated_math_intrusion"
+      ]
+    },
+    {
+      "id": "random-math",
+      "turn": {
+        "kind": "npc",
+        "input": "你好",
+        "reply": "你好，请先学梯度。"
+      },
+      "expect": [
+        "unmotivated_math_intrusion"
+      ]
+    },
+    {
+      "id": "uncommitted-arrival",
+      "turn": {
+        "kind": "travel",
+        "input": "我可能去桥边",
+        "committed": false,
+        "reply": "你已经抵达石桥。"
+      },
+      "expect": [
+        "uncommitted_travel_claim"
+      ]
+    },
+    {
+      "id": "unrequested-lesson",
+      "turn": {
+        "kind": "lesson",
+        "input": "请讲讲方向导数",
+        "mathRequested": true,
+        "reply": "今天阳光不错。"
+      },
+      "expect": [
+        "requested_math_not_addressed"
+      ]
+    },
+    {
+      "id": "empty",
+      "turn": {
+        "kind": "observe",
+        "input": "看看四周",
+        "reply": ""
+      },
+      "expect": [
+        "empty_reply"
+      ]
+    },
+    {
+      "id": "no-scene",
+      "turn": {
+        "kind": "observe",
+        "input": "看看四周",
+        "publicScene": "地上有水。",
+        "mustNarrate": true,
+        "reply": "好的，你可以继续。"
+      },
+      "expect": [
+        "missing_grounded_scene_narration"
+      ]
+    }
+  ]
+}

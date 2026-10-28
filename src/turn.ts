@@ -6,6 +6,8 @@ import { sceneRequest, narrationViolatesSceneContract } from "./scene-intent";
 import { applyTrigger, availableChoices, availableMoves, commitChoice, commitTravel, pendingEndingNotice, publicSceneInfo, replayPublicOutcomes, type PublicEvent } from "./world";
 import { ACTIONS, CONCEPTS, CONFIG, postAction } from "./adventure";
 import { postEvent } from "./events";
+import { learningOffer } from "./learning";
+import { readContentInternal } from "./content";
 
 export const ROUTING = {
   version: "routing-1.0.0",
@@ -473,6 +475,11 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   }
   if (sceneReq.observation && sceneInfo.active && sceneInfo.publicText && (!narration.trim() || narrationViolatesSceneContract(narration))) narration = sceneInfo.publicText;
   if (endingNotice && !narration.includes(endingNotice)) narration = (narration.trim() ? narration.trim() + "\n\n" : "") + endingNotice + "\n\n如果确定，请回复“确认进入结局”。";
+  // 可选学习提示：只来自当前场景作者声明的公开线索，不改世界、不强制；失败一律不影响回合
+  let offer = null as Awaited<ReturnType<typeof learningOffer>>;
+  if (sceneInfo.active && !endingNotice) {
+    try { const st = await env.DB.prepare("SELECT scene_id FROM adventure_world WHERE session_id=?").bind(sessionId).first<{ scene_id: string }>(); const sc = st ? (await readContentInternal(env, "scene", st.scene_id))?.content : null; offer = await learningOffer(env, sessionId, sc, { requestedLearning: intents.includes("LEARN"), quiet }); } catch { offer = null; }
+  }
   const cur = await env.DB.prepare("SELECT status, segment, world_seq FROM adventure_sessions WHERE id=?").bind(sessionId).first<any>();
   return {
     status: 200,
@@ -489,6 +496,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       ...(sceneInfo.publicText && (worldEvents.length || moved) ? { scene: { publicText: sceneInfo.publicText } } : {}),
       learningSessionDelta: { status: cur.status, segment: cur.segment, worldSeq: cur.world_seq, resumeCursor: { lessonOpen: cursor.open, lessonSegment: cursor.segment, nestedDepth: cursor.nested, resumeAsked: cursor.asked } },
       narration,
+      ...(offer ? { learningOffer: offer } : {}),
       quietMode: quiet,
       visibleFeedback: visible,
       ...(retry ? { _retry: retry } : {}),

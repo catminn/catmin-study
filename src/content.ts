@@ -1,8 +1,9 @@
 // 私有故事内容库：只有登录后才能读写，内容存在网站自己的 D1 里，不进 GitHub、不进共享记忆。
 // 引擎目前不读取内容（沙盒用占位）；这里只提供安全的导入/读取通道，内容字段由 ChatGPT 的内容规格定义。
 import type { SiteEnv } from "./site";
+import { validateCoursePacks } from "./learning-adapter";
 
-export const CONTENT_KINDS = ["world", "npc", "event", "knowledge-link", "scene"] as const;
+export const CONTENT_KINDS = ["world", "npc", "event", "knowledge-link", "scene", "course"] as const;
 const ID_RE = /^[a-z0-9][a-z0-9_.-]{0,79}$/;
 const MAX_BYTES = 64 * 1024;
 
@@ -23,6 +24,10 @@ export async function putContent(env: SiteEnv, b: any): Promise<R> {
   if (!(CONTENT_KINDS as readonly string[]).includes(b.kind)) return bad(400, "bad_kind", `kind 只能是 ${CONTENT_KINDS.join("/")}`);
   if (typeof b.id !== "string" || !ID_RE.test(b.id)) return bad(400, "bad_id", "id 需为小写字母/数字/._-");
   if (b.content === undefined || b.content === null || typeof b.content !== "object") return bad(400, "bad_content", "content 需为 JSON 对象");
+  if (b.kind === "course") { // 课程包：结构必须合法（跨包前置概念引用在运行时整体校验，这里不拦）
+    const errs = validateCoursePacks([b.content]).filter((e) => e !== "missing_prerequisite");
+    if (errs.length || b.content.id !== b.id) return bad(400, "bad_course_pack", "课程包结构不合法或 content.id 与 id 不一致");
+  }
   const body = JSON.stringify(b.content);
   if (body.length > MAX_BYTES) return bad(413, "too_large", "单条内容上限 64KB");
   const last = await env.DB.prepare("SELECT rev, body FROM adventure_content WHERE kind=? AND id=? ORDER BY rev DESC LIMIT 1").bind(b.kind, b.id).first<{ rev: number; body: string }>();
