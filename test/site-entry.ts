@@ -60,7 +60,23 @@ globalThis.fetch = (async (input: any, init?: any) => {
     const last = body.messages[body.messages.length - 1];
     const lastText = typeof last.content === "string" ? last.content : last.content.map((c: any) => c.text || "").join("");
     const hasImg = typeof last.content !== "string";
-    const reply = lastText.includes("JSON") ? '```json\n{"ok":true,"n":3}\n```' : `你好，这是${prov}的${body.model}回答。${hasImg ? "收到图片。" : ""}`;
+    const q = (lastText.split("玩家输入：")[1] || "").split("\n")[0].trim();
+    let special: string | null = null;
+    if (lastText.includes("[[CLASSIFY]]")) {
+      const C = (i: string[], c: boolean, r: boolean, e: any, p = false) => JSON.stringify({ intents: i, explicitCommit: c, storyResume: r, pauseStory: p, evaluation: e });
+      if (q.includes("BADJSON")) special = "不是json";
+      else if (q.includes("区别")) special = C(["ASK"], false, false, null);
+      else if (q.includes("系统讲")) special = C(["LEARN"], false, false, null);
+      else if (q.includes("刷5题")) special = C(["PRACTICE"], false, false, null, true);
+      else if (q.includes("先不要执行")) special = C(["ASK", "LEARN", "ACT"], false, false, null);
+      else if (q.includes("继续并执行")) special = C(["ACT"], true, true, null);
+      else if (q.includes("执行")) special = C(["ACT"], true, false, null);
+      else if (q.includes("乘 2")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "invalid", assistance: "none" });
+      else if (q.includes("先展开")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "none" });
+      else if (q.includes("提示后")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "major_hint" });
+      else special = C(["EXPLORE"], false, false, null);
+    } else if (lastText.includes("[[VERIFY]]")) special = JSON.stringify({ agree: !q.includes("NOAGREE") });
+    const reply = special ?? (lastText.includes("JSON") ? '```json\n{"ok":true,"n":3}\n```' : `你好，这是${prov}的${body.model}回答。${hasImg ? "收到图片。" : ""}`);
     return new Response(fakeStream(prov, reply), { headers: { "content-type": "text/event-stream" } });
   }
   return realFetch(input, init);

@@ -1,0 +1,215 @@
+// 冒险回合：意图识别 → 学术评估记录 → （仅 ACT）行动提交 → 回复。
+// 服务器规则优先于模型输出：模型不能自己提交行动、不能指定依据事件、不能把待验证说成已确认。
+//   POST /api/adventure/turn {sessionId, turnId, inputText}   同 turnId 重试返回原回复，不重复调用模型/不重复提交
+import type { SiteEnv } from "./site";
+import { CONFIG, postAction } from "./adventure";
+import { postEvent } from "./events";
+
+export const ROUTING = {
+  version: "routing-1.0.0",
+  classify: { tier: "quick", provider: "anthropic" },
+  verify: { tier: "quick", provider: "openai" }, // 与判题不同的厂商，降低同源误判
+  reply: { LEARN: { tier: "default", provider: "anthropic" }, ASK: { tier: "quick", provider: "anthropic" }, PRACTICE: { tier: "quick", provider: "anthropic" }, EXPLORE: { tier: "quick", provider: "anthropic" }, ACT: { tier: "quick", provider: "anthropic" } } as Record<string, { tier: string; provider: string }>,
+  crossCheckCorrect: true, // 模型认为“正确且推理有效”时，必须由第二个模型独立确认才算 confirmed
+  topicId: "math1920.sandbox",
+  maxInput: 4000,
+};
+
+export interface Deps {
+  budgetOk(): Promise<{ ok: true } | { ok: false; reason: string }>;
+  complete(tier: string, provider: string, text: string, maxTok: number): Promise<string>;
+}
+type Result = { status: number; body: Record<string, unknown> };
+const fail = (status: number, code: string, message: string): Result => ({ status, body: { code, message } });
+const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
+const idOk = (x: unknown): x is string => typeof x === "string" && /^[\w.:-]{1,100}$/.test(x);
+const INTENTS = new Set(["ASK", "LEARN", "PRACTICE", "EXPLORE", "ACT"]);
+const CORRECT = new Set(["correct", "incorrect", "partial", "unknown"]);
+const REASON = new Set(["valid", "partial", "invalid", "not_assessed"]);
+const ASSIST = new Set(["none", "minor_hint", "major_hint", "worked_solution", "unknown"]);
+
+let ready: Promise<unknown> | null = null;
+function ensureSchema(env: SiteEnv) {
+  ready ??= env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_turns (turn_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, response TEXT, created_at REAL NOT NULL)`)
+    .run()
+    .catch((e) => {
+      ready = null;
+      throw e;
+    });
+  return ready;
+}
+
+export function parseJson(text: string): unknown {
+  const m = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const s = (m ? m[1] : text).trim();
+  const a = s.indexOf("{"), b = s.lastIndexOf("}");
+  try {
+    return JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s);
+  } catch {
+    return null;
+  }
+}
+
+export interface Classification {
+  intents: string[];
+  explicitCommit: boolean;
+  storyResume: boolean;
+  pauseStory: boolean;
+  evaluation: null | { correctness: string; reasoning: string; assistance: string };
+}
+export function validateClassification(x: unknown): { ok: true; value: Classification } | { ok: false; why: string } {
+  if (!isObj(x)) return { ok: false, why: "不是对象" };
+  const it = x.intents;
+  if (!Array.isArray(it) || !it.length || it.length > 5 || !it.every((v) => typeof v === "string" && INTENTS.has(v))) return { ok: false, why: "intents 不合法" };
+  if (typeof x.explicitCommit !== "boolean") return { ok: false, why: "explicitCommit 必须是布尔" };
+  const resume = x.storyResume === undefined ? false : x.storyResume;
+  if (typeof resume !== "boolean") return { ok: false, why: "storyResume 不合法" };
+  const pause = x.pauseStory === undefined ? false : x.pauseStory;
+  if (typeof pause !== "boolean") return { ok: false, why: "pauseStory 不合法" };
+  let ev: Classification["evaluation"] = null;
+  if (x.evaluation !== null && x.evaluation !== undefined) {
+    const e = x.evaluation;
+    if (!isObj(e) || !CORRECT.has(e.correctness as string) || !REASON.has(e.reasoning as string) || !ASSIST.has(e.assistance as string)) return { ok: false, why: "evaluation 不合法" };
+    ev = { correctness: e.correctness as string, reasoning: e.reasoning as string, assistance: e.assistance as string };
+  }
+  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit, storyResume: resume, pauseStory: pause, evaluation: ev } };
+}
+
+const CLASSIFY_PROMPT = (input: string, paused: boolean) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
+玩家输入：${input}
+当前故事${paused ? "已暂停（玩家在刷题）" : "进行中"}。
+字段：
+- intents：从 ASK(提问) LEARN(要求系统讲解) PRACTICE(刷题/作答) EXPLORE(探索) ACT(要求真实执行行动) 中选 1–5 个；
+- explicitCommit：玩家是否明确要求“现在就执行”。只是计划、设想、“先不要执行”都必须是 false；
+- storyResume：玩家是否要求回到刚才的故事/继续；
+- pauseStory：玩家是否明确要求离开故事去纯刷题（如“不要剧情”“先刷题”）；故事里顺便作答不算；
+- evaluation：玩家给出了数学解答时填 {correctness, reasoning, assistance}，否则 null。correctness∈correct/incorrect/partial/unknown；reasoning∈valid/partial/invalid/not_assessed（答案对但理由不成立要写 invalid；独立正确的非标准方法写 valid）；assistance∈none/minor_hint/major_hint/worked_solution/unknown（玩家在得到提示后作答要如实标注）。
+格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"evaluation":null}`;
+
+const VERIFY_PROMPT = (input: string) => `[[VERIFY]] 独立核对下面玩家的数学解答：结论是否正确，且推理是否确实成立（不是碰巧对）。只输出 JSON：{"agree":true|false}。
+玩家输入：${input}`;
+
+export async function handleTurn(env: SiteEnv, body: unknown, deps: Deps): Promise<Result> {
+  if (!isObj(body) || !idOk(body.sessionId) || !idOk(body.turnId)) return fail(400, "bad_request", "sessionId / turnId 不合法");
+  const input = body.inputText;
+  if (typeof input !== "string" || !input.trim() || input.length > ROUTING.maxInput) return fail(400, "bad_request", "inputText 不合法");
+  await ensureSchema(env);
+  const sessionId = body.sessionId, turnId = body.turnId;
+
+  const prev = await env.DB.prepare("SELECT response FROM adventure_turns WHERE turn_id=?").bind(turnId).first<{ response: string | null }>();
+  if (prev) {
+    if (prev.response) return { status: 200, body: { ...JSON.parse(prev.response), replay: true } };
+    return fail(409, "turn_in_progress", "这一回合正在处理，请稍后重试");
+  }
+  const sess = await env.DB.prepare("SELECT status, segment, world_seq FROM adventure_sessions WHERE id=?").bind(sessionId).first<any>();
+  if (!sess) return fail(404, "not_found", "会话不存在");
+  const bud = await deps.budgetOk();
+  if (!bud.ok) return { status: 429, body: { code: "budget_exceeded", message: bud.reason, uncertainty: true, gameCommit: null } };
+
+  // 占位：同一个 turnId 只有一个请求能继续（并发/重试安全）
+  const claim = await env.DB.prepare("INSERT OR IGNORE INTO adventure_turns (turn_id,session_id,response,created_at) VALUES (?,?,NULL,?)").bind(turnId, sessionId, Date.now() / 1000).run();
+  if (claim.meta.changes !== 1) return fail(409, "turn_in_progress", "这一回合正在处理，请稍后重试");
+  try {
+    const res = await runTurn(env, deps, sessionId, turnId, input, sess);
+    if (res.status === 200) await env.DB.prepare("UPDATE adventure_turns SET response=? WHERE turn_id=?").bind(JSON.stringify(res.body), turnId).run();
+    else await env.DB.prepare("DELETE FROM adventure_turns WHERE turn_id=? AND response IS NULL").bind(turnId).run();
+    return res;
+  } catch (e) {
+    await env.DB.prepare("DELETE FROM adventure_turns WHERE turn_id=? AND response IS NULL").bind(turnId).run().catch(() => {});
+    throw e;
+  }
+}
+
+async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: string, input: string, sess: any): Promise<Result> {
+  const uncertain = (code: string, message: string): Result => ({ status: 200, body: { ok: true, uncertainty: true, code, message, intentSegments: [], academicEvaluation: null, gameCommit: null, narration: "", visibleFeedback: message } });
+  // 1. 意图识别
+  let cls: Classification;
+  try {
+    const raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused"), 400);
+    const v = validateClassification(parseJson(raw));
+    if (!v.ok) return uncertain("classification_failed", "这句话我没能可靠地理解，没有做任何改动。请换个说法再试一次。");
+    cls = v.value;
+  } catch {
+    return uncertain("model_unavailable", "模型暂时不可用，没有做任何改动，进度已保留。");
+  }
+  const intents = cls.intents;
+
+  // 2. 学术评估记录（独立于骰子；待验证的不发奖励、不给加成）
+  let academic: Record<string, unknown> | null = null;
+  let evalEventId: string | null = null;
+  if (cls.evaluation) {
+    let verification = "pending";
+    const claimsGood = cls.evaluation.correctness === "correct" && cls.evaluation.reasoning === "valid";
+    if (claimsGood && ROUTING.crossCheckCorrect) {
+      try {
+        const v = parseJson(await deps.complete(ROUTING.verify.tier, ROUTING.verify.provider, VERIFY_PROMPT(input), 100));
+        if (isObj(v) && v.agree === true) verification = "confirmed";
+      } catch {
+        /* 保持 pending */
+      }
+    }
+    evalEventId = "turn:" + turnId + ":eval";
+    const ev = { id: evalEventId, type: "knowledge_attempt", topicId: ROUTING.topicId, at: Date.now(), ...cls.evaluation, verification, context: "adventure", transfer: false };
+    const pr = await postEvent(env, ev);
+    if (pr.status !== 200) return uncertain("event_failed", "学习记录没写进去，没有做任何改动。");
+    academic = { ...cls.evaluation, verification, eventId: evalEventId };
+  }
+
+  // 3. 行动：只有 ACT 且玩家明确要求执行、故事进行中才可能提交；ASK/LEARN/PRACTICE 一律 null
+  let commit: Record<string, unknown> | null = null;
+  let visible = "";
+  const wantsAct = intents.includes("ACT") && cls.explicitCommit;
+  if (intents.includes("ACT") && !cls.explicitCommit) visible = "已记下计划，还没有执行。需要执行时直接告诉我。";
+  if (wantsAct) {
+    if (sess.status !== "active" && !cls.storyResume) visible = "故事现在是暂停状态，没有执行行动。说“继续”就能回到刚才。";
+    else {
+      if (sess.status !== "active") await env.DB.prepare("UPDATE adventure_sessions SET status='active', updated_at=? WHERE id=?").bind(Date.now() / 1000, sessionId).run();
+      const basis = await env.DB.prepare(
+        `SELECT e.id FROM learning_events e LEFT JOIN adventure_actions a ON a.basis_event_id=e.id
+         WHERE e.topic_id=? AND e.verification='confirmed' AND e.correctness='correct' AND e.reasoning='valid' AND a.action_id IS NULL ORDER BY e.at DESC LIMIT 1`,
+      ).bind(ROUTING.topicId).first<{ id: string }>();
+      const r = await postAction(env, { actionId: "turn:" + turnId, basisEventId: basis?.id ?? null });
+      if (r.status === 200) {
+        commit = r.body.outcome as Record<string, unknown>;
+        if (!r.body.replay) await env.DB.prepare("UPDATE adventure_sessions SET world_seq=world_seq+1, updated_at=? WHERE id=?").bind(Date.now() / 1000, sessionId).run();
+      } else visible = String(r.body.message ?? "行动没有提交");
+    }
+  }
+
+  // 4. 故事暂停/恢复：刷题暂停故事；ASK/LEARN 不改变世界
+  let status = sess.status as string;
+  if (!commit) {
+    if (cls.pauseStory && !wantsAct && status === "active") status = "paused";
+    else if (cls.storyResume && status === "paused") status = "active";
+    if (status !== sess.status) await env.DB.prepare("UPDATE adventure_sessions SET status=?, updated_at=? WHERE id=?").bind(status, Date.now() / 1000, sessionId).run();
+  } else status = "active";
+
+  // 5. 回复：按主要意图选模型；叙述只能引用已提交的事实
+  const main = intents.includes("LEARN") ? "LEARN" : intents.includes("ACT") && commit ? "ACT" : intents[0];
+  const route = ROUTING.reply[main] ?? ROUTING.reply.ASK;
+  const facts = commit ? `已提交的事实（只能叙述这些）：骰点${commit.roll}+知识加成${commit.bonus} 对 DC${commit.dc}，${commit.success ? "成功" : "失败"}。` : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。";
+  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `学术评估：${academic.correctness}/${academic.reasoning}/${academic.assistance}（${academic.verification}）。` : ""}按玩家要的篇幅回答，别用任务菜单打断。\n玩家输入：${input}`;
+  let narration = "";
+  try {
+    narration = await deps.complete(route.tier, route.provider, prompt, main === "LEARN" ? 1500 : 700);
+  } catch {
+    narration = "";
+    visible = visible || "回复模型暂时不可用，但记录和进度都已保存。";
+  }
+  const cur = await env.DB.prepare("SELECT status, segment, world_seq FROM adventure_sessions WHERE id=?").bind(sessionId).first<any>();
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      uncertainty: false,
+      routingVersion: ROUTING.version,
+      configVersion: CONFIG.version,
+      intentSegments: intents,
+      academicEvaluation: academic,
+      gameCommit: commit,
+      learningSessionDelta: { status: cur.status, segment: cur.segment, worldSeq: cur.world_seq },
+      narration,
+      visibleFeedback: visible,
+    },
+  };
+}

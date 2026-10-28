@@ -5,6 +5,7 @@
 // - /api/mcp：共享记忆工具直接在这里执行；Google 日历/Drive 见 google.ts（只读，需要在页面上点一次「连接 Google」）
 import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
+import { handleTurn } from "./turn";
 import { getSession, postAction, sessionOp } from "./adventure";
 import { getBalance, listEvents, postEvent, postReward } from "./events";
 import { GErr, finishAuth, googleDisconnect, googleStatus, googleTool, startAuth } from "./google";
@@ -219,6 +220,41 @@ function upstreamError(status: number, text: string) {
   if (status === 413 || /too long|maximum context|prompt is too long/i.test(t)) return { code: "prompt_too_large", message: t };
   if (status === 400 && /image/i.test(t)) return { code: "image_rejected", message: t };
   return { code: "upstream_error", message: `上游返回 ${status}：${t}` };
+}
+
+// ---------- 非流式一次性调用（冒险回合用）----------
+async function completeOnce(env: SiteEnv, tier: string, provider: string, text: string, maxTok: number): Promise<string> {
+  const model = pickModel(env, { messages: [], tier, provider });
+  if (!model || !hasKey(env, MODELS[model].provider)) throw new Error("no_key");
+  const up = await upstream(env, model, { messages: [{ role: "user", content: text }], max_tokens: maxTok }, new AbortController().signal);
+  if (!up.ok || !up.body) throw new Error("upstream_" + up.status);
+  const prov = MODELS[model].provider;
+  let out = "", inTok = 0, outTok = 0;
+  try {
+    for await (const data of sse(up.body)) {
+      if (data === "[DONE]") break;
+      let ev: any;
+      try { ev = JSON.parse(data); } catch { continue; }
+      if (prov === "anthropic") {
+        if (ev.type === "message_start") inTok = ev.message?.usage?.input_tokens ?? 0;
+        else if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") out += ev.delta.text;
+        else if (ev.type === "message_delta") outTok = ev.usage?.output_tokens ?? outTok;
+      } else {
+        const c = ev.choices?.[0];
+        if (c?.delta?.content) out += c.delta.content;
+        if (ev.usage) { inTok = ev.usage.prompt_tokens ?? inTok; outTok = ev.usage.completion_tokens ?? outTok; }
+      }
+    }
+  } finally {
+    if (inTok || outTok) await recordUsage(env, model, inTok, outTok).catch(() => {});
+  }
+  return out;
+}
+async function budgetOk(env: SiteEnv) {
+  const lim = limits(env), sp = await spent(env);
+  if (sp.today >= lim.daily) return { ok: false as const, reason: `今天的 API 花费已到上限 $${lim.daily}。进度已保留，明天再继续。` };
+  if (sp.month >= lim.monthly) return { ok: false as const, reason: `本月的 API 花费已到上限 $${lim.monthly}。` };
+  return { ok: true as const };
 }
 
 async function aiHandler(req: Request, env: SiteEnv, ctx: ExecutionContext) {
@@ -441,6 +477,8 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/events" && req.method === "POST") return asJson(await postEvent(env, await req.json().catch(() => null)));
     if (p === "/api/events" && req.method === "GET") return asJson(await listEvents(env, url));
     if (p === "/api/rewards" && req.method === "POST") return asJson(await postReward(env, await req.json().catch(() => null)));
+    if (p === "/api/adventure/turn" && req.method === "POST")
+      return asJson(await handleTurn(env, await req.json().catch(() => null), { budgetOk: () => budgetOk(env), complete: (t, pr, x, m) => completeOnce(env, t, pr, x, m) }));
     if (p === "/api/adventure/action" && req.method === "POST") return asJson(await postAction(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/session" && req.method === "POST") return asJson(await sessionOp(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/session" && req.method === "GET") return asJson(await getSession(env, url.searchParams.get("id") || ""));
