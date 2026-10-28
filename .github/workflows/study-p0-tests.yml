@@ -6,6 +6,8 @@ on:
       - 'scripts/audit-legacy-save.mjs'
       - 'test/study-core.test.mjs'
       - 'test/audit-legacy-save.test.mjs'
+      - 'test/world01-structure.test.mjs'
+      - 'content/contracts/world01-opening-skeleton.json'
       - '.github/workflows/study-p0-tests.yml'
   push:
     branches:
@@ -15,6 +17,8 @@ on:
       - 'scripts/audit-legacy-save.mjs'
       - 'test/study-core.test.mjs'
       - 'test/audit-legacy-save.test.mjs'
+      - 'test/world01-structure.test.mjs'
+      - 'content/contracts/world01-opening-skeleton.json'
       - '.github/workflows/study-p0-tests.yml'
 permissions:
   contents: read
@@ -27,4 +31,4 @@ jobs:
         with:
           node-version: '22'
       - name: Test isolated backup and learning event core
-        run: node --test test/study-core.test.mjs test/audit-legacy-save.test.mjs
+        run: node --test test/study-core.test.mjs test/audit-legacy-save.test.mjs test/world01-structure.test.mjs
