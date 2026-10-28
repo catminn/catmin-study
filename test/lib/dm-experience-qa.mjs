@@ -15,7 +15,7 @@ export function evaluateDmTurn(turn) {
     failures.push("forced_math_gate");
   if(kind==="observe"&&(OBSERVE_REFUSAL.test(t)||(/(?:不能|无法).{0,14}描写/.test(t))))
     failures.push("observation_refused");
-  if(mustNarrate&&publicScene&&t.length>0&&!MARKER.test(t))
+  if(mustNarrate&&publicScene&&t.length>0&&(OBSERVE_REFUSAL.test(t)||!MARKER.test(t)))
     failures.push("missing_grounded_scene_narration");
   if(kind==="travel"&&!committed&&/(?:你已经(?:抵达|走进|到达|进入)|你走进了|你来到了)/.test(t))
     failures.push("uncommitted_travel_claim");
