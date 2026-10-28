@@ -71,6 +71,29 @@ with cf.ThreadPoolExecutor(6) as ex: res = list(ex.map(lambda i: turn("现在执
 good = [o for c, o in res if c == 200 and o.get("gameCommit")]
 ids = {o["gameCommit"]["actionId"] for o in good}
 check("并发同 turnId：最多提交一次行动", len(ids) <= 1 and all(c in (200, 409) for c, o in res), [(c, o.get("code")) for c, o in res])
+
+# 静默模式：我想自己算 → 持续静默；提交答案或求提示 → 解除
+post("/api/adventure/session", {"sessionId": "K", "op": "start"})
+c, o = turn("我想自己算，别提示", sid="K")
+check("静默：开启并保持", o["quietMode"] is True, o)
+c, o = turn("随便聊点别的", sid="K")
+check("静默持续到玩家解除（不只是下一轮）", o["quietMode"] is True, o)
+c, o = turn("给我提示", sid="K")
+check("求提示后解除静默", o["quietMode"] is False, o)
+turn("我想自己算", sid="K"); c, o = turn("g(t)=(t+1)^2，我先展开再求导。", sid="K")
+check("提交答案后解除静默", o["quietMode"] is False and o["academicEvaluation"]["verification"] == "confirmed", o)
+# 依据：只能来自本会话；玩家可以指定，服务器检查
+ev_k = o["academicEvaluation"]["eventId"]
+turn("先不要执行，我想用刚才的方法", sid="K")
+c, o = post("/api/adventure/turn", {"sessionId": "K", "turnId": "kk1", "inputText": "现在执行", "basisEventId": ev5})
+check("不能拿别的会话的证据加成（方案保留）", o["gameCommit"] is None and "不能用" in o["visibleFeedback"], o)
+c, o = post("/api/adventure/turn", {"sessionId": "K", "turnId": "kk2", "inputText": "现在执行", "basisEventId": ev_k})
+check("可以指定本会话已确认证据，服务器核验后加成 3", o["gameCommit"] and o["gameCommit"]["basisEventId"] == ev_k and o["gameCommit"]["bonus"] == 3, o)
+turn("先不要执行，我想用刚才的方法", sid="K")
+c, o = post("/api/adventure/turn", {"sessionId": "K", "turnId": "kk3", "inputText": "现在执行", "basisEventId": ev_k})
+check("指定已用过的证据被拒", o["gameCommit"] is None, o)
+c, o = turn("现在执行", sid="K")
+check("默认选择不会选到别的会话的证据（本会话无可用证据→加成 0）", o["gameCommit"] and o["gameCommit"]["bonus"] == 0, o)
 check("坏请求被拒", turn("")[0] == 400 and post("/api/adventure/turn", {"sessionId": "S"})[0] == 400)
 check("不存在的会话", turn("hi", sid="nope")[0] == 404)
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)

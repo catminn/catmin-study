@@ -65,6 +65,8 @@ globalThis.fetch = (async (input: any, init?: any) => {
     if (lastText.includes("[[CLASSIFY]]")) {
       const C = (i: string[], c: boolean, r: boolean, e: any, p = false, k: string | null = null, pr = "none") => JSON.stringify({ intents: i, explicitCommit: c, storyResume: r, pauseStory: p, insightKey: k, planRef: pr, evaluation: e });
       if (q.includes("BADJSON")) special = "不是json";
+      else if (q.includes("自己算")) special = JSON.stringify({ intents: ["ASK"], explicitCommit: false, quiet: "on", evaluation: null });
+      else if (q.includes("给我提示")) special = JSON.stringify({ intents: ["ASK"], explicitCommit: false, quiet: "off", evaluation: null });
       else if (q.includes("区别")) special = C(["ASK"], false, false, null);
       else if (q.includes("系统讲")) special = C(["LEARN"], false, false, null);
       else if (q.includes("刷5题")) special = C(["PRACTICE"], false, false, null, true);
@@ -76,7 +78,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
       else if (q.includes("先展开") || q.includes("再说一遍")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "none" }, false, "expand-then-differentiate");
       else if (q.includes("提示后")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "major_hint" });
       else special = C(["EXPLORE"], false, false, null);
-    } else if (lastText.includes("[[VERIFY]]")) special = JSON.stringify({ agree: !q.includes("NOAGREE") });
+    } else if (lastText.includes("[[VERIFY]]")) special = JSON.stringify({ ownAnswer: "2t+2", agree: !q.includes("NOAGREE") });
     const reply = special ?? (lastText.includes("JSON") ? '```json\n{"ok":true,"n":3}\n```' : `你好，这是${prov}的${body.model}回答。${hasImg ? "收到图片。" : ""}`);
     return new Response(fakeStream(prov, reply), { headers: { "content-type": "text/event-stream" } });
   }

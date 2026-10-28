@@ -34,6 +34,7 @@ function ensureSchema(env: SiteEnv) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_turns (turn_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, response TEXT, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_plans (plan_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, status TEXT NOT NULL, text TEXT NOT NULL, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_insight_use (event_id TEXT PRIMARY KEY, insight_key TEXT NOT NULL, is_first INTEGER NOT NULL)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_flags (session_id TEXT PRIMARY KEY, quiet INTEGER NOT NULL)`),
     env.DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_insight_first ON adventure_insight_use(insight_key) WHERE is_first=1`),
   ])
     .catch((e) => {
@@ -61,6 +62,7 @@ export interface Classification {
   pauseStory: boolean;
   insightKey: string | null;
   planRef: "none" | "previous" | "inline";
+  quiet: "on" | "off" | "none";
   evaluation: null | { correctness: string; reasoning: string; assistance: string };
 }
 export function validateClassification(x: unknown): { ok: true; value: Classification } | { ok: false; why: string } {
@@ -76,13 +78,15 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
   if (ik !== null && (typeof ik !== "string" || !/^[a-z0-9][a-z0-9_.-]{0,59}$/.test(ik))) return { ok: false, why: "insightKey 不合法" };
   const pr = x.planRef === undefined ? "none" : x.planRef;
   if (pr !== "none" && pr !== "previous" && pr !== "inline") return { ok: false, why: "planRef 不合法" };
+  const q = x.quiet === undefined ? "none" : x.quiet;
+  if (q !== "on" && q !== "off" && q !== "none") return { ok: false, why: "quiet 不合法" };
   let ev: Classification["evaluation"] = null;
   if (x.evaluation !== null && x.evaluation !== undefined) {
     const e = x.evaluation;
     if (!isObj(e) || !CORRECT.has(e.correctness as string) || !REASON.has(e.reasoning as string) || !ASSIST.has(e.assistance as string)) return { ok: false, why: "evaluation 不合法" };
     ev = { correctness: e.correctness as string, reasoning: e.reasoning as string, assistance: e.assistance as string };
   }
-  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, evaluation: ev } };
+  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, quiet: q as Classification["quiet"], evaluation: ev } };
 }
 
 const CLASSIFY_PROMPT = (input: string, paused: boolean) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
@@ -95,10 +99,11 @@ const CLASSIFY_PROMPT = (input: string, paused: boolean) => `[[CLASSIFY]] 你是
 - pauseStory：玩家是否明确要求离开故事去纯刷题（如“不要剧情”“先刷题”）；故事里顺便作答不算；
 - insightKey：这次解答用到的核心思路的稳定短标识（小写英文数字和连字符，如 expand-then-differentiate）；同一个思路换说法重复出现必须用同一个标识，没有评估时为 null；
 - planRef：玩家要执行行动时，指令本身是否把行动说清楚了。"inline"=指令自己说明了要做什么；"previous"=指代之前商量/草拟过的方案（如“刚才那个”）；"none"=不涉及执行。指代不清也写 "previous"；
+- quiet：玩家说“让我自己想想/别提示”→"on"；玩家主动求提示、要答案、或明确说可以提示了→"off"；否则 "none"；
 - evaluation：玩家给出了数学解答时填 {correctness, reasoning, assistance}，否则 null。correctness∈correct/incorrect/partial/unknown；reasoning∈valid/partial/invalid/not_assessed（答案对但理由不成立要写 invalid；独立正确的非标准方法写 valid）；assistance∈none/minor_hint/major_hint/worked_solution/unknown（玩家在得到提示后作答要如实标注）。
-格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"planRef":"none","evaluation":null}`;
+格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"planRef":"none","quiet":"none","evaluation":null}`;
 
-const VERIFY_PROMPT = (input: string) => `[[VERIFY]] 独立核对下面玩家的数学解答：结论是否正确，且推理是否确实成立（不是碰巧对）。只输出 JSON：{"agree":true|false}。
+const VERIFY_PROMPT = (input: string) => `[[VERIFY]] 先不要看玩家的结论，自己独立把题目解出来，再核对玩家的解答：结论是否正确，且推理是否确实成立（不是碰巧对，也不是照抄了提示）。只输出 JSON：{"ownAnswer":"你自己解出的最终结果","agree":true|false}。
 玩家输入：${input}`;
 
 export async function handleTurn(env: SiteEnv, body: unknown, deps: Deps): Promise<Result> {
@@ -122,7 +127,9 @@ export async function handleTurn(env: SiteEnv, body: unknown, deps: Deps): Promi
   const claim = await env.DB.prepare("INSERT OR IGNORE INTO adventure_turns (turn_id,session_id,response,created_at) VALUES (?,?,NULL,?)").bind(turnId, sessionId, Date.now() / 1000).run();
   if (claim.meta.changes !== 1) return fail(409, "turn_in_progress", "这一回合正在处理，请稍后重试");
   try {
-    const res = await runTurn(env, deps, sessionId, turnId, input, sess);
+    const chosen = body.basisEventId === undefined || body.basisEventId === null ? null : body.basisEventId;
+    if (chosen !== null && !idOk(chosen)) return fail(400, "bad_request", "basisEventId 不合法");
+    const res = await runTurn(env, deps, sessionId, turnId, input, sess, chosen as string | null);
     if (res.status === 200) await env.DB.prepare("UPDATE adventure_turns SET response=? WHERE turn_id=?").bind(JSON.stringify(res.body), turnId).run();
     else await env.DB.prepare("DELETE FROM adventure_turns WHERE turn_id=? AND response IS NULL").bind(turnId).run();
     return res;
@@ -132,7 +139,21 @@ export async function handleTurn(env: SiteEnv, body: unknown, deps: Deps): Promi
   }
 }
 
-async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: string, input: string, sess: any): Promise<Result> {
+// 行动的知识依据：默认取本会话里最近一条可用证据；玩家也可以指定一条。服务器检查归属、已确认、答对且推理有效、没被用过、不是重复思路。
+async function pickBasis(env: SiteEnv, sessionId: string, chosen: string | null): Promise<{ ok: true; id: string | null } | { ok: false; message: string }> {
+  const base = `SELECT e.id FROM learning_events e JOIN adventure_turns tt ON e.id = 'turn:' || tt.turn_id || ':eval'
+    LEFT JOIN adventure_actions a ON a.basis_event_id=e.id LEFT JOIN adventure_insight_use i ON i.event_id=e.id
+    WHERE tt.session_id=? AND (i.event_id IS NULL OR i.is_first=1) AND e.topic_id=? AND e.verification='confirmed' AND e.correctness='correct' AND e.reasoning='valid' AND a.action_id IS NULL`;
+  if (chosen) {
+    const ok = await env.DB.prepare(base + " AND e.id=?").bind(sessionId, ROUTING.topicId, chosen).first<{ id: string }>();
+    if (!ok) return { ok: false, message: "你指定的依据现在不能用：它可能不是这个会话里已确认的正确推理，已经被用过，或只是重复的思路。没有执行，方案还在。" };
+    return { ok: true, id: ok.id };
+  }
+  const r = await env.DB.prepare(base + " ORDER BY e.at DESC LIMIT 1").bind(sessionId, ROUTING.topicId).first<{ id: string }>();
+  return { ok: true, id: r?.id ?? null };
+}
+
+async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: string, input: string, sess: any, chosen: string | null = null): Promise<Result> {
   const uncertain = (code: string, message: string): Result => ({ status: 200, body: { ok: true, uncertainty: true, code, message, intentSegments: [], academicEvaluation: null, gameCommit: null, narration: "", visibleFeedback: message } });
   // 1. 意图识别
   let cls: Classification;
@@ -155,7 +176,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
     if (claimsGood && ROUTING.crossCheckCorrect) {
       try {
         const v = parseJson(await deps.complete(ROUTING.verify.tier, ROUTING.verify.provider, VERIFY_PROMPT(input), 100));
-        if (isObj(v) && v.agree === true) verification = "confirmed";
+        if (isObj(v) && v.agree === true && typeof v.ownAnswer === "string" && v.ownAnswer.trim()) verification = "confirmed";
       } catch {
         /* 保持 pending */
       }
@@ -166,10 +187,10 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
     if (pr.status !== 200) return uncertain("event_failed", "学习记录没写进去，没有做任何改动。");
     let firstUse = true;
     if (cls.insightKey) {
-      const ins = await env.DB.prepare("INSERT OR IGNORE INTO adventure_insight_use (event_id,insight_key,is_first) VALUES (?,?,1)").bind(evalEventId, cls.insightKey).run();
+      const ins = await env.DB.prepare("INSERT OR IGNORE INTO adventure_insight_use (event_id,insight_key,is_first) VALUES (?,?,1)").bind(evalEventId, sessionId + "|" + cls.insightKey).run();
       if (ins.meta.changes !== 1) {
         firstUse = false;
-        await env.DB.prepare("INSERT OR IGNORE INTO adventure_insight_use (event_id,insight_key,is_first) VALUES (?,?,0)").bind(evalEventId, cls.insightKey).run();
+        await env.DB.prepare("INSERT OR IGNORE INTO adventure_insight_use (event_id,insight_key,is_first) VALUES (?,?,0)").bind(evalEventId, sessionId + "|" + cls.insightKey).run();
       }
     }
     academic = { ...cls.evaluation, verification, eventId: evalEventId, repeatedInsight: !firstUse };
@@ -197,17 +218,20 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
     if (sess.status !== "active" && !cls.storyResume) visible = "故事现在是暂停状态，没有执行行动。说“继续”就能回到刚才。";
     else {
       if (sess.status !== "active") await env.DB.prepare("UPDATE adventure_sessions SET status='active', updated_at=? WHERE id=?").bind(Date.now() / 1000, sessionId).run();
-      const basis = await env.DB.prepare(
-        `SELECT e.id FROM learning_events e LEFT JOIN adventure_actions a ON a.basis_event_id=e.id
-         LEFT JOIN adventure_insight_use i ON i.event_id=e.id
-         WHERE (i.event_id IS NULL OR i.is_first=1) AND e.topic_id=? AND e.verification='confirmed' AND e.correctness='correct' AND e.reasoning='valid' AND a.action_id IS NULL ORDER BY e.at DESC LIMIT 1`,
-      ).bind(ROUTING.topicId).first<{ id: string }>();
+      const pb = await pickBasis(env, sessionId, chosen);
+      if (!pb.ok) {
+        visible = pb.message;
+        if (planId) { /* 方案保持 draft，玩家可以改选依据后再执行 */ }
+      }
+      const basis = pb.ok ? { id: pb.id } : null;
+      if (!pb.ok) { /* 不提交 */ } else {
       const r = await postAction(env, { actionId: "turn:" + turnId, basisEventId: basis?.id ?? null });
       if (r.status === 200) {
         commit = r.body.outcome as Record<string, unknown>;
         if (planId) await env.DB.prepare("UPDATE adventure_plans SET status='consumed' WHERE plan_id=? AND status='draft'").bind(planId).run();
         if (!r.body.replay) await env.DB.prepare("UPDATE adventure_sessions SET world_seq=world_seq+1, updated_at=? WHERE id=?").bind(Date.now() / 1000, sessionId).run();
       } else visible = String(r.body.message ?? "行动没有提交");
+      }
     }
   }
 
@@ -221,9 +245,14 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
 
   // 5. 回复：按主要意图选模型；叙述只能引用已提交的事实
   const main = intents.includes("LEARN") ? "LEARN" : intents.includes("ACT") && commit ? "ACT" : intents[0];
+  const qrow = await env.DB.prepare("SELECT quiet FROM adventure_flags WHERE session_id=?").bind(sessionId).first<{ quiet: number }>();
+  let quiet = !!qrow?.quiet;
+  if (cls.quiet === "on") quiet = true;
+  else if (cls.quiet === "off" || cls.evaluation) quiet = false; // 主动求提示或提交了答案，静默结束
+  if (quiet !== !!qrow?.quiet) await env.DB.prepare("INSERT INTO adventure_flags (session_id,quiet) VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET quiet=excluded.quiet").bind(sessionId, quiet ? 1 : 0).run();
   const route = ROUTING.reply[main] ?? ROUTING.reply.ASK;
   const facts = commit ? `已提交的事实（只能叙述这些）：骰点${commit.roll}+知识加成${commit.bonus} 对 DC${commit.dc}，${commit.success ? "成功" : "失败"}。` : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。";
-  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `学术评估：${academic.correctness}/${academic.reasoning}/${academic.assistance}（${academic.verification}）。` : ""}按玩家要的篇幅回答，别用任务菜单打断。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n玩家输入：${input}`;
+  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `学术评估：${academic.correctness}/${academic.reasoning}/${academic.assistance}（${academic.verification}）。` : ""}按玩家要的篇幅回答，别用任务菜单打断。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n玩家输入：${input}`;
   let narration = "";
   try {
     narration = await deps.complete(route.tier, route.provider, prompt, main === "LEARN" ? 1500 : 700);
@@ -244,6 +273,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       gameCommit: commit,
       learningSessionDelta: { status: cur.status, segment: cur.segment, worldSeq: cur.world_seq },
       narration,
+      quietMode: quiet,
       visibleFeedback: visible,
     },
   };
