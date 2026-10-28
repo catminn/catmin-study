@@ -68,6 +68,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
       if (q.includes("BADJSON")) special = "不是json";
       else if (q.includes("出发 s-b")) special = JSON.stringify({ intents: ["EXPLORE"], explicitCommit: false, moveTo: "s-b", actionId: "plain-action", evaluation: null });
       else if (q.includes("前往 s-b")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, moveTo: "s-b", actionId: "plain-action", evaluation: null });
+      else if (q.includes("前往 s-end")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, moveTo: "s-end", actionId: "plain-action", evaluation: null });
       else if (q.includes("前往 s-a")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, moveTo: "s-a", actionId: "plain-action", evaluation: null });
       else if (q.includes("谈 ch-one")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, choiceId: "ch-one", actionId: "plain-action", evaluation: null });
       else if (q.includes("谈 ch-bad")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, choiceId: "ch-bad", actionId: "plain-action", evaluation: null });

@@ -29,3 +29,13 @@
 - publicOutcome：字符串，或 `{text, ...授权元数据}`（元数据留在服务端，玩家只拿到 text）。
 - scene.stateEffects：数组，写法同 effects（不含 advance_scene）；进入该场景时应用一次，非法则整体忽略。
 - 玩家提交入口（登录会话）：`POST /api/adventure/travel {sessionId, commitId, target, expectedVersion?}`；`POST /api/adventure/choice {sessionId, commitId, choiceId, npcId?, expectedVersion?}`。列出 choices、讨论、ASK 都不改变世界；同 commitId 同内容重放返回原结果，不同内容 409；版本过期 409；不可用的目标/选择统一 422 `not_available`。
+
+## 6. 结局同意契约与场景准入（world-1.2.0，Claude，无剧透）
+- `scene.entryRequirements`：条件（同 preconditions 写法）。所有进入场景的入口（travel、事件的 advance_scene）都先校验；不满足 → travel 返回 422 `not_available`，advance_scene 事件整条拒绝；未满足准入的目的地不出现在玩家可前往列表里。
+- `scene.ending = {id, costNotice}`：结局场景。进入只能经 `POST /api/adventure/travel`；事件的 advance_scene 指向结局场景一律拒绝。
+  1. 未确认的 travel（缺 `confirmEnding:true`，或此前没有针对同一目标、同一世界版本展示过）→ 422 `ending_confirmation_required`，响应带 `costNotice`（唯一向玩家展示的文字，结局 id 不外泄），并记录“已展示”（有效期 600 秒）。不提交任何东西。
+  2. 展示之后，用新的 commitId 再发 `confirmEnding:true`（必须是布尔 true）→ 才提交；确认只对被展示的那个目标有效，世界版本变了需要重新展示。
+  3. 已有 `ending_locked` 且与目标结局 id 不同 → 409 `ending_locked`（不展示 costNotice）。同 commitId 重放幂等，同 commitId 不同内容 409。
+  4. 自由文本路径：DM 先把 costNotice 原样告诉玩家；只有玩家明确说“确认进入结局”（且刚展示过）才带确认提交。普通“继续”、拒绝、预览、数学证据都不能提交结局。
+- 结局场景的 `stateEffects` 不得预设 `ending_locked`；终局锁由 `scene_entered` 该结局场景的事件里的 `lock_flag{target:"ending_locked", value:<ending.id>}` 完成。
+- 导入前用 `scripts/check-bundle-engine-compat.mjs` 预检（只输出分类计数）：结局缺 costNotice / id 重复 / 无可验证 entryRequirements / 场景入场预锁 / 无匹配终局锁事件 / stateEffects 非法或含 advance_scene / 引用不存在的 scene·npc·fact / 事件 advance_scene 指向结局，均为 error；remove_item 找不到 grant 来源为 warning。

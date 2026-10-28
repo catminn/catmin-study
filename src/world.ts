@@ -5,7 +5,7 @@ import { readContentInternal } from "./content";
 import type { SiteEnv } from "./site";
 import { ACTION_ALIASES } from "./adventure";
 
-export const WORLD_CONFIG = { version: "world-1.1.0", maxChain: 4, npcMemoryLayers: new Set(["heardClaims", "npcBeliefs", "confirmedNpcKnowledge"]), allowedEffects: new Set(["set_flag", "lock_flag", "advance_scene", "set_npc_location", "change_npc_relation", "record_fact_discovery", "grant_item", "remove_item", "record_npc_memory"]) };
+export const WORLD_CONFIG = { version: "world-1.2.0", maxChain: 4, endingConfirmTtlSec: 600, npcMemoryLayers: new Set(["heardClaims", "npcBeliefs", "confirmedNpcKnowledge"]), allowedEffects: new Set(["set_flag", "lock_flag", "advance_scene", "set_npc_location", "change_npc_relation", "record_fact_discovery", "grant_item", "remove_item", "record_npc_memory"]) };
 
 let ready: Promise<unknown> | null = null;
 function ensure(env: SiteEnv) {
@@ -18,6 +18,7 @@ function ensure(env: SiteEnv) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_npc_memory (session_id TEXT NOT NULL, npc_id TEXT NOT NULL, layer TEXT NOT NULL, item TEXT NOT NULL, PRIMARY KEY (session_id,npc_id,layer,item))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_rel_history (session_id TEXT NOT NULL, npc_id TEXT NOT NULL, n INTEGER NOT NULL, relation TEXT NOT NULL, PRIMARY KEY (session_id,npc_id,n))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_commits (session_id TEXT NOT NULL, commit_id TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY (session_id,commit_id))`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_ending_notice (session_id TEXT NOT NULL, target TEXT NOT NULL, ending_id TEXT NOT NULL, world_version INTEGER NOT NULL, shown_at REAL NOT NULL, PRIMARY KEY (session_id,target))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_applied (session_id TEXT NOT NULL, event_key TEXT NOT NULL, action_id TEXT NOT NULL, public_outcome TEXT, PRIMARY KEY (session_id,event_key))`),
   ]).catch((e) => { ready = null; throw e; }));
 }
@@ -68,6 +69,24 @@ async function evalCond(env: SiteEnv, sid: string, scene: string, c: any): Promi
 
 async function sceneContent(env: SiteEnv, id: string) { return (await readContentInternal(env, "scene", id).catch(() => null))?.content ?? null; }
 
+// 结局同意契约（world-content-semantics-v1）：scene.ending={id,costNotice}；scene.entryRequirements=条件。
+// 所有进入场景的入口（travel / advance_scene）都先过 entryRequirements；进入结局场景只能经 travel，且必须先展示 costNotice、再单独确认。
+const endingOf = (sc: any): { id: string; costNotice: string } | null => {
+  const e = sc?.ending;
+  return e && typeof e === "object" && strOk(e.id) && typeof e.costNotice === "string" && e.costNotice.trim() ? { id: e.id, costNotice: e.costNotice } : null;
+};
+async function entryOk(env: SiteEnv, sid: string, from: string, dest: any): Promise<boolean> {
+  if (dest?.entryRequirements === undefined) return true;
+  return evalCond(env, sid, from, dest.entryRequirements);
+}
+export async function pendingEndingNotice(env: SiteEnv, sid: string, now = Date.now() / 1000): Promise<string | null> {
+  await ensure(env);
+  const st = await ensureState(env, sid);
+  if (!st) return null;
+  const r = await env.DB.prepare("SELECT target FROM adventure_world_ending_notice WHERE session_id=? AND world_version=? AND shown_at>=? ORDER BY shown_at DESC LIMIT 1").bind(sid, st.version, now - WORLD_CONFIG.endingConfirmTtlSec).first<{ target: string }>();
+  return r?.target ?? null;
+}
+
 // 事件缓存（单次请求内）
 async function allEvents(env: SiteEnv): Promise<{ id: string; c: any }[]> {
   const rs = await env.DB.prepare("SELECT DISTINCT id FROM adventure_content WHERE kind='event'").all<{ id: string }>().catch(() => ({ results: [] as { id: string }[] }));
@@ -109,7 +128,10 @@ async function planEffects(env: SiteEnv, sid: string, scene: string, effects: an
   for (const e of effects) {
     if (!e || typeof e !== "object" || !WORLD_CONFIG.allowedEffects.has(e.type) || !strOk(e.target)) return { ok: false };
     if (e.type === "advance_scene") {
-      if (!sc || !Array.isArray(sc.choices) || !sc.choices.includes(e.target) || !(await sceneContent(env, e.target))) return { ok: false };
+      const dest = await sceneContent(env, e.target);
+      if (!sc || !Array.isArray(sc.choices) || !sc.choices.includes(e.target) || !dest) return { ok: false };
+      if (dest.ending !== undefined) return { ok: false }; // 结局只能经显式确认的 travel 进入
+      if (!(await entryOk(env, sid, scene, dest))) return { ok: false };
     }
     if ((e.type === "change_npc_relation" || e.type === "set_flag" || e.type === "lock_flag") && typeof e.value === "object" && e.value !== null) return { ok: false };
     if (e.type === "change_npc_relation" && typeof e.value !== "string") return { ok: false };
@@ -275,11 +297,26 @@ async function commitOp(env: SiteEnv, body: unknown, kind: "travel" | "choice"):
   let outcomes: PublicEvent[] = [];
   if (kind === "travel") {
     const sc = await sceneContent(env, st.scene);
-    if (!sc || !Array.isArray(sc.choices) || !sc.choices.includes(b.target) || !(await sceneContent(env, b.target))) return wfail(422, "not_available", "现在去不了那里");
+    const dest = sc && Array.isArray(sc.choices) && sc.choices.includes(b.target) ? await sceneContent(env, b.target) : null;
+    if (!dest || !(await entryOk(env, sid, st.scene, dest))) return wfail(422, "not_available", "现在去不了那里");
+    if (dest.ending !== undefined) {
+      const en = endingOf(dest);
+      if (!en) return wfail(422, "not_available", "现在去不了那里"); // 结局内容不合法：宁可不可用
+      const lockedTo = await flagGet(env, sid, "ending_locked");
+      if (lockedTo !== null && lockedTo !== JSON.stringify(en.id)) return wfail(409, "ending_locked", "结局已经确定，不能再走向另一个结局");
+      const shown = await env.DB.prepare("SELECT ending_id, world_version FROM adventure_world_ending_notice WHERE session_id=? AND target=?").bind(sid, b.target).first<{ ending_id: string; world_version: number }>();
+      const consented = b.confirmEnding === true && !!shown && shown.world_version === st.version && shown.ending_id === en.id;
+      if (!consented) {
+        // 先展示代价说明（每次未确认的请求都重新记录：确认必须在展示之后、针对同一目标与同一世界版本）；不提交任何东西
+        await env.DB.prepare("INSERT INTO adventure_world_ending_notice (session_id,target,ending_id,world_version,shown_at) VALUES (?,?,?,?,?) ON CONFLICT(session_id,target) DO UPDATE SET ending_id=excluded.ending_id, world_version=excluded.world_version, shown_at=excluded.shown_at").bind(sid, b.target, en.id, st.version, Date.now() / 1000).run();
+        return { status: 422, body: { code: "ending_confirmation_required", message: "这一步不可逆，需要先看清代价并单独确认。", costNotice: en.costNotice } };
+      }
+    }
     const claim = await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_commits (session_id,commit_id,kind,payload) VALUES (?,?,?,?)").bind(sid, b.commitId, kind, pj).run();
     if (claim.meta.changes !== 1) return wfail(409, "commit_in_progress", "这次提交正在处理，请稍后重试");
     const next: Pending[] = [];
     const st2 = await enterScene(env, sid, st, b.target, next);
+    await env.DB.prepare("DELETE FROM adventure_world_ending_notice WHERE session_id=?").bind(sid).run();
     // 进入后的 scene_entered 及连锁事件
     outcomes = await applyTrigger(env, sid, { type: "scene_entered", actionId }, st2.scene);
     // stateEffects 产生的二次触发（如 world_flag_changed）
@@ -355,7 +392,7 @@ export async function availableMoves(env: SiteEnv, sid: string): Promise<{ scene
   const out: { sceneId: string; label: string }[] = [];
   for (const id of sc.choices) {
     const dest = await sceneContent(env, id);
-    if (!dest) continue;
+    if (!dest || !(await entryOk(env, sid, st.scene, dest))) continue;
     const label = (sc.choiceLabels && typeof sc.choiceLabels[id] === "string" && sc.choiceLabels[id]) || "地点" + (out.length + 1);
     out.push({ sceneId: id, label });
   }
