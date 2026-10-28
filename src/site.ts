@@ -2,14 +2,17 @@
 // - 登录：用共享记忆的同一个口令，签发 30 天的会话 cookie
 // - /api/db：存档读写（和主神空间 artifact 云端同步用同一张 study_state 表）
 // - /api/ai：代调 Anthropic / OpenAI，流式返回，带每日/每月花费上限
-// - /api/mcp：共享记忆工具直接在这里执行；Google 日历/Drive 之后再接
+// - /api/mcp：共享记忆工具直接在这里执行；Google 日历/Drive 见 google.ts（只读，需要在页面上点一次「连接 Google」）
 import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
+import { GErr, finishAuth, googleDisconnect, googleStatus, googleTool, startAuth } from "./google";
 
 export type SiteEnv = Env & {
   ASSETS: Fetcher;
   ANTHROPIC_API_KEY?: string;
   OPENAI_API_KEY?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
   DAILY_LIMIT_USD?: string;
   MONTHLY_LIMIT_USD?: string;
 };
@@ -345,8 +348,14 @@ async function mcpHandler(req: Request, env: SiteEnv) {
       return err("tool_error", String(e?.message ?? e));
     }
   }
-  if (server === "Google Calendar" || server === "Google Drive")
-    return err("server_not_connected", server + " 还没接到网站上", 400);
+  if (server === "Google Calendar" || server === "Google Drive") {
+    try {
+      return json({ payload: await googleTool(env, server, String(tool), (input ?? {}) as Record<string, any>) });
+    } catch (e: any) {
+      if (e instanceof GErr) return err(e.code, e.message, e.status);
+      return err("upstream_error", String(e?.message ?? e), 502);
+    }
+  }
   return err("server_not_connected", "未知连接器：" + server, 400);
 }
 
@@ -384,6 +393,11 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/ai" && req.method === "POST") return aiHandler(req, env, ctx);
     if (p === "/api/ai/status") return aiStatus(env);
     if (p === "/api/db") return dbHandler(req, env, url);
+    if (p === "/api/google/status") return json(await googleStatus(env));
+    if (p === "/api/google/disconnect" && req.method === "POST") {
+      await googleDisconnect(env);
+      return json({ ok: true });
+    }
     if (p === "/api/mcp" && req.method === "POST") return mcpHandler(req, env);
     return err("not_found", "没有这个接口", 404);
   }
@@ -391,6 +405,8 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     return new Response(LOGIN_HTML, {
       headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Frame-Options": "DENY" },
     });
+  if (p === "/auth/google/start" && req.method === "GET") return startAuth(env, url);
+  if (p === "/auth/google/callback" && req.method === "GET") return finishAuth(env, url);
   const res = await env.ASSETS.fetch(req);
   const h = new Headers(res.headers);
   h.set("Cache-Control", "no-store");

@@ -56,3 +56,11 @@
 - **漏网检查**：如果有人在别的对话里直接改了线上 artifact，把它用 Artifact 的 read 保存下来，运行
   `python3 scripts/check-drift.py <保存的html>`，一致返回 0，有差异返回 1 并打印差异。有差异就把改动合并回 `page/zhushen.html`，再走上面的流程。
 - 存档（进度、聊天记录）两边本来就共用云端的 `study_state`，不需要同步代码。
+
+## 网站版连接 Google 日历 / Drive（只读）
+
+- 需要两个 Cloudflare Secret：`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`（Google Cloud 里建的 Web 应用，重定向地址 `https://study.catmin.io/auth/google/callback`，权限只要 `calendar.readonly` 和 `drive.readonly`，应用要发布为 In production）。
+- 设好后网站顶部会出现「连接 Google」，点一下授权一次；刷新令牌用 AES-GCM 加密后存在 KV，点已连接的按钮可以断开并向 Google 撤销。
+- 代码在 `src/google.ts`，工具名和 claude.ai 连接器一致（Google Calendar.list_events；Google Drive.search_files / list_recent_files / read_file_content），页面不用改。
+- PDF / Word / 图片通过 Workers AI 的 `toMarkdown` 转成文字（线上行为未在本地验证，本地测试用的是假实现）。
+- 测试：`npx wrangler dev -c test/wrangler.site.jsonc --port 8800`，另开终端运行 `python3 test/google_e2e.py`。

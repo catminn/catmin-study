@@ -14,7 +14,8 @@ function fakeEmbed(t: string): number[] {
   return v.map((x) => x / n);
 }
 const store = new Map<string, { id: string; values: number[]; namespace?: string }>();
-const fakeAI = { run: async (_m: string, i: any) => ({ shape: [i.text.length, DIM], data: i.text.map(fakeEmbed) }) };
+const fakeAI = { toMarkdown: async (fs: any[]) => fs.map((f) => ({ name: f.name, format: "markdown", data: "# 转换结果 " + f.name + " " + f.blob.type })),
+  run: async (_m: string, i: any) => ({ shape: [i.text.length, DIM], data: i.text.map(fakeEmbed) }) };
 const fakeVec = {
   upsert: async (vs: any[]) => { for (const v of vs) store.set(v.id, v); return { count: vs.length }; },
   deleteByIds: async (ids: string[]) => { ids.forEach((i) => store.delete(i)); return { count: ids.length }; },

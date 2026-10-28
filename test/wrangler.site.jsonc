@@ -7,6 +7,6 @@
   "d1_databases": [{ "binding": "DB", "database_name": "catmin-study", "database_id": "local-site", "migrations_dir": "../migrations" }],
   "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "local-kv2" }],
   "vars": { "EMBED_MODEL": "fake", "EMBED_DIM": "1024", "PUBLIC_URL": "http://localhost:8800", "SITE_HOST": "localhost:8800",
-            "OWNER_PASSWORD": "test-pass-123", "ADMIN_TOKEN": "admin-token-0123456789abcdef", "ANTHROPIC_API_KEY": "fake", "OPENAI_API_KEY": "fake",
+            "OWNER_PASSWORD": "test-pass-123", "ADMIN_TOKEN": "admin-token-0123456789abcdef", "ANTHROPIC_API_KEY": "fake", "OPENAI_API_KEY": "fake", "GOOGLE_CLIENT_ID": "cid.apps.googleusercontent.com", "GOOGLE_CLIENT_SECRET": "csecret",
             "DAILY_LIMIT_USD": "1", "MONTHLY_LIMIT_USD": "10" }
 }

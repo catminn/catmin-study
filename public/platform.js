@@ -2,7 +2,7 @@
  * db     → /api/db（存在云端 study_state，和 artifact 的云端存档是同一份）
  * user   → 固定为 Catherine
  * sample → /api/ai（Anthropic / OpenAI API，按量计费，有每日上限）
- * mcp    → /api/mcp（共享记忆直连；日历/Drive 之后接）
+ * mcp    → /api/mcp（共享记忆直连；日历/Drive 经 Google 授权后只读）
  * 页面本身不用改：它照常调用 claude.use(...)。 */
 (function () {
   "use strict";
@@ -103,6 +103,36 @@
     box.append(sel, cost);
   }
 
+  // ---------- Google 连接（日历 / Drive，只读） ----------
+  async function renderGoogle() {
+    var host = document.querySelector(".hud .res");
+    if (!host) return;
+    var st;
+    try { st = await api("/api/google/status"); } catch (e) { return; }
+    var el = document.getElementById("cmGoogle");
+    if (!st.configured) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement("button");
+      el.id = "cmGoogle";
+      el.className = "pill";
+      el.style.cssText = "font-family:var(--body);font-weight:500;font-size:13px;padding:2px 10px";
+      host.appendChild(el);
+    }
+    if (st.connected) {
+      el.textContent = "Google ✓";
+      el.title = (st.email || "已连接") + "（只读）。点一下可以断开。";
+      el.onclick = async function () {
+        if (!confirm("断开 Google？之后日历和 Drive 在网站上会读不到，可以随时重新连接。")) return;
+        try { await api("/api/google/disconnect", { method: "POST" }); } catch (e) {}
+        renderGoogle();
+      };
+    } else {
+      el.textContent = "连接 Google";
+      el.title = "授权网站只读你的 Google 日历和 Drive";
+      el.onclick = function () { location.href = "/auth/google/start"; };
+    }
+  }
+
   // ---------- sample ----------
   function toMessages(input) {
     if (typeof input === "string") return [{ role: "user", content: input }];
@@ -201,6 +231,6 @@
     }
   });
 
-  document.addEventListener("DOMContentLoaded", function () { loadStatus(); });
-  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") loadStatus(); });
+  document.addEventListener("DOMContentLoaded", function () { loadStatus(); renderGoogle(); });
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") { loadStatus(); renderGoogle(); } });
 })();

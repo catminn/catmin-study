@@ -9,8 +9,51 @@ function fakeStream(provider: string, text: string) {
     : [...parts.map((t) => ({ choices: [{ delta: { content: t } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, { choices: [], usage: { prompt_tokens: 1000, completion_tokens: 200 } }];
   return new ReadableStream({ start(c) { for (const e of evs) c.enqueue(enc.encode("data: " + JSON.stringify(e) + "\n\n")); if (provider !== "anthropic") c.enqueue(enc.encode("data: [DONE]\n\n")); c.close(); } });
 }
+
+// ---- 假的 Google：授权、令牌、日历、Drive ----
+const jwt = (o: any) => "x." + btoa(JSON.stringify(o)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") + ".y";
+const gj = (o: any, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json" } });
+(globalThis as any).__gcalls = [] as string[];
+function fakeGoogle(url: string, init?: any): Response | null {
+  const u = new URL(url);
+  const auth = (init?.headers?.Authorization || init?.headers?.authorization || "") as string;
+  if (u.host === "oauth2.googleapis.com" && u.pathname === "/token") {
+    const b = new URLSearchParams(String(init.body));
+    (globalThis as any).__gcalls.push("token:" + b.get("grant_type"));
+    if (b.get("grant_type") === "authorization_code")
+      return b.get("code") === "nocal"
+        ? gj({ access_token: "at1", refresh_token: "rt1", expires_in: 3600, scope: "openid email https://www.googleapis.com/auth/drive.readonly", id_token: jwt({ email: "cat@gmail.com" }) })
+        : gj({ access_token: "at1", refresh_token: "rt1", expires_in: 3600, scope: "openid email https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.readonly", id_token: jwt({ email: "cat@gmail.com" }) });
+    if (b.get("refresh_token") === "rt1") return gj({ access_token: "at2", expires_in: 3600 });
+    return gj({ error: "invalid_grant" }, 400);
+  }
+  if (u.host === "oauth2.googleapis.com" && u.pathname === "/revoke") { (globalThis as any).__gcalls.push("revoke"); return gj({}); }
+  if (u.host !== "www.googleapis.com") return null;
+  (globalThis as any).__gcalls.push(auth + " " + u.pathname + u.search);
+  if (!auth.startsWith("Bearer at")) return gj({ error: { message: "no auth" } }, 401);
+  if (auth === "Bearer at1" && (globalThis as any).__expire401) return gj({ error: { message: "expired" } }, 401);
+  const m = u.pathname;
+  if (m.startsWith("/calendar/v3/calendars/")) {
+    if (m.includes("missing")) return gj({ error: { message: "Not Found" } }, 404);
+    return gj({ items: [{ summary: "MATH 1920 lecture", start: { dateTime: u.searchParams.get("timeMin") }, end: { dateTime: u.searchParams.get("timeMax") }, location: "Olin 155" }] });
+  }
+  if (m === "/drive/v3/files") {
+    return gj({ files: [{ id: "f1", name: "q=" + u.searchParams.get("q") + "|" + u.searchParams.get("orderBy"), mimeType: "application/pdf", modifiedTime: "2026-10-01T00:00:00Z" }, { id: "d1", name: "ENGRI", mimeType: "application/vnd.google-apps.folder" }] });
+  }
+  const f = /^\/drive\/v3\/files\/([\w-]+)(\/export)?$/.exec(m);
+  if (f) {
+    const id = f[1];
+    if (f[2]) return new Response("导出文本 " + u.searchParams.get("mimeType"));
+    if (u.searchParams.get("alt") === "media") return new Response(id === "txt00" ? "纯文本内容" : "%PDF-fake");
+    const kinds: Record<string, string> = { doc00: "application/vnd.google-apps.document", sht00: "application/vnd.google-apps.spreadsheet", pdf00: "application/pdf", txt00: "text/plain", big00: "application/pdf", fld00: "application/vnd.google-apps.form" };
+    return gj({ id, name: "file-" + id, mimeType: kinds[id] || "application/pdf", size: id === "big00" ? "20000000" : "100" });
+  }
+  return gj({ error: { message: "unhandled " + m } }, 404);
+}
 globalThis.fetch = (async (input: any, init?: any) => {
   const url = typeof input === "string" ? input : input.url;
+  const g = fakeGoogle(url, init);
+  if (g) return g;
   if (url.startsWith("https://api.anthropic.com/") || url.startsWith("https://api.openai.com/")) {
     const body = JSON.parse(init.body);
     const prov = url.includes("anthropic") ? "anthropic" : "openai";
@@ -22,4 +65,11 @@ globalThis.fetch = (async (input: any, init?: any) => {
   }
   return realFetch(input, init);
 }) as typeof fetch;
-export default base;
+export default {
+  fetch(req: Request, env: any, ctx: ExecutionContext) {
+    const u = new URL(req.url);
+    if (u.pathname === "/__gcalls") return Response.json((globalThis as any).__gcalls.splice(0));
+    if (u.pathname === "/__expire401") { (globalThis as any).__expire401 = u.searchParams.get("on") === "1"; return new Response("ok"); }
+    return (base as any).fetch(req, env, ctx);
+  },
+};
