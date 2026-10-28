@@ -1,0 +1,55 @@
+{
+  "schema": "world01-causal-authoring-v1",
+  "scope": "synthetic-mechanics-only",
+  "warning": "No story, NPC identity, hidden facts, solutions, or player-facing dialogue are included.",
+  "worldId": "world01",
+  "sceneContract": "content/contracts/world01-opening-skeleton.json",
+  "routeCommits": [
+    {
+      "id": "route-a-commit",
+      "from": "w01.choice",
+      "to": "w01.route_a",
+      "cause": { "type": "scene_entered", "sceneId": "w01.route_a", "requiresCommittedTransition": true },
+      "effect": { "type": "set_flag", "target": "route_trace", "value": "a" },
+      "repeatPolicy": "once_per_world"
+    },
+    {
+      "id": "route-b-commit",
+      "from": "w01.choice",
+      "to": "w01.route_b",
+      "cause": { "type": "scene_entered", "sceneId": "w01.route_b", "requiresCommittedTransition": true },
+      "effect": { "type": "set_flag", "target": "route_trace", "value": "b" },
+      "repeatPolicy": "once_per_world"
+    }
+  ],
+  "npcContinuity": {
+    "actorRef": "synthetic-actor",
+    "initial": { "location": "w01.choice", "availability": "available", "relation": "neutral", "claimTier": "unverified" },
+    "transitions": [
+      { "onCommitted": "route-a-commit", "set": { "relation": "guarded" } },
+      { "onCommitted": "route-b-commit", "set": { "relation": "open" } }
+    ],
+    "claimPromotion": "only_authorized_fact_discovery"
+  },
+  "convergence": {
+    "scene": "w01.discover",
+    "preserve": ["route_trace", "npc_relation", "committed_event_ids"],
+    "routeOutcomes": [
+      { "routeTrace": "a", "npcRelation": "guarded" },
+      { "routeTrace": "b", "npcRelation": "open" }
+    ]
+  },
+  "learning": {
+    "scenes": ["w01.route_a", "w01.route_b"],
+    "requiresPlayerConsent": true,
+    "allowsNonAcademicProgress": true,
+    "fabricateMeasurements": false,
+    "narrationMayCommitEffects": false
+  },
+  "publicProjection": {
+    "source": "committed_state_only",
+    "claimTierWithoutDiscovery": "unverified",
+    "exposeInternalIds": false,
+    "exposeUncommittedConsequences": false
+  }
+}
