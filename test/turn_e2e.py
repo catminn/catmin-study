@@ -94,6 +94,14 @@ c, o = post("/api/adventure/turn", {"sessionId": "K", "turnId": "kk3", "inputTex
 check("指定已用过的证据被拒", o["gameCommit"] is None, o)
 c, o = turn("现在执行", sid="K")
 check("默认选择不会选到别的会话的证据（本会话无可用证据→加成 0）", o["gameCommit"] and o["gameCommit"]["bonus"] == 0, o)
+
+# 上下文：“刚才的方法”能对应到最近已确认的思路
+post("/api/adventure/session", {"sessionId": "X", "op": "start"})
+turn("g(t)=(t+1)^2，我先展开再求导。", sid="X")
+c, o = turn("刚才的方法怎么样", sid="X")
+check("指代“刚才的方法”：回复能看到最近对话和已确认的思路", o["narration"] == "CTXOK", o.get("narration"))
+c, o = turn("刚才的方法怎么样", sid="Z0") if post("/api/adventure/session", {"sessionId": "Z0", "op": "start"}) else (0, {})
+check("新会话没有上下文时不会凭空编出思路", o["narration"] == "CTXMISSING", o.get("narration"))
 check("坏请求被拒", turn("")[0] == 400 and post("/api/adventure/turn", {"sessionId": "S"})[0] == 400)
 check("不存在的会话", turn("hi", sid="nope")[0] == 404)
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)

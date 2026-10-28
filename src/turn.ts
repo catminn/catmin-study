@@ -93,9 +93,11 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
   return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, quiet: q as Classification["quiet"], evaluation: ev } };
 }
 
-const CLASSIFY_PROMPT = (input: string, paused: boolean) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
+const CLASSIFY_PROMPT = (input: string, paused: boolean, ctx: string) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
 玩家输入：${input}
 当前故事${paused ? "已暂停（玩家在刷题）" : "进行中"}。
+${ctx}
+（玩家说“刚才的方法/那个/上一个”时，指上面最近对话里的内容，请据此判断，不要因为指代而判成不确定。）
 字段：
 - intents：从 ASK(提问) LEARN(要求系统讲解) PRACTICE(刷题/作答) EXPLORE(探索) ACT(要求真实执行行动) 中选 1–5 个；
 - explicitCommit：玩家是否明确要求“现在就执行”。只是计划、设想、“先不要执行”都必须是 false；
@@ -157,15 +159,34 @@ async function pickBasis(env: SiteEnv, sessionId: string, chosen: string | null)
   return { ok: true, id: r?.id ?? null };
 }
 
+// 最近几回合的摘要，让“刚才的方法”“那个方案”这类指代能被理解。只含玩家输入、已确认的评估和 DM 回复的前半段。
+async function recentContext(env: SiteEnv, sessionId: string): Promise<string> {
+  const rows = (await env.DB.prepare("SELECT response FROM adventure_turns WHERE session_id=? AND response IS NOT NULL ORDER BY created_at DESC LIMIT 6").bind(sessionId).all<{ response: string }>()).results.reverse();
+  const lines: string[] = [];
+  for (const r of rows) {
+    let b: any;
+    try { b = JSON.parse(r.response); } catch { continue; }
+    if (!b.playerInput) continue;
+    let l = "玩家：" + String(b.playerInput).slice(0, 200);
+    const a = b.academicEvaluation;
+    if (a) l += `［记录：${a.correctness}/${a.reasoning}/${a.verification}${a.insightKey ? "，思路 " + a.insightKey : ""}］`;
+    if (b.gameCommit) l += "［已执行一次行动］";
+    if (b.narration) l += "\nDM：" + String(b.narration).slice(0, 160).replace(/\n+/g, " ");
+    lines.push(l);
+  }
+  return lines.length ? "最近的对话（旧→新）：\n" + lines.join("\n") : "（这是这个会话的第一句话）";
+}
+
 async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: string, input: string, sess: any, chosen: string | null = null): Promise<Result> {
   const uncertain = (code: string, message: string): Result => ({ status: 200, body: { ok: true, uncertainty: true, code, message, intentSegments: [], academicEvaluation: null, gameCommit: null, narration: "", visibleFeedback: message } });
   // 1. 意图识别
+  const ctx = await recentContext(env, sessionId);
   let cls: Classification | null = null;
   let why = "";
   let raw = "";
   try {
     for (let attempt = 0; attempt < 2 && !cls; attempt++) {
-      raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused"), 400);
+      raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused", ctx), 400);
       const v = validateClassification(parseJson(raw));
       if (v.ok) cls = v.value;
       else why = v.why;
@@ -206,7 +227,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
         await env.DB.prepare("INSERT OR IGNORE INTO adventure_insight_use (event_id,insight_key,is_first) VALUES (?,?,0)").bind(evalEventId, sessionId + "|" + cls.insightKey).run();
       }
     }
-    academic = { ...cls.evaluation, verification, eventId: evalEventId, repeatedInsight: !firstUse };
+    academic = { ...cls.evaluation, verification, eventId: evalEventId, repeatedInsight: !firstUse, insightKey: cls.insightKey };
   }
 
   // 3. 行动：只有 ACT 且玩家明确要求执行、故事进行中才可能提交；ASK/LEARN/PRACTICE 一律 null
@@ -265,7 +286,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   if (quiet !== !!qrow?.quiet) await env.DB.prepare("INSERT INTO adventure_flags (session_id,quiet) VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET quiet=excluded.quiet").bind(sessionId, quiet ? 1 : 0).run();
   const route = ROUTING.reply[main] ?? ROUTING.reply.ASK;
   const facts = commit ? `已提交的事实（只能叙述这些）：骰点${commit.roll}+知识加成${commit.bonus} 对 DC${commit.dc}，${commit.success ? "成功" : "失败"}。` : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。";
-  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `（内部记录，界面会另外显示标签，回复里不要出现这些字段名或英文标签）这位玩家本次解答的判定：${academic.correctness==='correct'?'结论正确':'结论有问题'}，${academic.reasoning==='valid'?'推理成立':'推理有缺陷'}。用自然的话告诉玩家结果和原因，不要写“学术评估”“correct”之类。` : ""}按玩家要的篇幅回答，别用任务菜单打断。玩家没有求助时，不要主动提出解法、方法、步骤或延伸；玩家答对了就只确认对、并用一两句话说明对在哪里，不要补充别的做法，也不要“如果你想检查……”；玩家只是说想法或计划时，只简短确认，不替他算，也不追问细节。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n玩家输入：${input}`;
+  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `（内部记录，界面会另外显示标签，回复里不要出现这些字段名或英文标签）这位玩家本次解答的判定：${academic.correctness==='correct'?'结论正确':'结论有问题'}，${academic.reasoning==='valid'?'推理成立':'推理有缺陷'}。用自然的话告诉玩家结果和原因，不要写“学术评估”“correct”之类。` : ""}按玩家要的篇幅回答，别用任务菜单打断。玩家没有求助时，不要主动提出解法、方法、步骤或延伸；玩家答对了就只确认对、并用一两句话说明对在哪里，不要补充别的做法，也不要“如果你想检查……”；玩家只是说想法或计划时，只简短确认，不替他算，也不追问细节。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n${ctx}\n玩家说“刚才的方法/那个/上一个”时，指上面最近对话里的内容，按那个理解，不要反问“你指哪个方法”。\n玩家输入：${input}`;
   let narration = "";
   try {
     narration = await deps.complete(route.tier, route.provider, prompt, main === "LEARN" ? 1500 : 700);
@@ -281,6 +302,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       uncertainty: false,
       routingVersion: ROUTING.version,
       configVersion: CONFIG.version,
+      playerInput: input.slice(0, 400),
       intentSegments: intents,
       academicEvaluation: academic,
       gameCommit: commit,

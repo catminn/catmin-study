@@ -79,6 +79,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
       else if (q.includes("提示后")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "major_hint" });
       else special = C(["EXPLORE"], false, false, null);
     } else if (lastText.includes("[[VERIFY]]")) special = JSON.stringify({ ownAnswer: "2t+2", agree: !q.includes("NOAGREE") });
+    if (!special && !lastText.includes("[[") && q.includes("刚才的方法")) special = lastText.includes("思路 expand-then-differentiate") ? "CTXOK" : "CTXMISSING";
     const reply = special ?? (lastText.includes("JSON") ? '```json\n{"ok":true,"n":3}\n```' : `你好，这是${prov}的${body.model}回答。${hasImg ? "收到图片。" : ""}`);
     return new Response(fakeStream(prov, reply), { headers: { "content-type": "text/event-stream" } });
   }
