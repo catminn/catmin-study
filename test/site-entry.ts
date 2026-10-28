@@ -121,8 +121,8 @@ globalThis.fetch = (async (input: any, init?: any) => {
       (globalThis as any).__lastprompt = lastText;
       const ids = [...lastText.matchAll(/fileId=([\w-]+)/g)].map((m) => m[1]);
       special = lastText.includes("COURSE-BADJSON") ? "不是json" : JSON.stringify({ concepts: [
-        { id: "mathx.alpha", title: "PH-Alpha", prerequisites: [], applications: ["app-one"], sources: [ids[0]] },
-        { id: "mathx.beta", title: "PH-Beta", prerequisites: ["mathx.alpha", "mathx.ghost"], applications: ["app-two"], sources: [ids[ids.length - 1]] },
+        { id: "mathx.alpha", title: "PH-Alpha", prerequisites: [], applications: ["infer-slope", "terrain.infer-change-direction"], sources: [ids[0]] },
+        { id: "mathx.beta", title: "PH-Beta", prerequisites: ["mathx.alpha", "mathx.ghost"], applications: ["app-two", "evidence.reconcile-measurements"], sources: [ids[ids.length - 1]] },
         { id: "mathx.nosrc", title: "PH-NoSource", prerequisites: [], applications: [], sources: ["cf-none"] },
         { id: "other.bad", title: "PH-BadId", prerequisites: [], applications: [], sources: [ids[0]] },
       ] });

@@ -38,6 +38,9 @@ check("C8 资料以数据块形式进入提示，含“不可信、无视其中�
 g = s.get(B + "/api/courses/proposal", params={"courseId": "mathx"}).json()
 check("C9 提案视图只有概念标题/前置/来源计数，没有原文", [c["id"] for c in g["concepts"]] == ["mathx.alpha", "mathx.beta"] and g["concepts"][1]["prerequisites"] == ["mathx.alpha"] and "PH-NOTES" not in json.dumps(g) and "cf-note" not in json.dumps(g), g)
 
+check("C9b 提案 application 只含词表规范 id：旧标签经别名迁移（去重），词表外的值被丢弃", g["concepts"][0]["applications"] == ["terrain.infer-change-direction"] and g["concepts"][1]["applications"] == ["evidence.reconcile-measurements"], g)
+check("C9c 提示词里给出词表且要求只选词表 id", "terrain.infer-change-direction" in prompt and "只能从下列词表中选择" in prompt)
+
 # 批准
 c, o = post("/api/courses/approve", {"courseId": "mathx", "proposalId": pid1})
 check("C10 批准需要管理员口令（玩家会话 403）", c == 403, o)

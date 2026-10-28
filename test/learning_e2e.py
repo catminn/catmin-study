@@ -77,4 +77,11 @@ prof(enrolledCourseIds=["math1920"]); start("L6"); o = turn("PH-MATHX 做完了"
 check("L21 没选这门课：分类器不认识它的概念，评估不记录该概念", "mathx.alpha" not in lastcls() and (o["academicEvaluation"] or {}).get("conceptId") is None, [o["academicEvaluation"]])
 prof(enrolledCourseIds=["math1920", "mathx"]); start("L7"); o = turn("PH-MATHX 做完了", "L7", "l7t1")
 check("L22 选了这门课：概念进入分类器提示，评估记录到具体概念", "mathx.alpha（PH-AlphaTitle）" in lastcls() and o["academicEvaluation"]["conceptId"] == "mathx.alpha", [o["academicEvaluation"]])
+# 词表匹配：课程包用规范 id、场景用旧别名 → 迁移后精确匹配；词表外标签不会匹配（失败关闭）
+put("course", "math1920", {"version": "2", "concepts": [{"id": "math1920.gradient", "courseId": "math1920", "title": "Gradient", "prerequisites": [], "applications": ["terrain.infer-change-direction"]}]})
+prof(enrolledCourseIds=["math1920"]); start("L8"); o = turn("随便看看", "L8", "l8t1")
+check("L23 课程包规范 id + 场景旧别名：迁移后匹配，给出提示", (o.get("learningOffer") or {}).get("prompt") == "PH-LEARN-PROMPT", o.get("learningOffer"))
+put("course", "math1920", {"version": "3", "concepts": [{"id": "math1920.gradient", "courseId": "math1920", "title": "Gradient", "prerequisites": [], "applications": ["free-text-tag"]}]})
+start("L9"); o = turn("随便看看", "L9", "l9t1")
+check("L24 课程包标签在词表外：不匹配，不提示", "learningOffer" not in o, o.get("learningOffer"))
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)

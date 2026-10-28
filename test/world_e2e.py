@@ -204,4 +204,12 @@ check("P4 学习证据引用绑定到本会话（learningRefs=1）；其它会�
 txt = json.dumps([b, snap("P1")], ensure_ascii=False)
 check("P5 玩家侧/计数视图不含事实 id、证据 id、提交引用", all(k not in txt for k in ["fact-ph", "p1turn", "sourceCommitRef"]), txt)
 
+# 世界绑定（#50）：会话固定 worldId 与内容修订；内容库新增别的世界后，已固定的会话不串用，未固定的新会话不猜世界（失败关闭）
+wact = lambda sid: s.get(B + "/api/adventure/world", params={"id": sid}).json().get("active")
+before = wact("P1")
+put("world", "w-second", {"startSceneId": "s-a"})
+check("W1 已固定世界的会话：内容库出现第二个世界后仍正常（不串用）", before and wact("P1"), [before, wact("P1")])
+s.post(B + "/api/adventure/session", json={"sessionId": "W9", "op": "start"})
+check("W2 未固定且世界不唯一的新会话：引擎不介入（不猜世界）", not wact("W9"), wact("W9"))
+check("W3 已固定会话的快照仍可读且来源指向固定的世界", snap("P1").get("ok") is not False and "snapshot" in snap("P1"))
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)

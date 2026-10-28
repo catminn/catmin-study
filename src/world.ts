@@ -22,6 +22,7 @@ function ensure(env: SiteEnv) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_ending_snapshot (session_id TEXT PRIMARY KEY, ending_commit_id TEXT NOT NULL, snapshot TEXT NOT NULL, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_threads (session_id TEXT NOT NULL, thread_id TEXT NOT NULL, audience TEXT NOT NULL, carryover TEXT NOT NULL, status TEXT NOT NULL, opened_by TEXT NOT NULL, resolved_by TEXT, PRIMARY KEY (session_id,thread_id))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_fact_src (session_id TEXT NOT NULL, fact_id TEXT NOT NULL, source_ref TEXT NOT NULL, scene_id TEXT NOT NULL, PRIMARY KEY (session_id,fact_id))`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_pin (session_id TEXT PRIMARY KEY, world_id TEXT NOT NULL, world_rev INTEGER NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_applied (session_id TEXT NOT NULL, event_key TEXT NOT NULL, action_id TEXT NOT NULL, public_outcome TEXT, PRIMARY KEY (session_id,event_key))`),
   ]).catch((e) => { ready = null; throw e; }));
 }
@@ -29,11 +30,25 @@ function ensure(env: SiteEnv) {
 export type PublicEvent = { publicOutcome: string };
 type St = { scene: string; version: number };
 
-// 世界记录的 id 不固定：取内容库里唯一的 world 记录。
-async function findWorld(env: SiteEnv): Promise<any | null> {
-  const rs = await env.DB.prepare("SELECT id FROM adventure_content WHERE kind='world' GROUP BY id LIMIT 2").all<{ id: string }>().catch(() => ({ results: [] as { id: string }[] }));
-  if (rs.results.length !== 1) return null;
-  return (await readContentInternal(env, "world", rs.results[0].id))?.content ?? null;
+// 世界选择：会话在初始化时固定 worldId 与内容修订（adventure_world_pin）。
+// 已固定的会话只用自己固定的世界，之后内容库新增别的世界也不会串用；未固定（旧会话）且内容库里世界不唯一 → 失败关闭，不猜。
+type Pin = { id: string; rev: number };
+async function uniqueWorld(env: SiteEnv): Promise<Pin | null> {
+  const rs = await env.DB.prepare("SELECT id, MAX(rev) AS rev FROM adventure_content WHERE kind='world' GROUP BY id LIMIT 2").all<Pin>().catch(() => ({ results: [] as Pin[] }));
+  return rs.results.length === 1 ? rs.results[0] : null;
+}
+async function pinFor(env: SiteEnv, sid: string): Promise<Pin | null> {
+  const r = await env.DB.prepare("SELECT world_id AS id, world_rev AS rev FROM adventure_world_pin WHERE session_id=?").bind(sid).first<Pin>();
+  if (r) return r;
+  const u = await uniqueWorld(env);
+  if (!u) return null;
+  await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_pin (session_id,world_id,world_rev) VALUES (?,?,?)").bind(sid, u.id, u.rev).run();
+  return (await env.DB.prepare("SELECT world_id AS id, world_rev AS rev FROM adventure_world_pin WHERE session_id=?").bind(sid).first<Pin>()) ?? null;
+}
+async function findWorld(env: SiteEnv, sid: string): Promise<any | null> {
+  const pin = await pinFor(env, sid);
+  if (!pin) return null;
+  return (await readContentInternal(env, "world", pin.id))?.content ?? null;
 }
 
 async function flagGet(env: SiteEnv, sid: string, key: string): Promise<string | null> {
@@ -102,7 +117,7 @@ async function ensureState(env: SiteEnv, sid: string): Promise<St | null> {
   await ensure(env);
   const r = await env.DB.prepare("SELECT scene_id, version FROM adventure_world WHERE session_id=?").bind(sid).first<{ scene_id: string; version: number }>();
   if (r) return { scene: r.scene_id, version: r.version };
-  const w = await findWorld(env);
+  const w = await findWorld(env, sid);
   const start = w && typeof w.startSceneId === "string" ? w.startSceneId : null;
   if (!start || !(await sceneContent(env, start))) return null; // 没有世界或没有合法起点：引擎不介入
   await env.DB.prepare("INSERT OR IGNORE INTO adventure_world (session_id,scene_id,version) VALUES (?,?,0)").bind(sid, start).run();
@@ -445,7 +460,7 @@ export async function publicSceneInfo(env: SiteEnv, sid: string): Promise<{ acti
   const entered = (await worldIntro(env, sid).catch(() => [])).map((e) => e.publicOutcome);
   const options = (await availableMoves(env, sid).catch(() => [])).map((m) => m.label);
   const sc = await sceneContent(env, st.scene);
-  const w = st.version === 0 ? await findWorld(env) : null;
+  const w = st.version === 0 ? await findWorld(env, sid) : null;
   return { active: true, entered, options, opening: typeof w?.public_opening === "string" ? w.public_opening : undefined, publicText: typeof sc?.publicText === "string" ? sc.publicText : undefined };
 }
 
@@ -486,9 +501,9 @@ async function createEndingSnapshot(env: SiteEnv, sid: string, commitId: string,
   const st = await ensureState(env, sid);
   if (!st) return;
   const all = async (q: string, ...a: any[]) => (await env.DB.prepare(q).bind(sid, ...a).all<any>()).results ?? [];
-  const wr = await env.DB.prepare("SELECT id, MAX(rev) AS rev FROM adventure_content WHERE kind='world' GROUP BY id LIMIT 2").all<{ id: string; rev: number }>().catch(() => ({ results: [] as { id: string; rev: number }[] }));
-  if (wr.results.length !== 1) return; // 世界来源不可唯一确认：失败关闭，不建快照
-  const world = { rev: wr.results[0].rev };
+  const pin = await pinFor(env, sid);
+  if (!pin) return; // 世界来源不可唯一确认：失败关闭，不建快照
+  const world = { rev: pin.rev };
   const sceneRev = (await readContentInternal(env, "scene", endingScene).catch(() => null))?.rev ?? 0;
   const applied = await all("SELECT event_key FROM adventure_world_applied WHERE session_id=? ORDER BY event_key");
   const appliedKeys = new Set(applied.map((r) => String(r.event_key)));
@@ -504,7 +519,7 @@ async function createEndingSnapshot(env: SiteEnv, sid: string, commitId: string,
   if (threads.some((t) => !t.opened_by)) return; // 缺少开启来源：失败关闭，不建快照
   const snap = {
     snapshotSchemaVersion: SNAPSHOT_CONFIG.schemaVersion,
-    sourceWorldRef: wr.results[0].id, sourceWorldVersion: st.version, sourceContentRevision: { world: world.rev, endingScene: sceneRev }, engineVersion: WORLD_CONFIG.version,
+    sourceWorldRef: pin.id, sourceWorldVersion: st.version, sourceContentRevision: { world: world.rev, endingScene: sceneRev }, engineVersion: WORLD_CONFIG.version,
     endingRef: endingId, endingCommitRef: commitId,
     // 玩家已知事实：来源是已提交事件（具体来源事件键集合只作审计引用），受众=该玩家
     confirmedFacts: facts.map((f) => ({ factRef: f.fact_id, provenance: (() => { const o = factSrc.find((x) => x.fact_id === f.fact_id); return o ? { sourceCommitRef: o.source_ref, sourceScene: o.scene_id, discoveredBy: "player" } : { sourceCommitRef: null, committedEvents: appliedKeys.size }; })(), audience: "player" })),
