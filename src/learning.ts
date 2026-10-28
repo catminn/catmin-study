@@ -56,10 +56,11 @@ export async function learningOffer(env: SiteEnv, sid: string, scene: any, opts:
   if (!packs.length || !scene || !Array.isArray(scene.learningAffordances) || !scene.learningAffordances.length) return null; // 没有课程或没有声明：完全不介入，也不写审计
   const profile = { ...(await getProfile(env)), learnedConceptIds: await learnedConcepts(env) };
   const cues: Cue[] = (Array.isArray(scene.publicCues) ? scene.publicCues : []).filter((c: any) => c && typeof c.id === "string" && typeof c.evidence === "string").map((c: any) => ({ id: c.id, visible: c.visible !== false, evidence: c.evidence }));
-  const affordances = (scene.learningAffordances as Affordance[]).map((a) => ({ ...a, application: typeof a.application === "string" ? canonicalApplication(a.application) ?? a.application : a.application }));
-  // application 按精确规范 id 匹配；旧标签经别名迁移；词表外保持原样（不会与任何规范 id 相等，即失败关闭）
-  const canon = (a: string) => canonicalApplication(a) ?? a;
-  const cpacks = packs.map((p: any) => ({ ...p, concepts: Array.isArray(p.concepts) ? p.concepts.map((c: any) => ({ ...c, applications: Array.isArray(c.applications) ? c.applications.map(canon) : c.applications })) : p.concepts }));
+  // application 按精确规范 id 匹配；旧标签经别名迁移；词表外的值一律丢弃（场景侧丢整条声明，课程侧丢该标签），绝不保留原值参与匹配（失败关闭）
+  const affordances = (scene.learningAffordances as Affordance[]).filter((a) => typeof a.application === "string" && canonicalApplication(a.application)).map((a) => ({ ...a, application: canonicalApplication(a.application) as string }));
+  const canonList = (xs: any[]) => xs.map((x) => canonicalApplication(x)).filter((x): x is string => !!x);
+  const cpacks = packs.map((p: any) => ({ ...p, concepts: Array.isArray(p.concepts) ? p.concepts.map((c: any) => ({ ...c, applications: Array.isArray(c.applications) ? canonList(c.applications) : c.applications })) : p.concepts }));
+  if (!affordances.length) { await audit(env, sid, "none", "unknown_application", undefined, undefined, refs); return null; }
   const res = suggestLearningOpportunities(cpacks, { cues, affordances, profile, requestedLearning: opts.requestedLearning });
   if (!res.candidates.length) { await audit(env, sid, "none", res.rejected[0]?.reason ?? "no_candidate", undefined, undefined, refs); return null; }
   // 玩家明确要学（LEARN）时不受冷却限制；否则要过导演冷却，且静默=偏好探索时不打扰

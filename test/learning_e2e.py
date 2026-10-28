@@ -84,4 +84,9 @@ check("L23 课程包规范 id + 场景旧别名：迁移后匹配，给出提示
 put("course", "math1920", {"version": "3", "concepts": [{"id": "math1920.gradient", "courseId": "math1920", "title": "Gradient", "prerequisites": [], "applications": ["free-text-tag"]}]})
 start("L9"); o = turn("随便看看", "L9", "l9t1")
 check("L24 课程包标签在词表外：不匹配，不提示", "learningOffer" not in o, o.get("learningOffer"))
+# 回归（信箱 #56）：场景与已批准课程碰巧使用同一个词表外标签、线索公开、已选课 → 仍不得提示
+put("scene", "l-a", {"choices": ["l-b", "l-c"], "publicText": "PH-A", "publicCues": [{"id": "cue1", "evidence": "PH-E1"}, {"id": "cue2", "evidence": "PH-E2"}], "learningAffordances": [dict(AFF, application="free-text-tag")]})
+put("course", "math1920", {"version": "4", "concepts": [{"id": "math1920.gradient", "courseId": "math1920", "title": "Gradient", "prerequisites": [], "applications": ["free-text-tag"]}]})
+prof(enrolledCourseIds=["math1920"]); start("L10"); o = turn("随便看看", "L10", "l10t1")
+check("L25 场景+课程使用同一未知标签：不提示（未知值不参与匹配）", "learningOffer" not in o, o.get("learningOffer"))
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)
