@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "goal": "Prevent players from reading unrevealed world and NPC fields through authenticated APIs.",
+  "cases": [
+    {
+      "id": "player-content-list",
+      "role": "player",
+      "request": "GET /api/adventure/content",
+      "expect": "Only spoiler-free metadata or no access; never hidden ids, titles or full bodies."
+    },
+    {
+      "id": "player-content-detail",
+      "role": "player",
+      "request": "GET /api/adventure/content?kind=world&id=example",
+      "expect": "No private body; only facts committed and disclosed to that player."
+    },
+    {
+      "id": "player-content-write",
+      "role": "player",
+      "request": "PUT /api/adventure/content",
+      "expect": "Forbidden for nonadmin player session."
+    },
+    {
+      "id": "admin-content-write",
+      "role": "admin",
+      "request": "PUT /api/adventure/content",
+      "expect": "Authorized with separate administrator credential, revisioned and auditable."
+    },
+    {
+      "id": "dm-server-internal",
+      "role": "server",
+      "request": "Internal read",
+      "expect": "Server can see hidden world facts but cannot return them in player payload."
+    },
+    {
+      "id": "player-export",
+      "role": "player",
+      "request": "GET /api/export",
+      "expect": "Does not include hidden content or unrevealed facts."
+    },
+    {
+      "id": "revealed-event",
+      "role": "player",
+      "request": "GET public committed event",
+      "expect": "Only revealed public consequence after event commit; no hidden trigger conditions."
+    }
+  ],
+  "notes": [
+    "Authenticated does not imply administrator: user must be able to play without seeing spoilers.",
+    "Enforce server-side roles and field-level filtering, not only UI hiding.",
+    "Test negative access to content before importing any real story.",
+    "Use synthetic fictional-free fixtures; never commit real story payloads."
+  ]
+}
