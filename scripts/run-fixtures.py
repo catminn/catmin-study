@@ -8,7 +8,8 @@ B = os.environ.get("SITE", "http://localhost:8800"); PW = os.environ.get("PASS",
 s = requests.Session(); s.trust_env = False
 r = s.post(B + "/api/login", json={"password": PW}); r.raise_for_status()
 c = r.headers["Set-Cookie"].split(";")[0]; s.headers["Cookie"] = c
-cases = json.load(open(os.path.join(os.path.dirname(__file__), "..", "test", "fixtures", "dm-intent-cases.json")))["cases"]
+FIX = os.environ.get("FIXTURE", "dm-intent-cases.json")  # 例：FIXTURE=claude-edge-cases.json
+cases = json.load(open(os.path.join(os.path.dirname(__file__), "..", "test", "fixtures", FIX)))["cases"]
 bad = 0
 for c in cases:
     sid = "fx-" + uuid.uuid4().hex[:12]

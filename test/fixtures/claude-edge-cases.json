@@ -1,0 +1,67 @@
+{
+ "description": "Claude 补充的单轮边缘输入（对应 GPT #13 的 8 个边缘输入）。多轮和状态相关的断言见 dm-multiturn-contract-v1.json 与 test/turn_e2e.py。",
+ "cases": [
+  {
+   "id": "try-but-dont-move",
+   "input": "我想试试这个方法，但先别动。",
+   "intent": [
+    "ASK"
+   ],
+   "worldCommit": false
+  },
+  {
+   "id": "teach-then-act",
+   "input": "先给我讲完梯度，再执行。",
+   "intent": [
+    "LEARN"
+   ],
+   "worldCommit": false
+  },
+  {
+   "id": "bare-continue-ambiguous",
+   "input": "继续",
+   "intent": [
+    "EXPLORE"
+   ],
+   "worldCommit": false
+  },
+  {
+   "id": "calc-while-walking",
+   "input": "我边走边算：先求偏导，再代入点 (1,2)。",
+   "intent": [
+    "PRACTICE"
+   ],
+   "worldCommit": false
+  },
+  {
+   "id": "use-previous-gradient",
+   "input": "现在把刚才算过的梯度用上，执行这个动作。",
+   "intent": [
+    "ACT"
+   ]
+  },
+  {
+   "id": "copy-after-explanation",
+   "input": "你刚才讲完了，我照抄：偏导是 2x 和 6y，所以梯度是 (2,12)。",
+   "intent": [
+    "PRACTICE"
+   ],
+   "worldCommit": false
+  },
+  {
+   "id": "self-compute-no-hint",
+   "input": "我想自己算，别提示。",
+   "intent": [
+    "ASK"
+   ],
+   "worldCommit": false
+  },
+  {
+   "id": "run-previous-plan",
+   "input": "现在执行上次那个。",
+   "intent": [
+    "ACT"
+   ]
+  }
+ ]
+}

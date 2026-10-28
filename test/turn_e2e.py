@@ -158,6 +158,17 @@ ws = sess("RF")["worldSeq"]
 s.get(B + "/__replyfail?on=0")
 c, o2 = turn("现在用求导方法执行", sid="RF", tid="rf-act")
 check("同 turnId 重试补回叙述，骰点不变、世界序号不变", o2["narration"] and o2["gameCommit"]["roll"] == o1["gameCommit"]["roll"] and sess("RF")["worldSeq"] == ws and "_retry" not in o2, o2)
+
+# 积分结算只按学习证据，不依赖骰子（待办 D）
+post("/api/adventure/session", {"sessionId": "PT", "op": "start"})
+c, o = turn("先展开再求导 PT", sid="PT"); evp = o["academicEvaluation"]["eventId"]
+c, o = turn("现在执行", sid="PT")  # 无论骰子成败，学习证据已确认
+c, r = post("/api/rewards", {"rewardId": "pt-r1", "sourceEventId": evp, "points": 5, "at": 1793150000001})
+check("学习证据确认后发积分，与行动是否成功无关", c == 200 and r["inserted"] is True, r)
+c, r = post("/api/rewards", {"rewardId": "pt-r2", "sourceEventId": evp, "points": 5, "at": 1793150000002})
+check("同一学习证据不能第二次领奖励", c == 409, r)
+c, r = post("/api/rewards", {"rewardId": "pt-r3", "sourceEventId": "turn:never:eval", "points": 5, "at": 1})
+check("不存在的证据不能领奖励", c in (404, 409, 422), r)
 check("坏请求被拒", turn("")[0] == 400 and post("/api/adventure/turn", {"sessionId": "S"})[0] == 400)
 check("不存在的会话", turn("hi", sid="nope")[0] == 404)
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)
