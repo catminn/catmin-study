@@ -225,6 +225,76 @@
         "The player may decline and continue exploring without mutation.",
         "Math knowledge may support decision-making but never replaces explicit consent."
       ]
+    },
+    {
+      "id": "continuity-snapshot-after-lock",
+      "given": "An eligible ending has been previewed and then successfully committed with its matching terminal lock event.",
+      "when": "The server creates the next-chapter opening snapshot.",
+      "expect": [
+        "Capture only after the ending lock and associated terminal effects are committed.",
+        "Bind snapshot to the successful ending commit and source content revision.",
+        "A preview, decline or failed ending attempt produces no snapshot."
+      ]
+    },
+    {
+      "id": "continuity-retry-one-identity",
+      "given": "An ending commit has already produced an immutable snapshot.",
+      "when": "The same commit is retried and a conflicting ending is attempted.",
+      "expect": [
+        "The retry resolves to the original snapshot identity without duplicating consequences.",
+        "A conflicting ending cannot replace the source ending or rewrite the snapshot.",
+        "No old inventory grant or learning reward is applied again."
+      ]
+    },
+    {
+      "id": "continuity-facts-require-provenance",
+      "given": "The DM mentioned a plausible fact, but only a different fact has a committed discovery event.",
+      "when": "The snapshot is constructed.",
+      "expect": [
+        "Include only server-confirmed facts with originating event and audience scope.",
+        "Exclude narrator conjecture, uncommitted dialogue and unverified clues.",
+        "The next chapter must not treat an NPC's heard claim as a confirmed world fact."
+      ]
+    },
+    {
+      "id": "continuity-npc-knowledge-is-layered",
+      "given": "A placeholder NPC has a heard claim, a belief and separately confirmed knowledge.",
+      "when": "NPC continuity is transferred and later summarized for the player.",
+      "expect": [
+        "Preserve each NPC memory layer separately with its provenance.",
+        "Private belief and private knowledge are excluded from player-visible summaries.",
+        "Relationship history is not overwritten by the latest narration tone."
+      ]
+    },
+    {
+      "id": "continuity-public-projection",
+      "given": "A server-private snapshot contains a hidden thread and an authorized player fact.",
+      "when": "The next chapter requests an opening narration view.",
+      "expect": [
+        "Only authorized facts, visible item ownership and eligible consequence summaries enter the DM's player-facing context.",
+        "Internal ids, hidden threads, NPC private knowledge and future plot are never exposed.",
+        "The narrator cannot infer a solution from the ending reference."
+      ]
+    },
+    {
+      "id": "continuity-learning-preserved-not-rewarded",
+      "given": "The previous world contains one confirmed MATH 1920 learning evidence reference and one assisted unverified answer.",
+      "when": "The next chapter opens.",
+      "expect": [
+        "Carry forward verified evidence by reference and preserve its verification status.",
+        "Do not promote the assisted answer into independent mastery.",
+        "Do not mint a new reward or replay a spent bonus merely because the evidence was carried forward."
+      ]
+    },
+    {
+      "id": "continuity-invalid-origin-fails-closed",
+      "given": "A snapshot request references a stale source world revision or a terminal scene without a matching committed ending lock.",
+      "when": "A new chapter attempts to resume from it.",
+      "expect": [
+        "Reject the snapshot as an authoritative opening state without partial transfer.",
+        "Do not guess a default ending, invent missing facts or expose private diagnostics.",
+        "Return a recoverable server-side error path for the engine owner to handle."
+      ]
     }
   ],
   "integrationNotes": [
@@ -233,6 +303,63 @@
     "The first-world authoring graph has scene choices; choices alone are not proof that the runtime has committed a transition.",
     "No formal story content, hidden identities, puzzle answers or actual world ids are included.",
     "Do not mark these cases passed until run against an isolated server with placeholder content.",
-    "Ending semantics and preflight cases are design contracts only; current runtime behavior and test execution are unverified."
-  ]
+    "Ending semantics and preflight cases are design contracts only; current runtime behavior and test execution are unverified.",
+    "Chapter-opening continuity snapshot cases are proposed narrative acceptance contracts, not a runtime implementation or executed tests."
+  ],
+  "runtimeShapes": {
+    "chapterOpeningSnapshot": {
+      "snapshotSchemaVersion": 1,
+      "sourceWorldRef": "demo-world",
+      "sourceWorldVersion": 7,
+      "sourceContentRevision": "demo-rev",
+      "endingRef": "ending-demo-a",
+      "endingCommitRef": "demo-terminal-commit",
+      "confirmedFacts": [
+        {
+          "factRef": "demo-confirmed-fact",
+          "originEventRef": "demo-reveal-commit",
+          "discoveringActorRef": "demo-player",
+          "audience": "player"
+        }
+      ],
+      "npcContinuity": [
+        {
+          "npcRef": "demo-npc",
+          "relationBand": "neutral",
+          "relationshipHistoryRefs": [
+            "demo-relation-event"
+          ],
+          "heardClaimRefs": [
+            "demo-claim"
+          ],
+          "beliefRefs": [],
+          "confirmedKnowledgeRefs": [
+            "demo-npc-confirmed-fact"
+          ]
+        }
+      ],
+      "inventory": [
+        {
+          "itemRef": "demo-item",
+          "provenanceEventRef": "demo-grant-commit",
+          "visibility": "player"
+        }
+      ],
+      "openThreads": [
+        {
+          "threadRef": "demo-unresolved-thread",
+          "status": "unresolved",
+          "audience": "server_private"
+        }
+      ],
+      "learningEvidenceRefs": [
+        {
+          "evidenceRef": "demo-learning-event",
+          "conceptRef": "math1920.gradient",
+          "verification": "confirmed"
+        }
+      ],
+      "carryoverPolicyVersion": "demo-policy-1"
+    }
+  }
 }
