@@ -15,12 +15,11 @@
 
 - 如果 `world` 那行 legacy > 0：线上已有旧版世界。导入新世界后会变成两个世界，已经固定的旧会话不受影响；从没固定过的旧会话会失败关闭（不猜世界）。先告诉 Claude 再继续。
 
-## 2. 部署最新代码（同一个 Worker 也承载共享记忆）
+## 2. 确认线上已是最新代码
 
-    npx wrangler d1 migrations apply catmin-study --remote
-    npx wrangler deploy
-
-部署后在 Cloudflare 的 Deployments 页确认出现了新版本。
+推送 main 后 Cloudflare（Workers Builds）会自动部署，不需要手动 wrangler deploy。
+到 Cloudflare → Workers & Pages → catmin-memory → Deployments，确认最上面一行的说明是 main 最新提交、状态 Ready。
+（新数据表由代码在运行时自动创建；migrations 目录没有新文件时不需要执行迁移。）
 
 ## 3. 转换为命名空间包（本地，不联网）
 
