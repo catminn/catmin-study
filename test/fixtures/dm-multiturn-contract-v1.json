@@ -17,7 +17,9 @@
     "Natural math integration is opt-in and arises only from already public, relevant measurements; missing world data cannot be fabricated to create a lesson.",
     "An NPC's claim is not an established fact; tutoring or a mathematical inference cannot silently upgrade its epistemic status.",
     "NPC testimony is attributed by evidence tier: rumor, inference and confidence never become confirmed world facts through dialogue alone.",
-    "NPC knowledge is location- and communication-bounded; refusal cannot be coerced by repeated prompts and uncommitted dialogue cannot mutate relationships."
+    "NPC knowledge is location- and communication-bounded; refusal cannot be coerced by repeated prompts and uncommitted dialogue cannot mutate relationships.",
+    "A neutral continuation advances player-facing narration from authorized scene and committed consequences without inventing or committing an unchosen world event.",
+    "After failed actions, read-only observations or successful travel, the DM preserves scene continuity and offers legal choices without compulsory mathematics or duplicate effects."
   ],
   "sequences": [
     {
@@ -631,6 +633,192 @@
           }
         }
       ]
+    },
+    {
+      "id": "resume-observation-without-action",
+      "setup": {
+        "worldSeq": 80,
+        "story": "active",
+        "fictionalScenario": "Synthetic hallway. Server authorizes a public sign and a closed door, but no new scene event or mathematics. Current scene publicText is available."
+      },
+      "steps": [
+        {
+          "input": "看看四周。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 80,
+            "mode": "STORY",
+            "narration": "grounded_in_authorized_scene_public_text",
+            "mathGate": false,
+            "internalEngineLanguage": false,
+            "secretLeak": false
+          }
+        },
+        {
+          "input": "继续刚才的。",
+          "context": "Prior turn was read-only observation; no draft or authorized automatic action exists.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 80,
+            "narration": "continue_public_scene_beat_or_offer_grounded_choice",
+            "inventedEvent": false,
+            "forcedQuiz": false,
+            "internalEngineLanguage": false
+          }
+        },
+        {
+          "input": "我再看看门上的字，但不碰门。",
+          "context": "The door has no authorized inscription beyond the public scene projection.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 80,
+            "unverifiedInscriptionInvented": false,
+            "readOnlyObservation": true,
+            "hiddenFactRevealed": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "resume-after-committed-travel-no-replay",
+      "setup": {
+        "worldSeq": 90,
+        "story": "active",
+        "fictionalScenario": "Synthetic starting room has one explicitly accessible passage to a second public room. Entering the destination commits one scene entry event and a single public arrival summary."
+      },
+      "steps": [
+        {
+          "input": "我现在走进那条明确开放的通道。",
+          "context": "Server validates the chosen route; destination entry commits successfully.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 91,
+            "currentScene": "demo-public-destination",
+            "sceneEntryEffectsApplied": 1,
+            "arrivalNarration": "authorized_public_outcome"
+          }
+        },
+        {
+          "input": "继续。",
+          "context": "The previous transition is already committed and its public arrival summary is available.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 91,
+            "currentScene": "demo-public-destination",
+            "narration": "grounded_continuation_in_destination",
+            "sceneEntryEffectsAppliedAgain": false,
+            "rewardDuplicated": false
+          }
+        },
+        {
+          "input": "继续讲接下来我能做什么。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 91,
+            "availableChoices": "only_server_authorized_public_options",
+            "newSceneEntered": false,
+            "threadReopened": false,
+            "forcedMath": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "resume-ambiguous-choice-does-not-autoselect",
+      "setup": {
+        "worldSeq": 100,
+        "story": "active",
+        "pendingPlans": [
+          "demo-left-route",
+          "demo-right-route"
+        ],
+        "fictionalScenario": "Two equally legal synthetic public routes have been offered, neither chosen or committed. Their visible descriptions contain no hidden information."
+      },
+      "steps": [
+        {
+          "input": "继续刚才那个。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 100,
+            "clarify": true,
+            "autoSelectedRoute": false,
+            "secretLeak": false
+          }
+        },
+        {
+          "input": "那先说说左边公开能看到什么，不要移动。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 100,
+            "readOnlyPreview": true,
+            "unrevealedDestinationDetails": false,
+            "mathGate": false
+          }
+        },
+        {
+          "input": "我明确选左边，马上走。",
+          "context": "Server checks current route validity and commits only the chosen destination.",
+          "expect": {
+            "commit": "only_if_currently_legal",
+            "worldSeq": "increment_only_if_committed",
+            "otherRouteCommitted": false,
+            "choiceResolvedByServer": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "resume-after-failed-action-preserves-agency",
+      "setup": {
+        "worldSeq": 110,
+        "story": "active",
+        "fictionalScenario": "Synthetic room has a permitted attempt to open a door and a separate public ordinary exit. The attempt can fail without requiring any MATH 1920 evidence."
+      },
+      "steps": [
+        {
+          "input": "我试着打开那扇门。",
+          "context": "Action is legal and commits; deterministic game outcome is failure, with an authorized public failure description.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 111,
+            "gameSuccess": false,
+            "narration": "authorized_failure_consequence",
+            "academicEvidence": "unchanged"
+          }
+        },
+        {
+          "input": "继续刚才的。",
+          "context": "The failed attempt was committed; there is no automatic retry or pending consent.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 111,
+            "narration": "acknowledge_failure_and_remaining_public_options",
+            "actionRetried": false,
+            "worldStateRewound": false,
+            "forcedQuiz": false
+          }
+        },
+        {
+          "input": "我不想做数学题，先看看另一条普通出口。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 111,
+            "publicObservation": true,
+            "mathNudge": false,
+            "penaltyForDecliningMath": false
+          }
+        },
+        {
+          "input": "现在走那条已经确认可通行的普通出口。",
+          "context": "Server validates this alternative route and commits its transition.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 112,
+            "nonMathRoutePreserved": true,
+            "knowledgeBonus": false
+          }
+        }
+      ]
     }
   ],
   "testHarnessNotes": [
@@ -641,6 +829,8 @@
     "Preserve task IDs and tutor-output assistance provenance across turns; checking only the latest player message is insufficient for independence attribution.",
     "Distinguish correctness, validity of mathematical steps, task-level assistance, independent transfer and duplicate insight/reward eligibility.",
     "For naturalness sequences, inspect DM prose for unsolicited formulas, forced quizzes, invented measurements, spoilers, or treating an NPC claim as confirmed; state assertions alone are insufficient.",
-    "Synthetic height functions are isolated teaching fixtures, not real first-world measurements, clues or solutions."
+    "Synthetic height functions are isolated teaching fixtures, not real first-world measurements, clues or solutions.",
+    "For neutral Continue and Observe, compare narrated facts against the server-authorized public scene/outcome projection; do not count plausible but uncommitted fiction as a pass.",
+    "Check scene, event and reward state after each step, especially that repeated Continue never replays scene entry, consumes an offered route, or turns an ending notice into consent."
   ]
 }
