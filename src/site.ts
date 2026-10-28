@@ -376,10 +376,31 @@ async function loginHandler(req: Request, env: SiteEnv) {
   });
 }
 
+
+const PRIVACY_HTML = `<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>隐私政策 · 主神空间</title>
+<style>body{font:16px/1.8 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;max-width:680px;margin:6vh auto;padding:0 20px;color:#1b1f3b}h1{font-size:26px}h2{font-size:18px;margin-top:1.6em}a{color:#4a5bd0}</style></head><body>
+<h1>主神空间 隐私政策</h1>
+<p>最后更新：2026-10-27</p>
+<p>主神空间（study.catmin.io）是 Catherine Min 个人使用的学习工具，不对公众开放，没有其他用户。</p>
+<h2>我们访问哪些 Google 数据</h2>
+<p>只在她本人授权后，以<b>只读</b>方式读取：Google 日历的事件（用来显示课表和作业截止时间）、Google Drive 中她主动选择的文件（用来作为学习资料）。使用的权限是 calendar.readonly 和 drive.readonly，不会修改、删除或分享任何内容。</p>
+<h2>数据如何使用和保存</h2>
+<p>读取到的内容只用于在她自己的页面里显示，或在她主动提问时发送给她选择的 AI 模型服务（Anthropic 或 OpenAI）来回答问题。授权令牌加密后保存在 Cloudflare。学习进度保存在 Cloudflare 的数据库中。</p>
+<h2>共享与披露</h2>
+<p>不出售、不共享、不用于广告，也不向任何第三方披露这些数据，上面提到的 AI 服务商除外（仅限她主动发起的请求）。本应用对 Google 用户数据的使用遵守 <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>，包括其中的有限使用要求。</p>
+<h2>撤销与删除</h2>
+<p>可以随时在网站上点「Google ✓」断开连接（会同时向 Google 撤销令牌），也可以在 <a href="https://myaccount.google.com/permissions">Google 账号的第三方访问权限</a> 页面撤销。断开后保存的令牌会被删除。</p>
+<h2>联系</h2>
+<p>jm3235@cornell.edu</p>
+<hr><p lang="en"><b>Privacy Policy (English summary).</b> “主神空间” (study.catmin.io) is a personal study tool used only by its owner, Catherine Min. With her consent it reads her Google Calendar events and chosen Google Drive files in read-only mode (calendar.readonly, drive.readonly) solely to display them to her and to answer her own requests. Tokens are stored encrypted. Data is not sold, shared or disclosed to third parties, except the AI providers she chooses (Anthropic, OpenAI) for requests she initiates. Use of Google user data complies with the Google API Services User Data Policy, including the Limited Use requirements. Access can be revoked at any time from the site or at myaccount.google.com/permissions. Contact: jm3235@cornell.edu</p>
+</body></html>`;
+
 export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(req.url);
   const p = url.pathname;
   if (p === "/api/login" && req.method === "POST") return loginHandler(req, env);
+  if (p === "/privacy" && req.method === "GET")
+    return new Response(PRIVACY_HTML, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=3600", "X-Frame-Options": "DENY" } });
   const authed = await validSession(req, env);
   if (p.startsWith("/api/")) {
     if (!authed) return err("session_expired", "请先登录", 401);
