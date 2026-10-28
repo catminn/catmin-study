@@ -23,9 +23,9 @@ for seq in d["sequences"]:
         if o.get("uncertainty"): probs.append("uncertainty:" + str(o.get("detail") or o.get("message")))
         if ex.get("commit") is False and o.get("gameCommit"): probs.append("不该提交行动却提交了")
         if "quiet" in ex and bool(o.get("quietMode")) != ex["quiet"]: probs.append(f"quiet 期望 {ex['quiet']} 实际 {o.get('quietMode')}")
-        a = (o.get("academicEvaluation") or {}).get("assistance")
+        ae = o.get("academicEvaluation"); a = (ae or {}).get("assistance")
         if ex.get("assistance") == "worked_solution" and a != "worked_solution": probs.append(f"assistance 期望 worked_solution 实际 {a}")
-        if ex.get("assistance") == "not_none" and a in (None, "none"): probs.append(f"assistance 应不是 none，实际 {a}")
+        if ex.get("assistance") == "not_none" and ae and a == "none": probs.append(f"assistance 应不是 none，实际 {a}")
         if ex.get("assistanceForCurrentTask") == "none" and a != "none": probs.append(f"新题应为 none，实际 {a}")
         if ex.get("commit") in ("only_after_validation", "conditional_on_revalidation", "only_if_still_legal", True): pass
         ok = not probs; fails += not ok

@@ -123,6 +123,7 @@ ${ctx}
 （玩家说“刚才的方法/那个/上一个”时，指上面最近对话里的内容，请据此判断，不要因为指代而判成不确定。）
 字段：
 - intents：从 ASK(提问) LEARN(要求系统讲解) PRACTICE(刷题/作答) EXPLORE(探索) ACT(要求真实执行行动) 中选 1–5 个；
+- 注意：玩家只说“先让我自己想想”这类，intents 用 ["ASK"] 并且 quiet="on"，不要判成 PRACTICE；
 - explicitCommit：玩家是否明确要求“现在就执行”。只是计划、设想、“先不要执行”都必须是 false；
 - storyResume：玩家是否要求回到刚才的故事/继续；
 - pauseStory：玩家是否明确要求离开故事去纯刷题（如“不要剧情”“先刷题”）；故事里顺便作答不算；
@@ -133,7 +134,7 @@ ${ctx}
 - actionId：玩家要执行的行动属于哪种：apply-derivative-method（用求导方法）、determine-local-steepest-ascent（用梯度找局部最陡上升方向）、estimate-change-in-one-variable（估计单变量变化，偏导）、predict-change-along-chosen-direction（预测沿选定方向的变化，方向导数）、derive-rate-along-parametric-path（沿参数路径求变化率，多元链式法则）、plain-action（与数学无关的普通行动或说不清）；
 - tutorSolution：玩家要求导师完整演示/给出带步骤的完整解答（本回合你会给出完整解法）→ true；
 - newTask：玩家这次提交的解答针对的是与之前不同的新题 → true；
-- quiet：玩家说“让我自己想想/别提示”→"on"；玩家主动求提示、要答案、或明确说可以提示了→"off"；否则 "none"；
+- quiet：玩家说“让我自己想想/别提示”→"on"；玩家主动求提示、要答案、说“我算出来了/我做完了/我有答案了”（哪怕还没给出答案）、或明确说可以提示了→"off"；否则 "none"；
 - evaluation：玩家给出了数学解答时填 {correctness, reasoning, assistance}，否则 null。correctness∈correct/incorrect/partial/unknown；reasoning∈valid/partial/invalid/not_assessed（答案对但理由不成立要写 invalid；独立正确的非标准方法写 valid）；assistance∈none/minor_hint/major_hint/worked_solution/unknown（玩家在得到提示后作答要如实标注）。
 格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"planRef":"none","planIndex":null,"tutorSolution":false,"newTask":false,"conceptId":null,"actionId":"plain-action","quiet":"none","evaluation":null}`;
 
@@ -239,7 +240,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   let why = "";
   let raw = "";
   try {
-    for (let attempt = 0; attempt < 2 && !cls; attempt++) {
+    for (let attempt = 0; attempt < 3 && !cls; attempt++) {
       raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused", ctx), 700);
       const v = validateClassification(parseJson(raw));
       if (v.ok) cls = v.value;
@@ -250,7 +251,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   }
   if (!cls) {
     const r = uncertain("classification_failed", "这句话我没能可靠地理解，没有提交任何行动。请换个说法再试一次。");
-    r.body.detail = why + " | " + raw.slice(0, 900);
+    r.body.detail = why + " | len=" + raw.length + " | " + raw.slice(0, 500) + (raw.length > 500 ? " …… " + raw.slice(-250) : "");
     return r;
   }
   const intents = cls.intents;
