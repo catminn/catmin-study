@@ -7,7 +7,7 @@ import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
 import { handleTurn } from "./turn";
 import { commitChoice, commitTravel, snapshotStats } from "./world";
-import { putContent, listContent, compareContent, listDungeons } from "./content";
+import { putContent, listContent, compareContent, listDungeons, checkDungeon, dungeonProgress } from "./content";
 import { pinLegacySessions, getDefaultWorld, setDefaultWorld } from "./world";
 import { publicSceneInfo } from "./world";
 import { approveProposal, courseStatus, getProposal, proposePack, removeFolder, setFolder, syncCourse } from "./coursesync";
@@ -483,6 +483,8 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/events" && req.method === "POST") return asJson(await postEvent(env, await req.json().catch(() => null)));
     if (p === "/api/events" && req.method === "GET") return asJson(await listEvents(env, url));
     if (p === "/api/rewards" && req.method === "POST") return asJson(await postReward(env, await req.json().catch(() => null)));
+    if (p === "/api/dungeons/check" && req.method === "POST") return asJson(await checkDungeon(env, await req.json().catch(() => null)));
+    if (p === "/api/dungeons/progress" && req.method === "GET") return asJson(await dungeonProgress(env));
     if (p === "/api/dungeons" && req.method === "GET") return asJson(await listDungeons(env));
     if (p === "/api/adventure/turn" && req.method === "POST")
       return asJson(await handleTurn(env, await req.json().catch(() => null), { budgetOk: () => budgetOk(env), complete: (t, pr, x, m) => completeOnce(env, t, pr, x, m) }));

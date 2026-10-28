@@ -38,7 +38,7 @@ export function validateDungeon(c: any): string | null {
   for (const ch of d.ch) {
     if (!ch || typeof ch.t !== "string" || typeof ch.k !== "string" || typeof ch.s !== "string" || typeof ch.sb !== "string" || typeof ch.tn !== "string") return "每章需要 t,k,s,sb,tn（字符串）";
     if (ch.skill !== undefined && (typeof ch.skill?.name !== "string" || typeof ch.skill?.effect !== "string")) return "skill 需为 {name,effect}";
-    if (ch.practice !== undefined && (!Array.isArray(ch.practice) || ch.practice.length > 8 || ch.practice.some((q: any) => typeof q?.q !== "string" || typeof q?.a !== "string"))) return "practice 需为 [{q,a,hint?}]";
+    if (ch.practice !== undefined && (!Array.isArray(ch.practice) || ch.practice.length > 8 || ch.practice.some((q: any) => typeof q?.q !== "string" || !(typeof q?.a === "string" || (Array.isArray(q?.a) && q.a.length && q.a.every((x: any) => typeof x === "string"))) || (q.id !== undefined && !/^[a-z0-9][a-z0-9_.-]{0,40}$/.test(q.id))))) return "practice 需为 [{id?,q,a(字符串或数组),hint?}]";
   }
   return null;
 }
@@ -50,7 +50,7 @@ export async function listDungeons(env: SiteEnv): Promise<R> {
   for (const r of rs.results ?? []) {
     const c = JSON.parse(r.body);
     if (validateDungeon(c)) continue;
-    for (const ch of c.dungeon.ch) if (ch.practice) ch.practice = ch.practice.map((q: any) => ({ q: q.q, hint: q.hint }));
+    for (const ch of c.dungeon.ch) if (ch.practice) ch.practice = ch.practice.map((q: any, i: number) => ({ id: q.id ?? "c" + (i + 1), q: q.q, hint: q.hint }));
     out.push({ subject: c.subject, after: c.after ?? null, dungeon: c.dungeon });
   }
   return { status: 200, body: { ok: true, dungeons: out } };
@@ -112,4 +112,54 @@ export async function compareContent(env: SiteEnv, b: any): Promise<R> {
     for (const x of rs.results ?? []) if (!seen.has(k + " " + x.id)) onlineNotInBundle++;
   }
   return { status: 200, body: { ok: true, records: recs.length, identical, different, missing, invalid, onlineNotInBundle } };
+}
+
+
+// ---- 服务端核验：只有具体 dungeon+章+题 的答案校验通过才记 verified；全章通过才持久解锁技能 ----
+let pready = false;
+async function ensureProg(env: SiteEnv) {
+  if (pready) return;
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_progress (dungeon TEXT NOT NULL, ch INTEGER NOT NULL, challenge TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, verified_at TEXT, PRIMARY KEY (dungeon,ch,challenge))").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_skills (dungeon TEXT NOT NULL, ch INTEGER NOT NULL, skill TEXT NOT NULL, effect TEXT NOT NULL, unlocked_at TEXT NOT NULL, PRIMARY KEY (dungeon,ch))").run();
+  pready = true;
+}
+const norm = (x: string) => x.normalize("NFKC").toLowerCase().replace(/\s+/g, "").replace(/[，。,.;；]+$/g, "");
+export function answerMatches(given: string, key: string | string[]): boolean {
+  const keys = Array.isArray(key) ? key : [key]; const g = norm(String(given));
+  return keys.some((k) => { const n = norm(k); if (n === g) return true; const a = Number(g), b = Number(n); return g !== "" && n !== "" && Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b)); });
+}
+async function findDungeon(env: SiteEnv, did: string) {
+  const rs = await env.DB.prepare("SELECT c.body AS body FROM adventure_content c JOIN (SELECT id, MAX(rev) AS r FROM adventure_content WHERE kind='dungeon' GROUP BY id) m ON c.kind='dungeon' AND c.id=m.id AND c.rev=m.r").all<{ body: string }>();
+  for (const r of rs.results ?? []) { const c = JSON.parse(r.body); if (!validateDungeon(c) && c.dungeon.id === did) return c.dungeon; }
+  return null;
+}
+export async function checkDungeon(env: SiteEnv, b: any): Promise<R> {
+  await ensure(env); await ensureProg(env);
+  const did = String(b?.dungeon ?? ""), ci = Number(b?.ch), cid = String(b?.challenge ?? "");
+  const d = await findDungeon(env, did); const ch = d?.ch?.[ci];
+  if (!d || !ch || !Number.isInteger(ci)) return bad(404, "unknown_chapter", "没有这一章");
+  const pr: any[] = ch.practice ?? [];
+  const idx = pr.findIndex((q, i) => (q.id ?? "c" + (i + 1)) === cid);
+  if (idx < 0) return bad(404, "unknown_challenge", "没有这道题");
+  const got = await env.DB.prepare("SELECT verified_at FROM dungeon_progress WHERE dungeon=? AND ch=? AND challenge=?").bind(did, ci, cid).first<{ verified_at: string | null }>();
+  const ok = answerMatches(String(b?.answer ?? ""), pr[idx].a);
+  const now = new Date().toISOString();
+  if (!got) await env.DB.prepare("INSERT INTO dungeon_progress (dungeon,ch,challenge,attempts,verified_at) VALUES (?,?,?,1,?)").bind(did, ci, cid, ok ? now : null).run();
+  else if (!got.verified_at) await env.DB.prepare("UPDATE dungeon_progress SET attempts=attempts+1, verified_at=? WHERE dungeon=? AND ch=? AND challenge=?").bind(ok ? now : null, did, ci, cid).run();
+  const verified = ok || !!got?.verified_at;
+  const rows = (await env.DB.prepare("SELECT challenge FROM dungeon_progress WHERE dungeon=? AND ch=? AND verified_at IS NOT NULL").bind(did, ci).all<{ challenge: string }>()).results ?? [];
+  const done = new Set(rows.map((r) => r.challenge));
+  const allDone = pr.every((q, i) => done.has(q.id ?? "c" + (i + 1)));
+  let skill: any = null;
+  if (allDone && ch.skill) {
+    await env.DB.prepare("INSERT OR IGNORE INTO dungeon_skills (dungeon,ch,skill,effect,unlocked_at) VALUES (?,?,?,?,?)").bind(did, ci, ch.skill.name, ch.skill.effect, now).run();
+    skill = ch.skill;
+  }
+  return { status: 200, body: { ok: true, correct: ok, verified, hint: ok ? null : (pr[idx].hint ?? null), chapterDone: allDone, skill, next: pr.find((q, i) => !done.has(q.id ?? "c" + (i + 1)))?.id ?? null } };
+}
+export async function dungeonProgress(env: SiteEnv): Promise<R> {
+  await ensure(env); await ensureProg(env);
+  const v = (await env.DB.prepare("SELECT dungeon,ch,challenge FROM dungeon_progress WHERE verified_at IS NOT NULL").all()).results ?? [];
+  const sk = (await env.DB.prepare("SELECT dungeon,ch,skill,effect FROM dungeon_skills").all()).results ?? [];
+  return { status: 200, body: { ok: true, verified: v, skills: sk } };
 }
