@@ -66,6 +66,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
     if (lastText.includes("[[CLASSIFY]]")) {
       const C = (i: string[], c: boolean, r: boolean, e: any, p = false, k: string | null = null, pr = "none", act = "apply-derivative-method") => JSON.stringify({ intents: i, explicitCommit: c, storyResume: r, pauseStory: p, insightKey: k, planRef: pr, conceptId: e ? "math1920.derivative-basics" : null, actionId: act, evaluation: e });
       if (q.includes("BADJSON")) special = "不是json";
+      else if (q.includes("出发 s-b")) special = JSON.stringify({ intents: ["EXPLORE"], explicitCommit: false, moveTo: "s-b", actionId: "plain-action", evaluation: null });
       else if (q.includes("前往 s-b")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, moveTo: "s-b", actionId: "plain-action", evaluation: null });
       else if (q.includes("前往 s-a")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, moveTo: "s-a", actionId: "plain-action", evaluation: null });
       else if (q.includes("谈 ch-one")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, choiceId: "ch-one", actionId: "plain-action", evaluation: null });

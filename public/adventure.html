@@ -47,6 +47,9 @@ button:disabled{opacity:.5}
 </main>
 <form id="f"><div class="in">
   <div class="row quick">
+    <button type="button" data-fill="看看四周。">观察四周</button>
+    <button type="button" data-fill="我想和身边的人交谈。">交谈</button>
+    <span id="moves" class="row"></span>
     <button type="button" data-t="先去刷5题，不要剧情。">刷题模式</button>
     <button type="button" data-t="继续刚才的。">继续</button>
     <button type="button" data-t="现在就用刚才验证过的方法执行。">执行行动</button>
@@ -77,7 +80,7 @@ function render(o){
   if(o.uncertainty)tag(m,"不确定，未提交行动","warn");if(o.detail)tag(m,"诊断："+o.detail.slice(0,160));
   if(o.visibleFeedback&&o.narration)tag(m,o.visibleFeedback);
   if(m.childNodes.length)d.append(m);
-  if(o.scene&&o.scene.publicText)bubble("【场景】"+o.scene.publicText,"",true);
+  if(o.scene&&o.scene.publicText&&!o.narration)bubble(o.scene.publicText,"",true);setTimeout(moves,0);
   if(o.learningSessionDelta)bar(o.learningSessionDelta)}
 async function send(text){
   if(busy||!text.trim())return;busy=true;$("#send").disabled=true;bubble(text,"me");
@@ -90,9 +93,10 @@ async function send(text){
   busy=false;$("#send").disabled=false;if(r&&r.status!==200)refresh()}
 $("#f").addEventListener("submit",e=>{e.preventDefault();const v=$("#t").value;$("#t").value="";send(v)});
 $("#t").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){e.preventDefault();$("#f").requestSubmit()}});
-document.querySelectorAll(".quick button").forEach(b=>b.onclick=()=>send(b.dataset.t));
+document.querySelectorAll(".quick button").forEach(b=>b.onclick=()=>{if(b.dataset.fill){$("#t").value=b.dataset.fill;$("#t").focus()}else send(b.dataset.t)});
+async function moves(){try{const r=await api("/api/adventure/world?id="+encodeURIComponent(SID));const j=r.j;const box=$("#moves");box.innerHTML="";if(!j||!j.active)return;(j.options||[]).forEach(l=>{const b=document.createElement("button");b.type="button";b.textContent="前往："+l;b.onclick=()=>{$("#t").value="前往"+l;$("#t").focus()};box.append(b)})}catch(e){}}
 async function intro(){try{const r=await api("/api/adventure/world?id="+encodeURIComponent(SID));const j=r.j;if(!j||!j.active)return;
-  if(j.opening)bubble(j.opening,"",true);if(j.publicText)bubble(j.publicText,"",true);(j.entered||[]).forEach(x=>bubble(x,"",true));if((j.options||[]).length)bubble("可以前往："+j.options.join("、"),"")}catch(e){}}
+  if(j.opening)bubble(j.opening,"",true);if(j.publicText)bubble(j.publicText,"",true);(j.entered||[]).forEach(x=>bubble(x,"",true));moves()}catch(e){}}
 refresh().then(intro);
 </script>
 </body>
