@@ -2,6 +2,7 @@
 // 服务器规则优先于模型输出：模型不能自己提交行动、不能指定依据事件、不能把待验证说成已确认。
 //   POST /api/adventure/turn {sessionId, turnId, inputText}   同 turnId 重试返回原回复，不重复调用模型/不重复提交
 import type { SiteEnv } from "./site";
+import { applyTrigger, replayPublicOutcomes, type PublicEvent } from "./world";
 import { ACTIONS, CONCEPTS, CONFIG, postAction } from "./adventure";
 import { postEvent } from "./events";
 
@@ -300,6 +301,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
 
   // 3. 行动：只有 ACT 且玩家明确要求执行、故事进行中才可能提交；ASK/LEARN/PRACTICE 一律 null
   let commit: Record<string, unknown> | null = null;
+  let worldEvents: PublicEvent[] = [];
   let visible = "";
   const wantsAct = intents.includes("ACT") && cls.explicitCommit;
   if (intents.includes("ACT") && !cls.explicitCommit) {
@@ -355,6 +357,12 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
         await env.DB.prepare("INSERT OR IGNORE INTO adventure_action_meta (action_id,template) VALUES (?,?)").bind("turn:" + turnId, cls.actionTemplate).run();
         if (planId) await env.DB.prepare("UPDATE adventure_plans SET status='consumed' WHERE plan_id=? AND status='draft'").bind(planId).run();
         if (!r.body.replay) await env.DB.prepare("UPDATE adventure_sessions SET world_seq=world_seq+1, updated_at=? WHERE id=?").bind(Date.now() / 1000, sessionId).run();
+        // 世界事件：服务端规则确认世界变化；没有内容包时不介入
+        try {
+          worldEvents = r.body.replay
+            ? await replayPublicOutcomes(env, sessionId, "turn:" + turnId)
+            : await applyTrigger(env, sessionId, { type: "action_resolved", actionId: "turn:" + turnId, success: !!(commit as any).success, actionTemplate: cls.actionTemplate });
+        } catch { worldEvents = []; }
       } else visible = String(r.body.message ?? "行动没有提交");
       }
     }
@@ -376,7 +384,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   else if (cls.quiet === "off" || cls.evaluation) quiet = false; // 主动求提示或提交了答案，静默结束
   if (quiet !== !!qrow?.quiet) await env.DB.prepare("INSERT INTO adventure_flags (session_id,quiet) VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET quiet=excluded.quiet").bind(sessionId, quiet ? 1 : 0).run();
   const route = ROUTING.reply[main] ?? ROUTING.reply.ASK;
-  const facts = commit ? `已提交的事实（只能叙述这些）：判定${commit.success ? "成功" : "失败"}（骰点${commit.roll}+知识加成${commit.bonus}，对 DC${commit.dc}）。具体的环境变化、后果和故事推进服务器还没有给出，所以只能说“判定成功/失败，具体后果尚未确定”这类话；绝不能编造门打开、敌人退走、场景切换、目标达成或时间流逝。允许一句不带新事实的过渡，如“你按计划尝试，检定成功”。` : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。";
+  const facts = commit ? `已提交的事实（只能叙述这些）：判定${commit.success ? "成功" : "失败"}（骰点${commit.roll}+知识加成${commit.bonus}，对 DC${commit.dc}）。${worldEvents.length ? "服务器确认的世界结果（只能据此叙述，可以润色措辞，但不能增加新事实）：" + worldEvents.map((w) => w.publicOutcome).join(" / ") + "。除此之外不要编造别的变化。" : "具体的环境变化、后果和故事推进服务器还没有给出，所以只能说“判定成功/失败，具体后果尚未确定”这类话；绝不能编造门打开、敌人退走、场景切换、目标达成或时间流逝。允许一句不带新事实的过渡，如“你按计划尝试，检定成功”。"}` : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。";
   const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `（内部记录，界面会另外显示标签，回复里不要出现这些字段名或英文标签）这位玩家本次解答的判定：${academic.correctness==='correct'?'结论正确':'结论有问题'}，${academic.reasoning==='valid'?'推理成立':'推理有缺陷'}。用自然的话告诉玩家结果和原因，不要写“学术评估”“correct”之类。` : ""}按玩家要的篇幅回答，别用任务菜单打断。玩家答对后，默认用一句话简短补充另一种方法或检查办法，并告诉他想深入可以继续问，不要强制展开；但玩家处于静默状态、或说了“只告诉我对不对”“让我自己想”“不要剧透步骤”时，不要主动给。玩家只是说“先别执行”这类暂缓时，回答“好，先不执行。你可以继续完善方案，或直接问我相关知识”，不要强迫他交步骤；只有他明确让你评估方案时才邀请他写出步骤。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n${ctx}\n玩家说“刚才的方法/那个/上一个”时，指上面最近对话里的内容，按那个理解，不要反问“你指哪个方法”。\n玩家输入：${input}`;
   let narration = "";
   let retry: { tier: string; provider: string; prompt: string; maxTok: number } | undefined;
@@ -399,6 +407,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       intentSegments: intents,
       academicEvaluation: academic,
       gameCommit: commit,
+      worldEvents,
       learningSessionDelta: { status: cur.status, segment: cur.segment, worldSeq: cur.world_seq },
       narration,
       quietMode: quiet,
