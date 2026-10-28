@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>冒险中学习 · 切片</title>
+<style>
+:root{--bg:#f6f5f2;--panel:#fff;--fg:#1d1d1f;--dim:#6b6b70;--line:#e3e1dc;--accent:#3b5bdb;--ok:#2b8a3e;--warn:#c92a2a;--mono:ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#141416;--panel:#1d1d21;--fg:#ececf0;--dim:#9a9aa3;--line:#2c2c32;--accent:#7c93ff;--ok:#69db7c;--warn:#ff8787}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 -apple-system,"PingFang SC","Noto Sans SC",sans-serif;padding:0 16px env(safe-area-inset-bottom)}
+main{max-width:720px;margin:0 auto;padding:16px 0 120px}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0 12px}
+h1{font-size:18px;margin:0}
+a{color:var(--accent)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;font:13px var(--mono);color:var(--dim)}
+.pill{border:1px solid var(--line);border-radius:999px;padding:2px 10px;background:var(--panel)}
+.pill.paused{color:var(--warn);border-color:var(--warn)}
+.msg{margin:12px 0;padding:12px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--line);white-space:pre-wrap;word-break:break-word}
+.me{background:var(--accent);color:#fff;border-color:transparent;margin-left:48px}
+.meta{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;font:12px var(--mono);color:var(--dim);white-space:normal}
+.tag{border:1px solid var(--line);border-radius:6px;padding:1px 7px}
+.tag.ok{color:var(--ok);border-color:var(--ok)}.tag.warn{color:var(--warn);border-color:var(--warn)}
+.note{color:var(--dim);font-size:14px;white-space:normal}
+form{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+.in{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:8px}
+textarea{flex:1;resize:none;min-height:44px;max-height:140px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:inherit}
+button{font:inherit;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);padding:8px 14px;min-height:44px;cursor:pointer}
+button.go{background:var(--accent);color:#fff;border-color:transparent}
+button:disabled{opacity:.5}
+.quick button{min-height:36px;padding:4px 12px;font-size:14px}
+</style>
+</head>
+<body>
+<main>
+  <header><h1>冒险中学习 · MATH 1920 切片</h1><a href="/">返回主页</a></header>
+  <div class="bar" id="bar"></div>
+  <p class="note">这是纯机制测试世界：没有剧情，只有一个抽象的“行动”。你可以提问、让我讲一章、刷题，或者在准备好之后说“现在执行”，看看你已确认的数学思路能不能帮上忙。</p>
+  <div id="log"></div>
+</main>
+<form id="f"><div class="in">
+  <div class="row quick">
+    <button type="button" data-t="先去刷5题，不要剧情。">刷题模式</button>
+    <button type="button" data-t="继续刚才的。">继续</button>
+    <button type="button" data-t="现在就用刚才验证过的方法执行。">执行行动</button>
+  </div>
+  <div class="row"><textarea id="t" rows="1" placeholder="说点什么…" maxlength="4000"></textarea><button class="go" id="send">发送</button></div>
+</div></form>
+<script>
+const $=s=>document.querySelector(s),log=$("#log");
+const uid=()=>(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2)).replace(/[^\w-]/g,"").slice(0,40);
+let SID=null;try{SID=localStorage.getItem("adv-sid")}catch(e){}
+if(!SID){SID="s-"+uid();try{localStorage.setItem("adv-sid",SID)}catch(e){}}
+let busy=false;
+const api=async(p,body)=>{const r=await fetch(p,body?{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}:{});let j=null;try{j=await r.json()}catch(e){}return{status:r.status,j}};
+function bar(s){const b=$("#bar");b.replaceChildren();const add=(t,c)=>{const e=document.createElement("span");e.className="pill"+(c?" "+c:"");e.textContent=t;b.append(e)};
+  add(s.status==="paused"?"故事暂停中":"故事进行中",s.status==="paused"?"paused":"");add("世界事件 "+s.worldSeq);add("教学进度 "+s.segment)}
+async function refresh(){let r=await api("/api/adventure/session?id="+encodeURIComponent(SID));if(r.status===404)r=await api("/api/adventure/session",{sessionId:SID,op:"start"});if(r.j&&r.j.status)bar(r.j)}
+function bubble(text,cls){const d=document.createElement("div");d.className="msg "+(cls||"");d.textContent=text;log.append(d);d.scrollIntoView({block:"end"});return d}
+function tag(box,t,c){const e=document.createElement("span");e.className="tag "+(c||"");e.textContent=t;box.append(e)}
+const IN={ASK:"提问",LEARN:"学习",PRACTICE:"练习",EXPLORE:"探索",ACT:"行动"};
+const CO={correct:"答案正确",incorrect:"答案不对",partial:"部分正确",unknown:"正确性未知"},RE={valid:"推理成立",partial:"推理部分成立",invalid:"推理不成立",not_assessed:"推理未评估"},AS={none:"独立完成",minor_hint:"小提示",major_hint:"大提示",worked_solution:"看了解答",unknown:"提示未知"},VE={confirmed:"已确认",pending:"待验证",rejected:"被驳回"};
+function render(o){
+  const d=bubble(o.narration||o.visibleFeedback||"（没有回复）");const m=document.createElement("div");m.className="meta";
+  (o.intentSegments||[]).forEach(i=>tag(m,IN[i]||i));
+  const a=o.academicEvaluation;if(a){tag(m,CO[a.correctness]||a.correctness,a.correctness==="correct"?"ok":"");tag(m,RE[a.reasoning]||a.reasoning,a.reasoning==="valid"?"ok":a.reasoning==="invalid"?"warn":"");tag(m,AS[a.assistance]||a.assistance);tag(m,VE[a.verification]||a.verification,a.verification==="confirmed"?"ok":"");if(a.repeatedInsight)tag(m,"重复思路，不加成")}
+  const g=o.gameCommit;if(g){tag(m,"骰点 "+g.roll+(g.bonus?" +"+g.bonus+" 知识":"")+" 对 DC "+g.dc,"");tag(m,g.success?"成功":"失败",g.success?"ok":"warn")}
+  if(o.uncertainty)tag(m,"不确定，未做任何改动","warn");
+  if(o.visibleFeedback&&o.narration)tag(m,o.visibleFeedback);
+  if(m.childNodes.length)d.append(m);
+  if(o.learningSessionDelta)bar(o.learningSessionDelta)}
+async function send(text){
+  if(busy||!text.trim())return;busy=true;$("#send").disabled=true;bubble(text,"me");
+  const turnId="t-"+uid();let r=null;
+  for(let i=0;i<3&&!r;i++){try{const x=await api("/api/adventure/turn",{sessionId:SID,turnId,inputText:text});if(x.status===409&&x.j&&x.j.code==="turn_in_progress"){await new Promise(z=>setTimeout(z,1200));continue}r=x}catch(e){await new Promise(z=>setTimeout(z,800))}}
+  if(!r)bubble("网络不通，这句话可能已经被处理，刷新后看进度即可（重发同一句不会重复执行）。");
+  else if(r.status===200&&r.j)render(r.j);
+  else if(r.status===401)bubble("登录已过期，请刷新页面重新登录。");
+  else bubble((r.j&&r.j.message)||"出错了（"+r.status+"）。",r.status===429?"":"");
+  busy=false;$("#send").disabled=false;if(r&&r.status!==200)refresh()}
+$("#f").addEventListener("submit",e=>{e.preventDefault();const v=$("#t").value;$("#t").value="";send(v)});
+$("#t").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){e.preventDefault();$("#f").requestSubmit()}});
+document.querySelectorAll(".quick button").forEach(b=>b.onclick=()=>send(b.dataset.t));
+refresh();
+</script>
+</body>
+</html>
