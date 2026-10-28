@@ -13,7 +13,9 @@
     "Knowledge evidence must be verified, unconsumed, session-scoped and causally relevant to the specific action; correctness is separate from game success.",
     "No sequence authorizes hidden-world disclosure or production state changes.",
     "Correctly copying a tutor's worked solution may demonstrate exposure and mathematical correctness but is not independent mastery evidence; self-claims do not override assistance provenance.",
-    "After prior help, a genuinely new task solved without task-specific assistance can provide fresh transfer evidence after independent verification; prior assistance must not permanently block progress."
+    "After prior help, a genuinely new task solved without task-specific assistance can provide fresh transfer evidence after independent verification; prior assistance must not permanently block progress.",
+    "Natural math integration is opt-in and arises only from already public, relevant measurements; missing world data cannot be fabricated to create a lesson.",
+    "An NPC's claim is not an established fact; tutoring or a mathematical inference cannot silently upgrade its epistemic status."
   ],
   "sequences": [
     {
@@ -298,6 +300,177 @@
           }
         }
       ]
+    },
+    {
+      "id": "public-affordance-opt-in-gradient",
+      "setup": {
+        "worldSeq": 40,
+        "story": "active",
+        "fictionalScenario": "Synthetic measurement bench; the player-visible height model is h(x,y)=x²+2y² near (1,1). No secret puzzle or mandatory mathematics."
+      },
+      "steps": [
+        {
+          "input": "我先看看台面上的公开标记，不想马上算题。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 40,
+            "mode": "STORY",
+            "forcedQuiz": false,
+            "narration": "describe_only_authorized_observations",
+            "unrequestedSolution": false
+          }
+        },
+        {
+          "input": "梯度能帮我判断上升最快的方向吗？先给我一点思路，不要算出结果。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 40,
+            "mode": "LIGHT_or_TEACH_on_request",
+            "help": "one_minimal_hint_only",
+            "fullGradientRevealed": false,
+            "worldFactInvented": false
+          }
+        },
+        {
+          "input": "我算出偏导是 2x 和 4y，所以在 (1,1) 梯度是 (2,4)。我还没决定走哪边。",
+          "context": "Correct computation after a conceptual hint; evaluate mathematics while retaining task-level assistance provenance.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 40,
+            "academicCorrectness": "correct",
+            "reasoning": "valid",
+            "assistance": "not_none",
+            "independentMasteryEvidence": "not_automatically_granted",
+            "playerChoicePreserved": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "decline-lesson-choose-ordinary-action",
+      "setup": {
+        "worldSeq": 41,
+        "story": "active",
+        "fictionalScenario": "Synthetic room with a plainly accessible legal passage and an optional measurable surface; no mathematics prerequisite."
+      },
+      "steps": [
+        {
+          "input": "别教我数学，我想直接玩剧情。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 41,
+            "mode": "STORY",
+            "directorPromptSuppressed": true,
+            "penalty": false
+          }
+        },
+        {
+          "input": "先观察一下那个普通通道。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 41,
+            "mathNudge": false,
+            "forcedQuiz": false,
+            "publicObservation": true
+          }
+        },
+        {
+          "input": "我走进刚才确认可通行的普通通道。",
+          "context": "The route is explicitly legal; no math evidence has been provided or required.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 42,
+            "knowledgeBonus": false,
+            "forcedQuiz": false,
+            "actionResolvedByWorldEngine": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "insufficient-data-no-retrofitted-math",
+      "setup": {
+        "worldSeq": 42,
+        "story": "active",
+        "fictionalScenario": "Synthetic location has two visually distinct paths but no quantitative coordinates, height function or measurements; an NPC offers an unverified opinion."
+      },
+      "steps": [
+        {
+          "input": "有人说左边更陡。你能用梯度证明他一定是对的吗？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 42,
+            "claimedFactPromoted": false,
+            "inventedMeasurements": false,
+            "forcedMathSolution": false,
+            "reply": "acknowledge_missing_data_and_offer_optional_measurement_or_explanation"
+          }
+        },
+        {
+          "input": "那就解释一下什么数据才能算梯度，先别推进故事。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 42,
+            "mode": "TEACH",
+            "inventedWorldData": false,
+            "rumorRemainsUnverified": true
+          }
+        },
+        {
+          "input": "明白了，我还是自己去观察路面。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 42,
+            "mode": "STORY",
+            "forcedQuiz": false,
+            "rumorRemainsUnverified": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "voluntary-directional-derivative-transfer",
+      "setup": {
+        "worldSeq": 43,
+        "story": "active",
+        "fictionalScenario": "Synthetic open test environment; a public measured height model is h(x,y)=2x²+y² at (1,2), and the legal unit direction u=(1/√2,1/√2). Player has not received task-specific help."
+      },
+      "steps": [
+        {
+          "input": "我想用方向导数来比较沿 u 方向的变化：∇h(1,2)=(4,4)，所以 Dᵤh=(4,4)·(1/√2,1/√2)=4√2。先别执行。",
+          "context": "Mathematics is correct and causally tied to a public measurement, but the player has not authorized an action.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 43,
+            "academicCorrectness": "correct",
+            "reasoning": "valid",
+            "assistanceForCurrentTask": "none",
+            "independentEvidence": "eligible_only_after_verification",
+            "knowledgeBonusBeforeCommit": false
+          }
+        },
+        {
+          "input": "按刚才独立算出的方向方案执行。",
+          "context": "Action is otherwise legal, server verifies the current basis, and deterministic fictional roll fails.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 44,
+            "gameSuccess": false,
+            "academicEvidence": "retained",
+            "bonusAtMostOnce": true,
+            "playerMayChooseNonMathAlternative": true
+          }
+        },
+        {
+          "input": "那我能再用同一条推导重新拿一次加成吗？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 44,
+            "duplicateBonus": false,
+            "reason": "Prior evidence consumption does not create a new independent insight."
+          }
+        }
+      ]
     }
   ],
   "testHarnessNotes": [
@@ -306,6 +479,8 @@
     "For conditional outcomes, set deterministic game RNG and explicitly legal action fixtures.",
     "Do not infer real model pass/fail from this specification; run fixtures before claiming success.",
     "Preserve task IDs and tutor-output assistance provenance across turns; checking only the latest player message is insufficient for independence attribution.",
-    "Distinguish correctness, validity of mathematical steps, task-level assistance, independent transfer and duplicate insight/reward eligibility."
+    "Distinguish correctness, validity of mathematical steps, task-level assistance, independent transfer and duplicate insight/reward eligibility.",
+    "For naturalness sequences, inspect DM prose for unsolicited formulas, forced quizzes, invented measurements, spoilers, or treating an NPC claim as confirmed; state assertions alone are insufficient.",
+    "Synthetic height functions are isolated teaching fixtures, not real first-world measurements, clues or solutions."
   ]
 }
