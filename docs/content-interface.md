@@ -42,7 +42,7 @@
 
 ## 7. 章节开场快照（world-1.2.0 起，服务端私有）
 - 终局 travel 成功提交、且 `ending_locked` 等于该结局 `ending.id` 后创建，表 `adventure_world_ending_snapshot`（每会话一份，INSERT OR IGNORE；重放、被拒、未确认、冲突都不建、不重复）。
-- 字段（全部是引用/计数来源，无叙述文字）：snapshotSchemaVersion、sourceWorldRef/Version/ContentRevision、endingRef/endingCommitRef、confirmedFacts（玩家已知事实，audience=player）、npcContinuity（关系档位、历史引用、heardClaims/beliefs/confirmedKnowledge 分层）、inventory、openThreads（引擎不推断，目前为空）、learningEvidenceRefs（学习事件未与会话绑定，目前为空，不会重复发奖）、carryoverPolicyVersion。
+- 字段（全部是引用/计数来源，无叙述文字）：snapshotSchemaVersion、sourceWorldRef/Version/ContentRevision、endingRef/endingCommitRef、confirmedFacts（玩家已知事实，audience=player）、npcContinuity（关系档位、历史引用、heardClaims/beliefs/confirmedKnowledge 分层）、inventory、openThreads（引擎不推断，目前为空）、learningEvidenceRefs（本会话回合产生的、verification=confirmed 且答案正确、推理有效、非代解的学习事件引用 {evidenceRef,topicRef,conceptRef}；只是引用，不重复发奖）；confirmedFacts.provenance={sourceCommitRef,sourceScene,discoveredBy}（发现该事实的已提交引用与场景；旧数据缺来源时 sourceCommitRef=null）、carryoverPolicyVersion。
 - 世界内容不能唯一确认来源时失败关闭，不建快照。快照本体不经 HTTP；管理员 GET /api/adventure/ending-snapshot?id= 只返回分类计数。`snapshotProjection` 是给下一章开场叙述的授权视图（事实、关系档位、物品；无结局 id、NPC 私有信念）。
 
 ## 8. 未解线索 openThreads / resolvesThreads（world-1.2.0 起，服务端私有）

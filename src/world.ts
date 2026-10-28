@@ -21,6 +21,7 @@ function ensure(env: SiteEnv) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_ending_notice (session_id TEXT NOT NULL, target TEXT NOT NULL, ending_id TEXT NOT NULL, world_version INTEGER NOT NULL, shown_at REAL NOT NULL, PRIMARY KEY (session_id,target))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_ending_snapshot (session_id TEXT PRIMARY KEY, ending_commit_id TEXT NOT NULL, snapshot TEXT NOT NULL, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_threads (session_id TEXT NOT NULL, thread_id TEXT NOT NULL, audience TEXT NOT NULL, carryover TEXT NOT NULL, status TEXT NOT NULL, opened_by TEXT NOT NULL, resolved_by TEXT, PRIMARY KEY (session_id,thread_id))`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_fact_src (session_id TEXT NOT NULL, fact_id TEXT NOT NULL, source_ref TEXT NOT NULL, scene_id TEXT NOT NULL, PRIMARY KEY (session_id,fact_id))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_applied (session_id TEXT NOT NULL, event_key TEXT NOT NULL, action_id TEXT NOT NULL, public_outcome TEXT, PRIMARY KEY (session_id,event_key))`),
   ]).catch((e) => { ready = null; throw e; }));
 }
@@ -246,7 +247,11 @@ async function execOps(env: SiteEnv, sid: string, st: St, ops: any[], next: Pend
     else if (e.type === "set_npc_location") await env.DB.prepare("INSERT INTO adventure_world_npc (session_id,npc_id,location) VALUES (?,?,?) ON CONFLICT(session_id,npc_id) DO UPDATE SET location=excluded.location").bind(sid, e.target, e.value).run();
     else if (e.type === "record_fact_discovery") {
       const r = await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_facts (session_id,fact_id) VALUES (?,?)").bind(sid, e.target).run();
-      if (r.meta.changes === 1) next.push({ type: "fact_discovered", scene: st.scene, factId: e.target });
+      if (r.meta.changes === 1) {
+        // 来源：产生该发现的已提交引用（提交/事件键）与发现时所在场景；只记引用，不记叙述
+        await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_fact_src (session_id,fact_id,source_ref,scene_id) VALUES (?,?,?,?)").bind(sid, e.target, ref, st.scene).run();
+        next.push({ type: "fact_discovered", scene: st.scene, factId: e.target });
+      }
     }
     else if (e.type === "grant_item") await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_items (session_id,item_id) VALUES (?,?)").bind(sid, e.target).run();
     else if (e.type === "remove_item") await env.DB.prepare("DELETE FROM adventure_world_items WHERE session_id=? AND item_id=?").bind(sid, e.target).run();
@@ -488,6 +493,9 @@ async function createEndingSnapshot(env: SiteEnv, sid: string, commitId: string,
   const applied = await all("SELECT event_key FROM adventure_world_applied WHERE session_id=? ORDER BY event_key");
   const appliedKeys = new Set(applied.map((r) => String(r.event_key)));
   const facts = await all("SELECT fact_id FROM adventure_world_facts WHERE session_id=? ORDER BY fact_id");
+  const factSrc = await all("SELECT fact_id, source_ref, scene_id FROM adventure_world_fact_src WHERE session_id=?");
+  // 学习证据：本会话回合产生的、已核验为正确且有效推理、非代解的学习事件（只带引用；不重复发奖，奖励仍按来源事件一次性结算）
+  const ev = (await env.DB.prepare("SELECT e.id AS id, e.topic_id AS topic, ec.concept_id AS concept FROM learning_events e JOIN adventure_turns tt ON e.id = 'turn:' || tt.turn_id || ':eval' LEFT JOIN adventure_evidence_concept ec ON ec.event_id=e.id WHERE tt.session_id=? AND e.verification='confirmed' AND e.correctness='correct' AND e.reasoning='valid' AND e.assistance != 'worked_solution' ORDER BY e.at, e.id LIMIT 200").bind(sid).all<any>().catch(() => ({ results: [] as any[] }))).results ?? [];
   const npcs = await all("SELECT npc_id, relation FROM adventure_world_npc WHERE session_id=? ORDER BY npc_id");
   const hist = await all("SELECT npc_id, n FROM adventure_world_rel_history WHERE session_id=? ORDER BY npc_id, n");
   const mem = await all("SELECT npc_id, layer, item FROM adventure_world_npc_memory WHERE session_id=? ORDER BY npc_id, layer, item");
@@ -499,7 +507,7 @@ async function createEndingSnapshot(env: SiteEnv, sid: string, commitId: string,
     sourceWorldRef: wr.results[0].id, sourceWorldVersion: st.version, sourceContentRevision: { world: world.rev, endingScene: sceneRev }, engineVersion: WORLD_CONFIG.version,
     endingRef: endingId, endingCommitRef: commitId,
     // 玩家已知事实：来源是已提交事件（具体来源事件键集合只作审计引用），受众=该玩家
-    confirmedFacts: facts.map((f) => ({ factRef: f.fact_id, provenance: { committedEvents: [...appliedKeys].length }, audience: "player" })),
+    confirmedFacts: facts.map((f) => ({ factRef: f.fact_id, provenance: (() => { const o = factSrc.find((x) => x.fact_id === f.fact_id); return o ? { sourceCommitRef: o.source_ref, sourceScene: o.scene_id, discoveredBy: "player" } : { sourceCommitRef: null, committedEvents: appliedKeys.size }; })(), audience: "player" })),
     npcContinuity: npcs.map((n) => ({
       npcRef: n.npc_id, relationBand: n.relation ?? null,
       relationshipHistoryRefs: hist.filter((h) => h.npc_id === n.npc_id).map((h) => n.npc_id + "#" + h.n),
@@ -510,7 +518,7 @@ async function createEndingSnapshot(env: SiteEnv, sid: string, commitId: string,
     inventory: items.map((i) => ({ itemRef: i.item_id })),
     // 未解线索：只带“开启已提交、尚未解决、carryover=eligible”的引用；不含解答或叙述；local_only 与已解决的不带
     openThreads: threads.map((t) => ({ threadRef: t.thread_id, status: "unresolved", audience: t.audience, openedByCommitRef: t.opened_by })),
-    learningEvidenceRefs: [], // 学习事件当前未与会话绑定；仅在以后有显式证据引用时写入，快照不重复发奖
+    learningEvidenceRefs: ev.map((x) => ({ evidenceRef: x.id, topicRef: x.topic, conceptRef: x.concept ?? null })),
     carryoverPolicyVersion: SNAPSHOT_CONFIG.carryoverPolicyVersion,
   };
   await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_ending_snapshot (session_id,ending_commit_id,snapshot,created_at) VALUES (?,?,?,?)").bind(sid, commitId, JSON.stringify(snap), Date.now() / 1000).run();
@@ -538,5 +546,5 @@ export async function snapshotStats(env: SiteEnv, sid: string): Promise<Record<s
   const rows = await env.DB.prepare("SELECT snapshot FROM adventure_world_ending_snapshot WHERE session_id=?").bind(sid).all<{ snapshot: string }>();
   if (!rows.results.length) return null;
   const s = JSON.parse(rows.results[0].snapshot);
-  return { snapshots: rows.results.length, facts: s.confirmedFacts.length, npcs: s.npcContinuity.length, items: s.inventory.length, heard: s.npcContinuity.reduce((a: number, n: any) => a + n.heardClaims.length, 0), beliefs: s.npcContinuity.reduce((a: number, n: any) => a + n.beliefs.length, 0), openThreads: s.openThreads.length, openThreadsPlayer: s.openThreads.filter((t: any) => t.audience === "player").length, openThreadsPrivate: s.openThreads.filter((t: any) => t.audience === "server_private").length, projectedOpenThreads: (await snapshotProjection(env, sid))?.openThreads.length ?? -1, learningRefs: s.learningEvidenceRefs.length };
+  return { snapshots: rows.results.length, facts: s.confirmedFacts.length, npcs: s.npcContinuity.length, items: s.inventory.length, heard: s.npcContinuity.reduce((a: number, n: any) => a + n.heardClaims.length, 0), beliefs: s.npcContinuity.reduce((a: number, n: any) => a + n.beliefs.length, 0), openThreads: s.openThreads.length, openThreadsPlayer: s.openThreads.filter((t: any) => t.audience === "player").length, openThreadsPrivate: s.openThreads.filter((t: any) => t.audience === "server_private").length, projectedOpenThreads: (await snapshotProjection(env, sid))?.openThreads.length ?? -1, learningRefs: s.learningEvidenceRefs.length, factsSourced: s.confirmedFacts.filter((f: any) => typeof f.provenance?.sourceCommitRef === "string" && f.provenance?.sourceScene).length };
 }

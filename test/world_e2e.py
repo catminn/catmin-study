@@ -192,4 +192,16 @@ check("T12 未确认的结局没有快照，也不泄露线索", snap("T6")["sna
 txt = json.dumps([b, snap("T5")], ensure_ascii=False)
 check("T13 玩家响应不含线索 id / 受众", all(k not in txt for k in ["th1", "th2", "th4", "server_private", "openedByCommitRef"]), txt)
 
+# ---- 事实来源 provenance 与学习证据引用（占位内容）----
+put("event", "evf", {"trigger": {"type": "dialogue_choice_committed", "choiceId": "c-fact", "npcId": "n2", "sceneId": "t-a"}, "effects": [{"type": "record_fact_discovery", "target": "fact-ph"}], "publicOutcome": "PH-FACT"})
+start("P1"); travel("P1", "p1a", "t-a")
+c, b = choice("P1", "p1f", "c-fact"); check("P1 事实发现事件提交", c == 200 and wo(b) == ["PH-FACT"], b)
+r = s.post(B + "/api/adventure/turn", json={"sessionId": "P1", "turnId": "p1turn", "inputText": "g(t)=(t+1)^2，我先展开再求导。"}).json()
+check("P2 学习回合产生已核验证据", r.get("academicEvaluation", {}).get("verification") == "confirmed", r)
+travel("P1", "p1n", "t-end"); travel("P1", "p1e", "t-end", confirmEnding=True); st = snap("P1")["snapshot"]
+check("P3 快照事实带来源提交+发现场景（全部事实均有来源）", st["facts"] >= 1 and st["factsSourced"] == st["facts"], st)
+check("P4 学习证据引用绑定到本会话（learningRefs=1）；其它会话（T1）不含", st["learningRefs"] == 1 and snap("T1")["snapshot"]["learningRefs"] == 0, st)
+txt = json.dumps([b, snap("P1")], ensure_ascii=False)
+check("P5 玩家侧/计数视图不含事实 id、证据 id、提交引用", all(k not in txt for k in ["fact-ph", "p1turn", "sourceCommitRef"]), txt)
+
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)
