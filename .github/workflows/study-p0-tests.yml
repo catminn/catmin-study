@@ -1,0 +1,38 @@
+name: Study RPG P0 checks
+on:
+  pull_request:
+    paths:
+      - 'public/study-core.mjs'
+      - 'scripts/audit-legacy-save.mjs'
+      - 'test/study-core.test.mjs'
+      - 'test/audit-legacy-save.test.mjs'
+      - 'test/world01-structure.test.mjs'
+      - 'scripts/validate-story-bundle.mjs'
+      - 'test/validate-story-bundle.test.mjs'
+      - 'content/contracts/world01-opening-skeleton.json'
+      - '.github/workflows/study-p0-tests.yml'
+  push:
+    branches:
+      - 'design/dm-learning-architecture-v1'
+    paths:
+      - 'public/study-core.mjs'
+      - 'scripts/audit-legacy-save.mjs'
+      - 'test/study-core.test.mjs'
+      - 'test/audit-legacy-save.test.mjs'
+      - 'test/world01-structure.test.mjs'
+      - 'scripts/validate-story-bundle.mjs'
+      - 'test/validate-story-bundle.test.mjs'
+      - 'content/contracts/world01-opening-skeleton.json'
+      - '.github/workflows/study-p0-tests.yml'
+permissions:
+  contents: read
+jobs:
+  p0-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test isolated backup and learning event core
+        run: node --test test/study-core.test.mjs test/audit-legacy-save.test.mjs test/world01-structure.test.mjs test/validate-story-bundle.test.mjs

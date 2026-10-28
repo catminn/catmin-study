@@ -1,0 +1,465 @@
+{
+  "schema": "world-content-runtime-contract-v1",
+  "purpose": "Spoiler-free authoring-to-engine acceptance cases. Placeholder ids and text only. This is a contract, not evidence of runtime passing.",
+  "ownership": {
+    "narrativeAuthoring": "ChatGPT",
+    "engineAndTests": "Claude"
+  },
+  "authoringShapes": {
+    "world": {
+      "kind": "world",
+      "id": "demo-world",
+      "startSceneId": "demo-entry"
+    },
+    "event": {
+      "kind": "event",
+      "id": "demo-event",
+      "trigger": {
+        "type": "action_resolved",
+        "actionTemplateId": "demo-action",
+        "outcome": "success"
+      },
+      "preconditions": [
+        {
+          "flag": "demo-allowed",
+          "equals": true
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "target": "demo-complete",
+          "value": true
+        }
+      ],
+      "revealsFacts": [
+        "demo-confirmed-fact"
+      ],
+      "repeatPolicy": "once_per_world",
+      "visibility": "server_private",
+      "publicOutcome": {
+        "text": "The confirmed action changes the visible situation.",
+        "availableOnlyAfter": {
+          "committedEventId": "demo-event"
+        },
+        "authorizedFactIds": [
+          "demo-confirmed-fact"
+        ],
+        "authorizedEffectTargets": [
+          "demo-complete"
+        ],
+        "allowModelToParaphrase": true,
+        "allowModelToAddNewFacts": false,
+        "includePrivateConditionsInPrompt": false
+      }
+    },
+    "endingScene": {
+      "kind": "scene",
+      "id": "demo-terminal-a",
+      "ending": {
+        "id": "ending-demo-a",
+        "costNotice": "Continuing closes other routes in this world. Confirm?"
+      },
+      "entryRequirements": {
+        "all": [
+          {
+            "flag": "demo-route-ready",
+            "equals": true
+          }
+        ]
+      }
+    },
+    "sceneThreadOpening": {
+      "kind": "scene",
+      "id": "demo-thread-scene",
+      "openThreads": [
+        {
+          "id": "demo-thread-a",
+          "authorizedAudience": "player",
+          "carryover": "eligible"
+        }
+      ]
+    },
+    "eventThreadOpening": {
+      "kind": "event",
+      "id": "demo-thread-discovery",
+      "trigger": {
+        "type": "action_resolved",
+        "actionTemplateId": "demo-inspect",
+        "outcome": "success"
+      },
+      "openThreads": [
+        {
+          "id": "demo-thread-b",
+          "authorizedAudience": "server_private",
+          "carryover": "eligible"
+        }
+      ]
+    },
+    "eventThreadResolution": {
+      "kind": "event",
+      "id": "demo-thread-resolution",
+      "trigger": {
+        "type": "dialogue_choice_committed",
+        "choiceId": "demo-thread-choice"
+      },
+      "resolvesThreads": [
+        "demo-thread-a"
+      ]
+    }
+  },
+  "triggerFamilies": [
+    "scene_entered",
+    "action_resolved",
+    "fact_discovered",
+    "dialogue_choice_committed",
+    "world_flag_changed"
+  ],
+  "effectsAllowlist": [
+    "set_flag",
+    "advance_scene",
+    "set_npc_location",
+    "change_npc_relation",
+    "grant_item",
+    "remove_item",
+    "record_fact_discovery"
+  ],
+  "tests": [
+    {
+      "id": "world-start-resolved",
+      "given": "A world has startSceneId pointing to an existing scene.",
+      "when": "A new isolated session is initialized.",
+      "expect": [
+        "Server selects the declared starting scene, not a model guess.",
+        "Only authorized public scene text is exposed."
+      ]
+    },
+    {
+      "id": "outcome-object-gated",
+      "given": "An event stores publicOutcome as an object with text and authorization metadata.",
+      "when": "The event is not committed, then is committed once.",
+      "expect": [
+        "Before commit, neither text nor hidden condition is exposed.",
+        "After commit, only authorized text/facts are available to player narration.",
+        "The player response never includes private conditions, effect targets or internal identifiers."
+      ]
+    },
+    {
+      "id": "dialogue-commit-not-draft",
+      "given": "A placeholder event uses dialogue_choice_committed with choiceId and npcId.",
+      "when": "Player discusses a choice, then explicitly commits it.",
+      "expect": [
+        "Discussion and ASK do not mutate NPC relationship.",
+        "Only a real committed choice can trigger the event.",
+        "Replayed commit does not apply relationship twice."
+      ]
+    },
+    {
+      "id": "flag-trigger-and-cycle-guard",
+      "given": "A set_flag effect causes a world_flag_changed event.",
+      "when": "The source action commits.",
+      "expect": [
+        "Dependent flag event is evaluated only after the first change is committed.",
+        "The same source cannot generate infinite flag-trigger recursion.",
+        "A repeated action id cannot duplicate the public result."
+      ]
+    },
+    {
+      "id": "navigation-committed-only",
+      "given": "Scene choices list a valid next scene and an event listens for scene_entered.",
+      "when": "Player previews a route, then commits the selected route.",
+      "expect": [
+        "Listing choices does not advance scene.",
+        "A committed, validated transition advances once.",
+        "The destination scene_entered event fires once after transition."
+      ]
+    },
+    {
+      "id": "fact-reveal-is-authoritative",
+      "given": "An event lists revealsFacts and publicOutcome.authorizedFactIds.",
+      "when": "Narrator mentions a fact before commit, then the server commits an authorized reveal.",
+      "expect": [
+        "Narrator text alone never grants a fact.",
+        "Only the server-confirmed reveal updates player-known facts.",
+        "No unrelated or future fact is included in the public result."
+      ]
+    },
+    {
+      "id": "unsupported-contract-fails-closed",
+      "given": "A content package uses a trigger, effect, or outcome shape not supported by the runtime.",
+      "when": "A preflight compatibility check runs.",
+      "expect": [
+        "Import is rejected or explicitly blocked with a non-spoiler diagnostic.",
+        "The runtime must not silently ignore required events and report the package playable.",
+        "Diagnostics contain counts/codes, never secret ids or story text."
+      ]
+    },
+    {
+      "id": "ending-notice-before-confirm",
+      "given": "A terminal destination has an ending id, public costNotice and satisfied entryRequirements.",
+      "when": "The player inspects or selects that destination but has not separately confirmed.",
+      "expect": [
+        "Show only the truthful public costNotice; do not expose private conditions.",
+        "Do not set ending_locked, move into the terminal scene, or spend resources.",
+        "A generic Continue or a preview must not count as explicit ending consent."
+      ]
+    },
+    {
+      "id": "ending-confirm-session-and-version",
+      "given": "One player saw the costNotice for ending-demo-a in session A at world version V.",
+      "when": "A confirmation arrives from another session, a changed target or a later world version.",
+      "expect": [
+        "Reject the stale or mismatched confirmation without changing world state.",
+        "Allow a new spoiler-free preview and fresh explicit confirmation.",
+        "No hidden flags or private ids appear in the player error."
+      ]
+    },
+    {
+      "id": "ending-gate-all-entry-paths",
+      "given": "A terminal scene has unsatisfied entryRequirements.",
+      "when": "The player attempts direct travel, event advance_scene or repeated commit.",
+      "expect": [
+        "Every path is blocked by server-owned preconditions.",
+        "Narration, ASK and a model-suggested plan cannot bypass the gate.",
+        "The response is in-world and does not expose secret requirement details."
+      ]
+    },
+    {
+      "id": "ending-lock-atomic-and-exclusive",
+      "given": "The player explicitly confirms an eligible terminal route and its event locks ending_locked.",
+      "when": "The commit succeeds, repeats with the same id, then another ending is attempted.",
+      "expect": [
+        "The first commit applies ending effects and lock atomically exactly once.",
+        "Same-id replay returns the original result without duplicate consequence.",
+        "Conflicting ending lock rejects the entire new event with no partial application."
+      ]
+    },
+    {
+      "id": "ending-decline-preserves-learning",
+      "given": "A player has validated MATH 1920 evidence but declines the offered ending.",
+      "when": "They choose to explore, ask questions or pursue another viable route.",
+      "expect": [
+        "Declining the ending changes neither committed world state nor learning evidence.",
+        "The DM continues the story without a forced quiz or automatic ending.",
+        "Later commitment still requires a fresh appropriate notice and explicit confirmation."
+      ]
+    },
+    {
+      "id": "ending-preflight-blocks-unsafe-content",
+      "given": "A placeholder bundle contains a missing costNotice, duplicate ending id, eager scene-entry lock, missing lock event, unsupported entryRequirements or invalid stateEffects.",
+      "when": "Authoring preflight validates the bundle.",
+      "expect": [
+        "Each unsafe category is a blocking error rather than a silent skip.",
+        "Diagnostic output contains only error category and count, not private ids, values or prose.",
+        "A static missing grant path for remove_item is a warning, not automatically a blocking error."
+      ]
+    },
+    {
+      "id": "ending-cost-notice-not-spoiler",
+      "given": "A public costNotice is available before an irreversible choice.",
+      "when": "The DM describes the stakes and the player asks for more detail.",
+      "expect": [
+        "DM explains the known consequence without inventing facts or revealing future plot.",
+        "The player may decline and continue exploring without mutation.",
+        "Math knowledge may support decision-making but never replaces explicit consent."
+      ]
+    },
+    {
+      "id": "continuity-snapshot-after-lock",
+      "given": "An eligible ending has been previewed and then successfully committed with its matching terminal lock event.",
+      "when": "The server creates the next-chapter opening snapshot.",
+      "expect": [
+        "Capture only after the ending lock and associated terminal effects are committed.",
+        "Bind snapshot to the successful ending commit and source content revision.",
+        "A preview, decline or failed ending attempt produces no snapshot."
+      ]
+    },
+    {
+      "id": "continuity-retry-one-identity",
+      "given": "An ending commit has already produced an immutable snapshot.",
+      "when": "The same commit is retried and a conflicting ending is attempted.",
+      "expect": [
+        "The retry resolves to the original snapshot identity without duplicating consequences.",
+        "A conflicting ending cannot replace the source ending or rewrite the snapshot.",
+        "No old inventory grant or learning reward is applied again."
+      ]
+    },
+    {
+      "id": "continuity-facts-require-provenance",
+      "given": "The DM mentioned a plausible fact, but only a different fact has a committed discovery event.",
+      "when": "The snapshot is constructed.",
+      "expect": [
+        "Include only server-confirmed facts with originating event and audience scope.",
+        "Exclude narrator conjecture, uncommitted dialogue and unverified clues.",
+        "The next chapter must not treat an NPC's heard claim as a confirmed world fact."
+      ]
+    },
+    {
+      "id": "continuity-npc-knowledge-is-layered",
+      "given": "A placeholder NPC has a heard claim, a belief and separately confirmed knowledge.",
+      "when": "NPC continuity is transferred and later summarized for the player.",
+      "expect": [
+        "Preserve each NPC memory layer separately with its provenance.",
+        "Private belief and private knowledge are excluded from player-visible summaries.",
+        "Relationship history is not overwritten by the latest narration tone."
+      ]
+    },
+    {
+      "id": "continuity-public-projection",
+      "given": "A server-private snapshot contains a hidden thread and an authorized player fact.",
+      "when": "The next chapter requests an opening narration view.",
+      "expect": [
+        "Only authorized facts, visible item ownership and eligible consequence summaries enter the DM's player-facing context.",
+        "Internal ids, hidden threads, NPC private knowledge and future plot are never exposed.",
+        "The narrator cannot infer a solution from the ending reference."
+      ]
+    },
+    {
+      "id": "continuity-learning-preserved-not-rewarded",
+      "given": "The previous world contains one confirmed MATH 1920 learning evidence reference and one assisted unverified answer.",
+      "when": "The next chapter opens.",
+      "expect": [
+        "Carry forward verified evidence by reference and preserve its verification status.",
+        "Do not promote the assisted answer into independent mastery.",
+        "Do not mint a new reward or replay a spent bonus merely because the evidence was carried forward."
+      ]
+    },
+    {
+      "id": "continuity-invalid-origin-fails-closed",
+      "given": "A snapshot request references a stale source world revision or a terminal scene without a matching committed ending lock.",
+      "when": "A new chapter attempts to resume from it.",
+      "expect": [
+        "Reject the snapshot as an authoritative opening state without partial transfer.",
+        "Do not guess a default ending, invent missing facts or expose private diagnostics.",
+        "Return a recoverable server-side error path for the engine owner to handle."
+      ]
+    },
+    {
+      "id": "thread-scene-entry-only",
+      "given": "A placeholder scene declares an unresolved player thread and has an available travel choice.",
+      "when": "The player previews the destination, then commits entry once, then revisits it.",
+      "expect": [
+        "Preview or route listing opens no thread.",
+        "Only committed scene entry opens the declared thread with a source commit reference.",
+        "Revisit and same-commit replay do not duplicate or reopen the thread."
+      ]
+    },
+    {
+      "id": "thread-event-discovery-not-narration",
+      "given": "A private unresolved thread is declared on a discovery event, not the current scene.",
+      "when": "The DM speculates about it, the player fails an inspection, then a matching event successfully commits.",
+      "expect": [
+        "Narration and failed inspection do not open the thread.",
+        "The committed event opens the reference once and records its authoritative origin.",
+        "No hidden description or private thread id is returned in player-facing output."
+      ]
+    },
+    {
+      "id": "thread-resolution-requires-commit",
+      "given": "A previously committed unresolved thread is referenced by an event's resolvesThreads.",
+      "when": "The player discusses a resolution, then commits the resolving event and retries it.",
+      "expect": [
+        "Discussion, draft and uncommitted academic answers leave the thread unresolved.",
+        "Only a successfully committed event resolves the active thread.",
+        "Retry is idempotent and cannot create a second closure or reopen the thread."
+      ]
+    },
+    {
+      "id": "thread-snapshot-filters-local-and-closed",
+      "given": "One eligible unresolved thread, one eligible resolved thread and one local_only unresolved thread have committed origins.",
+      "when": "A valid terminal ending snapshot is created.",
+      "expect": [
+        "Only the eligible still-unresolved thread is included with openedByCommitRef.",
+        "Resolved and local_only threads remain source history but are absent from carryover.",
+        "The snapshot does not invent a missing thread or include a solution or prose."
+      ]
+    },
+    {
+      "id": "thread-audience-projection",
+      "given": "A chapter snapshot retains one player-authorized thread and one server_private thread.",
+      "when": "The next chapter requests player-facing DM context and the private server continuity view.",
+      "expect": [
+        "The player projection includes only the authorized, committed player thread where carryover policy allows.",
+        "The server_private thread remains absent from public context, choices and metadata.",
+        "Neither projection grants a new fact, reward or mastery evidence."
+      ]
+    },
+    {
+      "id": "thread-preflight-invalid-or-unknown",
+      "given": "A synthetic package has a duplicate thread id, invalid audience, missing carryover or resolvesThreads reference to an undeclared id.",
+      "when": "Content preflight runs and a stale content revision is used for snapshot construction.",
+      "expect": [
+        "Invalid declarations and unknown references block import with spoiler-free category/count diagnostics.",
+        "Resolving a not-yet-open thread cannot manufacture a resolved thread state.",
+        "Snapshot with mismatched source revision or missing opening provenance fails closed."
+      ]
+    }
+  ],
+  "integrationNotes": [
+    "The authoring source may keep structured publicOutcome metadata; an adapter may produce a runtime string only after preserving authorization semantics.",
+    "change_npc_relation.value is a string relation band, not a numeric delta.",
+    "The first-world authoring graph has scene choices; choices alone are not proof that the runtime has committed a transition.",
+    "No formal story content, hidden identities, puzzle answers or actual world ids are included.",
+    "Do not mark these cases passed until run against an isolated server with placeholder content.",
+    "Ending semantics and preflight cases are design contracts only; current runtime behavior and test execution are unverified.",
+    "Chapter-opening continuity snapshot cases are proposed narrative acceptance contracts, not a runtime implementation or executed tests.",
+    "Unresolved thread declarations and resolution cases are proposed authoring contracts; no runtime implementation or end-to-end passing claim is made."
+  ],
+  "runtimeShapes": {
+    "chapterOpeningSnapshot": {
+      "snapshotSchemaVersion": 1,
+      "sourceWorldRef": "demo-world",
+      "sourceWorldVersion": 7,
+      "sourceContentRevision": "demo-rev",
+      "endingRef": "ending-demo-a",
+      "endingCommitRef": "demo-terminal-commit",
+      "confirmedFacts": [
+        {
+          "factRef": "demo-confirmed-fact",
+          "originEventRef": "demo-reveal-commit",
+          "discoveringActorRef": "demo-player",
+          "audience": "player"
+        }
+      ],
+      "npcContinuity": [
+        {
+          "npcRef": "demo-npc",
+          "relationBand": "neutral",
+          "relationshipHistoryRefs": [
+            "demo-relation-event"
+          ],
+          "heardClaimRefs": [
+            "demo-claim"
+          ],
+          "beliefRefs": [],
+          "confirmedKnowledgeRefs": [
+            "demo-npc-confirmed-fact"
+          ]
+        }
+      ],
+      "inventory": [
+        {
+          "itemRef": "demo-item",
+          "provenanceEventRef": "demo-grant-commit",
+          "visibility": "player"
+        }
+      ],
+      "openThreads": [
+        {
+          "threadRef": "demo-thread-b",
+          "status": "unresolved",
+          "audience": "server_private",
+          "openedByCommitRef": "demo-thread-discovery-commit"
+        }
+      ],
+      "learningEvidenceRefs": [
+        {
+          "evidenceRef": "demo-learning-event",
+          "conceptRef": "math1920.gradient",
+          "verification": "confirmed"
+        }
+      ],
+      "carryoverPolicyVersion": "demo-policy-1"
+    }
+  }
+}
