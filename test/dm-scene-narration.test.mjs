@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sceneRequest, narrationViolatesSceneContract } from "../src/turn.ts";
+import { sceneRequest, narrationViolatesSceneContract } from "../src/scene-intent.ts";
 const moves=[{sceneId:"s-b",label:"地点1"},{sceneId:"s-c",label:"钟楼街口"}];
 test("observation is read-only exploration",()=>{
   for(const text of ["看看四周","观察周围","环顾一下四周","查看环境"])
