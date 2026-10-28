@@ -1627,6 +1627,7 @@ function renderDungeon(){const w=worldOf(CUR);{const b=S.battle[CUR];if(!QUEST[C
 
 /* ---- 系统课练习：服务端判题，答对才记 verified，整章通过解锁技能 ---- */
 const DGP={v:new Set(),sk:{}};
+async function dgRefresh(){try{const r=await fetch("/api/dungeons",{credentials:"same-origin"});if(!r.ok)return;const j=await r.json();for(const x of (j.dungeons||[])){const w=(SAGA[x.subject]||[]).find(y=>y.id===x.dungeon.id);if(!w||!w.ch||w.ch.length!==x.dungeon.ch.length)continue;x.dungeon.ch.forEach((c,i)=>{Object.assign(w.ch[i],c);w.ch[i].tn=w.ch[i].tn||""});w.fork=x.dungeon.fork;w.hidden=x.dungeon.hidden}for(const k in SG_FLAT)delete SG_FLAT[k]}catch(e){}}
 async function dgpLoad(){try{const r=await fetch("/api/dungeons/progress",{credentials:"same-origin"});if(!r.ok)return;const j=await r.json();DGP.v=new Set((j.verified||[]).map(x=>x.dungeon+"|"+x.ch+"|"+x.challenge));DGP.sk={};(j.skills||[]).forEach(x=>{DGP.sk[x.dungeon+"|"+x.ch]=x})}catch(e){}}
 function renderPractice(){const old=$("#practiceCard");if(old)old.remove();if(!SAGA[CUR])return;const st=sagaNow(CUR);if(st.end||!st.c.practice||!st.c.practice.length)return;
   const d=st.w.id,ci=st.ci,P=st.c.practice,key=x=>d+"|"+ci+"|"+x.id;const cur=P.find(x=>!DGP.v.has(key(x)));const sk=st.c.skill;const got=!!DGP.sk[d+"|"+ci];
@@ -1636,7 +1637,7 @@ function renderPractice(){const old=$("#practiceCard");if(old)old.remove();if(!S
   else{const out=h("div",{class:"small",style:{minHeight:"18px"}});const inp=h("input",{type:"text",placeholder:"你的答案",style:{width:"100%",margin:"6px 0"}});
     const go=async()=>{const a=inp.value.trim();if(!a)return;go_.disabled=true;try{const r=await fetch("/api/dungeons/check",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({dungeon:d,ch:ci,challenge:cur.id,answer:a})});const j=await r.json();
       if(!j.ok){out.textContent="暂时无法核验，请稍后再试。";go_.disabled=false;return}
-      if(j.correct||j.verified){DGP.v.add(key(cur));if(j.chapterDone&&j.skill){DGP.sk[d+"|"+ci]={dungeon:d,ch:ci,skill:j.skill.name,effect:j.skill.effect};toast("技能解锁：【"+j.skill.name+"】")}else toast("答对了");renderPractice()}
+      if(j.correct||j.verified){DGP.v.add(key(cur));if(j.chapterDone&&j.skill){DGP.sk[d+"|"+ci]={dungeon:d,ch:ci,skill:j.skill.name,effect:j.skill.effect};toast("技能解锁：【"+j.skill.name+"】")}else toast("答对了");if(j.chapterDone)await dgRefresh();renderPractice()}
       else{out.textContent="还不对。提示："+(j.hint||"再想一想")+"　（不扣分，可以重试）";go_.disabled=false;inp.select()}}catch(e){out.textContent="网络不通，稍后再试。";go_.disabled=false}};
     const go_=h("button",{class:"btn sm go",onclick:go},"提交");inp.addEventListener("keydown",e=>{if(e.key==="Enter")go()});
     card.append(h("div",null,h("b",null,cur.q)),inp,go_,out)}

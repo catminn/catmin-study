@@ -42,16 +42,34 @@ export function validateDungeon(c: any): string | null {
   }
   return null;
 }
-// 登录后给前端的副本列表：练习题答案只留在服务端。
+// 阶段性授权投影：只有前面各章全部核验通过（无练习的章视为通过）的章节才下发正文；
+// 未到达的章节只保留标题 t/k，s/sb/tn 清空、skill/practice 去掉；fork 在未到达该章时清空文字；hidden 在整副本完成前清空。
+export function projectDungeon(d: any, verified: Set<string>): any {
+  const out = JSON.parse(JSON.stringify(d));
+  let reach = 0; // 可见章数
+  const chDone = (ch: any, ci: number) => { const pr: any[] = ch.practice ?? []; return pr.every((q, i) => verified.has(ci + "|" + (q.id ?? "c" + (i + 1)))); };
+  while (reach < out.ch.length && chDone(d.ch[reach], reach)) reach++;
+  const visible = Math.min(reach + 1, out.ch.length); // 已通过的章 + 当前章
+  const allDone = reach >= out.ch.length;
+  out.ch.forEach((ch: any, ci: number) => {
+    if (ci < visible) { if (ch.practice) ch.practice = ch.practice.map((q: any, i: number) => ({ id: q.id ?? "c" + (i + 1), q: q.q, hint: q.hint })); return; }
+    ch.s = ""; ch.sb = ""; ch.tn = ""; delete ch.skill; delete ch.practice;
+  });
+  if (out.fork && out.fork.ch >= visible) out.fork = { ...out.fork, t: "", q: "", b: "" };
+  if (!allDone) out.hidden = "";
+  return out;
+}
+// 登录后给前端的副本列表：练习题答案只留在服务端；未授权章节不下发。
 export async function listDungeons(env: SiteEnv): Promise<R> {
-  await ensure(env);
+  await ensure(env); await ensureProg(env);
   const rs = await env.DB.prepare("SELECT c.id AS id, c.body AS body FROM adventure_content c JOIN (SELECT id, MAX(rev) AS r FROM adventure_content WHERE kind='dungeon' GROUP BY id) m ON c.kind='dungeon' AND c.id=m.id AND c.rev=m.r ORDER BY c.id").all<{ id: string; body: string }>();
+  const pv = (await env.DB.prepare("SELECT dungeon,ch,challenge FROM dungeon_progress WHERE verified_at IS NOT NULL").all<{ dungeon: string; ch: number; challenge: string }>()).results ?? [];
   const out: any[] = [];
   for (const r of rs.results ?? []) {
     const c = JSON.parse(r.body);
     if (validateDungeon(c)) continue;
-    for (const ch of c.dungeon.ch) if (ch.practice) ch.practice = ch.practice.map((q: any, i: number) => ({ id: q.id ?? "c" + (i + 1), q: q.q, hint: q.hint }));
-    out.push({ subject: c.subject, after: c.after ?? null, dungeon: c.dungeon });
+    const v = new Set(pv.filter((x) => x.dungeon === c.dungeon.id).map((x) => x.ch + "|" + x.challenge));
+    out.push({ subject: c.subject, after: c.after ?? null, dungeon: projectDungeon(c.dungeon, v) });
   }
   return { status: 200, body: { ok: true, dungeons: out } };
 }
@@ -138,6 +156,11 @@ export async function checkDungeon(env: SiteEnv, b: any): Promise<R> {
   const did = String(b?.dungeon ?? ""), ci = Number(b?.ch), cid = String(b?.challenge ?? "");
   const d = await findDungeon(env, did); const ch = d?.ch?.[ci];
   if (!d || !ch || !Number.isInteger(ci)) return bad(404, "unknown_chapter", "没有这一章");
+  if (ci > 0) { // 前面各章必须已全部核验通过（防止绕过阶段授权直接猜后章答案）
+    const vr = (await env.DB.prepare("SELECT ch,challenge FROM dungeon_progress WHERE dungeon=? AND verified_at IS NOT NULL").bind(did).all<{ ch: number; challenge: string }>()).results ?? [];
+    const vs = new Set(vr.map((x) => x.ch + "|" + x.challenge));
+    for (let k = 0; k < ci; k++) if (!((d.ch[k].practice ?? []) as any[]).every((q, i) => vs.has(k + "|" + (q.id ?? "c" + (i + 1))))) return bad(409, "chapter_locked", "前面的章节还没通过");
+  }
   const pr: any[] = ch.practice ?? [];
   const idx = pr.findIndex((q, i) => (q.id ?? "c" + (i + 1)) === cid);
   if (idx < 0) return bad(404, "unknown_challenge", "没有这道题");

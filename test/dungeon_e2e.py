@@ -29,4 +29,22 @@ r=c("p2","3*X^2");ck("alt answer + chapter done + skill",r["correct"] and r["cha
 r=c("p1","999");ck("verified stays",r["verified"] and not r["correct"])
 ck("unknown challenge 404",call("POST","/api/dungeons/check",{"dungeon":"tdx","ch":0,"challenge":"zz","answer":"1"})[0]==404)
 s,r=call("GET","/api/dungeons/progress");ck("progress",len(r["verified"])==2 and len(r["skills"])==1)
+
+# ---- 阶段性授权投影（合成负例）：未解锁章节/隐藏任务/岔路文字不下发 ----
+E={"subject":"math","dungeon":{"id":"tdy","name":"n","desc":"d","mission":"m","rule":"r","pen":"p","hidden":"SENTINEL_HIDDEN","fork":{"ch":1,"t":"SENTINEL_FORK_T","q":"SENTINEL_FORK_Q","b":"SENTINEL_FORK_B","price":1},
+ "ch":[{"t":"t0","k":"k0","s":"SENTINEL_S0","sb":"SENTINEL_SB0","tn":"SENTINEL_TN0","skill":{"name":"A","effect":"EA","id":"a.id"},"practice":[{"id":"q1","q":"Q1","a":"7","hint":"h"}]},
+  {"t":"t1","k":"k1","s":"SENTINEL_S1","sb":"SENTINEL_SB1","tn":"SENTINEL_TN1","skill":{"name":"SENTINEL_SKILL1","effect":"SENTINEL_EFF1"},"practice":[{"id":"q2","q":"SENTINEL_Q2","a":"SENTINEL_ANS2"}]}]}}
+s,r=call("PUT","/api/adventure/content",{"kind":"dungeon","id":"d3","content":E},{"X-Owner-Password":PW});ck("put E",s==200)
+g=lambda:json.dumps(call("GET","/api/dungeons")[1])
+t=g()
+ck("ch0 visible, ch1 body hidden","SENTINEL_S0" in t and "SENTINEL_S1" not in t and "SENTINEL_SB1" not in t and "SENTINEL_TN1" not in t)
+ck("locked ch skill/practice/answer not leaked","SENTINEL_SKILL1" not in t and "SENTINEL_EFF1" not in t and "SENTINEL_Q2" not in t and "SENTINEL_ANS2" not in t and "\"a\": \"7\"" not in t)
+ck("hidden + fork text withheld","SENTINEL_HIDDEN" not in t and "SENTINEL_FORK" not in t)
+ck("check on locked chapter refused (no verify without prior chapter)",call("POST","/api/dungeons/check",{"dungeon":"tdy","ch":1,"challenge":"q2","answer":"SENTINEL_ANS2"})[0]==409)
+r=call("POST","/api/dungeons/check",{"dungeon":"tdy","ch":0,"challenge":"q1","answer":"7"})[1];ck("ch0 done",r["chapterDone"])
+t=g()
+ck("ch1 now visible, answers still hidden","SENTINEL_S1" in t and "SENTINEL_Q2" in t and "SENTINEL_ANS2" not in t and "SENTINEL_FORK_T" in t)
+ck("hidden still withheld until all done","SENTINEL_HIDDEN" not in t)
+r=call("POST","/api/dungeons/check",{"dungeon":"tdy","ch":1,"challenge":"q2","answer":"SENTINEL_ANS2"})[1];ck("ch1 done",r["chapterDone"])
+ck("hidden revealed after completion","SENTINEL_HIDDEN" in g())
 print("fails",fails);sys.exit(1 if fails else 0)
