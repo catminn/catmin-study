@@ -336,6 +336,26 @@ async function dbHandler(req: Request, env: SiteEnv, url: URL) {
   return err("bad_request", "只支持 GET / PUT", 405);
 }
 
+// ---------- 全量导出（只读备份） ----------
+// 导出 study_state 全部键（含版本号、更新时间）和聊天摘要，登录后访问 /api/export 即可下载
+async function exportHandler(env: SiteEnv) {
+  const st = await env.DB.prepare("SELECT key, value, version, updated_at, updated_by FROM study_state ORDER BY key").all<{
+    key: string; value: string; version: number; updated_at: number; updated_by: string | null;
+  }>();
+  const cs = await env.DB.prepare("SELECT * FROM chat_summaries ORDER BY rowid").all();
+  const docs = st.results.map((r) => {
+    let value: unknown = null;
+    try { value = JSON.parse(r.value); } catch { value = { __unparsable: r.value }; }
+    return { key: r.key, version: r.version, updated_at: r.updated_at, updated_by: r.updated_by, value };
+  });
+  const day = new Date().toISOString().slice(0, 10);
+  return json(
+    { format: "zhushen-export-v1", exported_at: new Date().toISOString(), counts: { study_state: docs.length, chat_summaries: cs.results.length }, study_state: docs, chat_summaries: cs.results },
+    200,
+    { "Content-Disposition": `attachment; filename="zhushen-backup-${day}.json"` },
+  );
+}
+
 // ---------- 连接器 ----------
 async function mcpHandler(req: Request, env: SiteEnv) {
   const { server, tool, input } = (await req.json().catch(() => ({}))) as { server?: string; tool?: string; input?: Record<string, unknown> };
@@ -414,6 +434,7 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/ai" && req.method === "POST") return aiHandler(req, env, ctx);
     if (p === "/api/ai/status") return aiStatus(env);
     if (p === "/api/db") return dbHandler(req, env, url);
+    if (p === "/api/export" && req.method === "GET") return exportHandler(env);
     if (p === "/api/google/status") return json(await googleStatus(env));
     if (p === "/api/google/disconnect" && req.method === "POST") {
       await googleDisconnect(env);
