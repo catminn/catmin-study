@@ -52,6 +52,22 @@
         "allowModelToAddNewFacts": false,
         "includePrivateConditionsInPrompt": false
       }
+    },
+    "endingScene": {
+      "kind": "scene",
+      "id": "demo-terminal-a",
+      "ending": {
+        "id": "ending-demo-a",
+        "costNotice": "Continuing closes other routes in this world. Confirm?"
+      },
+      "entryRequirements": {
+        "all": [
+          {
+            "flag": "demo-route-ready",
+            "equals": true
+          }
+        ]
+      }
     }
   },
   "triggerFamilies": [
@@ -139,6 +155,76 @@
         "The runtime must not silently ignore required events and report the package playable.",
         "Diagnostics contain counts/codes, never secret ids or story text."
       ]
+    },
+    {
+      "id": "ending-notice-before-confirm",
+      "given": "A terminal destination has an ending id, public costNotice and satisfied entryRequirements.",
+      "when": "The player inspects or selects that destination but has not separately confirmed.",
+      "expect": [
+        "Show only the truthful public costNotice; do not expose private conditions.",
+        "Do not set ending_locked, move into the terminal scene, or spend resources.",
+        "A generic Continue or a preview must not count as explicit ending consent."
+      ]
+    },
+    {
+      "id": "ending-confirm-session-and-version",
+      "given": "One player saw the costNotice for ending-demo-a in session A at world version V.",
+      "when": "A confirmation arrives from another session, a changed target or a later world version.",
+      "expect": [
+        "Reject the stale or mismatched confirmation without changing world state.",
+        "Allow a new spoiler-free preview and fresh explicit confirmation.",
+        "No hidden flags or private ids appear in the player error."
+      ]
+    },
+    {
+      "id": "ending-gate-all-entry-paths",
+      "given": "A terminal scene has unsatisfied entryRequirements.",
+      "when": "The player attempts direct travel, event advance_scene or repeated commit.",
+      "expect": [
+        "Every path is blocked by server-owned preconditions.",
+        "Narration, ASK and a model-suggested plan cannot bypass the gate.",
+        "The response is in-world and does not expose secret requirement details."
+      ]
+    },
+    {
+      "id": "ending-lock-atomic-and-exclusive",
+      "given": "The player explicitly confirms an eligible terminal route and its event locks ending_locked.",
+      "when": "The commit succeeds, repeats with the same id, then another ending is attempted.",
+      "expect": [
+        "The first commit applies ending effects and lock atomically exactly once.",
+        "Same-id replay returns the original result without duplicate consequence.",
+        "Conflicting ending lock rejects the entire new event with no partial application."
+      ]
+    },
+    {
+      "id": "ending-decline-preserves-learning",
+      "given": "A player has validated MATH 1920 evidence but declines the offered ending.",
+      "when": "They choose to explore, ask questions or pursue another viable route.",
+      "expect": [
+        "Declining the ending changes neither committed world state nor learning evidence.",
+        "The DM continues the story without a forced quiz or automatic ending.",
+        "Later commitment still requires a fresh appropriate notice and explicit confirmation."
+      ]
+    },
+    {
+      "id": "ending-preflight-blocks-unsafe-content",
+      "given": "A placeholder bundle contains a missing costNotice, duplicate ending id, eager scene-entry lock, missing lock event, unsupported entryRequirements or invalid stateEffects.",
+      "when": "Authoring preflight validates the bundle.",
+      "expect": [
+        "Each unsafe category is a blocking error rather than a silent skip.",
+        "Diagnostic output contains only error category and count, not private ids, values or prose.",
+        "A static missing grant path for remove_item is a warning, not automatically a blocking error."
+      ]
+    },
+    {
+      "id": "ending-cost-notice-not-spoiler",
+      "given": "A public costNotice is available before an irreversible choice.",
+      "when": "The DM describes the stakes and the player asks for more detail.",
+      "expect": [
+        "DM explains the known consequence without inventing facts or revealing future plot.",
+        "The player may decline and continue exploring without mutation.",
+        "Math knowledge may support decision-making but never replaces explicit consent."
+      ]
     }
   ],
   "integrationNotes": [
@@ -146,6 +232,7 @@
     "change_npc_relation.value is a string relation band, not a numeric delta.",
     "The first-world authoring graph has scene choices; choices alone are not proof that the runtime has committed a transition.",
     "No formal story content, hidden identities, puzzle answers or actual world ids are included.",
-    "Do not mark these cases passed until run against an isolated server with placeholder content."
+    "Do not mark these cases passed until run against an isolated server with placeholder content.",
+    "Ending semantics and preflight cases are design contracts only; current runtime behavior and test execution are unverified."
   ]
 }
