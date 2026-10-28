@@ -1,0 +1,1 @@
+DM behavior acceptance tests for MATH 1920. ASK and LEARN do not change world state. ACT requires explicit commitment. Academic evaluation is independent of dice. Duplicate learning evidence does not grant multiple rewards. Claude implements; ChatGPT designs gameplay.
