@@ -49,14 +49,21 @@ async function listWorlds(env: SiteEnv): Promise<Pin[]> {
   }
   return out;
 }
+// 同一个 worldId 可能同时有旧版（无前缀）和命名空间版两条世界记录（作者给旧世界记录起了同名 id）：
+// 显式选择/默认世界时优先命名空间版；旧存档靠各自的固定记录，不受影响。
+function pickById(all: Pin[], id: string): Pin | null {
+  const m = all.filter((w) => w.id === id);
+  if (m.length === 1) return m[0];
+  const ns = m.filter((w) => w.ns);
+  return ns.length === 1 && m.length === 2 ? ns[0] : null;
+}
 async function chooseWorld(env: SiteEnv, requested?: string): Promise<Pin | null> {
   const all = await listWorlds(env);
-  if (requested !== undefined) { const m = all.filter((w) => w.id === requested); return m.length === 1 ? m[0] : null; }
+  if (requested !== undefined) { return pickById(all, requested); }
   if (all.length === 1) return all[0];
   // 世界不唯一：只有管理员显式设置了默认世界时，新会话才固定到它；否则失败关闭
   const d = await env.DB.prepare("SELECT value FROM adventure_world_config WHERE key='defaultWorldId'").first<{ value: string }>().catch(() => null);
-  const m = d ? all.filter((w) => w.id === d.value) : [];
-  return m.length === 1 ? m[0] : null;
+  return d ? pickById(all, d.value) : null;
 }
 const sstore = (pin: Pin, local: string) => (pin.ns ? pin.id + ":" + local : local);
 async function writePin(env: SiteEnv, sid: string, w: Pin): Promise<void> {
@@ -75,7 +82,9 @@ async function pinFor(env: SiteEnv, sid: string): Promise<Pin | null> {
     if (!(await env.DB.prepare("SELECT 1 FROM adventure_world_pin_rev WHERE session_id=? LIMIT 1").bind(sid).first())) await writePin(env, sid, r);
     return r;
   }
-  const u = await chooseWorld(env); // 旧会话/未显式选择：只有世界唯一时才固定，否则失败关闭
+  // 已有世界状态但没有固定记录 = 旧存档：只能固定到唯一的旧版世界，绝不套用默认的新世界
+  const hasState = await env.DB.prepare("SELECT 1 FROM adventure_world WHERE session_id=?").bind(sid).first();
+  const u = hasState ? ((l) => (l.length === 1 ? l[0] : null))((await listWorlds(env)).filter((w) => !w.ns)) : await chooseWorld(env); // 旧会话/未显式选择：只有世界唯一时才固定，否则失败关闭
   if (!u) return null;
   await writePin(env, sid, u);
   return (await env.DB.prepare("SELECT world_id AS id, world_rev AS rev, ns FROM adventure_world_pin WHERE session_id=?").bind(sid).first<Pin>()) ?? null;
@@ -105,7 +114,7 @@ export async function setDefaultWorld(env: SiteEnv, b: any): Promise<{ status: n
   await ensure(env);
   if (!b || !("worldId" in b)) return { status: 400, body: { ok: false, error: "bad_request" } };
   if (b.worldId === null) { await env.DB.prepare("DELETE FROM adventure_world_config WHERE key='defaultWorldId'").run(); return getDefaultWorld(env); }
-  if (typeof b.worldId !== "string" || (await listWorlds(env)).filter((w) => w.id === b.worldId).length !== 1) return { status: 404, body: { ok: false, error: "unknown_world" } };
+  if (typeof b.worldId !== "string" || !pickById(await listWorlds(env), b.worldId)) return { status: 404, body: { ok: false, error: "unknown_world" } };
   await env.DB.prepare("INSERT INTO adventure_world_config (key,value) VALUES ('defaultWorldId',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(b.worldId).run();
   return getDefaultWorld(env);
 }

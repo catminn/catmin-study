@@ -58,4 +58,13 @@ a = subprocess.run(["python3", "scripts/import-bundle.py", "--world-status"], ca
 b2 = subprocess.run(["python3", "scripts/import-bundle.py", "--set-default", "world01"], capture_output=True, text=True, env=ENV)
 c3 = subprocess.run(["python3", "scripts/import-bundle.py", "--pin-legacy"], capture_output=True, text=True, env=ENV)
 check("X17 脚本管理命令：世界状态/设默认/固定预演可用", a.returncode == 0 and b2.returncode == 0 and "world01" in b2.stdout and c3.returncode == 0 and "dryRun" in c3.stdout, [a.stdout, b2.stdout, c3.stdout, a.stderr[-200:]])
+# 同名世界：旧世界记录 id 恰好也叫 world01（真实线上就是这样）
+lw = next(x for x in json.load(open(LEG))["records"] if x["kind"] == "world")
+pr = admin("put", "/api/adventure/content", {"kind": "world", "id": "world01", "content": lw["content"]})
+dw2 = admin("put", "/api/adventure/admin/default-world", {"worldId": "world01"})
+check("X18 旧世界与命名空间世界同名 world01：设默认世界成功（优先命名空间版）", pr.status_code == 200 and dw2.status_code == 200 and dw2.json().get("defaultWorldId") == "world01", [pr.status_code, dw2.status_code, dw2.text[:200]])
+start("NEWC")
+check("X19 同名时新会话固定到命名空间版", world("NEWC").get("publicText") == "PH-PA-NS", world("NEWC"))
+sql("DELETE FROM adventure_world_pin WHERE session_id='OLD2'; DELETE FROM adventure_world_pin_rev WHERE session_id='OLD2';")
+check("X20 有世界状态却没有固定记录的旧存档：绝不套用默认的新世界（旧版世界不唯一时失败关闭）", world("OLD2").get("publicText") != "PH-PA-NS", world("OLD2"))
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)
