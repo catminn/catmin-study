@@ -5,6 +5,7 @@
 // - /api/mcp：共享记忆工具直接在这里执行；Google 日历/Drive 见 google.ts（只读，需要在页面上点一次「连接 Google」）
 import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
+import { getSession, postAction, sessionOp } from "./adventure";
 import { getBalance, listEvents, postEvent, postReward } from "./events";
 import { GErr, finishAuth, googleDisconnect, googleStatus, googleTool, startAuth } from "./google";
 
@@ -440,6 +441,9 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/events" && req.method === "POST") return asJson(await postEvent(env, await req.json().catch(() => null)));
     if (p === "/api/events" && req.method === "GET") return asJson(await listEvents(env, url));
     if (p === "/api/rewards" && req.method === "POST") return asJson(await postReward(env, await req.json().catch(() => null)));
+    if (p === "/api/adventure/action" && req.method === "POST") return asJson(await postAction(env, await req.json().catch(() => null)));
+    if (p === "/api/adventure/session" && req.method === "POST") return asJson(await sessionOp(env, await req.json().catch(() => null)));
+    if (p === "/api/adventure/session" && req.method === "GET") return asJson(await getSession(env, url.searchParams.get("id") || ""));
     if (p === "/api/rewards/balance" && req.method === "GET") return asJson(await getBalance(env));
     if (p === "/api/google/status") return json(await googleStatus(env));
     if (p === "/api/google/disconnect" && req.method === "POST") {
