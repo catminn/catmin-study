@@ -214,10 +214,17 @@ export async function commitWorldChoice(env: SiteEnv, input: any): Promise<{stat
   }
   // Compare-and-swap on the world version prevents applying an obsolete scene choice.
   // Commit the choice and scene move together in one D1 batch.
-  const stmts = [
-    env.DB.prepare("INSERT OR IGNORE INTO adventure_world_choices (session_id,action_id,kind,choice_id,npc_id) VALUES (?,?,?,?,?)").bind(sid,actionId,kind,choiceId,kind==="dialogue"?npcId:null),
-  ];
-  if (kind === "scene") stmts.push(env.DB.prepare("UPDATE adventure_world SET scene_id=?,version=version+1 WHERE session_id=? AND scene_id=? AND version=?").bind(choiceId,sid,st.scene,st.version));
+  // A guarded INSERT records the choice only if the scene/version is still current.
+  // D1 batch executes both statements atomically; changes() suppresses a move if
+  // a competing request already claimed the action id or changed the scene.
+  const stmts = kind === "scene"
+    ? [
+      env.DB.prepare("INSERT OR IGNORE INTO adventure_world_choices (session_id,action_id,kind,choice_id,npc_id) SELECT ?,?,?,?,NULL FROM adventure_world WHERE session_id=? AND scene_id=? AND version=?").bind(sid,actionId,kind,choiceId,sid,st.scene,st.version),
+      env.DB.prepare("UPDATE adventure_world SET scene_id=?,version=version+1 WHERE session_id=? AND scene_id=? AND version=? AND changes()=1").bind(choiceId,sid,st.scene,st.version),
+    ]
+    : [
+      env.DB.prepare("INSERT OR IGNORE INTO adventure_world_choices (session_id,action_id,kind,choice_id,npc_id) VALUES (?,?,?,?,?)").bind(sid,actionId,kind,choiceId,npcId),
+    ];
   const result = await env.DB.batch(stmts);
   if (result[0].meta.changes !== 1 || (kind === "scene" && result[1].meta.changes !== 1))
     return {status:409,body:{ok:false,error:"choice_race_retry"}};
