@@ -6,6 +6,7 @@
 import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
 import { handleTurn } from "./turn";
+import { putContent, listContent } from "./content";
 import { getSession, postAction, sessionOp } from "./adventure";
 import { getBalance, listEvents, postEvent, postReward } from "./events";
 import { GErr, finishAuth, googleDisconnect, googleStatus, googleTool, startAuth } from "./google";
@@ -482,6 +483,8 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/adventure/action" && req.method === "POST") return asJson(await postAction(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/session" && req.method === "POST") return asJson(await sessionOp(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/session" && req.method === "GET") return asJson(await getSession(env, url.searchParams.get("id") || ""));
+    if (p === "/api/adventure/content" && req.method === "PUT") return asJson(await putContent(env, await req.json().catch(() => null)));
+    if (p === "/api/adventure/content" && req.method === "GET") return asJson(await listContent(env, url));
     if (p === "/api/rewards/balance" && req.method === "GET") return asJson(await getBalance(env));
     if (p === "/api/google/status") return json(await googleStatus(env));
     if (p === "/api/google/disconnect" && req.method === "POST") {
