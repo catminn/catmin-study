@@ -77,6 +77,7 @@ function render(o){
   if(o.uncertainty)tag(m,"不确定，未提交行动","warn");if(o.detail)tag(m,"诊断："+o.detail.slice(0,160));
   if(o.visibleFeedback&&o.narration)tag(m,o.visibleFeedback);
   if(m.childNodes.length)d.append(m);
+  if(o.scene&&o.scene.publicText)bubble("【场景】"+o.scene.publicText,"",true);
   if(o.learningSessionDelta)bar(o.learningSessionDelta)}
 async function send(text){
   if(busy||!text.trim())return;busy=true;$("#send").disabled=true;bubble(text,"me");
@@ -90,7 +91,9 @@ async function send(text){
 $("#f").addEventListener("submit",e=>{e.preventDefault();const v=$("#t").value;$("#t").value="";send(v)});
 $("#t").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){e.preventDefault();$("#f").requestSubmit()}});
 document.querySelectorAll(".quick button").forEach(b=>b.onclick=()=>send(b.dataset.t));
-refresh();
+async function intro(){try{const r=await api("/api/adventure/world?id="+encodeURIComponent(SID));const j=r.j;if(!j||!j.active)return;
+  if(j.opening)bubble(j.opening,"",true);if(j.publicText)bubble(j.publicText,"",true);(j.entered||[]).forEach(x=>bubble(x,"",true));if((j.options||[]).length)bubble("可以前往："+j.options.join("、"),"")}catch(e){}}
+refresh().then(intro);
 </script>
 </body>
 </html>

@@ -36,12 +36,15 @@ function ensureSchema(env: SiteEnv) {
 export const CONCEPTS = ["math1920.derivative-basics", "math1920.partial-derivative", "math1920.gradient", "math1920.directional-derivative", "math1920.chain-rule-multivariable"];
 type Req = { conceptId: string; application: string; effectType: "one-knowledge-bonus" };
 const R = (conceptId: string, application: string): Req[] => [{ conceptId, application, effectType: "one-knowledge-bonus" }];
+// 内容包里的旧模板名 → 引擎模板名（仅用于世界事件匹配）
+export const ACTION_ALIASES: Record<string, string> = { "apply-gradient-method": "determine-local-steepest-ascent" };
 export const ACTIONS: Record<string, { requiredConcepts: Req[] }> = {
   "apply-derivative-method": { requiredConcepts: R("math1920.derivative-basics", "compute-rate-by-differentiating") },
   "estimate-change-in-one-variable": { requiredConcepts: R("math1920.partial-derivative", "estimate-change-in-one-variable") },
   "determine-local-steepest-ascent": { requiredConcepts: R("math1920.gradient", "determine-local-steepest-ascent") },
   "predict-change-along-chosen-direction": { requiredConcepts: R("math1920.directional-derivative", "predict-change-along-chosen-direction") },
   "derive-rate-along-parametric-path": { requiredConcepts: R("math1920.chain-rule-multivariable", "derive-rate-along-parametric-path") },
+  "propose-safety-plan": { requiredConcepts: [] }, // 非数学行动（内容包里的行动模板），不吃数学加成
   "plain-action": { requiredConcepts: [] }, // 例如纯体力行动，任何数学证据都不能加成
 };
 

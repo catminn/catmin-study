@@ -8,6 +8,7 @@ import { TOOL_MAP } from "./tools";
 import { handleTurn } from "./turn";
 import { commitChoice, commitTravel } from "./world";
 import { putContent, listContent } from "./content";
+import { publicSceneInfo } from "./world";
 import { getSession, postAction, sessionOp } from "./adventure";
 import { getBalance, listEvents, postEvent, postReward } from "./events";
 import { GErr, finishAuth, googleDisconnect, googleStatus, googleTool, startAuth } from "./google";
@@ -486,6 +487,7 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/adventure/action" && req.method === "POST") return asJson(await postAction(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/session" && req.method === "POST") return asJson(await sessionOp(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/session" && req.method === "GET") return asJson(await getSession(env, url.searchParams.get("id") || ""));
+    if (p === "/api/adventure/world" && req.method === "GET") return json(await publicSceneInfo(env, url.searchParams.get("id") || ""));
     if (p === "/api/adventure/content") {
       // 内容库管理员通道：登录会话还不够，必须在请求头再带一次主口令（X-Owner-Password）；失败 5 次锁 15 分钟。
       const ip = req.headers.get("CF-Connecting-IP") ?? "local";
