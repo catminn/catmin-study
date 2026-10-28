@@ -318,3 +318,55 @@ async function applyChained(env: SiteEnv, sid: string, actionId: string, t: Pend
 }
 export const commitTravel = (env: SiteEnv, body: unknown) => commitOp(env, body, "travel");
 export const commitChoice = (env: SiteEnv, body: unknown) => commitOp(env, body, "choice");
+
+export async function availableChoices(env: SiteEnv, sid: string): Promise<{ choiceId: string; npcId: string }[]> {
+  const st = await ensureState(env, sid);
+  if (!st) return [];
+  const out: { choiceId: string; npcId: string }[] = [];
+  for (const ev of await allEvents(env)) {
+    const t = ev.c.trigger ?? {};
+    if (t.type !== "dialogue_choice_committed" || typeof t.choiceId !== "string" || typeof t.npcId !== "string") continue;
+    const row = await env.DB.prepare("SELECT location FROM adventure_world_npc WHERE session_id=? AND npc_id=?").bind(sid, t.npcId).first<{ location: string | null }>();
+    let loc = row?.location ?? null;
+    if (!loc) loc = (await readContentInternal(env, "npc", t.npcId).catch(() => null))?.content?.initial?.locationId ?? null;
+    if (loc === st.scene && !out.some((o) => o.choiceId === t.choiceId && o.npcId === t.npcId)) out.push({ choiceId: t.choiceId, npcId: t.npcId });
+  }
+  return out;
+}
+
+// 玩家可见的场景信息：只给 publicText（以及世界开场白，仅在会话刚开始时）。
+export async function publicSceneInfo(env: SiteEnv, sid: string): Promise<{ active: boolean; opening?: string; publicText?: string; entered?: string[]; options?: string[] }> {
+  const st = await ensureState(env, sid);
+  if (!st) return { active: false };
+  const entered = (await worldIntro(env, sid).catch(() => [])).map((e) => e.publicOutcome);
+  const options = (await availableMoves(env, sid).catch(() => [])).map((m) => m.label);
+  const sc = await sceneContent(env, st.scene);
+  const w = st.version === 0 ? await findWorld(env) : null;
+  return { active: true, entered, options, opening: typeof w?.public_opening === "string" ? w.public_opening : undefined, publicText: typeof sc?.publicText === "string" ? sc.publicText : undefined };
+}
+
+// 可前往的场景：当前场景 content.choices 里的目的地。玩家可见的标签优先用当前场景的 choiceLabels[目的地]，其次目的地场景的 role。
+export async function availableMoves(env: SiteEnv, sid: string): Promise<{ sceneId: string; label: string }[]> {
+  const st = await ensureState(env, sid);
+  if (!st) return [];
+  const sc = await sceneContent(env, st.scene);
+  if (!sc || !Array.isArray(sc.choices)) return [];
+  const out: { sceneId: string; label: string }[] = [];
+  for (const id of sc.choices) {
+    const dest = await sceneContent(env, id);
+    if (!dest) continue;
+    const label = (sc.choiceLabels && typeof sc.choiceLabels[id] === "string" && sc.choiceLabels[id]) || (typeof dest.role === "string" && dest.role) || "下一个地点";
+    out.push({ sceneId: id, label });
+  }
+  return out;
+}
+
+// 移动：校验目的地在当前场景的 choices 里，更新场景并触发 scene_entered 事件链。幂等按 actionId。
+
+// 开场：会话第一次进入世界时触发起始场景的 scene_entered 事件（幂等），返回它们的公开结果。
+export async function worldIntro(env: SiteEnv, sid: string): Promise<PublicEvent[]> {
+  const st = await ensureState(env, sid);
+  if (!st || st.version !== 0) return st ? await replayPublicOutcomes(env, sid, "init") : [];
+  await applyTrigger(env, sid, { type: "scene_entered", actionId: "init" });
+  return replayPublicOutcomes(env, sid, "init");
+}
