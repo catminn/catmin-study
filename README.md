@@ -64,3 +64,12 @@
 - 代码在 `src/google.ts`，工具名和 claude.ai 连接器一致（Google Calendar.list_events；Google Drive.search_files / list_recent_files / read_file_content），页面不用改。
 - PDF / Word / 图片通过 Workers AI 的 `toMarkdown` 转成文字（线上行为未在本地验证，本地测试用的是假实现）。
 - 测试：`npx wrangler dev -c test/wrangler.site.jsonc --port 8800`，另开终端运行 `python3 test/google_e2e.py`。
+
+## 学习事件与奖励（新引擎用，只追加、幂等）
+
+- `POST /api/events`：提交学习事件（字段见 `src/events.ts`，出处是 docs/rules-spec-v1.md）。同 id 同内容返回 `inserted:false`，同 id 不同内容返回 409，多余字段会被拒绝。
+- `POST /api/rewards`：来源事件必须存在且 `verification=confirmed`；一个来源事件最多发一次奖励；单次 0–10000 分。
+- `GET /api/rewards/balance`、`GET /api/events?topic=&limit=`。
+- `GET /api/export`：登录后下载全部存档（study_state 全部键、聊天摘要）。D1 自带 7 天（付费 30 天）自动恢复点。
+- 表在第一次请求时自动创建（`migrations/0002_events.sql` 同内容），不需要手动迁移。这些表和旧的 `state` 文档完全独立。
+- 测试：`python3 test/events_e2e.py`（先启动本地 wrangler dev，并对本地库执行 0001 迁移）。

@@ -5,6 +5,7 @@
 // - /api/mcp：共享记忆工具直接在这里执行；Google 日历/Drive 见 google.ts（只读，需要在页面上点一次「连接 Google」）
 import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
+import { getBalance, listEvents, postEvent, postReward } from "./events";
 import { GErr, finishAuth, googleDisconnect, googleStatus, googleTool, startAuth } from "./google";
 
 export type SiteEnv = Env & {
@@ -38,6 +39,7 @@ const TIER_DEFAULT: Record<string, Record<string, string>> = {
 // ---------- 工具 ----------
 const json = (o: unknown, status = 200, headers: HeadersInit = {}) =>
   new Response(JSON.stringify(o), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers } });
+const asJson = (r: { status: number; body: unknown }) => json(r.body, r.status);
 const err = (code: string, message: string, status = 400) => json({ code, message }, status);
 
 async function hmac(key: string, data: string) {
@@ -435,6 +437,10 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/ai/status") return aiStatus(env);
     if (p === "/api/db") return dbHandler(req, env, url);
     if (p === "/api/export" && req.method === "GET") return exportHandler(env);
+    if (p === "/api/events" && req.method === "POST") return asJson(await postEvent(env, await req.json().catch(() => null)));
+    if (p === "/api/events" && req.method === "GET") return asJson(await listEvents(env, url));
+    if (p === "/api/rewards" && req.method === "POST") return asJson(await postReward(env, await req.json().catch(() => null)));
+    if (p === "/api/rewards/balance" && req.method === "GET") return asJson(await getBalance(env));
     if (p === "/api/google/status") return json(await googleStatus(env));
     if (p === "/api/google/disconnect" && req.method === "POST") {
       await googleDisconnect(env);
