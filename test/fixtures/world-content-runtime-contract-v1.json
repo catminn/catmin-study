@@ -1,0 +1,151 @@
+{
+  "schema": "world-content-runtime-contract-v1",
+  "purpose": "Spoiler-free authoring-to-engine acceptance cases. Placeholder ids and text only. This is a contract, not evidence of runtime passing.",
+  "ownership": {
+    "narrativeAuthoring": "ChatGPT",
+    "engineAndTests": "Claude"
+  },
+  "authoringShapes": {
+    "world": {
+      "kind": "world",
+      "id": "demo-world",
+      "startSceneId": "demo-entry"
+    },
+    "event": {
+      "kind": "event",
+      "id": "demo-event",
+      "trigger": {
+        "type": "action_resolved",
+        "actionTemplateId": "demo-action",
+        "outcome": "success"
+      },
+      "preconditions": [
+        {
+          "flag": "demo-allowed",
+          "equals": true
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "target": "demo-complete",
+          "value": true
+        }
+      ],
+      "revealsFacts": [
+        "demo-confirmed-fact"
+      ],
+      "repeatPolicy": "once_per_world",
+      "visibility": "server_private",
+      "publicOutcome": {
+        "text": "The confirmed action changes the visible situation.",
+        "availableOnlyAfter": {
+          "committedEventId": "demo-event"
+        },
+        "authorizedFactIds": [
+          "demo-confirmed-fact"
+        ],
+        "authorizedEffectTargets": [
+          "demo-complete"
+        ],
+        "allowModelToParaphrase": true,
+        "allowModelToAddNewFacts": false,
+        "includePrivateConditionsInPrompt": false
+      }
+    }
+  },
+  "triggerFamilies": [
+    "scene_entered",
+    "action_resolved",
+    "fact_discovered",
+    "dialogue_choice_committed",
+    "world_flag_changed"
+  ],
+  "effectsAllowlist": [
+    "set_flag",
+    "advance_scene",
+    "set_npc_location",
+    "change_npc_relation",
+    "grant_item",
+    "remove_item",
+    "record_fact_discovery"
+  ],
+  "tests": [
+    {
+      "id": "world-start-resolved",
+      "given": "A world has startSceneId pointing to an existing scene.",
+      "when": "A new isolated session is initialized.",
+      "expect": [
+        "Server selects the declared starting scene, not a model guess.",
+        "Only authorized public scene text is exposed."
+      ]
+    },
+    {
+      "id": "outcome-object-gated",
+      "given": "An event stores publicOutcome as an object with text and authorization metadata.",
+      "when": "The event is not committed, then is committed once.",
+      "expect": [
+        "Before commit, neither text nor hidden condition is exposed.",
+        "After commit, only authorized text/facts are available to player narration.",
+        "The player response never includes private conditions, effect targets or internal identifiers."
+      ]
+    },
+    {
+      "id": "dialogue-commit-not-draft",
+      "given": "A placeholder event uses dialogue_choice_committed with choiceId and npcId.",
+      "when": "Player discusses a choice, then explicitly commits it.",
+      "expect": [
+        "Discussion and ASK do not mutate NPC relationship.",
+        "Only a real committed choice can trigger the event.",
+        "Replayed commit does not apply relationship twice."
+      ]
+    },
+    {
+      "id": "flag-trigger-and-cycle-guard",
+      "given": "A set_flag effect causes a world_flag_changed event.",
+      "when": "The source action commits.",
+      "expect": [
+        "Dependent flag event is evaluated only after the first change is committed.",
+        "The same source cannot generate infinite flag-trigger recursion.",
+        "A repeated action id cannot duplicate the public result."
+      ]
+    },
+    {
+      "id": "navigation-committed-only",
+      "given": "Scene choices list a valid next scene and an event listens for scene_entered.",
+      "when": "Player previews a route, then commits the selected route.",
+      "expect": [
+        "Listing choices does not advance scene.",
+        "A committed, validated transition advances once.",
+        "The destination scene_entered event fires once after transition."
+      ]
+    },
+    {
+      "id": "fact-reveal-is-authoritative",
+      "given": "An event lists revealsFacts and publicOutcome.authorizedFactIds.",
+      "when": "Narrator mentions a fact before commit, then the server commits an authorized reveal.",
+      "expect": [
+        "Narrator text alone never grants a fact.",
+        "Only the server-confirmed reveal updates player-known facts.",
+        "No unrelated or future fact is included in the public result."
+      ]
+    },
+    {
+      "id": "unsupported-contract-fails-closed",
+      "given": "A content package uses a trigger, effect, or outcome shape not supported by the runtime.",
+      "when": "A preflight compatibility check runs.",
+      "expect": [
+        "Import is rejected or explicitly blocked with a non-spoiler diagnostic.",
+        "The runtime must not silently ignore required events and report the package playable.",
+        "Diagnostics contain counts/codes, never secret ids or story text."
+      ]
+    }
+  ],
+  "integrationNotes": [
+    "The authoring source may keep structured publicOutcome metadata; an adapter may produce a runtime string only after preserving authorization semantics.",
+    "change_npc_relation.value is a string relation band, not a numeric delta.",
+    "The first-world authoring graph has scene choices; choices alone are not proof that the runtime has committed a transition.",
+    "No formal story content, hidden identities, puzzle answers or actual world ids are included.",
+    "Do not mark these cases passed until run against an isolated server with placeholder content."
+  ]
+}
