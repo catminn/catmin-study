@@ -6,7 +6,7 @@ import { sceneRequest, narrationViolatesSceneContract } from "./scene-intent";
 import { applyTrigger, availableChoices, availableMoves, commitChoice, commitTravel, pendingEndingNotice, publicSceneInfo, replayPublicOutcomes, type PublicEvent } from "./world";
 import { ACTIONS, CONCEPTS, CONFIG, postAction } from "./adventure";
 import { postEvent } from "./events";
-import { learningOffer } from "./learning";
+import { extraConcepts, learningOffer } from "./learning";
 import { readContentInternal } from "./content";
 
 export const ROUTING = {
@@ -92,7 +92,7 @@ export interface Classification {
   quiet: "on" | "off" | "none";
   evaluation: null | { correctness: string; reasoning: string; assistance: string };
 }
-export function validateClassification(x: unknown): { ok: true; value: Classification } | { ok: false; why: string } {
+export function validateClassification(x: unknown, extraConcepts: string[] = []): { ok: true; value: Classification } | { ok: false; why: string } {
   if (!isObj(x)) return { ok: false, why: "不是对象" };
   // 对模型的小偏差宽容：未知意图丢掉（如 MIXED），拿不到任何有效意图时按 EXPLORE 处理；缺少 explicitCommit 当作 false（更安全）
   const rawIt = Array.isArray(x.intents) ? x.intents : typeof x.intents === "string" ? [x.intents] : null;
@@ -115,7 +115,7 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
   if (q !== "on" && q !== "off" && q !== "none") return { ok: false, why: "quiet 不合法" };
   const pi = x.planIndex === undefined || x.planIndex === null ? null : x.planIndex;
   if (pi !== null && !(Number.isInteger(pi) && (pi as number) >= 1 && (pi as number) <= 9)) return { ok: false, why: "planIndex 不合法" };
-  const cid = x.conceptId === undefined || x.conceptId === null || !CONCEPTS.includes(x.conceptId as string) ? null : (x.conceptId as string);
+  const cid = x.conceptId === undefined || x.conceptId === null || !(CONCEPTS.includes(x.conceptId as string) || extraConcepts.includes(x.conceptId as string)) ? null : (x.conceptId as string);
   const at = typeof x.actionId === "string" && ACTIONS[x.actionId] ? x.actionId : "plain-action";
   let ev: Classification["evaluation"] = null;
   if (x.evaluation !== null && x.evaluation !== undefined) {
@@ -126,7 +126,7 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
   return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, resumeTarget: rt as Classification["resumeTarget"], pauseStory: pause, insightKey: ik as string | null, planRef: pr, planIndex: pi as number | null, tutorSolution: x.tutorSolution === true, newTask: x.newTask === true, moveTo: typeof x.moveTo === "string" && /^[a-z0-9][a-z0-9_.-]{0,79}$/.test(x.moveTo) ? x.moveTo : null, choiceId: typeof x.choiceId === "string" && /^[a-z0-9][a-z0-9_.-]{0,79}$/.test(x.choiceId) ? x.choiceId : null, conceptId: cid, actionTemplate: at, quiet: q as Classification["quiet"], evaluation: ev } };
 }
 
-const CLASSIFY_PROMPT = (input: string, paused: boolean, ctx: string, choices: string[] = [], moves: string[] = []) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
+const CLASSIFY_PROMPT = (input: string, paused: boolean, ctx: string, choices: string[] = [], moves: string[] = [], extra: { id: string; title: string }[] = []) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
 玩家输入：${input}
 当前故事${paused ? "已暂停（玩家在刷题）" : "进行中"}。
 ${ctx}
@@ -141,7 +141,7 @@ ${ctx}
 - insightKey：这次解答用到的核心思路的稳定短标识（小写英文数字和连字符，如 expand-then-differentiate）；同一个思路换说法重复出现必须用同一个标识，没有评估时为 null；
 - planRef：玩家要执行行动时，指令本身是否把行动说清楚了。"inline"=指令自己说明了要做什么；"previous"=指代之前商量/草拟过的方案（如“刚才那个”）；"none"=不涉及执行。指代不清也写 "previous"；
 - planIndex：玩家点名方案序号时（“方案 A/第二个/B”分别对应 1/2…），填整数 1–9；否则 null；
-- conceptId：这次数学解答主要用到的知识点，只能是 math1920.derivative-basics（一元求导）、math1920.partial-derivative（偏导数）、math1920.gradient（梯度）、math1920.directional-derivative（方向导数）、math1920.chain-rule-multivariable（多元链式法则）之一，不确定或没有解答时 null；
+- conceptId：这次数学解答主要用到的知识点，只能是 math1920.derivative-basics（一元求导）、math1920.partial-derivative（偏导数）、math1920.gradient（梯度）、math1920.directional-derivative（方向导数）、math1920.chain-rule-multivariable（多元链式法则）${extra.length ? "，或下面这些已选课程的知识点：" + extra.map((c) => c.id + "（" + c.title + "）").join("、") : ""}之一，不确定或没有解答时 null；
 - actionId：玩家要执行的行动属于哪种：apply-derivative-method（用求导方法）、determine-local-steepest-ascent（用梯度找局部最陡上升方向，也包括“应用梯度方法”）、estimate-change-in-one-variable（估计单变量变化，偏导）、predict-change-along-chosen-direction（预测沿选定方向的变化，方向导数）、derive-rate-along-parametric-path（沿参数路径求变化率，多元链式法则）、propose-safety-plan（提出安全方案/计划并要求执行，与数学无关）、plain-action（与数学无关的普通行动或说不清）；
 - choiceId：${choices.length ? "玩家明确要做下面某个对话选择时填它的 id，否则 null。可选：" + choices.join("、") : "没有可选的对话选择，一律 null"}；
 - moveTo：${moves.length ? "玩家说“前往/去/走向”某处（可用标签文字、或“地点N/第N个”指代）时填它的 id，否则 null。可选（id=玩家看到的标签）：" + moves.join("、") : "没有可前往的地点，一律 null"}；
@@ -261,13 +261,14 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   const ctx = await recentContext(env, sessionId);
   const choiceList = await availableChoices(env, sessionId).catch(() => []);
   const moveList = await availableMoves(env, sessionId).catch(() => []);
+  const extra = await extraConcepts(env).catch(() => []);
   let cls: Classification | null = null;
   let why = "";
   let raw = "";
   try {
     for (let attempt = 0; attempt < 3 && !cls; attempt++) {
-      raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused", ctx, choiceList.map((c) => c.choiceId), moveList.map((m, i) => m.sceneId + "=" + m.label + "（第" + (i + 1) + "个）")), [1500, 3000, 3000][attempt]);
-      const v = validateClassification(parseJson(raw));
+      raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused", ctx, choiceList.map((c) => c.choiceId), moveList.map((m, i) => m.sceneId + "=" + m.label + "（第" + (i + 1) + "个）"), extra), [1500, 3000, 3000][attempt]);
+      const v = validateClassification(parseJson(raw), extra.map((c) => c.id));
       if (v.ok) cls = v.value;
       else why = v.why;
     }
@@ -462,8 +463,14 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   const sceneInfo = sess.status === "active" ? await publicSceneInfo(env, sessionId).catch(() => ({ active: false } as { active: boolean; publicText?: string })) : { active: false } as { active: boolean; publicText?: string };
   const sceneFact = sceneInfo.publicText ? "（玩家当前所在场景的公开描述。玩家观察、张望、探索、问周围有什么，或说“继续”而没有待办数学内容时，直接据此沉浸式描写，不要超出它，不要编造它没写的隐藏事实或人物身份；这是静态环境，不需要任何“提交”。" + sceneInfo.publicText + "）" : "";
   const endingFact = endingNotice ? "（玩家想走向一个不可逆的转折。服务器要求先告知代价：请把下面这段话原样融入叙述，不要改变含义、不要添加新事实：「" + endingNotice + "」。然后告诉玩家：如果确定，请回复“确认进入结局”；在那之前什么都没有发生，也可以继续做别的。）" : "";
+  // 可选学习提示：只来自当前场景作者声明的公开线索，不改世界、不强制；失败一律不影响回合
+  let offer = null as Awaited<ReturnType<typeof learningOffer>>;
+  if (sceneInfo.active && !endingNotice) {
+    try { const st = await env.DB.prepare("SELECT scene_id FROM adventure_world WHERE session_id=?").bind(sessionId).first<{ scene_id: string }>(); const sc = st ? (await readContentInternal(env, "scene", st.scene_id))?.content : null; offer = await learningOffer(env, sessionId, sc, { requestedLearning: intents.includes("LEARN"), quiet }); } catch { offer = null; }
+  }
+  const offerHint = offer ? "（可选，绝不强迫：当前场景里有一个自然的数学联系，作者给的话是「" + offer.prompt + "」。只有叙述自然时，才用一句话从场景线索带出这个联系；不要出题、不要要求玩家回答、不要因此阻止探索或推进；玩家可以完全忽略，忽略就当没提。）" : "";
   const facts = endingFact + sceneFact + (commit ? `已提交的事实（只能叙述这些）：判定${commit.success ? "成功" : "失败"}（骰点${commit.roll}+知识加成${commit.bonus}，对 DC${commit.dc}）。${worldEvents.length ? "服务器确认的世界结果（只能据此叙述，可以润色措辞，但不能增加新事实）：" + worldEvents.map((w) => w.publicOutcome).join(" / ") + "。除此之外不要编造别的变化。" : "具体的环境变化、后果和故事推进服务器还没有给出，所以只能说“判定成功/失败，具体后果尚未确定”这类话；绝不能编造门打开、敌人退走、场景切换、目标达成或时间流逝。允许一句不带新事实的过渡，如“你按计划尝试，检定成功”。"}` : moved && !worldEvents.length ? "玩家移动到了新的场景，服务器没有额外的事件结果；只能根据上面给出的场景公开描述叙述。" : worldEvents.length ? "玩家提交了一个选择或移动。服务器确认的世界结果（只能据此叙述，可以润色措辞，但不能增加新事实）：" + worldEvents.map((w) => w.publicOutcome).join(" / ") + "。除此之外不要编造别的变化。" : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。");
-  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `（内部记录，界面会另外显示标签，回复里不要出现这些字段名或英文标签）这位玩家本次解答的判定：${academic.correctness==='correct'?'结论正确':'结论有问题'}，${academic.reasoning==='valid'?'推理成立':'推理有缺陷'}。用自然的话告诉玩家结果和原因，不要写“学术评估”“correct”之类。` : ""}按玩家要的篇幅回答，别用任务菜单打断。玩家答对后，默认用一句话简短补充另一种方法或检查办法，并告诉他想深入可以继续问，不要强制展开；但玩家处于静默状态、或说了“只告诉我对不对”“让我自己想”“不要剧透步骤”时，不要主动给。玩家只是说“先别执行”这类暂缓时，回答“好，先不执行。你可以继续完善方案，或直接问我相关知识”，不要强迫他交步骤；只有他明确让你评估方案时才邀请他写出步骤。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n${ctx}\n面向玩家绝不使用内部措辞，如“探索意图”“具体世界行动”“没有提交”“验证数学方法”“服务器”“场景ID”；玩家想去某处却没成功时，用世界里的阻碍说一句（如“那条路现在走不通”）并提示他还能做什么。玩家说“继续/继续刚才的”且没有待验证的数学内容时，接着当前场景往下描写，不要要求他交数学方法。玩家说“刚才的方法/那个/上一个”时，指上面最近对话里的内容，按那个理解，不要反问“你指哪个方法”。\n玩家输入：${input}`;
+  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${offerHint}${academic ? `（内部记录，界面会另外显示标签，回复里不要出现这些字段名或英文标签）这位玩家本次解答的判定：${academic.correctness==='correct'?'结论正确':'结论有问题'}，${academic.reasoning==='valid'?'推理成立':'推理有缺陷'}。用自然的话告诉玩家结果和原因，不要写“学术评估”“correct”之类。` : ""}按玩家要的篇幅回答，别用任务菜单打断。玩家答对后，默认用一句话简短补充另一种方法或检查办法，并告诉他想深入可以继续问，不要强制展开；但玩家处于静默状态、或说了“只告诉我对不对”“让我自己想”“不要剧透步骤”时，不要主动给。玩家只是说“先别执行”这类暂缓时，回答“好，先不执行。你可以继续完善方案，或直接问我相关知识”，不要强迫他交步骤；只有他明确让你评估方案时才邀请他写出步骤。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n${ctx}\n面向玩家绝不使用内部措辞，如“探索意图”“具体世界行动”“没有提交”“验证数学方法”“服务器”“场景ID”；玩家想去某处却没成功时，用世界里的阻碍说一句（如“那条路现在走不通”）并提示他还能做什么。玩家说“继续/继续刚才的”且没有待验证的数学内容时，接着当前场景往下描写，不要要求他交数学方法。玩家说“刚才的方法/那个/上一个”时，指上面最近对话里的内容，按那个理解，不要反问“你指哪个方法”。\n玩家输入：${input}`;
   let narration = "";
   let retry: { tier: string; provider: string; prompt: string; maxTok: number } | undefined;
   try {
@@ -475,11 +482,6 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   }
   if (sceneReq.observation && sceneInfo.active && sceneInfo.publicText && (!narration.trim() || narrationViolatesSceneContract(narration))) narration = sceneInfo.publicText;
   if (endingNotice && !narration.includes(endingNotice)) narration = (narration.trim() ? narration.trim() + "\n\n" : "") + endingNotice + "\n\n如果确定，请回复“确认进入结局”。";
-  // 可选学习提示：只来自当前场景作者声明的公开线索，不改世界、不强制；失败一律不影响回合
-  let offer = null as Awaited<ReturnType<typeof learningOffer>>;
-  if (sceneInfo.active && !endingNotice) {
-    try { const st = await env.DB.prepare("SELECT scene_id FROM adventure_world WHERE session_id=?").bind(sessionId).first<{ scene_id: string }>(); const sc = st ? (await readContentInternal(env, "scene", st.scene_id))?.content : null; offer = await learningOffer(env, sessionId, sc, { requestedLearning: intents.includes("LEARN"), quiet }); } catch { offer = null; }
-  }
   const cur = await env.DB.prepare("SELECT status, segment, world_seq FROM adventure_sessions WHERE id=?").bind(sessionId).first<any>();
   return {
     status: 200,

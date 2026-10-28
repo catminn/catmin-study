@@ -222,3 +222,17 @@ export async function approveProposal(env: SiteEnv, b: any): Promise<R> {
   await env.DB.prepare("UPDATE course_proposals SET status='approved' WHERE id=?").bind(p.id).run();
   return { status: 200, body: { ok: true, packVersion: pack.version, replacedExisting: !!old, concepts: concepts.length } };
 }
+
+// 定时同步（Worker cron）：对所有仍在有效期内（validTo 未过）的课程文件夹各跑一次有界同步；每次最多 5 门课；Google 未连接/失败只会把该课标记 stale，不改已有索引。
+export async function syncAllCourses(env: SiteEnv, today = new Date().toISOString().slice(0, 10)): Promise<{ ran: number; skipped: number }> {
+  await ensure(env);
+  const rows = (await env.DB.prepare("SELECT course_id, valid_to FROM course_folders ORDER BY COALESCE(last_sync_at,0) LIMIT 20").all<{ course_id: string; valid_to: string | null }>()).results ?? [];
+  let ran = 0, skipped = 0;
+  for (const r of rows) {
+    if (r.valid_to && r.valid_to < today) { skipped++; continue; }
+    if (ran >= 5) { skipped++; continue; }
+    await syncCourse(env, { courseId: r.course_id }).catch(() => null);
+    ran++;
+  }
+  return { ran, skipped };
+}

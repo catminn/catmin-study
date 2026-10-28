@@ -73,6 +73,14 @@ drive(op="set", id="cf-bad", parent=ROOT, name="bad", modified="2026-10-07T00:00
 sync(); c, o = post("/api/courses/propose", {"courseId": "mathx"})
 check("C21 模型输出不可解析：不生成提案", c == 422 and o["error"] == "proposal_unparseable", o)
 
+# 定时同步：有效期内的课程自动同步，过期的跳过
+drive(op="set", id="cf-late", parent=ROOT, name="late", modified="2026-10-08T00:00:00Z", text="PH-LATE material")
+r1 = requests.get(B + "/__sync_all", params={"today": "2026-11-01"}).json()
+check("C21b 定时同步：有效期内的课程被同步（新文件入索引）", r1["ran"] == 1 and status()[0]["files"].get("indexed", 0) >= 2, [r1, status()])
+drive(op="set", id="cf-late2", parent=ROOT, name="late2", modified="2026-10-09T00:00:00Z", text="PH-LATE2 material")
+r2 = requests.get(B + "/__sync_all", params={"today": "2027-02-01"}).json(); idx = status()[0]["files"].get("indexed", 0)
+check("C21c 超过 validTo 的课程不再自动同步", r2["ran"] == 0 and r2["skipped"] == 1 and idx == status()[0]["files"].get("indexed", 0) and sync()["changed"] == 1, [r2])
+
 # 撤销
 c, o = post("/api/courses/folder", {"courseId": "mathx", "folderId": ROOT, "label": "MATHX Fall"}); 
 c, o = s.request("DELETE", B + "/api/courses/folder", json={"courseId": "mathx"}).status_code, None

@@ -2,6 +2,7 @@
 // 原则：只提出“可选的学习提示候选”，不改世界、不打分、不发奖励、不写事实；候选只来自当前场景里作者明确声明的公开线索。
 // 课程包存在私有内容库 kind="course"（带版本号、可审计）；学习进度（已学概念）只由服务器按已确认的学习证据推导，客户端不能写。
 import type { SiteEnv } from "./site";
+import { CONCEPTS } from "./adventure";
 import { canPrompt, recordPrompt, recordRefusal } from "./director";
 import { suggestLearningOpportunities, validateCoursePacks, mayOfferPrompt, type CoursePack, type Cue, type Affordance, type LearningProfile } from "./learning-adapter";
 
@@ -82,3 +83,14 @@ export async function auditStats(env: SiteEnv): Promise<Record<string, number>> 
   return Object.fromEntries((rs.results ?? []).map((r) => [r.decision, r.n]));
 }
 export { validateCoursePacks };
+
+// 已选课程里、分类器还不认识的概念（来自管理员批准过的课程包）：让后续课程的数学解答也能记录到具体知识点，从而成为“已学”证据。
+export async function extraConcepts(env: SiteEnv): Promise<{ id: string; title: string }[]> {
+  await ensure(env);
+  const pr = await getProfile(env);
+  if (!pr.enrolledCourseIds.length) return [];
+  const { packs } = await loadPacks(env);
+  const out: { id: string; title: string }[] = [];
+  for (const p of packs) for (const c of p.concepts) if (pr.enrolledCourseIds.includes(c.courseId) && !(pr.optedOutCourseIds ?? []).includes(c.courseId) && !CONCEPTS.includes(c.id) && /^[a-z][a-z0-9._-]{1,119}$/.test(c.id) && typeof c.title === "string") out.push({ id: c.id, title: c.title.slice(0, 60) });
+  return out.slice(0, 40);
+}

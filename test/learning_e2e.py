@@ -63,4 +63,18 @@ check("L16 退出该课程：不提示", "learningOffer" not in o, o.get("learni
 d = s.post(B + "/api/adventure/learning-offer/decline", json={"sessionId": "L1", "conceptId": "math1920.gradient"})
 check("L17 玩家拒绝提示被记录", d.status_code == 200 and audit().get("declined") == 1, audit())
 check("L18 审计只有管理员能看（玩家 403）", requests.get(B + "/api/adventure/learning-audit", headers={"Cookie": s.headers["Cookie"]}).status_code == 403)
+# 叙述提示：只在有提示时带可选提示；后续课程概念进入分类器
+lastdm = lambda: requests.get(B + "/__drive", params={"op": "lastdm"}).text
+lastcls = lambda: requests.get(B + "/__drive", params={"op": "lastcls"}).text
+prof(enrolledCourseIds=["math1920"])
+start("L5"); o = turn("随便看看", "L5", "l5t1")
+check("L19 有提示时 DM 提示词带“可选、不强迫”的提示线索", "learningOffer" in o and "绝不强迫" in lastdm() and "PH-LEARN-PROMPT" in lastdm(), o.get("learningOffer"))
+o = turn("再看看", "L5", "l5t2")
+check("L20 冷却期内（无提示）DM 提示词不再带该线索", "learningOffer" not in o and "绝不强迫" not in lastdm(), o)
+# 后续课程概念：只有已选课程、已批准课程包里的概念才进入分类器
+put("course", "mathx", {"version": "1", "concepts": [{"id": "mathx.alpha", "courseId": "mathx", "title": "PH-AlphaTitle", "prerequisites": [], "applications": ["app-one"]}]})
+prof(enrolledCourseIds=["math1920"]); start("L6"); o = turn("PH-MATHX 做完了", "L6", "l6t1")
+check("L21 没选这门课：分类器不认识它的概念，评估不记录该概念", "mathx.alpha" not in lastcls() and (o["academicEvaluation"] or {}).get("conceptId") is None, [o["academicEvaluation"]])
+prof(enrolledCourseIds=["math1920", "mathx"]); start("L7"); o = turn("PH-MATHX 做完了", "L7", "l7t1")
+check("L22 选了这门课：概念进入分类器提示，评估记录到具体概念", "mathx.alpha（PH-AlphaTitle）" in lastcls() and o["academicEvaluation"]["conceptId"] == "mathx.alpha", [o["academicEvaluation"]])
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)

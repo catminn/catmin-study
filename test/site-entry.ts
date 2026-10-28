@@ -1,5 +1,6 @@
 // 本地测试：假 AI 向量 + 假 Vectorize + 假的 Anthropic/OpenAI 流式接口
 import base from "./entry";
+import { syncAllCourses } from "../src/coursesync";
 import { canPrompt, recordPrompt, recordRefusal, suppressExplore } from "../src/director";
 const realFetch = globalThis.fetch;
 function fakeStream(provider: string, text: string) {
@@ -83,9 +84,12 @@ globalThis.fetch = (async (input: any, init?: any) => {
     const hasImg = typeof last.content !== "string";
     const q = (lastText.split("玩家输入：")[1] || "").split("\n")[0].trim();
     let special: string | null = null;
+    if (lastText.includes("[[CLASSIFY]]")) (globalThis as any).__lastcls = lastText;
+    if (lastText.includes("你是学习型冒险游戏里的导师兼 DM")) (globalThis as any).__lastdm = lastText;
     if (lastText.includes("[[CLASSIFY]]")) {
       const C = (i: string[], c: boolean, r: boolean, e: any, p = false, k: string | null = null, pr = "none", act = "apply-derivative-method") => JSON.stringify({ intents: i, explicitCommit: c, storyResume: r, pauseStory: p, insightKey: k, planRef: pr, conceptId: e ? "math1920.derivative-basics" : null, actionId: act, evaluation: e });
       if (q.includes("BADJSON")) special = "不是json";
+      else if (q.includes("PH-MATHX")) special = JSON.stringify({ intents: ["PRACTICE"], explicitCommit: false, conceptId: "mathx.alpha", actionId: "plain-action", insightKey: "mx-1", evaluation: { correctness: "correct", reasoning: "valid", assistance: "none" } });
       else if (q.includes("出发 s-b")) special = JSON.stringify({ intents: ["EXPLORE"], explicitCommit: false, moveTo: "s-b", actionId: "plain-action", evaluation: null });
       else if (q.includes("前往 s-b")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, moveTo: "s-b", actionId: "plain-action", evaluation: null });
       else if (q.includes("前往 s-end")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, moveTo: "s-end", actionId: "plain-action", evaluation: null });
@@ -145,6 +149,7 @@ export default {
         return Response.json(await canPrompt(env, sid, topic, now));
       })();
     }
+    if (u.pathname === "/__sync_all") return (async () => Response.json(await syncAllCourses(env, u.searchParams.get("today") || undefined)))();
     if (u.pathname === "/__drive") {
       const D = (globalThis as any).__drive, g = (k: string) => u.searchParams.get(k);
       const op = g("op");
@@ -152,6 +157,8 @@ export default {
       else if (op === "set") D.files[g("id")!] = { parent: g("parent"), name: g("name"), mime: g("mime") || "text/plain", modified: g("modified"), text: g("nulltext") ? null : g("text") ?? "" };
       else if (op === "del") delete D.files[g("id")!];
       else if (op === "listfail") D.listFail = g("on") === "1";
+      else if (op === "lastcls") return new Response((globalThis as any).__lastcls || "");
+      else if (op === "lastdm") return new Response((globalThis as any).__lastdm || "");
       else if (op === "lastprompt") return new Response((globalThis as any).__lastprompt);
       return Response.json({ ok: true });
     }
