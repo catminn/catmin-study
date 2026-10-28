@@ -22,6 +22,7 @@ let ready: Promise<unknown> | null = null;
 function ensureSchema(env: SiteEnv) {
   ready ??= env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_actions (action_id TEXT PRIMARY KEY, basis_event_id TEXT UNIQUE, config_version TEXT NOT NULL, roll INTEGER NOT NULL, bonus INTEGER NOT NULL, dc INTEGER NOT NULL, success INTEGER NOT NULL, created_at REAL NOT NULL)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_evidence_concept (event_id TEXT PRIMARY KEY, concept_id TEXT NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_sessions (id TEXT PRIMARY KEY, status TEXT NOT NULL, segment INTEGER NOT NULL, world_seq INTEGER NOT NULL, updated_at REAL NOT NULL)`),
   ]).catch((e) => {
     ready = null;
@@ -29,6 +30,19 @@ function ensureSchema(env: SiteEnv) {
   });
   return ready;
 }
+
+// 服务器可信的行动模板：知识加成只来自 requiredConcepts 匹配的已确认证据（见 ChatGPT 信箱 #18）。同一个课程主题不等于能给任何行动加成。
+export const CONCEPTS = ["math1920.derivative-basics", "math1920.partial-derivative", "math1920.gradient", "math1920.directional-derivative", "math1920.chain-rule-multivariable"];
+type Req = { conceptId: string; application: string; effectType: "one-knowledge-bonus" };
+const R = (conceptId: string, application: string): Req[] => [{ conceptId, application, effectType: "one-knowledge-bonus" }];
+export const ACTIONS: Record<string, { requiredConcepts: Req[] }> = {
+  "apply-derivative-method": { requiredConcepts: R("math1920.derivative-basics", "compute-rate-by-differentiating") },
+  "estimate-change-in-one-variable": { requiredConcepts: R("math1920.partial-derivative", "estimate-change-in-one-variable") },
+  "determine-local-steepest-ascent": { requiredConcepts: R("math1920.gradient", "determine-local-steepest-ascent") },
+  "predict-change-along-chosen-direction": { requiredConcepts: R("math1920.directional-derivative", "predict-change-along-chosen-direction") },
+  "derive-rate-along-parametric-path": { requiredConcepts: R("math1920.chain-rule-multivariable", "derive-rate-along-parametric-path") },
+  "plain-action": { requiredConcepts: [] }, // 例如纯体力行动，任何数学证据都不能加成
+};
 
 const view = (r: any) => ({ actionId: r.action_id, basisEventId: r.basis_event_id, configVersion: r.config_version, roll: r.roll, bonus: r.bonus, dc: r.dc, success: !!r.success });
 
@@ -44,9 +58,20 @@ export async function postAction(env: SiteEnv, body: unknown): Promise<Result> {
   }
   let bonus = 0;
   if (basis) {
+    // 最终写入点的权威检查：不依赖调用方（turn 引擎或直接调 API）是否先过了 pickBasis。
+    const tpl = body.actionTemplate;
+    if (typeof tpl !== "string" || !ACTIONS[tpl]) return fail(400, "bad_request", "使用知识依据时必须提供合法的 actionTemplate");
+    if (!idOk(body.sessionId)) return fail(400, "bad_request", "使用知识依据时必须提供 sessionId");
+    const need = ACTIONS[tpl].requiredConcepts.map((c) => c.conceptId);
+    if (!need.length) return fail(422, "basis_not_applicable", "这个行动不需要也不吃知识加成");
+    const own = await env.DB.prepare("SELECT 1 FROM adventure_turns WHERE session_id=? AND ?=('turn:'||turn_id||':eval')").bind(body.sessionId, basis).first().catch(() => null);
+    if (!own) return fail(422, "basis_wrong_session", "这条依据不属于这个会话");
+    const cm = await env.DB.prepare("SELECT concept_id FROM adventure_evidence_concept WHERE event_id=?").bind(basis).first<{ concept_id: string }>();
+    if (!cm || !need.includes(cm.concept_id)) return fail(422, "basis_concept_mismatch", "这条依据的知识点和这个行动不匹配");
     const ev = await env.DB.prepare("SELECT correctness, reasoning, assistance, verification FROM learning_events WHERE id=?").bind(basis).first<any>();
     if (!ev) return fail(422, "basis_not_found", "依据的学习事件不存在");
     if (ev.verification !== "confirmed") return fail(422, "basis_not_confirmed", "依据的事件还没有确认，不能提供知识加成");
+    if (ev.assistance === "worked_solution") return fail(422, "basis_not_independent", "看过完整解答后的作答不能作为知识加成依据");
     if (ev.correctness === "correct" && ev.reasoning === "valid") {
       bonus = CONFIG.knowledgeBonus;
       if (CONFIG.hintPenaltyAssistance.has(ev.assistance)) bonus = Math.floor(bonus / 2);

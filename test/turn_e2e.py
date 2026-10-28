@@ -117,12 +117,19 @@ check("玩家再确认一次后才执行", o["gameCommit"] is not None and o["le
 c, o = turn("现在执行方案 A", sid="M")
 check("没有草案了不会凭空执行", o["gameCommit"] is None and "没有找到" in o["visibleFeedback"], o)
 
+post("/api/adventure/session", {"sessionId": "M2", "op": "start"})
+turn("先不要执行，方案甲", sid="M2"); turn("先不要执行，方案乙", sid="M2")
+turn("现在执行方案 A", sid="M2")
+c, o = turn("现在执行方案 A", sid="M2"); check("M2 世界变化后第一次：要求重新确认", o["gameCommit"] is None and "世界已经发生了变化" in o["visibleFeedback"], o)
+c, o = turn("现在执行", sid="M2"); check("M2 期间世界又变了（直接行动）", o["gameCommit"] is not None and o["learningSessionDelta"]["worldSeq"] == 2, o)
+c, o = turn("现在执行方案 A", sid="M2"); check("重新确认只对提示时的世界有效：世界又变了要再确认一次（#19 P0-1）", o["gameCommit"] is None and "世界已经发生了变化" in o["visibleFeedback"], o)
+
 # 行动—知识因果：同一课程的证据不能给无关行动加成
 post("/api/adventure/session", {"sessionId": "C1", "op": "start"})
 c, o = turn("g(t)=(t+1)^2，我先展开再求导。", sid="C1"); evc = o["academicEvaluation"]["eventId"]
 check("评估记录了知识点", o["academicEvaluation"]["conceptId"] == "math1920.derivative-basics", o)
 c, o = turn("现在用梯度方法执行", sid="C1")
-check("求导证据不能给梯度行动加成（仍然可以行动，只是没有加成）", o["gameCommit"] and o["gameCommit"]["bonus"] == 0 and o["gameCommit"]["actionTemplate"] == "apply-gradient-method", o)
+check("求导证据不能给梯度行动加成（仍然可以行动，只是没有加成）", o["gameCommit"] and o["gameCommit"]["bonus"] == 0 and o["gameCommit"]["actionTemplate"] == "determine-local-steepest-ascent", o)
 c, o = turn("现在去搬箱子", sid="C1")
 check("无关的普通行动不吃数学加成", o["gameCommit"] and o["gameCommit"]["bonus"] == 0, o)
 c, o = post("/api/adventure/turn", {"sessionId": "C1", "turnId": "cc1", "inputText": "现在去搬箱子", "basisEventId": evc})
@@ -141,6 +148,16 @@ c, o = turn("换道新题，我自己做 h(t)", sid="W1"); evn = o["academicEval
 check("换新题后恢复独立证据 assistance=none", evn["assistance"] == "none", o)
 c, o = turn("现在用求导方法执行", sid="W1")
 check("新题的独立证据可以给加成", o["gameCommit"] and o["gameCommit"]["bonus"] == 3, o)
+
+# 回复模型失败后：同 turnId 重试只补叙述，不重掷骰（#19 P1-3）
+post("/api/adventure/session", {"sessionId": "RF", "op": "start"})
+s.get(B + "/__replyfail?on=1")
+c, o1 = turn("先展开再求导 RF", sid="RF"); c, o1 = turn("现在用求导方法执行", sid="RF", tid="rf-act")
+check("回复失败：行动已提交、叙述为空", o1["gameCommit"] and not o1["narration"] and "_retry" not in o1, o1)
+ws = sess("RF")["worldSeq"]
+s.get(B + "/__replyfail?on=0")
+c, o2 = turn("现在用求导方法执行", sid="RF", tid="rf-act")
+check("同 turnId 重试补回叙述，骰点不变、世界序号不变", o2["narration"] and o2["gameCommit"]["roll"] == o1["gameCommit"]["roll"] and sess("RF")["worldSeq"] == ws and "_retry" not in o2, o2)
 check("坏请求被拒", turn("")[0] == 400 and post("/api/adventure/turn", {"sessionId": "S"})[0] == 400)
 check("不存在的会话", turn("hi", sid="nope")[0] == 404)
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)

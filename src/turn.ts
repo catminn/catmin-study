@@ -2,7 +2,7 @@
 // 服务器规则优先于模型输出：模型不能自己提交行动、不能指定依据事件、不能把待验证说成已确认。
 //   POST /api/adventure/turn {sessionId, turnId, inputText}   同 turnId 重试返回原回复，不重复调用模型/不重复提交
 import type { SiteEnv } from "./site";
-import { CONFIG, postAction } from "./adventure";
+import { ACTIONS, CONCEPTS, CONFIG, postAction } from "./adventure";
 import { postEvent } from "./events";
 
 export const ROUTING = {
@@ -14,14 +14,6 @@ export const ROUTING = {
   topicId: "math1920.sandbox",
   maxInput: 4000,
   planSoftTtlMs: 30 * 60 * 1000, // 超过这个时间的方案不会被删除，只是执行前要重新确认
-};
-
-// 服务器可信的行动模板：知识加成只来自 requiredConcepts 匹配的已确认证据（见 ChatGPT 信箱 #18）。同一个课程主题不等于能给任何行动加成。
-export const CONCEPTS = ["math1920.derivative-basics", "math1920.partial-derivative", "math1920.gradient"];
-export const ACTIONS: Record<string, { requiredConcepts: { conceptId: string; application: string; effectType: "one-knowledge-bonus" }[] }> = {
-  "apply-derivative-method": { requiredConcepts: [{ conceptId: "math1920.derivative-basics", application: "compute-rate-by-differentiating", effectType: "one-knowledge-bonus" }] },
-  "apply-gradient-method": { requiredConcepts: [{ conceptId: "math1920.gradient", application: "compute-local-rate-from-gradient", effectType: "one-knowledge-bonus" }] },
-  "plain-action": { requiredConcepts: [] }, // 例如纯体力行动，任何数学证据都不能加成
 };
 
 export interface Deps {
@@ -42,6 +34,7 @@ function ensureSchema(env: SiteEnv) {
   ready ??= env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_turns (turn_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, response TEXT, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_plans (plan_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, status TEXT NOT NULL, text TEXT NOT NULL, created_at REAL NOT NULL)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_plan_reconfirm (plan_id TEXT PRIMARY KEY, world_seq INTEGER NOT NULL, at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_plan_meta (plan_id TEXT PRIMARY KEY, world_seq INTEGER NOT NULL, reconfirm INTEGER NOT NULL DEFAULT 0)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_help (session_id TEXT PRIMARY KEY, worked INTEGER NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_evidence_concept (event_id TEXT PRIMARY KEY, concept_id TEXT NOT NULL)`),
@@ -128,8 +121,8 @@ ${ctx}
 - insightKey：这次解答用到的核心思路的稳定短标识（小写英文数字和连字符，如 expand-then-differentiate）；同一个思路换说法重复出现必须用同一个标识，没有评估时为 null；
 - planRef：玩家要执行行动时，指令本身是否把行动说清楚了。"inline"=指令自己说明了要做什么；"previous"=指代之前商量/草拟过的方案（如“刚才那个”）；"none"=不涉及执行。指代不清也写 "previous"；
 - planIndex：玩家点名方案序号时（“方案 A/第二个/B”分别对应 1/2…），填整数 1–9；否则 null；
-- conceptId：这次数学解答主要用到的知识点，只能是 math1920.derivative-basics（一元求导）、math1920.partial-derivative（偏导数）、math1920.gradient（梯度）之一，不确定或没有解答时 null；
-- actionId：玩家要执行的行动属于哪种：apply-derivative-method（用求导方法）、apply-gradient-method（用梯度方法）、plain-action（与数学无关的普通行动或说不清）；
+- conceptId：这次数学解答主要用到的知识点，只能是 math1920.derivative-basics（一元求导）、math1920.partial-derivative（偏导数）、math1920.gradient（梯度）、math1920.directional-derivative（方向导数）、math1920.chain-rule-multivariable（多元链式法则）之一，不确定或没有解答时 null；
+- actionId：玩家要执行的行动属于哪种：apply-derivative-method（用求导方法）、determine-local-steepest-ascent（用梯度找局部最陡上升方向）、estimate-change-in-one-variable（估计单变量变化，偏导）、predict-change-along-chosen-direction（预测沿选定方向的变化，方向导数）、derive-rate-along-parametric-path（沿参数路径求变化率，多元链式法则）、plain-action（与数学无关的普通行动或说不清）；
 - tutorSolution：玩家要求导师完整演示/给出带步骤的完整解答（本回合你会给出完整解法）→ true；
 - newTask：玩家这次提交的解答针对的是与之前不同的新题 → true；
 - quiet：玩家说“让我自己想想/别提示”→"on"；玩家主动求提示、要答案、或明确说可以提示了→"off"；否则 "none"；
@@ -148,7 +141,23 @@ export async function handleTurn(env: SiteEnv, body: unknown, deps: Deps): Promi
 
   const prev = await env.DB.prepare("SELECT response FROM adventure_turns WHERE turn_id=?").bind(turnId).first<{ response: string | null }>();
   if (prev) {
-    if (prev.response) return { status: 200, body: { ...JSON.parse(prev.response), replay: true } };
+    if (prev.response) {
+      const stored = JSON.parse(prev.response);
+      // 回复模型当时失败：同一个 turnId 重试只补叙述，不重掷骰、不重复提交（#19 P1-3）
+      if (stored._retry && !stored.narration) {
+        try {
+          const n = await deps.complete(stored._retry.tier, stored._retry.provider, stored._retry.prompt, stored._retry.maxTok);
+          if (n && n.trim()) {
+            stored.narration = n;
+            if (stored.visibleFeedback === "回复模型暂时不可用，但记录和进度都已保存。") stored.visibleFeedback = "";
+            delete stored._retry;
+            await env.DB.prepare("UPDATE adventure_turns SET response=? WHERE turn_id=?").bind(JSON.stringify(stored), turnId).run();
+          }
+        } catch { /* 仍然失败，保持原样，下次再试 */ }
+      }
+      const { _retry, ...pub } = stored;
+      return { status: 200, body: { ...pub, replay: true } };
+    }
     return fail(409, "turn_in_progress", "这一回合正在处理，请稍后重试");
   }
   const sess = await env.DB.prepare("SELECT status, segment, world_seq FROM adventure_sessions WHERE id=?").bind(sessionId).first<any>();
@@ -163,7 +172,11 @@ export async function handleTurn(env: SiteEnv, body: unknown, deps: Deps): Promi
     const chosen = body.basisEventId === undefined || body.basisEventId === null ? null : body.basisEventId;
     if (chosen !== null && !idOk(chosen)) return fail(400, "bad_request", "basisEventId 不合法");
     const res = await runTurn(env, deps, sessionId, turnId, input, sess, chosen as string | null);
-    if (res.status === 200) await env.DB.prepare("UPDATE adventure_turns SET response=? WHERE turn_id=?").bind(JSON.stringify(res.body), turnId).run();
+    if (res.status === 200) {
+      await env.DB.prepare("UPDATE adventure_turns SET response=? WHERE turn_id=?").bind(JSON.stringify(res.body), turnId).run();
+      const { _retry, ...pub } = res.body as Record<string, unknown>;
+      return { status: 200, body: pub };
+    }
     else await env.DB.prepare("DELETE FROM adventure_turns WHERE turn_id=? AND response IS NULL").bind(turnId).run();
     return res;
   } catch (e) {
@@ -305,11 +318,14 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       visible = "现在有 " + drafts.length + " 个待执行的方案，我不会替你选：" + drafts.map((d: any, n: number) => "方案 " + letter(n) + "：" + d.text.slice(0, 40)).join("；") + "。请说“执行方案 A”这样指明。没有执行。";
     }
     if (pick && planOk) {
-      const stale = pick.ws !== sess.world_seq || Date.now() / 1000 - pick.created_at > ROUTING.planSoftTtlMs / 1000;
-      if (stale && !pick.rc) {
+      // 重新确认绑定到“提示时”的世界序号和时间：之后世界再变或再久，需要再次确认（#19 P0-1）。
+      const rcRow = await env.DB.prepare("SELECT world_seq, at FROM adventure_plan_reconfirm WHERE plan_id=?").bind(pick.plan_id).first<{ world_seq: number; at: number }>();
+      const baseWs = rcRow ? rcRow.world_seq : pick.ws, baseAt = rcRow ? rcRow.at : pick.created_at;
+      const stale = baseWs !== sess.world_seq || Date.now() / 1000 - baseAt > ROUTING.planSoftTtlMs / 1000;
+      if (stale) {
         planOk = false;
-        await env.DB.prepare("INSERT INTO adventure_plan_meta (plan_id,world_seq,reconfirm) VALUES (?,?,1) ON CONFLICT(plan_id) DO UPDATE SET reconfirm=1").bind(pick.plan_id, sess.world_seq).run();
-        visible = "这个方案是之前定的（" + (pick.ws !== sess.world_seq ? "之后世界已经发生了变化" : "已经过了一段时间") + "），我没有直接执行。要按现在的情况执行吗？确认的话再说一次“执行”。";
+        await env.DB.prepare("INSERT INTO adventure_plan_reconfirm (plan_id,world_seq,at) VALUES (?,?,?) ON CONFLICT(plan_id) DO UPDATE SET world_seq=excluded.world_seq, at=excluded.at").bind(pick.plan_id, sess.world_seq, Date.now() / 1000).run();
+        visible = "这个方案是之前定的（" + (baseWs !== sess.world_seq ? "之后世界已经发生了变化" : "已经过了一段时间") + "），我没有直接执行。要按现在的情况执行吗？确认的话再说一次“执行”。";
       } else planId = pick.plan_id;
     }
   }
@@ -324,7 +340,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       }
       const basis = pb.ok ? { id: pb.id } : null;
       if (!pb.ok) { /* 不提交 */ } else {
-      const r = await postAction(env, { actionId: "turn:" + turnId, basisEventId: basis?.id ?? null });
+      const r = await postAction(env, { actionId: "turn:" + turnId, basisEventId: basis?.id ?? null, actionTemplate: cls.actionTemplate, sessionId });
       if (r.status === 200) {
         commit = { ...(r.body.outcome as Record<string, unknown>), actionTemplate: cls.actionTemplate };
         await env.DB.prepare("INSERT OR IGNORE INTO adventure_action_meta (action_id,template) VALUES (?,?)").bind("turn:" + turnId, cls.actionTemplate).run();
@@ -354,9 +370,11 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   const facts = commit ? `已提交的事实（只能叙述这些）：判定${commit.success ? "成功" : "失败"}（骰点${commit.roll}+知识加成${commit.bonus}，对 DC${commit.dc}）。具体的环境变化、后果和故事推进服务器还没有给出，所以只能说“判定成功/失败，具体后果尚未确定”这类话；绝不能编造门打开、敌人退走、场景切换、目标达成或时间流逝。允许一句不带新事实的过渡，如“你按计划尝试，检定成功”。` : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。";
   const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `（内部记录，界面会另外显示标签，回复里不要出现这些字段名或英文标签）这位玩家本次解答的判定：${academic.correctness==='correct'?'结论正确':'结论有问题'}，${academic.reasoning==='valid'?'推理成立':'推理有缺陷'}。用自然的话告诉玩家结果和原因，不要写“学术评估”“correct”之类。` : ""}按玩家要的篇幅回答，别用任务菜单打断。玩家答对后，默认用一句话简短补充另一种方法或检查办法，并告诉他想深入可以继续问，不要强制展开；但玩家处于静默状态、或说了“只告诉我对不对”“让我自己想”“不要剧透步骤”时，不要主动给。玩家只是说“先别执行”这类暂缓时，回答“好，先不执行。你可以继续完善方案，或直接问我相关知识”，不要强迫他交步骤；只有他明确让你评估方案时才邀请他写出步骤。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n${ctx}\n玩家说“刚才的方法/那个/上一个”时，指上面最近对话里的内容，按那个理解，不要反问“你指哪个方法”。\n玩家输入：${input}`;
   let narration = "";
+  let retry: { tier: string; provider: string; prompt: string; maxTok: number } | undefined;
   try {
     narration = await deps.complete(route.tier, route.provider, prompt, main === "LEARN" ? 1500 : 700);
   } catch {
+    retry = { tier: route.tier, provider: route.provider, prompt, maxTok: main === "LEARN" ? 1500 : 700 };
     narration = "";
     visible = visible || "回复模型暂时不可用，但记录和进度都已保存。";
   }
@@ -376,6 +394,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       narration,
       quietMode: quiet,
       visibleFeedback: visible,
+      ...(retry ? { _retry: retry } : {}),
     },
   };
 }

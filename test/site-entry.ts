@@ -71,7 +71,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
       else if (q.includes("给我提示")) special = JSON.stringify({ intents: ["ASK"], explicitCommit: false, quiet: "off", evaluation: null });
       else if (q.includes("执行方案 A")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, planRef: "previous", planIndex: 1, actionId: "apply-derivative-method", evaluation: null });
       else if (q.includes("搬箱子")) special = C(["ACT"], true, false, null, false, null, "inline", "plain-action");
-      else if (q.includes("梯度方法执行")) special = C(["ACT"], true, false, null, false, null, "inline", "apply-gradient-method");
+      else if (q.includes("梯度方法执行")) special = C(["ACT"], true, false, null, false, null, "inline", "determine-local-steepest-ascent");
       else if (q.includes("区别")) special = C(["ASK"], false, false, null);
       else if (q.includes("系统讲")) special = C(["LEARN"], false, false, null);
       else if (q.includes("刷5题")) special = C(["PRACTICE"], false, false, null, true);
@@ -85,6 +85,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
       else special = C(["EXPLORE"], false, false, null);
     } else if (lastText.includes("[[VERIFY]]")) special = JSON.stringify({ ownAnswer: "2t+2", agree: !q.includes("NOAGREE") });
     if (!special && !lastText.includes("[[") && q.includes("刚才的方法")) special = lastText.includes("思路 expand-then-differentiate") ? "CTXOK" : "CTXMISSING";
+    if (!special && (globalThis as any).__replyfail && lastText.includes("你是学习型冒险游戏里的导师兼 DM")) return new Response("boom", { status: 500 });
     const reply = special ?? (lastText.includes("JSON") ? '```json\n{"ok":true,"n":3}\n```' : `你好，这是${prov}的${body.model}回答。${hasImg ? "收到图片。" : ""}`);
     return new Response(fakeStream(prov, reply), { headers: { "content-type": "text/event-stream" } });
   }
@@ -94,6 +95,7 @@ export default {
   fetch(req: Request, env: any, ctx: ExecutionContext) {
     const u = new URL(req.url);
     if (u.pathname === "/__gcalls") return Response.json((globalThis as any).__gcalls.splice(0));
+    if (u.pathname === "/__replyfail") { (globalThis as any).__replyfail = u.searchParams.get("on") === "1"; return new Response("ok"); }
     if (u.pathname === "/__expire401") { (globalThis as any).__expire401 = u.searchParams.get("on") === "1"; return new Response("ok"); }
     return (base as any).fetch(req, env, ctx);
   },
