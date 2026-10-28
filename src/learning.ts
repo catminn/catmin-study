@@ -32,7 +32,7 @@ export async function putProfile(env: SiteEnv, b: any): Promise<{ status: number
   return { status: 200, body: { ok: true } };
 }
 // 已学概念：本站已确认、答案正确、推理有效、非代解的学习证据所对应的概念（概念 id 需与课程包里的概念 id 一致才算数；对不上就当没学过，失败关闭）
-async function learnedConcepts(env: SiteEnv): Promise<string[]> {
+export async function learnedConcepts(env: SiteEnv): Promise<string[]> {
   const rs = await env.DB.prepare("SELECT DISTINCT ec.concept_id AS c FROM learning_events e JOIN adventure_evidence_concept ec ON ec.event_id=e.id WHERE e.verification='confirmed' AND e.correctness='correct' AND e.reasoning='valid' AND e.assistance != 'worked_solution'").all<{ c: string }>().catch(() => ({ results: [] as { c: string }[] }));
   return (rs.results ?? []).map((r) => r.c);
 }

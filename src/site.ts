@@ -9,6 +9,7 @@ import { handleTurn } from "./turn";
 import { commitChoice, commitTravel, snapshotStats } from "./world";
 import { putContent, listContent } from "./content";
 import { publicSceneInfo } from "./world";
+import { approveProposal, courseStatus, getProposal, proposePack, removeFolder, setFolder, syncCourse } from "./coursesync";
 import { auditStats, declineOffer, getProfile, putProfile } from "./learning";
 import { getSession, postAction, sessionOp } from "./adventure";
 import { getBalance, listEvents, postEvent, postReward } from "./events";
@@ -492,6 +493,18 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/adventure/learning-profile" && req.method === "GET") { const pr = await getProfile(env); return json({ ok: true, enrolledCourseIds: pr.enrolledCourseIds, optedOutCourseIds: pr.optedOutCourseIds, avoidLearning: pr.avoidLearning }); }
     if (p === "/api/adventure/learning-profile" && req.method === "PUT") return asJson(await putProfile(env, await req.json().catch(() => null)));
     if (p === "/api/adventure/learning-offer/decline" && req.method === "POST") { const b: any = await req.json().catch(() => null); return asJson(await declineOffer(env, b?.sessionId, b?.conceptId)); }
+    if (p.startsWith("/api/courses/")) {
+      const sub = p.slice("/api/courses/".length);
+      const adminOk = async () => { const pw = req.headers.get("X-Owner-Password") ?? ""; return !!env.OWNER_PASSWORD && !!pw && (await safeEq(pw, env.OWNER_PASSWORD)); };
+      const body = req.method === "GET" ? null : await req.json().catch(() => null);
+      if (sub === "status" && req.method === "GET") return asJson(await courseStatus(env));
+      if (sub === "folder" && req.method === "POST") return asJson(await setFolder(env, body));
+      if (sub === "folder" && req.method === "DELETE") return asJson(await removeFolder(env, body));
+      if (sub === "sync" && req.method === "POST") return asJson(await syncCourse(env, body));
+      if (sub === "propose" && req.method === "POST") return asJson(await proposePack(env, body, (pr, m) => completeOnce(env, "default", "anthropic", pr, m)));
+      if (sub === "proposal" && req.method === "GET") return asJson(await getProposal(env, url.searchParams.get("courseId") || ""));
+      if (sub === "approve" && req.method === "POST") return (await adminOk()) ? asJson(await approveProposal(env, body)) : err("forbidden", "仅限管理员（需再带一次主口令）", 403);
+    }
     if (p === "/api/adventure/learning-audit" && req.method === "GET") { // 管理员：只有分类计数
       const pw = req.headers.get("X-Owner-Password") ?? "";
       if (!env.OWNER_PASSWORD || !pw || !(await safeEq(pw, env.OWNER_PASSWORD))) return err("forbidden", "仅限管理员", 403);

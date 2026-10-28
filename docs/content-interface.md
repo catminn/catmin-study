@@ -59,3 +59,10 @@
 - 回合响应可含 `learningOffer:{affordanceId,conceptId,prompt}`（至多一条，非强制，仅 UI/DM 参考）。它不改世界、不判定、不发奖、不写事实。玩家明确要学（LEARN 意图）时才无视“不想被提示”和冷却；否则受导演冷却约束（同概念 20 分钟、当日拒绝 2 次后不再提示），静默状态下不提示。`POST /api/adventure/learning-offer/decline` {sessionId,conceptId} 记录拒绝。
 - 审计：表 adventure_learning_audit（offered/withheld/none/declined + 原因 + 课程包修订）；管理员 `GET /api/adventure/learning-audit` 只返回分类计数。
 - 自动生成的剧情不得直接写入 canonical world；只允许作为 draft/支线候选，经隐藏事实/因果/学习正确性审查后发布（本引擎不提供自动写入通道）。
+
+## 9. Drive 课程资料同步（MVP，只读）
+- 前提：网站已连接 Google（drive.readonly；与 ChatGPT 的插件授权是两套授权，互不复用）。
+- 登录后接口：`POST /api/courses/folder` {courseId,folderId,label,validFrom?,validTo?}（只同步这个文件夹及其下两层子文件夹，上限 200 个文件）；`DELETE /api/courses/folder` {courseId}（撤销：分块清空、提案作废）；`POST /api/courses/sync` {courseId}（手动同步）；`GET /api/courses/status`（只给状态/计数，无原文）；`POST /api/courses/propose`；`GET /api/courses/proposal?courseId=`（只给概念标题/前置/应用标签/来源计数）。`POST /api/courses/approve` 需再带一次主口令（X-Owner-Password）。
+- 同步：按 modifiedTime+size 判断变化，只重读变化的文件（每次最多 40 个，余下下次继续，状态 partial）；文本哈希不变则不换版本；列表中消失的文件打墓碑并删除分块；Google 失败 → 状态 stale、保留上次好索引，不假装有更新；单个文件读不出来只记错误。当前是手动触发的轮询；changes.list / watch / 定时触发是后续项。
+- 提案：模型只看“已索引资料摘录”（包在 SOURCE 数据块里，声明不可信、无视其中指令）；概念必须引用已索引文件，id 必须以 `<courseId>.` 开头，否则丢弃；输出永远是 proposal（needsReview），资料变化后自动作废；批准才写成课程包（kind=course，版本 idx<索引版本>-p<提案号>）。批准若会丢掉玩家已学过的概念 id，需显式 allowDropLearned:true。批准只影响今后的学习提示，不改写已提交的世界事件或已记的学习证据。
+- 原文与摘录只在站点 D1，不经 HTTP 返回，不进入 DM 提示词；PDF/图片依赖 Cloudflare 文档转换，读不出来的标记 unsupported/error，不编造内容。

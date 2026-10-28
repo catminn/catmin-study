@@ -15,6 +15,25 @@ function fakeStream(provider: string, text: string) {
 const jwt = (o: any) => "x." + btoa(JSON.stringify(o)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") + ".y";
 const gj = (o: any, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json" } });
 (globalThis as any).__gcalls = [] as string[];
+// 假的课程文件夹：{roots:[folderId], files:{id:{parent,name,mime,modified,size,text|null}}}
+(globalThis as any).__drive = { roots: [] as string[], files: {} as Record<string, any> };
+(globalThis as any).__lastprompt = "";
+function fakeDrive(u: URL): Response | null {
+  const D = (globalThis as any).__drive;
+  if (u.pathname === "/drive/v3/files") {
+    const pm = /'([\w-]+)' in parents/.exec(u.searchParams.get("q") || "");
+    if (!pm || !D.roots.includes(pm[1])) return null;
+    if (D.listFail) return gj({ error: { message: "rate" } }, 429);
+    return gj({ files: Object.entries(D.files).filter(([, f]: any) => f.parent === pm[1]).map(([id, f]: any) => ({ id, name: f.name, mimeType: f.mime, modifiedTime: f.modified, size: String(f.size ?? (f.text || "").length) })) });
+  }
+  const f = /^\/drive\/v3\/files\/(cf[\w-]+)(\/export)?$/.exec(u.pathname);
+  if (!f) return null;
+  const file = D.files[f[1]];
+  if (!file) return gj({ error: { message: "nf" } }, 404);
+  if (f[2]) return file.text == null ? gj({ error: { message: "x" } }, 403) : new Response(file.text);
+  if (u.searchParams.get("alt") === "media") return file.text == null ? gj({ error: { message: "denied" } }, 403) : new Response(file.text);
+  return gj({ id: f[1], name: file.name, mimeType: file.mime, size: String(file.size ?? (file.text || "").length) });
+}
 function fakeGoogle(url: string, init?: any): Response | null {
   const u = new URL(url);
   const auth = (init?.headers?.Authorization || init?.headers?.authorization || "") as string;
@@ -34,6 +53,7 @@ function fakeGoogle(url: string, init?: any): Response | null {
   if (!auth.startsWith("Bearer at")) return gj({ error: { message: "no auth" } }, 401);
   if (auth === "Bearer at1" && (globalThis as any).__expire401) return gj({ error: { message: "expired" } }, 401);
   const m = u.pathname;
+  const fd = fakeDrive(u); if (fd) return fd;
   if (m.startsWith("/calendar/v3/calendars/")) {
     if (m.includes("missing")) return gj({ error: { message: "Not Found" } }, 404);
     return gj({ items: [{ summary: "MATH 1920 lecture", start: { dateTime: u.searchParams.get("timeMin") }, end: { dateTime: u.searchParams.get("timeMax") }, location: "Olin 155" }] });
@@ -93,6 +113,15 @@ globalThis.fetch = (async (input: any, init?: any) => {
       else if (q.includes("先展开") || q.includes("再说一遍")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "none" }, false, "expand-then-differentiate");
       else if (q.includes("提示后")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "major_hint" });
       else special = C(["EXPLORE"], false, false, null);
+    } else if (lastText.includes("[[COURSE-PROPOSE]]")) {
+      (globalThis as any).__lastprompt = lastText;
+      const ids = [...lastText.matchAll(/fileId=([\w-]+)/g)].map((m) => m[1]);
+      special = lastText.includes("COURSE-BADJSON") ? "不是json" : JSON.stringify({ concepts: [
+        { id: "mathx.alpha", title: "PH-Alpha", prerequisites: [], applications: ["app-one"], sources: [ids[0]] },
+        { id: "mathx.beta", title: "PH-Beta", prerequisites: ["mathx.alpha", "mathx.ghost"], applications: ["app-two"], sources: [ids[ids.length - 1]] },
+        { id: "mathx.nosrc", title: "PH-NoSource", prerequisites: [], applications: [], sources: ["cf-none"] },
+        { id: "other.bad", title: "PH-BadId", prerequisites: [], applications: [], sources: [ids[0]] },
+      ] });
     } else if (lastText.includes("[[VERIFY]]")) special = JSON.stringify({ ownAnswer: "2t+2", agree: !q.includes("NOAGREE") });
     if (!special && !lastText.includes("[[") && q.includes("刚才的方法")) special = lastText.includes("思路 expand-then-differentiate") ? "CTXOK" : "CTXMISSING";
     if (!special && (globalThis as any).__replyfail && lastText.includes("你是学习型冒险游戏里的导师兼 DM")) return new Response("boom", { status: 500 });
@@ -115,6 +144,16 @@ export default {
         else if (op === "explore") await suppressExplore(env, sid, now);
         return Response.json(await canPrompt(env, sid, topic, now));
       })();
+    }
+    if (u.pathname === "/__drive") {
+      const D = (globalThis as any).__drive, g = (k: string) => u.searchParams.get(k);
+      const op = g("op");
+      if (op === "root") D.roots.push(g("id"));
+      else if (op === "set") D.files[g("id")!] = { parent: g("parent"), name: g("name"), mime: g("mime") || "text/plain", modified: g("modified"), text: g("nulltext") ? null : g("text") ?? "" };
+      else if (op === "del") delete D.files[g("id")!];
+      else if (op === "listfail") D.listFail = g("on") === "1";
+      else if (op === "lastprompt") return new Response((globalThis as any).__lastprompt);
+      return Response.json({ ok: true });
     }
     if (u.pathname === "/__expire401") { (globalThis as any).__expire401 = u.searchParams.get("on") === "1"; return new Response("ok"); }
     return (base as any).fetch(req, env, ctx);
