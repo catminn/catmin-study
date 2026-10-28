@@ -8,6 +8,9 @@ const cues = [
   {pattern:/路人|摊贩|守卫|居民|有人站|人群/, label:"询问附近的人", prompt:"我想向附近的人打听这里发生了什么。"},
 ];
 export function suggestSceneActions(publicText="", latestNarration="") {
-  const text=String(publicText||"")+"\n"+String(latestNarration||"");
-  return cues.filter(c=>c.pattern.test(text)).slice(0,4).map(c=>({label:c.label,prompt:c.prompt}));
+  const recent=String(latestNarration||""), scene=String(publicText||"");
+  const found=[], seen=new Set();
+  for(const source of [recent,scene]) for(const cue of cues) if(cue.pattern.test(source)&&!seen.has(cue.label)){seen.add(cue.label);found.push({label:cue.label,prompt:cue.prompt})}
+  if(/地图|坡向|坡度/.test(scene+recent)&&/水流|积水|地势/.test(scene+recent))found.push({label:"判断地势",prompt:"我想结合地图和积水的流向，推断哪边地势更低，以及怎样验证判断。"});
+  return found.slice(0,5);
 }
