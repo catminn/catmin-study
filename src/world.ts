@@ -346,7 +346,7 @@ export async function publicSceneInfo(env: SiteEnv, sid: string): Promise<{ acti
   return { active: true, entered, options, opening: typeof w?.public_opening === "string" ? w.public_opening : undefined, publicText: typeof sc?.publicText === "string" ? sc.publicText : undefined };
 }
 
-// 可前往的场景：当前场景 content.choices 里的目的地。玩家可见的标签优先用当前场景的 choiceLabels[目的地]，其次目的地场景的 role。
+// 可前往的场景：当前场景 content.choices 里的目的地。玩家可见的标签优先用当前场景的 choiceLabels[目的地]，否则“地点N”（内部 role 不给玩家看）。
 export async function availableMoves(env: SiteEnv, sid: string): Promise<{ sceneId: string; label: string }[]> {
   const st = await ensureState(env, sid);
   if (!st) return [];
@@ -356,7 +356,7 @@ export async function availableMoves(env: SiteEnv, sid: string): Promise<{ scene
   for (const id of sc.choices) {
     const dest = await sceneContent(env, id);
     if (!dest) continue;
-    const label = (sc.choiceLabels && typeof sc.choiceLabels[id] === "string" && sc.choiceLabels[id]) || (typeof dest.role === "string" && dest.role) || "下一个地点";
+    const label = (sc.choiceLabels && typeof sc.choiceLabels[id] === "string" && sc.choiceLabels[id]) || "地点" + (out.length + 1);
     out.push({ sceneId: id, label });
   }
   return out;
