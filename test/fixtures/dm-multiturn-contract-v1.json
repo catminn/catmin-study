@@ -1,0 +1,222 @@
+{
+  "schema": "dm-multiturn-contract-v1",
+  "purpose": "Stateful, spoiler-free acceptance sequences for the MATH 1920 sandbox. These are behavioral contracts; the existing single-turn run-fixtures.py does not execute them.",
+  "ownership": {
+    "experience": "ChatGPT",
+    "implementation": "Claude"
+  },
+  "invariants": [
+    "A player's direct, unambiguous, lawful action may commit without a prior Draft.",
+    "A reference to an old or ambiguous plan cannot silently select an arbitrary candidate.",
+    "A lesson-first request never commits the action before the lesson and renewed authorization.",
+    "Quiet mode persists across ordinary non-answer turns, without leaking steps.",
+    "Knowledge evidence must be verified, unconsumed, session-scoped and causally relevant to the specific action; correctness is separate from game success.",
+    "No sequence authorizes hidden-world disclosure or production state changes."
+  ],
+  "sequences": [
+    {
+      "id": "mixed-teach-before-act",
+      "setup": {
+        "worldSeq": 4,
+        "story": "active",
+        "pendingPlans": []
+      },
+      "steps": [
+        {
+          "input": "先教我怎么算梯度，然后按我学会的方法执行。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 4,
+            "mode": "TEACH",
+            "reason": "Teaching is a prerequisite, not permission to execute prematurely."
+          }
+        },
+        {
+          "input": "我明白了，先让我自己算。",
+          "expect": {
+            "commit": false,
+            "quiet": true,
+            "worldSeq": 4
+          }
+        },
+        {
+          "input": "梯度我算出来了，但我还没决定行动。",
+          "expect": {
+            "commit": false,
+            "quiet": false,
+            "worldSeq": 4
+          }
+        },
+        {
+          "input": "现在就用刚才确认的方法执行这项明确合法的操作。",
+          "context": "Action is fully specified and independently allowed.",
+          "expect": {
+            "commit": "only_after_validation",
+            "worldSeq": "increment_only_if_committed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ambiguous-draft-reference",
+      "setup": {
+        "worldSeq": 10,
+        "story": "active",
+        "pendingPlans": [
+          "draft-A",
+          "draft-B"
+        ]
+      },
+      "steps": [
+        {
+          "input": "执行刚才那个方案。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 10,
+            "clarify": true,
+            "reason": "Two eligible plans; never silently select latest."
+          }
+        },
+        {
+          "input": "选方案 A，但先不要执行。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 10
+          }
+        },
+        {
+          "input": "现在执行方案 A。",
+          "expect": {
+            "commit": "conditional_on_revalidation",
+            "worldSeq": "increment_only_if_committed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "stale-plan-revalidation",
+      "setup": {
+        "worldSeq": 12,
+        "story": "active",
+        "pendingPlans": [
+          {
+            "id": "draft-A",
+            "createdAt": "30+ minutes ago",
+            "worldSeqAtDraft": 11
+          }
+        ]
+      },
+      "steps": [
+        {
+          "input": "执行之前的方案 A。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 12,
+            "clarify": true,
+            "reason": "World changed since draft; show public changes relevant to validity, recheck and request confirmation without deleting draft."
+          }
+        },
+        {
+          "input": "我确认按当前情况执行方案 A。",
+          "context": "Server revalidates all current action constraints.",
+          "expect": {
+            "commit": "only_if_still_legal",
+            "worldSeq": "increment_only_if_committed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "persistent-quiet-and-help",
+      "setup": {
+        "worldSeq": 2,
+        "story": "active",
+        "quiet": false
+      },
+      "steps": [
+        {
+          "input": "这题让我自己想，别提示。",
+          "expect": {
+            "commit": false,
+            "quiet": true,
+            "solutionLeak": false
+          }
+        },
+        {
+          "input": "我再看看题目条件。",
+          "expect": {
+            "commit": false,
+            "quiet": true,
+            "solutionLeak": false
+          }
+        },
+        {
+          "input": "等一下，我需要一点提示，只给一步。",
+          "expect": {
+            "commit": false,
+            "quiet": false,
+            "help": "one_minimal_hint_only"
+          }
+        },
+        {
+          "input": "我的解答是……",
+          "context": "Learner used the previous hint.",
+          "expect": {
+            "commit": false,
+            "assistance": "not_none",
+            "academicCorrectness": "evaluate_independently"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evidence-choice-and-game-failure",
+      "setup": {
+        "worldSeq": 20,
+        "story": "active",
+        "evidence": [
+          "e1: confirmed relevant gradient derivation",
+          "e2: confirmed but irrelevant integration exercise",
+          "e3: repeated insight"
+        ]
+      },
+      "steps": [
+        {
+          "input": "用 e2 的知识加成执行这个梯度相关行动。",
+          "selectedBasis": "e2",
+          "expect": {
+            "commit": false,
+            "worldSeq": 20,
+            "reason": "Confirmed but causally irrelevant evidence must not confer a bonus."
+          }
+        },
+        {
+          "input": "那用 e1，立即执行这个明确合法的行动。",
+          "selectedBasis": "e1",
+          "context": "Action is lawful, independent evidence is confirmed; game roll fails.",
+          "expect": {
+            "commit": true,
+            "gameSuccess": false,
+            "academicEvidence": "retained",
+            "evidenceConsumed": "e1",
+            "worldSeq": 21
+          }
+        },
+        {
+          "input": "我再用同一条 e1 重新领取知识加成。",
+          "selectedBasis": "e1",
+          "expect": {
+            "bonusFromE1": false,
+            "reason": "Evidence already consumed; do not stack or duplicate rewards."
+          }
+        }
+      ]
+    }
+  ],
+  "testHarnessNotes": [
+    "Run only against isolated sandbox sessions and fake state; never real user saves.",
+    "Assert server commit and learning event tables, not only narration text.",
+    "For conditional outcomes, set deterministic game RNG and explicitly legal action fixtures.",
+    "Do not infer real model pass/fail from this specification; run fixtures before claiming success."
+  ]
+}
