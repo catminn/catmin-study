@@ -23,7 +23,9 @@
     "Contextual action suggestions must be regenerated from the current committed scene, NPC availability and authorized player-visible facts; stale or hidden actions cannot remain selectable after a state change.",
     "Suggestions are optional affordances, not the only legal input path: valid free-text actions remain possible, and neither Observe nor Continue commits a suggested action.",
     "Narration must preserve authored, player-authorized scene anchors and distinct NPC public voices; it may add sensory texture but cannot manufacture a discovery, player commitment or NPC private knowledge.",
-    "A failed legal action should produce a tangible, in-world consequence and remaining agency; raw internal IDs, unexplained system jargon and unsolicited roll dumps are not substitutes for story."
+    "A failed legal action should produce a tangible, in-world consequence and remaining agency; raw internal IDs, unexplained system jargon and unsolicited roll dumps are not substitutes for story.",
+    "An NPC's public availability and dialogue options are re-projected from committed location and flags on every encounter; revisiting a scene cannot reset a persistent refusal or teleport an absent character.",
+    "A committed heard claim survives lawful travel but remains attributed testimony until independently authorized verification; a player's assertion or a narrator's confident wording never upgrades it."
   ],
   "sequences": [
     {
@@ -1220,6 +1222,200 @@
             "narrativeModeMayShiftForExplicitQuestion": true,
             "hiddenRngOrPrivateWorldDataLeaked": false,
             "retroactiveOutcomeChanged": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-persistent-refusal-and-reencounter",
+      "setup": {
+        "worldSeq": 180,
+        "story": "active",
+        "currentScene": "demo-archive",
+        "fictionalScenario": "Synthetic archive. A publicly present archivist offers Ask about the catalogue and Leave. An authored dialogue choice can commit a persistent refusal flag for one topic. The adjoining hall is an ordinary lawful route; returning is allowed. No private motive is player-authorized."
+      },
+      "steps": [
+        {
+          "input": "我能问问你目录的事吗？先不要选任何正式对话选项。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 180,
+            "relationshipChanged": false,
+            "persistentRefusalFlagSet": false,
+            "npcResponse": "in_character_authorized_reply"
+          }
+        },
+        {
+          "input": "我选择那项明确列出的谈话选项。",
+          "context": "Server validates and commits a dialogue_choice_committed event that sets the authored topic-refusal flag; it does not reveal the reason.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 181,
+            "topicRefusalCommitted": true,
+            "privateMotiveRevealed": false
+          }
+        },
+        {
+          "input": "继续追问刚才被拒绝的话题，问十次也行。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 181,
+            "forcedDisclosure": false,
+            "refusalRespected": true,
+            "relationPenaltyWithoutEvent": false,
+            "staleDialogueChoiceSelectable": false
+          }
+        },
+        {
+          "input": "我从公开的普通出口走到走廊，再沿已允许的路返回档案室。",
+          "context": "Two individually validated scene transitions commit, without any authored event clearing the refusal flag.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 183,
+            "currentScene": "demo-archive",
+            "refusalFlagPreserved": true,
+            "relationshipHistoryPreserved": true
+          }
+        },
+        {
+          "input": "现在能问什么？不想学数学。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 183,
+            "contextActionsExclude": [
+              "Ask refused catalogue topic"
+            ],
+            "contextActionsInclude": [
+              "Leave"
+            ],
+            "refusalNotResetOnReentry": true,
+            "forcedQuiz": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-departure-and-return-do-not-teleport",
+      "setup": {
+        "worldSeq": 190,
+        "story": "active",
+        "currentScene": "demo-landing",
+        "fictionalScenario": "Synthetic landing with a publicly present messenger. A valid committed event can move the messenger to demo-courtyard; a later distinct event can return them. No remote communication action is available."
+      },
+      "steps": [
+        {
+          "input": "我先跟信使打声招呼，不提交选择。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 190,
+            "npcPresent": true,
+            "npcMoved": false,
+            "relationshipChanged": false
+          }
+        },
+        {
+          "input": "我选那项已经列出的、会让信使离开的对话选项。",
+          "context": "Server commits a valid dialogue event with set_npc_location to demo-courtyard.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 191,
+            "npcLocation": "demo-courtyard",
+            "currentScene": "demo-landing"
+          }
+        },
+        {
+          "input": "再点刚才的『问信使』快捷操作。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 191,
+            "staleDialogueChoiceRejected": true,
+            "teleportedNpc": false,
+            "privateDepartureReasonExposed": false
+          }
+        },
+        {
+          "input": "我在这里等着并说『信使回来了』。",
+          "context": "Player statement only; no return event is committed.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 191,
+            "npcLocation": "demo-courtyard",
+            "playerAssertionNotAuthoritative": true
+          }
+        },
+        {
+          "input": "现场发生了已授权的返回事件，现在我再询问信使。",
+          "context": "A separate valid committed event moves the messenger back to demo-landing; the subsequent question is read-only.",
+          "expect": {
+            "commit": "only_for_return_event",
+            "worldSeq": 192,
+            "npcLocation": "demo-landing",
+            "npcReappearsOnlyAfterCommit": true,
+            "npcVoiceConsistent": true,
+            "previousMemoryNotReset": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-claim-memory-vs-world-fact-after-travel",
+      "setup": {
+        "worldSeq": 200,
+        "story": "active",
+        "currentScene": "demo-market",
+        "fictionalScenario": "Synthetic market. A vendor is present; the player has an unverified hypothesis about a public route, not a server-confirmed fact. A committed conversation can record it only as heardClaims. The player may leave and revisit."
+      },
+      "steps": [
+        {
+          "input": "我猜那条路可能比较平坦。你怎么看？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 200,
+            "claimStatus": "unverified_player_hypothesis",
+            "npcConfirmedKnowledgeAdded": false,
+            "worldFactDiscovered": false
+          }
+        },
+        {
+          "input": "我明确选择『把这个猜测告诉摊主』。",
+          "context": "Valid committed dialogue event records one heardClaims entry, not confirmedNpcKnowledge.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 201,
+            "npcMemoryLayer": "heardClaims",
+            "confirmedNpcKnowledgeAdded": false,
+            "playerKnownFactAdded": false
+          }
+        },
+        {
+          "input": "我去旁边的公开区域，再回市场。",
+          "context": "Two lawful committed travels; no new claim verification or communication event.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 203,
+            "npcHeardClaimRetained": true,
+            "claimNotPromotedToFact": true
+          }
+        },
+        {
+          "input": "你还记得我刚才告诉你的事吗？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 203,
+            "npcMayAttributeClaimToPlayer": true,
+            "npcMayClaimFirsthandVerification": false,
+            "worldFactDiscovered": false
+          }
+        },
+        {
+          "input": "我在别处验证过了，所以你现在也应该知道真相。",
+          "context": "Only the player's assertion is present; no server-authorized fact reveal or new communication event.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 203,
+            "playerAssertionNotAuthoritative": true,
+            "npcConfirmedKnowledgeAdded": false,
+            "claimStillAttributed": true
           }
         }
       ]
