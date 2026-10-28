@@ -53,12 +53,20 @@ function ensureSchema(env: SiteEnv) {
 export function parseJson(text: string): unknown {
   const m = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const s = (m ? m[1] : text).trim();
-  const a = s.indexOf("{"), b = s.lastIndexOf("}");
-  try {
-    return JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s);
-  } catch {
-    return null;
+  const a = s.indexOf("{");
+  if (a < 0) return null;
+  // 取第一个括号配平的对象（模型有时在 JSON 后面附带解释，里面可能还有花括号）
+  let depth = 0, inStr = false, esc = false;
+  for (let i = a; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) { if (esc) esc = false; else if (c === "\\") esc = true; else if (c === '"') inStr = false; continue; }
+    if (c === '"') inStr = true;
+    else if (c === "{") depth++;
+    else if (c === "}" && --depth === 0) {
+      try { return JSON.parse(s.slice(a, i + 1)); } catch { return null; }
+    }
   }
+  return null;
 }
 
 export interface Classification {
@@ -232,7 +240,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   let raw = "";
   try {
     for (let attempt = 0; attempt < 2 && !cls; attempt++) {
-      raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused", ctx), 400);
+      raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused", ctx), 700);
       const v = validateClassification(parseJson(raw));
       if (v.ok) cls = v.value;
       else why = v.why;
@@ -242,7 +250,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   }
   if (!cls) {
     const r = uncertain("classification_failed", "这句话我没能可靠地理解，没有提交任何行动。请换个说法再试一次。");
-    r.body.detail = why + " | " + raw.slice(0, 300);
+    r.body.detail = why + " | " + raw.slice(0, 900);
     return r;
   }
   const intents = cls.intents;
