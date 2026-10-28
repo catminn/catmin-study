@@ -110,6 +110,18 @@ export async function applyTrigger(
   for (let depth = 0; depth < WORLD_CONFIG.maxChain && pending.length; depth++) {
     const next: typeof pending = [];
     for (const t of pending) {
+      // Legacy authored scene.stateEffects are server-owned flags set on *committed*
+      // entry. They are not narration and cannot be applied merely by reading a scene.
+      if (t.type === "scene_entered") {
+        const entered = await sceneContent(env, t.scene);
+        for (const flag of entered?.stateEffects ?? []) {
+          if (typeof flag !== "string" || !/^[a-z0-9._-]{1,80}$/.test(flag)) continue;
+          if (await flagGet(env, sid, flag) !== "true") {
+            await env.DB.prepare("INSERT INTO adventure_world_flags (session_id,key,value) VALUES (?,?,?) ON CONFLICT(session_id,key) DO UPDATE SET value=excluded.value").bind(sid, flag, "true").run();
+            next.push({type:"world_flag_changed",scene:t.scene,flagKey:flag});
+          }
+        }
+      }
       for (const ev of events.sort((a, b) => (b.c.priority ?? 0) - (a.c.priority ?? 0) || (a.id < b.id ? -1 : 1))) {
         const tr = ev.c.trigger ?? {};
         if (tr.type !== t.type) continue;
