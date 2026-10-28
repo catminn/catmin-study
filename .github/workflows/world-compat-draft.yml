@@ -1,0 +1,22 @@
+name: World engine compatibility (draft)
+on:
+  pull_request:
+    paths:
+      - 'src/world.ts'
+      - 'src/site.ts'
+      - 'scripts/check-bundle-engine-compat.mjs'
+      - 'test/world_choice_compat_e2e.py'
+      - '.github/workflows/world-compat-draft.yml'
+permissions:
+  contents: read
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
