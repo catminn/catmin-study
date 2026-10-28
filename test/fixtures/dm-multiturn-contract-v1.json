@@ -207,7 +207,9 @@
           "selectedBasis": "e1",
           "expect": {
             "bonusFromE1": false,
-            "reason": "Evidence already consumed; do not stack or duplicate rewards."
+            "reason": "Evidence already consumed; do not stack or duplicate rewards.",
+            "commit": false,
+            "worldSeq": 21
           }
         }
       ]
