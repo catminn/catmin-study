@@ -63,7 +63,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
     const q = (lastText.split("玩家输入：")[1] || "").split("\n")[0].trim();
     let special: string | null = null;
     if (lastText.includes("[[CLASSIFY]]")) {
-      const C = (i: string[], c: boolean, r: boolean, e: any, p = false) => JSON.stringify({ intents: i, explicitCommit: c, storyResume: r, pauseStory: p, evaluation: e });
+      const C = (i: string[], c: boolean, r: boolean, e: any, p = false, k: string | null = null) => JSON.stringify({ intents: i, explicitCommit: c, storyResume: r, pauseStory: p, insightKey: k, evaluation: e });
       if (q.includes("BADJSON")) special = "不是json";
       else if (q.includes("区别")) special = C(["ASK"], false, false, null);
       else if (q.includes("系统讲")) special = C(["LEARN"], false, false, null);
@@ -72,7 +72,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
       else if (q.includes("继续并执行")) special = C(["ACT"], true, true, null);
       else if (q.includes("执行")) special = C(["ACT"], true, false, null);
       else if (q.includes("乘 2")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "invalid", assistance: "none" });
-      else if (q.includes("先展开")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "none" });
+      else if (q.includes("先展开") || q.includes("再说一遍")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "none" }, false, "expand-then-differentiate");
       else if (q.includes("提示后")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "major_hint" });
       else special = C(["EXPLORE"], false, false, null);
     } else if (lastText.includes("[[VERIFY]]")) special = JSON.stringify({ agree: !q.includes("NOAGREE") });

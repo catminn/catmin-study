@@ -30,8 +30,11 @@ const ASSIST = new Set(["none", "minor_hint", "major_hint", "worked_solution", "
 
 let ready: Promise<unknown> | null = null;
 function ensureSchema(env: SiteEnv) {
-  ready ??= env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_turns (turn_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, response TEXT, created_at REAL NOT NULL)`)
-    .run()
+  ready ??= env.DB.batch([
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_turns (turn_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, response TEXT, created_at REAL NOT NULL)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_insight_use (event_id TEXT PRIMARY KEY, insight_key TEXT NOT NULL, is_first INTEGER NOT NULL)`),
+    env.DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_insight_first ON adventure_insight_use(insight_key) WHERE is_first=1`),
+  ])
     .catch((e) => {
       ready = null;
       throw e;
@@ -55,6 +58,7 @@ export interface Classification {
   explicitCommit: boolean;
   storyResume: boolean;
   pauseStory: boolean;
+  insightKey: string | null;
   evaluation: null | { correctness: string; reasoning: string; assistance: string };
 }
 export function validateClassification(x: unknown): { ok: true; value: Classification } | { ok: false; why: string } {
@@ -66,13 +70,15 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
   if (typeof resume !== "boolean") return { ok: false, why: "storyResume 不合法" };
   const pause = x.pauseStory === undefined ? false : x.pauseStory;
   if (typeof pause !== "boolean") return { ok: false, why: "pauseStory 不合法" };
+  const ik = x.insightKey === undefined || x.insightKey === null ? null : x.insightKey;
+  if (ik !== null && (typeof ik !== "string" || !/^[a-z0-9][a-z0-9_.-]{0,59}$/.test(ik))) return { ok: false, why: "insightKey 不合法" };
   let ev: Classification["evaluation"] = null;
   if (x.evaluation !== null && x.evaluation !== undefined) {
     const e = x.evaluation;
     if (!isObj(e) || !CORRECT.has(e.correctness as string) || !REASON.has(e.reasoning as string) || !ASSIST.has(e.assistance as string)) return { ok: false, why: "evaluation 不合法" };
     ev = { correctness: e.correctness as string, reasoning: e.reasoning as string, assistance: e.assistance as string };
   }
-  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit, storyResume: resume, pauseStory: pause, evaluation: ev } };
+  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, evaluation: ev } };
 }
 
 const CLASSIFY_PROMPT = (input: string, paused: boolean) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
@@ -83,8 +89,9 @@ const CLASSIFY_PROMPT = (input: string, paused: boolean) => `[[CLASSIFY]] 你是
 - explicitCommit：玩家是否明确要求“现在就执行”。只是计划、设想、“先不要执行”都必须是 false；
 - storyResume：玩家是否要求回到刚才的故事/继续；
 - pauseStory：玩家是否明确要求离开故事去纯刷题（如“不要剧情”“先刷题”）；故事里顺便作答不算；
+- insightKey：这次解答用到的核心思路的稳定短标识（小写英文数字和连字符，如 expand-then-differentiate）；同一个思路换说法重复出现必须用同一个标识，没有评估时为 null；
 - evaluation：玩家给出了数学解答时填 {correctness, reasoning, assistance}，否则 null。correctness∈correct/incorrect/partial/unknown；reasoning∈valid/partial/invalid/not_assessed（答案对但理由不成立要写 invalid；独立正确的非标准方法写 valid）；assistance∈none/minor_hint/major_hint/worked_solution/unknown（玩家在得到提示后作答要如实标注）。
-格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"evaluation":null}`;
+格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"evaluation":null}`;
 
 const VERIFY_PROMPT = (input: string) => `[[VERIFY]] 独立核对下面玩家的数学解答：结论是否正确，且推理是否确实成立（不是碰巧对）。只输出 JSON：{"agree":true|false}。
 玩家输入：${input}`;
@@ -152,7 +159,15 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
     const ev = { id: evalEventId, type: "knowledge_attempt", topicId: ROUTING.topicId, at: Date.now(), ...cls.evaluation, verification, context: "adventure", transfer: false };
     const pr = await postEvent(env, ev);
     if (pr.status !== 200) return uncertain("event_failed", "学习记录没写进去，没有做任何改动。");
-    academic = { ...cls.evaluation, verification, eventId: evalEventId };
+    let firstUse = true;
+    if (cls.insightKey) {
+      const ins = await env.DB.prepare("INSERT OR IGNORE INTO adventure_insight_use (event_id,insight_key,is_first) VALUES (?,?,1)").bind(evalEventId, cls.insightKey).run();
+      if (ins.meta.changes !== 1) {
+        firstUse = false;
+        await env.DB.prepare("INSERT OR IGNORE INTO adventure_insight_use (event_id,insight_key,is_first) VALUES (?,?,0)").bind(evalEventId, cls.insightKey).run();
+      }
+    }
+    academic = { ...cls.evaluation, verification, eventId: evalEventId, repeatedInsight: !firstUse };
   }
 
   // 3. 行动：只有 ACT 且玩家明确要求执行、故事进行中才可能提交；ASK/LEARN/PRACTICE 一律 null
@@ -166,7 +181,8 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       if (sess.status !== "active") await env.DB.prepare("UPDATE adventure_sessions SET status='active', updated_at=? WHERE id=?").bind(Date.now() / 1000, sessionId).run();
       const basis = await env.DB.prepare(
         `SELECT e.id FROM learning_events e LEFT JOIN adventure_actions a ON a.basis_event_id=e.id
-         WHERE e.topic_id=? AND e.verification='confirmed' AND e.correctness='correct' AND e.reasoning='valid' AND a.action_id IS NULL ORDER BY e.at DESC LIMIT 1`,
+         LEFT JOIN adventure_insight_use i ON i.event_id=e.id
+         WHERE (i.event_id IS NULL OR i.is_first=1) AND e.topic_id=? AND e.verification='confirmed' AND e.correctness='correct' AND e.reasoning='valid' AND a.action_id IS NULL ORDER BY e.at DESC LIMIT 1`,
       ).bind(ROUTING.topicId).first<{ id: string }>();
       const r = await postAction(env, { actionId: "turn:" + turnId, basisEventId: basis?.id ?? null });
       if (r.status === 200) {
@@ -188,7 +204,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   const main = intents.includes("LEARN") ? "LEARN" : intents.includes("ACT") && commit ? "ACT" : intents[0];
   const route = ROUTING.reply[main] ?? ROUTING.reply.ASK;
   const facts = commit ? `已提交的事实（只能叙述这些）：骰点${commit.roll}+知识加成${commit.bonus} 对 DC${commit.dc}，${commit.success ? "成功" : "失败"}。` : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。";
-  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `学术评估：${academic.correctness}/${academic.reasoning}/${academic.assistance}（${academic.verification}）。` : ""}按玩家要的篇幅回答，别用任务菜单打断。\n玩家输入：${input}`;
+  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `学术评估：${academic.correctness}/${academic.reasoning}/${academic.assistance}（${academic.verification}）。` : ""}按玩家要的篇幅回答，别用任务菜单打断。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n玩家输入：${input}`;
   let narration = "";
   try {
     narration = await deps.complete(route.tier, route.provider, prompt, main === "LEARN" ? 1500 : 700);

@@ -26,6 +26,8 @@ c, o = turn("g(t)=(t+1)^2，我先展开再求导。")
 a = o["academicEvaluation"]
 check("5 非标准方法正确：认可并确认", a["reasoning"] == "valid" and a["verification"] == "confirmed", o)
 ev5 = a["eventId"]
+c, o = turn("我再说一遍，先展开再求导。")
+check("同一思路重复表述：记录但标记为重复，不产生新的优势", o["academicEvaluation"]["repeatedInsight"] is True and o["gameCommit"] is None, o)
 c, o = turn("我觉得可以先算梯度，先不要执行。")
 check("6 只是计划：不提交，世界序号不变", o["gameCommit"] is None and o["learningSessionDelta"]["worldSeq"] == 0 and "还没有执行" in o["visibleFeedback"], o)
 c, o = turn("现在就用刚才验证过的方法执行。")
