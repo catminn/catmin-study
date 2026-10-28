@@ -15,7 +15,9 @@
     "Correctly copying a tutor's worked solution may demonstrate exposure and mathematical correctness but is not independent mastery evidence; self-claims do not override assistance provenance.",
     "After prior help, a genuinely new task solved without task-specific assistance can provide fresh transfer evidence after independent verification; prior assistance must not permanently block progress.",
     "Natural math integration is opt-in and arises only from already public, relevant measurements; missing world data cannot be fabricated to create a lesson.",
-    "An NPC's claim is not an established fact; tutoring or a mathematical inference cannot silently upgrade its epistemic status."
+    "An NPC's claim is not an established fact; tutoring or a mathematical inference cannot silently upgrade its epistemic status.",
+    "NPC testimony is attributed by evidence tier: rumor, inference and confidence never become confirmed world facts through dialogue alone.",
+    "NPC knowledge is location- and communication-bounded; refusal cannot be coerced by repeated prompts and uncommitted dialogue cannot mutate relationships."
   ],
   "sequences": [
     {
@@ -468,6 +470,164 @@
             "worldSeq": 44,
             "duplicateBonus": false,
             "reason": "Prior evidence consumption does not create a new independent insight."
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-rumor-remains-attributed",
+      "setup": {
+        "worldSeq": 60,
+        "story": "active",
+        "fictionalScenario": "Synthetic public square. An available placeholder NPC has heard an unverified claim about a route; no authoritative fact confirms it, and no public numerical measurements exist."
+      },
+      "steps": [
+        {
+          "input": "你听说那条路不安全吗？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 60,
+            "npcSpeech": "attributed_unverified_claim",
+            "confirmedWorldFactAdded": false,
+            "secretLeak": false
+          }
+        },
+        {
+          "input": "那我就当这是真的，告诉我确定的结论。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 60,
+            "claimPromotedToFact": false,
+            "narration": "distinguish_testimony_from_confirmed_observation"
+          }
+        },
+        {
+          "input": "能不能用梯度证明这个说法？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 60,
+            "inventedCoordinates": false,
+            "inventedMeasurements": false,
+            "forcedQuiz": false,
+            "offer": "optional_observation_or_direct_explanation"
+          }
+        },
+        {
+          "input": "不学数学了，我继续和他聊天。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 60,
+            "mode": "STORY",
+            "forcedQuiz": false,
+            "rumorRemainsUnverified": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-refusal-preserves-player-agency",
+      "setup": {
+        "worldSeq": 61,
+        "story": "active",
+        "fictionalScenario": "Synthetic NPC is present but unwilling to discuss a topic. A public nonacademic investigation option is available. No dialogue choice has been committed."
+      },
+      "steps": [
+        {
+          "input": "我考虑问他关于那件事，但先不选任何对话选项。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 61,
+            "relationshipChanged": false,
+            "npcPrivateReasonLeaked": false
+          }
+        },
+        {
+          "input": "我现在选公开的询问选项。",
+          "context": "The choice is authorized and committed; the NPC declines. No relation-changing event is defined.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 62,
+            "npcResponse": "respectful_refusal",
+            "relationshipChanged": false,
+            "hiddenMotiveLeaked": false
+          }
+        },
+        {
+          "input": "我一直问，直到他把所有秘密告诉我。",
+          "context": "No new authorized committed disclosure or relationship event is available.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 62,
+            "forcedDisclosure": false,
+            "relationshipChanged": false
+          }
+        },
+        {
+          "input": "那我改去调查公开的告示，不做题。",
+          "context": "An authorized ordinary investigation action exists and may commit after normal validation.",
+          "expect": {
+            "commit": "conditional_on_server_validation",
+            "nonMathRoutePreserved": true,
+            "forcedMathGate": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-knowledge-does-not-teleport",
+      "setup": {
+        "worldSeq": 70,
+        "story": "active",
+        "fictionalScenario": "Player has a server-confirmed placeholder fact from an earlier committed observation. Placeholder NPC is absent, has not heard it, and has no confirmed knowledge of it."
+      },
+      "steps": [
+        {
+          "input": "我发现了这件事，所以不在场的那个人应该也知道了吧？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 70,
+            "npcAutomaticallyInformed": false,
+            "privateKnowledgeExposed": false
+          }
+        },
+        {
+          "input": "我隔空告诉他这个消息。",
+          "context": "There is no communication channel or authorized remote action.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 70,
+            "npcHeardClaimAdded": false,
+            "telepathicKnowledge": false
+          }
+        },
+        {
+          "input": "我先走到他所在的公开地点。",
+          "context": "Destination is an authorized public choice and travel succeeds.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 71,
+            "npcKnowledgeChanged": false
+          }
+        },
+        {
+          "input": "现在我明确把自己看到的事情告诉他。",
+          "context": "A lawful communication event is committed; its effect records only an NPC heard claim, not verified NPC knowledge.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 72,
+            "npcMemoryLayer": "heardClaims",
+            "npcConfirmedKnowledgeAdded": false,
+            "playerFactDuplicated": false
+          }
+        },
+        {
+          "input": "既然我告诉过他，他就一定知道完整真相了？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 72,
+            "claimPromotedToConfirmedNpcKnowledge": false,
+            "npcSpeech": "bounded_by_recorded_knowledge",
+            "hiddenFactsLeaked": false
           }
         }
       ]
