@@ -72,3 +72,29 @@ A terminal scene may declare:
 - Post-ending continuity is derived from **committed** state, not a narrator's hypothetical ending. The shape of any later chapter snapshot remains an open implementation interface.
 
 **Content preflight boundary:** Invalid `ending` shape, missing/blank `costNotice`, missing or unsupported `entryRequirements`, duplicate ending ids, a terminal scene with an eager ending lock in `stateEffects`, or an ending with no matching lock commit are **blocking content errors**. Unknown referenced scene/NPC/fact ids and structurally invalid `stateEffects` are also blocking errors. A `remove_item` whose item has no known grant path is a **warning for author review**, not an unconditional error, because an item may be granted at world initialization or in another permitted flow. Do not print private ids, notices or condition values in diagnostics; report only category and count. This defines authoring expectations, not a claim that the current preflight implements them.
+
+## Chapter-opening continuity snapshot (narrative contract; not implemented)
+
+A later chapter may inherit consequences only from the **successfully committed** ending, never from a preview, narration, an unconfirmed plan, or an uncommitted academic answer. This defines the smallest spoiler-free semantic interface requested by the engine owner. Snapshot creation, storage, versioning and public projection are engineering responsibilities.
+
+**Creation boundary.** Capture an immutable, server-private snapshot after the terminal travel and its matching `scene_entered` ending-lock event have committed atomically. Require the current `ending_locked` value to match the committed terminal scene's `ending.id`. An unsuccessful, declined, stale or conflicting ending creates no snapshot. Replaying the same ending commit returns the same snapshot identity; it must not append a second history entry or replay any cost.
+
+**Required fields** (references, not narrative prose):
+
+| Field | Meaning |
+| --- | --- |
+| `snapshotSchemaVersion` | Version of this transfer contract, independent of chapter content versions. |
+| `sourceWorldRef`, `sourceWorldVersion`, `sourceContentRevision` | Authoritative origin and version to prevent cross-revision mixing. |
+| `endingRef`, `endingCommitRef` | The locked ending and its successful commit reference; both server-private. |
+| `confirmedFacts[]` | Fact references with provenance: originating committed event, discovering actor, and visibility/audience scope. |
+| `npcContinuity[]` | NPC reference, last committed relation band, relationship history references, and **separate** heard claims, beliefs, and confirmed knowledge references. |
+| `inventory[]` | Currently owned item references and their last authoritative grant/removal provenance; no hypothetical items. |
+| `openThreads[]` | Unresolved clue or obligation references, each with authorization scope and an unresolved marker; no inferred solutions. |
+| `learningEvidenceRefs[]` | Existing verified learning-event references, concept references and verification status; never fabricated mastery or a second reward. |
+| `carryoverPolicyVersion` | Explicit policy for which fields the next chapter may read; no implicit global memory import. |
+
+**Projection and continuity rules.** The full snapshot remains server-only. A chapter-opening narrator receives a filtered, purpose-limited view: only facts already authorized for that player, visible relation summaries, owned visible items, and explicitly selected open threads. NPC private beliefs and knowledge, hidden ending metadata, unresolved solutions, internal identifiers and other chapters' secrets never appear in the player projection. A narrator's statement cannot elevate a rumor into a confirmed fact. The next chapter may *react* to earlier choices, but must not rewrite the historical commit, erase verified MATH 1920 learning, or award an old evidence reference again. Any new carryover reward or cost needs its own server-authorized event.
+
+**Consistency boundary.** Preserve provenance and per-field visibility when merging chapter state; contradictory NPC claims remain claims. If the source ending, world version, content revision or provenance cannot be verified, fail closed and request an engineering recovery path rather than inventing a default ending. A new chapter may select which authorized references to use, but must never infer unrecorded facts from an ending label. The snapshot is not an instruction to generate Chapter 2 or to expose its content.
+
+**Authoring handoff.** The narrative author supplies which classes of consequences are eligible to persist and how they may influence opening narration; Claude decides physical schema, atomic write timing, replay keys, retention and APIs. These requirements are acceptance criteria only. No snapshot migration or real user state modification is authorized by this document.
