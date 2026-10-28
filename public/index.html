@@ -1623,7 +1623,24 @@ function renderDungeon(){const w=worldOf(CUR);{const b=S.battle[CUR];if(!QUEST[C
       if(k!=="quest")startBattle(CUR,k,FOES[k]);else if(!QUEST[CUR]){const ci=curIndex(CUR);const n=MAIN[CUR][ci];if(n&&!n.boss){startNode(CUR,n);return}startBattle(CUR,"train",FOES.train)}}send(t)},disabled:!SAMPLE||!!CTL},l)),
     CUR!=="engl"?h("button",{class:"btn sm ok",onclick:startQuiz,disabled:!SAMPLE||!!CTL,title:"5 道单选，每天前 3 次有奖励"},"小测验 · 最多 +40"+(quizzesToday()>=QUIZ_CAP?"（今日奖励已满）":"")):"");
   $("#imgLabel").hidden=!SAMPLE;$("#driveBtn").hidden=!MCP;renderLib();$("#sendBtn").disabled=!SAMPLE||!!CTL;
-  renderDuePanel();renderSkills();renderChat();{const last=CHATS[CUR][CHATS[CUR].length-1];const m=last&&last.role==="assistant"&&String(last.content).match(/第\s*(\d+)\s*问/g);$("#input").placeholder=m?"回答"+m[m.length-1].replace(/\s+/g," "):"回答或提问"}renderFocus();startAmbient();drainFx()}
+  renderDuePanel();renderSkills();renderPractice();renderChat();{const last=CHATS[CUR][CHATS[CUR].length-1];const m=last&&last.role==="assistant"&&String(last.content).match(/第\s*(\d+)\s*问/g);$("#input").placeholder=m?"回答"+m[m.length-1].replace(/\s+/g," "):"回答或提问"}renderFocus();startAmbient();drainFx()}
+
+/* ---- 系统课练习：服务端判题，答对才记 verified，整章通过解锁技能 ---- */
+const DGP={v:new Set(),sk:{}};
+async function dgpLoad(){try{const r=await fetch("/api/dungeons/progress",{credentials:"same-origin"});if(!r.ok)return;const j=await r.json();DGP.v=new Set((j.verified||[]).map(x=>x.dungeon+"|"+x.ch+"|"+x.challenge));DGP.sk={};(j.skills||[]).forEach(x=>{DGP.sk[x.dungeon+"|"+x.ch]=x})}catch(e){}}
+function renderPractice(){const old=$("#practiceCard");if(old)old.remove();if(!SAGA[CUR])return;const st=sagaNow(CUR);if(st.end||!st.c.practice||!st.c.practice.length)return;
+  const d=st.w.id,ci=st.ci,P=st.c.practice,key=x=>d+"|"+ci+"|"+x.id;const cur=P.find(x=>!DGP.v.has(key(x)));const sk=st.c.skill;const got=!!DGP.sk[d+"|"+ci];
+  const card=h("div",{class:"fatebox",id:"practiceCard"});
+  card.append(h("div",{class:"eyebrow"},"系统课 · 第 "+(ci+1)+" 章 · "+(sk?"技能【"+sk.name+"】"+(got?"已解锁":"待解锁"):"练习")),h("div",{class:"small"},"进度 "+P.filter(x=>DGP.v.has(key(x))).length+" / "+P.length));
+  if(!cur){card.append(h("div",null,got&&sk?"本章练习全部通过。技能【"+sk.name+"】已解锁。":"本章练习全部通过。"));}
+  else{const out=h("div",{class:"small",style:{minHeight:"18px"}});const inp=h("input",{type:"text",placeholder:"你的答案",style:{width:"100%",margin:"6px 0"}});
+    const go=async()=>{const a=inp.value.trim();if(!a)return;go_.disabled=true;try{const r=await fetch("/api/dungeons/check",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({dungeon:d,ch:ci,challenge:cur.id,answer:a})});const j=await r.json();
+      if(!j.ok){out.textContent="暂时无法核验，请稍后再试。";go_.disabled=false;return}
+      if(j.correct||j.verified){DGP.v.add(key(cur));if(j.chapterDone&&j.skill){DGP.sk[d+"|"+ci]={dungeon:d,ch:ci,skill:j.skill.name,effect:j.skill.effect};toast("技能解锁：【"+j.skill.name+"】")}else toast("答对了");renderPractice()}
+      else{out.textContent="还不对。提示："+(j.hint||"再想一想")+"　（不扣分，可以重试）";go_.disabled=false;inp.select()}}catch(e){out.textContent="网络不通，稍后再试。";go_.disabled=false}};
+    const go_=h("button",{class:"btn sm go",onclick:go},"提交");inp.addEventListener("keydown",e=>{if(e.key==="Enter")go()});
+    card.append(h("div",null,h("b",null,cur.q)),inp,go_,out)}
+  const qb=$("#questBar");qb.parentNode.insertBefore(card,qb.nextSibling)}
 function drainFx(){let d=80;while(FXQ.length){const f=FXQ.shift();if(f.subj&&f.subj!==CUR)continue;setTimeout(()=>playFx(f),d);d+=f.t==="loc"?1900:f.t==="ko"?1500:550}}
 const FACE_COLORS=["#c4473b","#3f8fd6","#2fa865","#8b5cf6","#d9772b","#0ea5a0","#d1559a","#b8902a"];
 function face(name){let x=0;for(const ch of name)x=(x*31+ch.charCodeAt(0))>>>0;return h("div",{class:"face",style:{background:npcColor(name)}},name.slice(0,1))}
@@ -2242,7 +2259,7 @@ route();
   if(S.chatReset!=="c1"){for(const k in SUBJ){CHATS[k]=[];saveChat(k);QUEST[k]=null}S.battle={};S.tale={};S.skills={};S.qn={};S.chatReset="c1"}
   if(S.sagaTag!=="s1"){for(const k of["math","chem","engri"]){CHATS[k]=[];saveChat(k);QUEST[k]=null}S.battle={};S.tale={};S.saga={};S.fate={};S.sagaTag="s1"}
   if(fresh||!S.clean2){for(const o of occurrences())if(o.soft<Date.now()&&!S.done[o.key])S.skipped[o.key]=Date.now();S.clean2=1}
-  try{const r=await fetch("/api/dungeons",{credentials:"same-origin"});if(r.ok){const j=await r.json();const L=(j.dungeons||[]).slice().sort((a,b)=>0);for(const x of L){const arr=SAGA[x.subject];const d=x.dungeon;if(!arr||!d||arr.some(w=>w.id===d.id))continue;d.pre=d.pre||"";d.cast=d.cast||[];d.recap=d.recap||"";d.zero=d.zero||"";d.clear=d.clear||"";d.tint=d.tint||"#7c6cff";d.st=d.st||"";d.ch.forEach(c=>{c.tn=c.tn||""});arr.push(d)}delete SG_FLAT.math;for(const k in SG_FLAT)delete SG_FLAT[k]}}catch(e){}
+  try{const r=await fetch("/api/dungeons",{credentials:"same-origin"});if(r.ok){const j=await r.json();const L=(j.dungeons||[]).slice().sort((a,b)=>0);for(const x of L){const arr=SAGA[x.subject];const d=x.dungeon;if(!arr||!d||arr.some(w=>w.id===d.id))continue;d.pre=d.pre||"";d.cast=d.cast||[];d.recap=d.recap||"";d.zero=d.zero||"";d.clear=d.clear||"";d.tint=d.tint||"#7c6cff";d.st=d.st||"";d.ch.forEach(c=>{c.tn=c.tn||""});arr.push(d)}for(const k in SG_FLAT)delete SG_FLAT[k]}await dgpLoad()}catch(e){}
   applyDyn();save();S.mistakes.forEach(m=>delete m.smBusy);if(S.focus)S.focus=null;if(S.focusLive){S.focusLive=null;setTimeout(()=>toast("上次专注时网页关掉了，那一轮作废"),1500)}setTimeout(()=>smFlush(false),9000);setTimeout(()=>syncAllMistakes(false),6000);zwLoad();Promise.all(Object.keys(SUBJ).map(loadLib)).then(()=>{if(curView()==="dungeon")renderLib()});if(S.calendar)connectCalendar(false);route();setTimeout(()=>syncCourses(false),4000);cloudBoot();
 
 })();
