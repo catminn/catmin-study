@@ -3,7 +3,7 @@
 import type { SiteEnv } from "./site";
 import { validateCoursePacks } from "./learning-adapter";
 
-export const CONTENT_KINDS = ["world", "npc", "event", "knowledge-link", "scene", "course"] as const;
+export const CONTENT_KINDS = ["world", "npc", "event", "knowledge-link", "scene", "course", "dungeon"] as const;
 const ID_RE = /^[a-z0-9][a-z0-9_.-]{0,79}$/;
 // 多世界命名空间（world-bible-ref-contract-v1）：世界内容的存储 id 为 <worldId>:<localId>；无前缀的是旧版（单世界）内容。课程包是跨世界共享库，只能用无前缀 id。
 export const WORLD_ID_RE = /^[a-z][a-z0-9_-]{1,63}$/;
@@ -27,12 +27,42 @@ async function ensure(env: SiteEnv) {
 type R = { status: number; body: unknown };
 const bad = (status: number, error: string, message: string): R => ({ status, body: { ok: false, error, message } });
 
+// 副本（原版主神空间格式）：{subject,after?,dungeon:{id,name,tint,st,desc,pre,cast,recap,zero,clear,fork,mission,rule,pen,hidden,ch:[{t,k,s,sb,tn,skill?,practice?}]}}
+export const DUNGEON_SUBJECTS = ["math", "chem", "engri", "engl", "phys", "cs"];
+export function validateDungeon(c: any): string | null {
+  const d = c && c.dungeon;
+  if (!c || !DUNGEON_SUBJECTS.includes(c.subject) || !d || typeof d !== "object") return "需要 subject（math/chem/engri/engl/phys/cs）和 dungeon 对象";
+  for (const f of ["id", "name", "desc", "mission", "rule", "pen", "hidden"]) if (typeof d[f] !== "string" || !d[f]) return `dungeon.${f} 需为非空字符串`;
+  const f = d.fork; if (!f || typeof f.t !== "string" || typeof f.q !== "string" || typeof f.b !== "string" || !Number.isInteger(f.ch) || typeof f.price !== "number") return "dungeon.fork 需为 {ch,t,q,b,price}";
+  if (!Array.isArray(d.ch) || d.ch.length < 1 || d.ch.length > 12) return "dungeon.ch 需为 1–12 章";
+  for (const ch of d.ch) {
+    if (!ch || typeof ch.t !== "string" || typeof ch.k !== "string" || typeof ch.s !== "string" || typeof ch.sb !== "string" || typeof ch.tn !== "string") return "每章需要 t,k,s,sb,tn（字符串）";
+    if (ch.skill !== undefined && (typeof ch.skill?.name !== "string" || typeof ch.skill?.effect !== "string")) return "skill 需为 {name,effect}";
+    if (ch.practice !== undefined && (!Array.isArray(ch.practice) || ch.practice.length > 8 || ch.practice.some((q: any) => typeof q?.q !== "string" || typeof q?.a !== "string"))) return "practice 需为 [{q,a,hint?}]";
+  }
+  return null;
+}
+// 登录后给前端的副本列表：练习题答案只留在服务端。
+export async function listDungeons(env: SiteEnv): Promise<R> {
+  await ensure(env);
+  const rs = await env.DB.prepare("SELECT c.id AS id, c.body AS body FROM adventure_content c JOIN (SELECT id, MAX(rev) AS r FROM adventure_content WHERE kind='dungeon' GROUP BY id) m ON c.kind='dungeon' AND c.id=m.id AND c.rev=m.r ORDER BY c.id").all<{ id: string; body: string }>();
+  const out: any[] = [];
+  for (const r of rs.results ?? []) {
+    const c = JSON.parse(r.body);
+    if (validateDungeon(c)) continue;
+    for (const ch of c.dungeon.ch) if (ch.practice) ch.practice = ch.practice.map((q: any) => ({ q: q.q, hint: q.hint }));
+    out.push({ subject: c.subject, after: c.after ?? null, dungeon: c.dungeon });
+  }
+  return { status: 200, body: { ok: true, dungeons: out } };
+}
+
 export async function putContent(env: SiteEnv, b: any): Promise<R> {
   await ensure(env);
   if (!b || typeof b !== "object") return bad(400, "bad_request", "需要 JSON");
   if (!(CONTENT_KINDS as readonly string[]).includes(b.kind)) return bad(400, "bad_kind", `kind 只能是 ${CONTENT_KINDS.join("/")}`);
   if (!idOk(b.kind, b.id)) return bad(400, "bad_id", "id 需为小写字母/数字/._-（世界内容可用 worldId:localId）");
   if (b.content === undefined || b.content === null || typeof b.content !== "object") return bad(400, "bad_content", "content 需为 JSON 对象");
+  if (b.kind === "dungeon") { const e = validateDungeon(b.content); if (e) return bad(400, "bad_dungeon", e); if (b.id.includes(":")) return bad(400, "bad_id", "副本 id 不带冒号"); }
   if (b.kind === "course") { // 课程包：结构必须合法（跨包前置概念引用在运行时整体校验，这里不拦）
     const errs = validateCoursePacks([b.content]).filter((e) => e !== "missing_prerequisite");
     if (errs.length || b.content.id !== b.id) return bad(400, "bad_course_pack", "课程包结构不合法或 content.id 与 id 不一致");

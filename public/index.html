@@ -2242,6 +2242,7 @@ route();
   if(S.chatReset!=="c1"){for(const k in SUBJ){CHATS[k]=[];saveChat(k);QUEST[k]=null}S.battle={};S.tale={};S.skills={};S.qn={};S.chatReset="c1"}
   if(S.sagaTag!=="s1"){for(const k of["math","chem","engri"]){CHATS[k]=[];saveChat(k);QUEST[k]=null}S.battle={};S.tale={};S.saga={};S.fate={};S.sagaTag="s1"}
   if(fresh||!S.clean2){for(const o of occurrences())if(o.soft<Date.now()&&!S.done[o.key])S.skipped[o.key]=Date.now();S.clean2=1}
+  try{const r=await fetch("/api/dungeons",{credentials:"same-origin"});if(r.ok){const j=await r.json();const L=(j.dungeons||[]).slice().sort((a,b)=>0);for(const x of L){const arr=SAGA[x.subject];const d=x.dungeon;if(!arr||!d||arr.some(w=>w.id===d.id))continue;d.pre=d.pre||"";d.cast=d.cast||[];d.recap=d.recap||"";d.zero=d.zero||"";d.clear=d.clear||"";d.tint=d.tint||"#7c6cff";d.st=d.st||"";d.ch.forEach(c=>{c.tn=c.tn||""});arr.push(d)}delete SG_FLAT.math;for(const k in SG_FLAT)delete SG_FLAT[k]}}catch(e){}
   applyDyn();save();S.mistakes.forEach(m=>delete m.smBusy);if(S.focus)S.focus=null;if(S.focusLive){S.focusLive=null;setTimeout(()=>toast("上次专注时网页关掉了，那一轮作废"),1500)}setTimeout(()=>smFlush(false),9000);setTimeout(()=>syncAllMistakes(false),6000);zwLoad();Promise.all(Object.keys(SUBJ).map(loadLib)).then(()=>{if(curView()==="dungeon")renderLib()});if(S.calendar)connectCalendar(false);route();setTimeout(()=>syncCourses(false),4000);cloudBoot();
 
 })();
