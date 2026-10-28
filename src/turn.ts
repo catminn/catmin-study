@@ -241,7 +241,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   let raw = "";
   try {
     for (let attempt = 0; attempt < 3 && !cls; attempt++) {
-      raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused", ctx), 700);
+      raw = await deps.complete(ROUTING.classify.tier, ROUTING.classify.provider, CLASSIFY_PROMPT(input, sess.status === "paused", ctx), [1500, 3000, 3000][attempt]);
       const v = validateClassification(parseJson(raw));
       if (v.ok) cls = v.value;
       else why = v.why;
@@ -381,9 +381,9 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   let narration = "";
   let retry: { tier: string; provider: string; prompt: string; maxTok: number } | undefined;
   try {
-    narration = await deps.complete(route.tier, route.provider, prompt, main === "LEARN" ? 1500 : 700);
+    narration = await deps.complete(route.tier, route.provider, prompt, main === "LEARN" ? 2500 : 1200);
   } catch {
-    retry = { tier: route.tier, provider: route.provider, prompt, maxTok: main === "LEARN" ? 1500 : 700 };
+    retry = { tier: route.tier, provider: route.provider, prompt, maxTok: main === "LEARN" ? 2500 : 1200 };
     narration = "";
     visible = visible || "回复模型暂时不可用，但记录和进度都已保存。";
   }
