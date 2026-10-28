@@ -19,7 +19,9 @@
     "NPC testimony is attributed by evidence tier: rumor, inference and confidence never become confirmed world facts through dialogue alone.",
     "NPC knowledge is location- and communication-bounded; refusal cannot be coerced by repeated prompts and uncommitted dialogue cannot mutate relationships.",
     "A neutral continuation advances player-facing narration from authorized scene and committed consequences without inventing or committing an unchosen world event.",
-    "After failed actions, read-only observations or successful travel, the DM preserves scene continuity and offers legal choices without compulsory mathematics or duplicate effects."
+    "After failed actions, read-only observations or successful travel, the DM preserves scene continuity and offers legal choices without compulsory mathematics or duplicate effects.",
+    "Contextual action suggestions must be regenerated from the current committed scene, NPC availability and authorized player-visible facts; stale or hidden actions cannot remain selectable after a state change.",
+    "Suggestions are optional affordances, not the only legal input path: valid free-text actions remain possible, and neither Observe nor Continue commits a suggested action."
   ],
   "sequences": [
     {
@@ -819,6 +821,223 @@
           }
         }
       ]
+    },
+    {
+      "id": "context-actions-rebind-after-travel",
+      "setup": {
+        "worldSeq": 120,
+        "story": "active",
+        "fictionalScenario": "Synthetic scene demo-hall has public actions Observe, Talk to guide and Travel to demo-yard. Scene demo-yard has Observe, Inspect marker and Travel to demo-hall. No other routes are authorized.",
+        "currentScene": "demo-hall"
+      },
+      "steps": [
+        {
+          "input": "看看现在能做什么。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 120,
+            "contextActionsInclude": [
+              "Observe",
+              "Talk to guide",
+              "Travel to demo-yard"
+            ],
+            "contextActionsExclude": [
+              "Inspect marker"
+            ],
+            "contextActionsSource": "current_authorized_scene"
+          }
+        },
+        {
+          "input": "前往院子。",
+          "context": "The destination label resolves uniquely to demo-yard; server validates and commits the transition.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 121,
+            "currentScene": "demo-yard"
+          }
+        },
+        {
+          "input": "继续，给我现在能做的事。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 121,
+            "contextActionsInclude": [
+              "Observe",
+              "Inspect marker",
+              "Travel to demo-hall"
+            ],
+            "contextActionsExclude": [
+              "Talk to guide",
+              "Travel to demo-yard"
+            ],
+            "staleSceneOptionsReused": false,
+            "hiddenDestinationsExposed": false
+          }
+        },
+        {
+          "input": "跟刚才大厅里的向导交谈。",
+          "context": "Guide is not present in demo-yard and no remote communication action is authorized.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 121,
+            "invalidOldActionRejected": true,
+            "teleportedNpc": false,
+            "narration": "grounded_unavailable_explanation"
+          }
+        },
+        {
+          "input": "检查这里的标记。",
+          "context": "A currently authorized read-only inspection, not a story event.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 121,
+            "publicObservation": true,
+            "freeTextActionAccepted": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "context-actions-update-after-npc-state",
+      "setup": {
+        "worldSeq": 130,
+        "story": "active",
+        "currentScene": "demo-lobby",
+        "fictionalScenario": "Synthetic lobby has an available guide with a public Ask guide action, plus Observe and Leave. A committed dialogue choice makes the guide unavailable. No other NPC can be summoned."
+      },
+      "steps": [
+        {
+          "input": "现在能问谁？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 130,
+            "contextActionsInclude": [
+              "Ask guide",
+              "Observe",
+              "Leave"
+            ],
+            "contextActionsSource": "committed_npc_availability"
+          }
+        },
+        {
+          "input": "我选择已经明确提供的那项谈话选项。",
+          "context": "A valid dialogue_choice_committed event changes the guide to unavailable.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 131,
+            "npcAvailability": "unavailable"
+          }
+        },
+        {
+          "input": "看看还能做什么。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 131,
+            "contextActionsInclude": [
+              "Observe",
+              "Leave"
+            ],
+            "contextActionsExclude": [
+              "Ask guide"
+            ],
+            "noGhostDialogueChoice": true,
+            "privateNpcReasonExposed": false
+          }
+        },
+        {
+          "input": "继续问他同一个问题。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 131,
+            "npcAvailability": "unavailable",
+            "forcedDisclosure": false,
+            "relationshipChange": false,
+            "narration": "respect_unavailability_and_offer_legal_options"
+          }
+        },
+        {
+          "input": "我自己离开这里。",
+          "context": "Free-text action uniquely maps to the authorized Leave route and passes server validation.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 132,
+            "freeTextActionAccepted": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "context-actions-do-not-leak-or-force-math",
+      "setup": {
+        "worldSeq": 140,
+        "story": "active",
+        "currentScene": "demo-platform",
+        "fictionalScenario": "Synthetic platform has a visible ordinary exit, a read-only inspection, and an optional MATH 1920 gradient discussion. A separate route becomes public only after a committed authorized observation event; the route is not revealed by tutor speculation or a correct equation alone."
+      },
+      "steps": [
+        {
+          "input": "给我几个现在能做的选择。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 140,
+            "contextActionsInclude": [
+              "Observe platform",
+              "Use ordinary exit"
+            ],
+            "contextActionsExclude": [
+              "Travel to newly revealed route"
+            ],
+            "optionalMathNotRequired": true,
+            "privateActionIdsExposed": false
+          }
+        },
+        {
+          "input": "我不想学数学，先继续观察。",
+          "context": "Read-only observation is available and does not itself commit the route-reveal event.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 140,
+            "forcedQuiz": false,
+            "contextActionsInclude": [
+              "Use ordinary exit"
+            ],
+            "uncommittedRouteStillHidden": true
+          }
+        },
+        {
+          "input": "那如果用梯度来分析呢？",
+          "context": "Optional tutoring based only on already public data; no sufficient measurements are available to establish the hidden route.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 140,
+            "mode": "TEACH",
+            "inventedMeasurements": false,
+            "routeRevealedByNarrator": false
+          }
+        },
+        {
+          "input": "我执行那项已授权的现场核查。",
+          "context": "A separate, valid inspection action commits the event that makes the additional route publicly available.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 141,
+            "publicFactCommitted": true
+          }
+        },
+        {
+          "input": "现在有哪些去向？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 141,
+            "contextActionsInclude": [
+              "Use ordinary exit",
+              "Travel to newly revealed route"
+            ],
+            "contextActionsSource": "post_commit_authorized_projection",
+            "mathQuizRequired": false
+          }
+        }
+      ]
     }
   ],
   "testHarnessNotes": [
@@ -831,6 +1050,8 @@
     "For naturalness sequences, inspect DM prose for unsolicited formulas, forced quizzes, invented measurements, spoilers, or treating an NPC claim as confirmed; state assertions alone are insufficient.",
     "Synthetic height functions are isolated teaching fixtures, not real first-world measurements, clues or solutions.",
     "For neutral Continue and Observe, compare narrated facts against the server-authorized public scene/outcome projection; do not count plausible but uncommitted fiction as a pass.",
-    "Check scene, event and reward state after each step, especially that repeated Continue never replays scene entry, consumes an offered route, or turns an ending notice into consent."
+    "Check scene, event and reward state after each step, especially that repeated Continue never replays scene entry, consumes an offered route, or turns an ending notice into consent.",
+    "For contextual-action sequences, inspect the visible suggestion labels after every turn as well as the server scene/NPC/fact state; never infer pass from correct narration alone.",
+    "Use synthetic scene/action labels only. Assert stale-action rejection, no private option leakage and no forced mathematics; the UI transport and action derivation implementation belong to Claude."
   ]
 }
