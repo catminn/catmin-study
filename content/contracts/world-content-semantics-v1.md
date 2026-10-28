@@ -166,3 +166,27 @@ This is a **spoiler-free narration behavior contract**, not a new event type or 
 **Teaching boundary.** A player who asks for a lesson can continue that lesson without committing a world action. A player who wants to resume the story after an optional explanation can do so without a quiz. Mathematics may be offered only when public, relevant information makes it useful; a correct calculation never grants the narrator permission to invent world facts or move the player.
 
 **Acceptance:** Test the same neutral continuation after (1) read-only observation, (2) committed travel, (3) ambiguous offered choices, and (4) a failed action. Assert both grounded prose and server-owned state: no unauthorized mutation, no repeated effects, no hidden identifiers, and no compulsory mathematics. The synthetic sequences in `test/fixtures/dm-multiturn-contract-v1.json` specify the expected turns; they are not claims of live-model passing.
+
+## NPC state transitions and re-encounter continuity (narrative authoring v1)
+
+This section is a **spoiler-free authoring and DM acceptance contract**, not a new server API, effect type or automatic NPC scheduler. It builds on existing committed `set_npc_location`, `change_npc_relation`, `record_npc_memory`, and `set_flag` effects where supported. The author supplies the actual private rules in the private world package; public examples use only placeholders.
+
+**State dimensions stay separate.** At each committed world version, an NPC has (a) actual server-owned location, (b) publicly eligible dialogue choices for that location and relevant flags, (c) the last committed relationship band and history, and (d) distinct `heardClaims`, `npcBeliefs`, and `confirmedNpcKnowledge` layers. Public voice and manner are immutable authoring constraints unless a committed, authored change explicitly permits a variation. A narrator's description of fear, kindness, trust or departure is **not** itself a state transition. An absent NPC cannot be summoned by a stale choice, and a present NPC need not be willing to discuss every topic.
+
+**Synthetic transition matrix (semantic acceptance, not runtime enum definitions):**
+
+| Prior public situation | Cause | Required state and DM behavior |
+| --- | --- | --- |
+| Present and willing to discuss a topic | Player asks a question or previews an option without committing | No relation, location, memory or flag mutation; answer only from authorized knowledge; the player may leave |
+| Present, discussion explicitly refused | A refusal is spoken without a committed event | Respect the refusal in this conversation; do not infer a durable flag or relationship penalty |
+| Present, refusal is authored as persistent | Valid committed dialogue event sets an explicit refusal flag or changes eligibility | Subsequent offers and revisits respect the committed restriction; no invisible coercion or spontaneous reversal |
+| Present | Valid committed departure event changes NPC location | Old scene's dialogue actions disappear; requests to the absent NPC do not teleport them or reveal private reasons |
+| Absent, later present again | A separate valid committed return/scene transition makes the encounter possible | Restore only author-allowed choices based on current flags and location; preserve relation history and knowledge layers |
+| NPC hears a player claim | Valid committed communication event records `heardClaims` | The NPC may attribute the claim to the player, but it does not become `confirmedNpcKnowledge` or a player-confirmed world fact |
+| Any relationship band | A valid committed choice has an authored `change_npc_relation` effect | Update the band and history once; retries and narration-only compliments cannot multiply or revert the change |
+
+**Guard conditions and projection.** Authoring should make each choice's eligible scene, NPC presence and relevant committed flag conditions explicit using the engine's supported primitives. When the engine lacks an availability primitive, do not invent a `set_npc_availability` effect: model the restriction with existing supported location/flag conditions or leave it as a DM-only behavioral restriction pending engineering review. Do not assume `npcMemory` alone means the NPC witnessed an event. A private memory layer may guide server-side behavior but is never permission to expose the underlying private record in the player response.
+
+**Re-encounter is not a reset.** On leaving and returning to a scene, the DM re-evaluates choices from the **current** committed state, not the original scene's static opening. A changed relation may affect authored tone and available dialogue without making a character abandon their established voice. Repeated refusal, stale choices, or repeated commit ids cannot force a disclosure or double-apply relationship effects. If the player chooses a lawful non-social route, the story continues without a social penalty or mandatory MATH 1920 quiz.
+
+**Acceptance and limits.** The synthetic multi-turn tests cover persistent refusal, departure and re-encounter, heard-claim provenance, and one-time relationship changes. These are behavioral expectations; Claude owns condition evaluation, state storage, choice projection and real-model harness. They do not assert current engine support or authorize real content import.
