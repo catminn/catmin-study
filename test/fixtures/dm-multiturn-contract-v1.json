@@ -27,7 +27,9 @@
     "An NPC's public availability and dialogue options are re-projected from committed location and flags on every encounter; revisiting a scene cannot reset a persistent refusal or teleport an absent character.",
     "A committed heard claim survives lawful travel but remains attributed testimony until independently authorized verification; a player's assertion or a narrator's confident wording never upgrades it.",
     "A public route preview, draft or question is not a committed choice; route closures require explicit server-owned effects and eligibility checks, not narrator implication.",
-    "Returning to a previous scene never rewinds committed costs or relationships; latent route consequences remain unspoken until an authorized public outcome makes them observable."
+    "Returning to a previous scene never rewinds committed costs or relationships; latent route consequences remain unspoken until an authorized public outcome makes them observable.",
+    "Course application matching uses exact registered IDs at runtime; legacy aliases are an explicit validated authoring migration, never a silent in-session rewrite.",
+    "A shared application tag does not authorize offers from unenrolled courses or infer mastery, and an optional learningOffer never blocks ordinary story actions."
   ],
   "sequences": [
     {
@@ -1617,6 +1619,159 @@
           }
         }
       ]
+    },
+    {
+      "id": "learning-registered-application-is-optional-investigation",
+      "setup": {
+        "worldSeq": 240,
+        "story": "active",
+        "currentScene": "demo-workshop",
+        "fictionalScenario": "Synthetic workshop; publicly visible uneven marks on a board, no numerical coordinates or measurements. Approved math1920 course concept and scene affordance both use terrain.infer-change-direction. The player is enrolled, has not opted out, and the director permits a single learningOffer."
+      },
+      "steps": [
+        {
+          "input": "先看看这块板子上有什么。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 240,
+            "authorizedPublicCueDescribed": true,
+            "optionalOfferAtMostOne": true,
+            "quizDemanded": false,
+            "inventedMeasurements": false
+          }
+        },
+        {
+          "input": "我暂时不想学数学，先问问工坊里的人。",
+          "context": "Player declines the optional offer; a public, lawful conversation path remains.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 240,
+            "learningOfferSuppressed": true,
+            "conversationContinues": true,
+            "mathPenalty": false
+          }
+        },
+        {
+          "input": "继续说刚才那个人的回答。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 240,
+            "publicConversationContinues": true,
+            "unpromptedFormula": false,
+            "repeatedOffer": false
+          }
+        },
+        {
+          "input": "之后我主动想知道这里的变化方向能不能用梯度描述。",
+          "context": "Explicit voluntary learning request; only public evidence may be used and absent numeric data must be acknowledged.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 240,
+            "voluntaryConceptExplanationAllowed": true,
+            "missingMeasurementsAcknowledged": true,
+            "worldFactsUnchanged": true,
+            "automaticReward": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "learning-legacy-application-requires-explicit-migration",
+      "setup": {
+        "worldSeq": 250,
+        "story": "active",
+        "currentScene": "demo-ramp",
+        "fictionalScenario": "Synthetic scene still declares legacy application infer-slope, while approved concept only declares canonical terrain.infer-change-direction. The current adapter performs exact string matching; alias mapping exists only in a separate authoring taxonomy. No authorized revision migration has occurred."
+      },
+      "steps": [
+        {
+          "input": "看看坡道，有什么可以研究的？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 250,
+            "ordinaryObservationAvailable": true,
+            "legacyAliasAutoMatched": false,
+            "learningOfferFromMismatchedTag": false,
+            "worldContentAutoMigrated": false
+          }
+        },
+        {
+          "input": "那我就沿着已经公开的普通通道走，不做数学。",
+          "context": "A separate lawful travel is available without the learning opportunity.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 251,
+            "ordinaryRouteAllowed": true,
+            "quizDemanded": false,
+            "hiddenFactsExposed": false
+          }
+        },
+        {
+          "input": "为什么刚才没提示我计算？",
+          "context": "Player asks out of world for an explanation. This is a read-only query, not permission to rewrite content or reveal private records.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 251,
+            "explanationWithoutPrivateIds": true,
+            "aliasSilentlyApplied": false,
+            "learningReward": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "learning-cross-course-tag-reuse-does-not-cross-enrollment",
+      "setup": {
+        "worldSeq": 260,
+        "story": "active",
+        "currentScene": "demo-maproom",
+        "fictionalScenario": "Synthetic visible network of marked public passages. Two approved course packs use networks.trace-reachability with distinct course-prefixed concept IDs. Only cs2110 is enrolled; cs2800 is not enrolled. No hidden passage or private graph is authorized."
+      },
+      "steps": [
+        {
+          "input": "我能先看看地图上公开标出的路线吗？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 260,
+            "visibleGraphOnly": true,
+            "eligibleConceptCourse": "cs2110",
+            "unenrolledCourseOffered": false,
+            "hiddenEdgesInvented": false
+          }
+        },
+        {
+          "input": "我不想做课程题，只想找一个能走的出口。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 260,
+            "ordinaryRouteDescribed": true,
+            "forcedLesson": false,
+            "unapprovedConceptOffered": false
+          }
+        },
+        {
+          "input": "我主动问一下怎样判断两点是否连通。",
+          "context": "A learning request permits a concept explanation, but no automatic course enrollment or learning evidence grant.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 260,
+            "voluntaryLearningAllowed": true,
+            "conceptCourseScope": "cs2110",
+            "cs2800EnrollmentInferred": false,
+            "automaticEvidenceGranted": false
+          }
+        },
+        {
+          "input": "我说我上过离散数学了，给我记作已学吧。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 260,
+            "unverifiedEnrollmentClaimNotTrusted": true,
+            "unverifiedMasteryNotRecorded": true,
+            "worldFactsUnchanged": true
+          }
+        }
+      ]
     }
   ],
   "testHarnessNotes": [
@@ -1634,6 +1789,8 @@
     "Use synthetic scene/action labels only. Assert stale-action rejection, no private option leakage and no forced mathematics; the UI transport and action derivation implementation belong to Claude.",
     "For prose-quality sequences, grade both grounded narrative anchors and prohibited inventions using the synthetic authorized publicText; stylistic plausibility alone is insufficient.",
     "Assess NPC voices across consecutive turns and explicitly distinguish voluntary out-of-world mechanical explanation from unsolicited internal diagnostics.",
-    "For route-consequence sequences, distinguish physical backtracking from state rollback; grade the visible consequence and the prohibition on prematurely revealing latent server-private flags."
+    "For route-consequence sequences, distinguish physical backtracking from state rollback; grade the visible consequence and the prohibition on prematurely revealing latent server-private flags.",
+    "For cross-course offers, compare approved course concept IDs and scene affordance application IDs exactly; test the legacy-alias mismatch against the current adapter before claiming migration support.",
+    "Natural-learning prose acceptance requires checking actual DM text for unsolicited quiz imperatives, invented numeric evidence, and repeated offers after decline; fixture expectations alone are not a model pass."
   ]
 }
