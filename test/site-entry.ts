@@ -65,6 +65,8 @@ globalThis.fetch = (async (input: any, init?: any) => {
     if (lastText.includes("[[CLASSIFY]]")) {
       const C = (i: string[], c: boolean, r: boolean, e: any, p = false, k: string | null = null, pr = "none", act = "apply-derivative-method") => JSON.stringify({ intents: i, explicitCommit: c, storyResume: r, pauseStory: p, insightKey: k, planRef: pr, conceptId: e ? "math1920.derivative-basics" : null, actionId: act, evaluation: e });
       if (q.includes("BADJSON")) special = "不是json";
+      else if (q.includes("完整演示")) special = JSON.stringify({ intents: ["LEARN"], explicitCommit: false, tutorSolution: true, evaluation: null });
+      else if (q.includes("换道新题")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "none" }, false, "new-task-insight").replace('"conceptId"', '"newTask":true,"conceptId"');
       else if (q.includes("自己算")) special = JSON.stringify({ intents: ["ASK"], explicitCommit: false, quiet: "on", evaluation: null });
       else if (q.includes("给我提示")) special = JSON.stringify({ intents: ["ASK"], explicitCommit: false, quiet: "off", evaluation: null });
       else if (q.includes("执行方案 A")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, planRef: "previous", planIndex: 1, actionId: "apply-derivative-method", evaluation: null });

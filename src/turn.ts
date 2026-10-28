@@ -43,6 +43,7 @@ function ensureSchema(env: SiteEnv) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_turns (turn_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, response TEXT, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_plans (plan_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, status TEXT NOT NULL, text TEXT NOT NULL, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_plan_meta (plan_id TEXT PRIMARY KEY, world_seq INTEGER NOT NULL, reconfirm INTEGER NOT NULL DEFAULT 0)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_help (session_id TEXT PRIMARY KEY, worked INTEGER NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_evidence_concept (event_id TEXT PRIMARY KEY, concept_id TEXT NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_action_meta (action_id TEXT PRIMARY KEY, template TEXT NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_insight_use (event_id TEXT PRIMARY KEY, insight_key TEXT NOT NULL, is_first INTEGER NOT NULL)`),
@@ -75,6 +76,8 @@ export interface Classification {
   insightKey: string | null;
   planRef: "none" | "previous" | "inline";
   planIndex: number | null;
+  tutorSolution: boolean;
+  newTask: boolean;
   conceptId: string | null;
   actionTemplate: string;
   quiet: "on" | "off" | "none";
@@ -109,7 +112,7 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
     if (!isObj(e) || !CORRECT.has(e.correctness as string) || !REASON.has(e.reasoning as string) || !ASSIST.has(e.assistance as string)) return { ok: false, why: "evaluation 不合法" };
     ev = { correctness: e.correctness as string, reasoning: e.reasoning as string, assistance: e.assistance as string };
   }
-  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, planIndex: pi as number | null, conceptId: cid, actionTemplate: at, quiet: q as Classification["quiet"], evaluation: ev } };
+  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, planIndex: pi as number | null, tutorSolution: x.tutorSolution === true, newTask: x.newTask === true, conceptId: cid, actionTemplate: at, quiet: q as Classification["quiet"], evaluation: ev } };
 }
 
 const CLASSIFY_PROMPT = (input: string, paused: boolean, ctx: string) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
@@ -127,9 +130,11 @@ ${ctx}
 - planIndex：玩家点名方案序号时（“方案 A/第二个/B”分别对应 1/2…），填整数 1–9；否则 null；
 - conceptId：这次数学解答主要用到的知识点，只能是 math1920.derivative-basics（一元求导）、math1920.partial-derivative（偏导数）、math1920.gradient（梯度）之一，不确定或没有解答时 null；
 - actionId：玩家要执行的行动属于哪种：apply-derivative-method（用求导方法）、apply-gradient-method（用梯度方法）、plain-action（与数学无关的普通行动或说不清）；
+- tutorSolution：玩家要求导师完整演示/给出带步骤的完整解答（本回合你会给出完整解法）→ true；
+- newTask：玩家这次提交的解答针对的是与之前不同的新题 → true；
 - quiet：玩家说“让我自己想想/别提示”→"on"；玩家主动求提示、要答案、或明确说可以提示了→"off"；否则 "none"；
 - evaluation：玩家给出了数学解答时填 {correctness, reasoning, assistance}，否则 null。correctness∈correct/incorrect/partial/unknown；reasoning∈valid/partial/invalid/not_assessed（答案对但理由不成立要写 invalid；独立正确的非标准方法写 valid）；assistance∈none/minor_hint/major_hint/worked_solution/unknown（玩家在得到提示后作答要如实标注）。
-格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"planRef":"none","planIndex":null,"conceptId":null,"actionId":"plain-action","quiet":"none","evaluation":null}`;
+格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"planRef":"none","planIndex":null,"tutorSolution":false,"newTask":false,"conceptId":null,"actionId":"plain-action","quiet":"none","evaluation":null}`;
 
 const VERIFY_PROMPT = (input: string) => `[[VERIFY]] 先不要看玩家的结论，自己独立把题目解出来，再核对玩家的解答：结论是否正确，且推理是否确实成立（不是碰巧对，也不是照抄了提示）。只输出 JSON：{"ownAnswer":"你自己解出的最终结果","agree":true|false}。
 玩家输入：${input}`;
@@ -177,7 +182,7 @@ async function pickBasis(env: SiteEnv, sessionId: string, chosen: string | null,
   const base = `SELECT e.id FROM learning_events e JOIN adventure_turns tt ON e.id = 'turn:' || tt.turn_id || ':eval'
     JOIN adventure_evidence_concept ec ON ec.event_id=e.id AND ec.concept_id IN (${need.map(() => "?").join(",")})
     LEFT JOIN adventure_actions a ON a.basis_event_id=e.id LEFT JOIN adventure_insight_use i ON i.event_id=e.id
-    WHERE tt.session_id=? AND (i.event_id IS NULL OR i.is_first=1) AND e.topic_id=? AND e.verification='confirmed' AND e.correctness='correct' AND e.reasoning='valid' AND a.action_id IS NULL`;
+    WHERE tt.session_id=? AND (i.event_id IS NULL OR i.is_first=1) AND e.topic_id=? AND e.verification='confirmed' AND e.assistance != 'worked_solution' AND e.correctness='correct' AND e.reasoning='valid' AND a.action_id IS NULL`;
   if (chosen) {
     const ok = await env.DB.prepare(base + " AND e.id=?").bind(...need, sessionId, ROUTING.topicId, chosen).first<{ id: string }>();
     if (!ok) return { ok: false, message: "你指定的依据现在不能用：它可能不是这个会话里已确认的正确推理，已经被用过，或只是重复的思路。没有执行，方案还在。" };
@@ -230,6 +235,18 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   const intents = cls.intents;
 
   // 2. 学术评估记录（独立于骰子；待验证的不发奖励、不给加成）
+  // 导师给过完整解答后，同一题上的“自己算”不是独立证据（#18/多轮契约）：服务器强制标注 worked_solution；换新题才恢复独立，并算迁移证据。
+  const hrow = await env.DB.prepare("SELECT worked FROM adventure_help WHERE session_id=?").bind(sessionId).first<{ worked: number }>();
+  const helped = !!hrow?.worked;
+  let transferEvidence = false;
+  if (cls.evaluation) {
+    if (helped && !cls.newTask && cls.evaluation.assistance !== "worked_solution") cls.evaluation = { ...cls.evaluation, assistance: "worked_solution" };
+    if (helped && cls.newTask) {
+      transferEvidence = cls.evaluation.assistance === "none";
+      await env.DB.prepare("UPDATE adventure_help SET worked=0 WHERE session_id=?").bind(sessionId).run();
+    }
+  }
+  if (cls.tutorSolution) await env.DB.prepare("INSERT INTO adventure_help (session_id,worked) VALUES (?,1) ON CONFLICT(session_id) DO UPDATE SET worked=1").bind(sessionId).run();
   let academic: Record<string, unknown> | null = null;
   let evalEventId: string | null = null;
   if (cls.evaluation) {
@@ -244,7 +261,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       }
     }
     evalEventId = "turn:" + turnId + ":eval";
-    const ev = { id: evalEventId, type: "knowledge_attempt", topicId: ROUTING.topicId, at: Date.now(), ...cls.evaluation, verification, context: "adventure", transfer: false };
+    const ev = { id: evalEventId, type: "knowledge_attempt", topicId: ROUTING.topicId, at: Date.now(), ...cls.evaluation, verification, context: "adventure", transfer: transferEvidence };
     const pr = await postEvent(env, ev);
     if (pr.status !== 200) return uncertain("event_failed", "学习记录没写进去，没有提交任何行动。");
     if (cls.conceptId) await env.DB.prepare("INSERT OR IGNORE INTO adventure_evidence_concept (event_id,concept_id) VALUES (?,?)").bind(evalEventId, cls.conceptId).run();

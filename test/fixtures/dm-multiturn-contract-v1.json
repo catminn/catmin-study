@@ -1,0 +1,311 @@
+{
+  "schema": "dm-multiturn-contract-v1",
+  "purpose": "Stateful, spoiler-free acceptance sequences for the MATH 1920 sandbox. These are behavioral contracts; the existing single-turn run-fixtures.py does not execute them.",
+  "ownership": {
+    "experience": "ChatGPT",
+    "implementation": "Claude"
+  },
+  "invariants": [
+    "A player's direct, unambiguous, lawful action may commit without a prior Draft.",
+    "A reference to an old or ambiguous plan cannot silently select an arbitrary candidate.",
+    "A lesson-first request never commits the action before the lesson and renewed authorization.",
+    "Quiet mode persists across ordinary non-answer turns, without leaking steps.",
+    "Knowledge evidence must be verified, unconsumed, session-scoped and causally relevant to the specific action; correctness is separate from game success.",
+    "No sequence authorizes hidden-world disclosure or production state changes.",
+    "Correctly copying a tutor's worked solution may demonstrate exposure and mathematical correctness but is not independent mastery evidence; self-claims do not override assistance provenance.",
+    "After prior help, a genuinely new task solved without task-specific assistance can provide fresh transfer evidence after independent verification; prior assistance must not permanently block progress."
+  ],
+  "sequences": [
+    {
+      "id": "mixed-teach-before-act",
+      "setup": {
+        "worldSeq": 4,
+        "story": "active",
+        "pendingPlans": []
+      },
+      "steps": [
+        {
+          "input": "先教我怎么算梯度，然后按我学会的方法执行。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 4,
+            "mode": "TEACH",
+            "reason": "Teaching is a prerequisite, not permission to execute prematurely."
+          }
+        },
+        {
+          "input": "我明白了，先让我自己算。",
+          "expect": {
+            "commit": false,
+            "quiet": true,
+            "worldSeq": 4
+          }
+        },
+        {
+          "input": "梯度我算出来了，但我还没决定行动。",
+          "expect": {
+            "commit": false,
+            "quiet": false,
+            "worldSeq": 4
+          }
+        },
+        {
+          "input": "现在就用刚才确认的方法执行这项明确合法的操作。",
+          "context": "Action is fully specified and independently allowed.",
+          "expect": {
+            "commit": "only_after_validation",
+            "worldSeq": "increment_only_if_committed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ambiguous-draft-reference",
+      "setup": {
+        "worldSeq": 10,
+        "story": "active",
+        "pendingPlans": [
+          "draft-A",
+          "draft-B"
+        ]
+      },
+      "steps": [
+        {
+          "input": "执行刚才那个方案。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 10,
+            "clarify": true,
+            "reason": "Two eligible plans; never silently select latest."
+          }
+        },
+        {
+          "input": "选方案 A，但先不要执行。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 10
+          }
+        },
+        {
+          "input": "现在执行方案 A。",
+          "expect": {
+            "commit": "conditional_on_revalidation",
+            "worldSeq": "increment_only_if_committed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "stale-plan-revalidation",
+      "setup": {
+        "worldSeq": 12,
+        "story": "active",
+        "pendingPlans": [
+          {
+            "id": "draft-A",
+            "createdAt": "30+ minutes ago",
+            "worldSeqAtDraft": 11
+          }
+        ]
+      },
+      "steps": [
+        {
+          "input": "执行之前的方案 A。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 12,
+            "clarify": true,
+            "reason": "World changed since draft; show public changes relevant to validity, recheck and request confirmation without deleting draft."
+          }
+        },
+        {
+          "input": "我确认按当前情况执行方案 A。",
+          "context": "Server revalidates all current action constraints.",
+          "expect": {
+            "commit": "only_if_still_legal",
+            "worldSeq": "increment_only_if_committed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "persistent-quiet-and-help",
+      "setup": {
+        "worldSeq": 2,
+        "story": "active",
+        "quiet": false
+      },
+      "steps": [
+        {
+          "input": "这题让我自己想，别提示。",
+          "expect": {
+            "commit": false,
+            "quiet": true,
+            "solutionLeak": false
+          }
+        },
+        {
+          "input": "我再看看题目条件。",
+          "expect": {
+            "commit": false,
+            "quiet": true,
+            "solutionLeak": false
+          }
+        },
+        {
+          "input": "等一下，我需要一点提示，只给一步。",
+          "expect": {
+            "commit": false,
+            "quiet": false,
+            "help": "one_minimal_hint_only"
+          }
+        },
+        {
+          "input": "我的解答是……",
+          "context": "Learner used the previous hint.",
+          "expect": {
+            "commit": false,
+            "assistance": "not_none",
+            "academicCorrectness": "evaluate_independently"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evidence-choice-and-game-failure",
+      "setup": {
+        "worldSeq": 20,
+        "story": "active",
+        "evidence": [
+          "e1: confirmed relevant gradient derivation",
+          "e2: confirmed but irrelevant integration exercise",
+          "e3: repeated insight"
+        ]
+      },
+      "steps": [
+        {
+          "input": "用 e2 的知识加成执行这个梯度相关行动。",
+          "selectedBasis": "e2",
+          "expect": {
+            "commit": false,
+            "worldSeq": 20,
+            "reason": "Confirmed but causally irrelevant evidence must not confer a bonus."
+          }
+        },
+        {
+          "input": "那用 e1，立即执行这个明确合法的行动。",
+          "selectedBasis": "e1",
+          "context": "Action is lawful, independent evidence is confirmed; game roll fails.",
+          "expect": {
+            "commit": true,
+            "gameSuccess": false,
+            "academicEvidence": "retained",
+            "evidenceConsumed": "e1",
+            "worldSeq": 21
+          }
+        },
+        {
+          "input": "我再用同一条 e1 重新领取知识加成。",
+          "selectedBasis": "e1",
+          "expect": {
+            "bonusFromE1": false,
+            "reason": "Evidence already consumed; do not stack or duplicate rewards.",
+            "commit": false,
+            "worldSeq": 21
+          }
+        }
+      ]
+    },
+    {
+      "id": "worked-solution-copy-is-not-independent",
+      "setup": {
+        "worldSeq": 30,
+        "story": "paused",
+        "topic": "math1920.gradient",
+        "pendingPlans": [],
+        "priorTaskHelp": "none"
+      },
+      "steps": [
+        {
+          "input": "请完整演示 f(x,y)=x²+3y² 在 (1,2) 的梯度，连步骤一起给我。",
+          "context": "Tutor explicitly supplies partial derivatives 2x and 6y, then gradient (2,12).",
+          "expect": {
+            "commit": false,
+            "assistanceProvided": "worked_solution",
+            "independentEvidence": false,
+            "worldSeq": 30
+          }
+        },
+        {
+          "input": "我自己算的：偏导是 2x、6y，所以 ∇f(1,2)=(2,12)。",
+          "context": "Player repeats the exact worked steps from the immediately preceding tutor answer, despite claiming independent work.",
+          "expect": {
+            "commit": false,
+            "academicCorrectness": "correct",
+            "mathematicalReasoning": "valid",
+            "assistance": "worked_solution",
+            "independentMasteryEvidence": false,
+            "worldSeq": 30,
+            "reason": "A correct reproduction is not an independently derived solution."
+          }
+        },
+        {
+          "input": "那我换个说法：沿 x 方向变化率是 2，沿 y 方向是 12。这能算一次新的独立掌握吗？",
+          "context": "Same task and same idea as the tutor's worked example; no new independent derivation.",
+          "expect": {
+            "commit": false,
+            "newIndependentEvidence": false,
+            "duplicateMasteryReward": false,
+            "assistance": "not_none",
+            "worldSeq": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": "fresh-transfer-after-worked-example",
+      "setup": {
+        "worldSeq": 31,
+        "story": "paused",
+        "topic": "math1920.gradient",
+        "priorHelp": "Tutor fully solved f(x,y)=x²+3y² at (1,2) and player copied it.",
+        "priorEvidence": "copied_worked_solution_not_independent"
+      },
+      "steps": [
+        {
+          "input": "再给我一道不同的梯度题。我自己做，不要任何提示。",
+          "context": "New task: g(x,y)=2x²+y² at (3,1). No worked solution or hint is given for this new task.",
+          "expect": {
+            "commit": false,
+            "quiet": true,
+            "solutionLeak": false,
+            "newTask": true,
+            "worldSeq": 31
+          }
+        },
+        {
+          "input": "g 的偏导分别是 4x 和 2y，所以 ∇g(3,1)=(12,2)。",
+          "context": "New task, complete derivation supplied by player without hints on this task; cross-check mathematical reasoning independently.",
+          "expect": {
+            "commit": false,
+            "academicCorrectness": "correct",
+            "mathematicalReasoning": "valid",
+            "assistanceForCurrentTask": "none",
+            "independentTransferEvidence": "eligible_only_after_verification",
+            "priorCopyDoesNotDisqualifyForever": true,
+            "duplicateInsightBonus": "not_automatically_granted",
+            "worldSeq": 31
+          }
+        }
+      ]
+    }
+  ],
+  "testHarnessNotes": [
+    "Run only against isolated sandbox sessions and fake state; never real user saves.",
+    "Assert server commit and learning event tables, not only narration text.",
+    "For conditional outcomes, set deterministic game RNG and explicitly legal action fixtures.",
+    "Do not infer real model pass/fail from this specification; run fixtures before claiming success.",
+    "Preserve task IDs and tutor-output assistance provenance across turns; checking only the latest player message is insufficient for independence attribution.",
+    "Distinguish correctness, validity of mathematical steps, task-level assistance, independent transfer and duplicate insight/reward eligibility."
+  ]
+}

@@ -129,6 +129,18 @@ c, o = post("/api/adventure/turn", {"sessionId": "C1", "turnId": "cc1", "inputTe
 check("普通行动指定数学证据 → 拒绝", o["gameCommit"] is None and "不需要" in o["visibleFeedback"], o)
 c, o = turn("现在执行", sid="C1")
 check("匹配的行动（求导）用到同一条证据，加成 3", o["gameCommit"]["bonus"] == 3 and o["gameCommit"]["basisEventId"] == evc, o)
+
+# 完整解答后抄答案不是独立证据；换新题才恢复
+post("/api/adventure/session", {"sessionId": "W1", "op": "start"})
+c, o = turn("请完整演示一下求导", sid="W1")
+c, o = turn("先展开再求导，这是我的解答 g(t)", sid="W1"); evw = o["academicEvaluation"]
+check("完整解答后的同题作答被强制标为 worked_solution", evw["assistance"] == "worked_solution", o)
+c, o = turn("现在用求导方法执行", sid="W1")
+check("worked_solution 证据不能当行动依据（加成 0）", o["gameCommit"] and o["gameCommit"]["bonus"] == 0, o)
+c, o = turn("换道新题，我自己做 h(t)", sid="W1"); evn = o["academicEvaluation"]
+check("换新题后恢复独立证据 assistance=none", evn["assistance"] == "none", o)
+c, o = turn("现在用求导方法执行", sid="W1")
+check("新题的独立证据可以给加成", o["gameCommit"] and o["gameCommit"]["bonus"] == 3, o)
 check("坏请求被拒", turn("")[0] == 400 and post("/api/adventure/turn", {"sessionId": "S"})[0] == 400)
 check("不存在的会话", turn("hi", sid="nope")[0] == 404)
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)
