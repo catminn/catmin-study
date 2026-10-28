@@ -16,6 +16,14 @@ export const ROUTING = {
   planSoftTtlMs: 30 * 60 * 1000, // 超过这个时间的方案不会被删除，只是执行前要重新确认
 };
 
+// 服务器可信的行动模板：知识加成只来自 requiredConcepts 匹配的已确认证据（见 ChatGPT 信箱 #18）。同一个课程主题不等于能给任何行动加成。
+export const CONCEPTS = ["math1920.derivative-basics", "math1920.partial-derivative", "math1920.gradient"];
+export const ACTIONS: Record<string, { requiredConcepts: { conceptId: string; application: string; effectType: "one-knowledge-bonus" }[] }> = {
+  "apply-derivative-method": { requiredConcepts: [{ conceptId: "math1920.derivative-basics", application: "compute-rate-by-differentiating", effectType: "one-knowledge-bonus" }] },
+  "apply-gradient-method": { requiredConcepts: [{ conceptId: "math1920.gradient", application: "compute-local-rate-from-gradient", effectType: "one-knowledge-bonus" }] },
+  "plain-action": { requiredConcepts: [] }, // 例如纯体力行动，任何数学证据都不能加成
+};
+
 export interface Deps {
   budgetOk(): Promise<{ ok: true } | { ok: false; reason: string }>;
   complete(tier: string, provider: string, text: string, maxTok: number): Promise<string>;
@@ -35,6 +43,8 @@ function ensureSchema(env: SiteEnv) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_turns (turn_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, response TEXT, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_plans (plan_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, status TEXT NOT NULL, text TEXT NOT NULL, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_plan_meta (plan_id TEXT PRIMARY KEY, world_seq INTEGER NOT NULL, reconfirm INTEGER NOT NULL DEFAULT 0)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_evidence_concept (event_id TEXT PRIMARY KEY, concept_id TEXT NOT NULL)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_action_meta (action_id TEXT PRIMARY KEY, template TEXT NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_insight_use (event_id TEXT PRIMARY KEY, insight_key TEXT NOT NULL, is_first INTEGER NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_flags (session_id TEXT PRIMARY KEY, quiet INTEGER NOT NULL)`),
     env.DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_insight_first ON adventure_insight_use(insight_key) WHERE is_first=1`),
@@ -65,6 +75,8 @@ export interface Classification {
   insightKey: string | null;
   planRef: "none" | "previous" | "inline";
   planIndex: number | null;
+  conceptId: string | null;
+  actionTemplate: string;
   quiet: "on" | "off" | "none";
   evaluation: null | { correctness: string; reasoning: string; assistance: string };
 }
@@ -89,13 +101,15 @@ export function validateClassification(x: unknown): { ok: true; value: Classific
   if (q !== "on" && q !== "off" && q !== "none") return { ok: false, why: "quiet 不合法" };
   const pi = x.planIndex === undefined || x.planIndex === null ? null : x.planIndex;
   if (pi !== null && !(Number.isInteger(pi) && (pi as number) >= 1 && (pi as number) <= 9)) return { ok: false, why: "planIndex 不合法" };
+  const cid = x.conceptId === undefined || x.conceptId === null || !CONCEPTS.includes(x.conceptId as string) ? null : (x.conceptId as string);
+  const at = typeof x.actionId === "string" && ACTIONS[x.actionId] ? x.actionId : "plain-action";
   let ev: Classification["evaluation"] = null;
   if (x.evaluation !== null && x.evaluation !== undefined) {
     const e = x.evaluation;
     if (!isObj(e) || !CORRECT.has(e.correctness as string) || !REASON.has(e.reasoning as string) || !ASSIST.has(e.assistance as string)) return { ok: false, why: "evaluation 不合法" };
     ev = { correctness: e.correctness as string, reasoning: e.reasoning as string, assistance: e.assistance as string };
   }
-  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, planIndex: pi as number | null, quiet: q as Classification["quiet"], evaluation: ev } };
+  return { ok: true, value: { intents: [...new Set(it as string[])], explicitCommit: x.explicitCommit === true, storyResume: resume, pauseStory: pause, insightKey: ik as string | null, planRef: pr, planIndex: pi as number | null, conceptId: cid, actionTemplate: at, quiet: q as Classification["quiet"], evaluation: ev } };
 }
 
 const CLASSIFY_PROMPT = (input: string, paused: boolean, ctx: string) => `[[CLASSIFY]] 你是学习型冒险游戏的意图识别器。只输出一个 JSON，不要解释。
@@ -111,9 +125,11 @@ ${ctx}
 - insightKey：这次解答用到的核心思路的稳定短标识（小写英文数字和连字符，如 expand-then-differentiate）；同一个思路换说法重复出现必须用同一个标识，没有评估时为 null；
 - planRef：玩家要执行行动时，指令本身是否把行动说清楚了。"inline"=指令自己说明了要做什么；"previous"=指代之前商量/草拟过的方案（如“刚才那个”）；"none"=不涉及执行。指代不清也写 "previous"；
 - planIndex：玩家点名方案序号时（“方案 A/第二个/B”分别对应 1/2…），填整数 1–9；否则 null；
+- conceptId：这次数学解答主要用到的知识点，只能是 math1920.derivative-basics（一元求导）、math1920.partial-derivative（偏导数）、math1920.gradient（梯度）之一，不确定或没有解答时 null；
+- actionId：玩家要执行的行动属于哪种：apply-derivative-method（用求导方法）、apply-gradient-method（用梯度方法）、plain-action（与数学无关的普通行动或说不清）；
 - quiet：玩家说“让我自己想想/别提示”→"on"；玩家主动求提示、要答案、或明确说可以提示了→"off"；否则 "none"；
 - evaluation：玩家给出了数学解答时填 {correctness, reasoning, assistance}，否则 null。correctness∈correct/incorrect/partial/unknown；reasoning∈valid/partial/invalid/not_assessed（答案对但理由不成立要写 invalid；独立正确的非标准方法写 valid）；assistance∈none/minor_hint/major_hint/worked_solution/unknown（玩家在得到提示后作答要如实标注）。
-格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"planRef":"none","planIndex":null,"quiet":"none","evaluation":null}`;
+格式：{"intents":[...],"explicitCommit":false,"storyResume":false,"pauseStory":false,"insightKey":null,"planRef":"none","planIndex":null,"conceptId":null,"actionId":"plain-action","quiet":"none","evaluation":null}`;
 
 const VERIFY_PROMPT = (input: string) => `[[VERIFY]] 先不要看玩家的结论，自己独立把题目解出来，再核对玩家的解答：结论是否正确，且推理是否确实成立（不是碰巧对，也不是照抄了提示）。只输出 JSON：{"ownAnswer":"你自己解出的最终结果","agree":true|false}。
 玩家输入：${input}`;
@@ -152,16 +168,22 @@ export async function handleTurn(env: SiteEnv, body: unknown, deps: Deps): Promi
 }
 
 // 行动的知识依据：默认取本会话里最近一条可用证据；玩家也可以指定一条。服务器检查归属、已确认、答对且推理有效、没被用过、不是重复思路。
-async function pickBasis(env: SiteEnv, sessionId: string, chosen: string | null): Promise<{ ok: true; id: string | null } | { ok: false; message: string }> {
+async function pickBasis(env: SiteEnv, sessionId: string, chosen: string | null, template: string): Promise<{ ok: true; id: string | null } | { ok: false; message: string }> {
+  const need = (ACTIONS[template] ?? ACTIONS["plain-action"]).requiredConcepts.map((c) => c.conceptId);
+  if (!need.length) {
+    if (chosen) return { ok: false, message: "这个行动不需要也不吃知识加成，所以不能指定依据。没有执行，方案还在。" };
+    return { ok: true, id: null };
+  }
   const base = `SELECT e.id FROM learning_events e JOIN adventure_turns tt ON e.id = 'turn:' || tt.turn_id || ':eval'
+    JOIN adventure_evidence_concept ec ON ec.event_id=e.id AND ec.concept_id IN (${need.map(() => "?").join(",")})
     LEFT JOIN adventure_actions a ON a.basis_event_id=e.id LEFT JOIN adventure_insight_use i ON i.event_id=e.id
     WHERE tt.session_id=? AND (i.event_id IS NULL OR i.is_first=1) AND e.topic_id=? AND e.verification='confirmed' AND e.correctness='correct' AND e.reasoning='valid' AND a.action_id IS NULL`;
   if (chosen) {
-    const ok = await env.DB.prepare(base + " AND e.id=?").bind(sessionId, ROUTING.topicId, chosen).first<{ id: string }>();
+    const ok = await env.DB.prepare(base + " AND e.id=?").bind(...need, sessionId, ROUTING.topicId, chosen).first<{ id: string }>();
     if (!ok) return { ok: false, message: "你指定的依据现在不能用：它可能不是这个会话里已确认的正确推理，已经被用过，或只是重复的思路。没有执行，方案还在。" };
     return { ok: true, id: ok.id };
   }
-  const r = await env.DB.prepare(base + " ORDER BY e.at DESC LIMIT 1").bind(sessionId, ROUTING.topicId).first<{ id: string }>();
+  const r = await env.DB.prepare(base + " ORDER BY e.at DESC LIMIT 1").bind(...need, sessionId, ROUTING.topicId).first<{ id: string }>();
   return { ok: true, id: r?.id ?? null };
 }
 
@@ -225,6 +247,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
     const ev = { id: evalEventId, type: "knowledge_attempt", topicId: ROUTING.topicId, at: Date.now(), ...cls.evaluation, verification, context: "adventure", transfer: false };
     const pr = await postEvent(env, ev);
     if (pr.status !== 200) return uncertain("event_failed", "学习记录没写进去，没有提交任何行动。");
+    if (cls.conceptId) await env.DB.prepare("INSERT OR IGNORE INTO adventure_evidence_concept (event_id,concept_id) VALUES (?,?)").bind(evalEventId, cls.conceptId).run();
     let firstUse = true;
     if (cls.insightKey) {
       const ins = await env.DB.prepare("INSERT OR IGNORE INTO adventure_insight_use (event_id,insight_key,is_first) VALUES (?,?,1)").bind(evalEventId, sessionId + "|" + cls.insightKey).run();
@@ -233,7 +256,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
         await env.DB.prepare("INSERT OR IGNORE INTO adventure_insight_use (event_id,insight_key,is_first) VALUES (?,?,0)").bind(evalEventId, sessionId + "|" + cls.insightKey).run();
       }
     }
-    academic = { ...cls.evaluation, verification, eventId: evalEventId, repeatedInsight: !firstUse, insightKey: cls.insightKey };
+    academic = { ...cls.evaluation, verification, eventId: evalEventId, repeatedInsight: !firstUse, insightKey: cls.insightKey, conceptId: cls.conceptId };
   }
 
   // 3. 行动：只有 ACT 且玩家明确要求执行、故事进行中才可能提交；ASK/LEARN/PRACTICE 一律 null
@@ -277,7 +300,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
     if (sess.status !== "active" && !cls.storyResume) visible = "故事现在是暂停状态，没有执行行动。说“继续”就能回到刚才。";
     else {
       if (sess.status !== "active") await env.DB.prepare("UPDATE adventure_sessions SET status='active', updated_at=? WHERE id=?").bind(Date.now() / 1000, sessionId).run();
-      const pb = await pickBasis(env, sessionId, chosen);
+      const pb = await pickBasis(env, sessionId, chosen, cls.actionTemplate);
       if (!pb.ok) {
         visible = pb.message;
         if (planId) { /* 方案保持 draft，玩家可以改选依据后再执行 */ }
@@ -286,7 +309,8 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
       if (!pb.ok) { /* 不提交 */ } else {
       const r = await postAction(env, { actionId: "turn:" + turnId, basisEventId: basis?.id ?? null });
       if (r.status === 200) {
-        commit = r.body.outcome as Record<string, unknown>;
+        commit = { ...(r.body.outcome as Record<string, unknown>), actionTemplate: cls.actionTemplate };
+        await env.DB.prepare("INSERT OR IGNORE INTO adventure_action_meta (action_id,template) VALUES (?,?)").bind("turn:" + turnId, cls.actionTemplate).run();
         if (planId) await env.DB.prepare("UPDATE adventure_plans SET status='consumed' WHERE plan_id=? AND status='draft'").bind(planId).run();
         if (!r.body.replay) await env.DB.prepare("UPDATE adventure_sessions SET world_seq=world_seq+1, updated_at=? WHERE id=?").bind(Date.now() / 1000, sessionId).run();
       } else visible = String(r.body.message ?? "行动没有提交");
@@ -310,8 +334,8 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   else if (cls.quiet === "off" || cls.evaluation) quiet = false; // 主动求提示或提交了答案，静默结束
   if (quiet !== !!qrow?.quiet) await env.DB.prepare("INSERT INTO adventure_flags (session_id,quiet) VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET quiet=excluded.quiet").bind(sessionId, quiet ? 1 : 0).run();
   const route = ROUTING.reply[main] ?? ROUTING.reply.ASK;
-  const facts = commit ? `已提交的事实（只能叙述这些）：骰点${commit.roll}+知识加成${commit.bonus} 对 DC${commit.dc}，${commit.success ? "成功" : "失败"}。` : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。";
-  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `（内部记录，界面会另外显示标签，回复里不要出现这些字段名或英文标签）这位玩家本次解答的判定：${academic.correctness==='correct'?'结论正确':'结论有问题'}，${academic.reasoning==='valid'?'推理成立':'推理有缺陷'}。用自然的话告诉玩家结果和原因，不要写“学术评估”“correct”之类。` : ""}按玩家要的篇幅回答，别用任务菜单打断。可以主动补充有用的方法、另一种解法或检查办法，简短点出即可，不要长篇；但玩家处于静默状态（想自己想）、或明确说别提示时，不要主动给。玩家只是说想法或计划时，简短确认，不替他算。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n${ctx}\n玩家说“刚才的方法/那个/上一个”时，指上面最近对话里的内容，按那个理解，不要反问“你指哪个方法”。\n玩家输入：${input}`;
+  const facts = commit ? `已提交的事实（只能叙述这些）：判定${commit.success ? "成功" : "失败"}（骰点${commit.roll}+知识加成${commit.bonus}，对 DC${commit.dc}）。具体的环境变化、后果和故事推进服务器还没有给出，所以只能说“判定成功/失败，具体后果尚未确定”这类话；绝不能编造门打开、敌人退走、场景切换、目标达成或时间流逝。允许一句不带新事实的过渡，如“你按计划尝试，检定成功”。` : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。";
+  const prompt = `你是学习型冒险游戏里的导师兼 DM。数学内容必须准确，不能因为故事改变数学事实。玩家意图：${intents.join("+")}。${facts}${academic ? `（内部记录，界面会另外显示标签，回复里不要出现这些字段名或英文标签）这位玩家本次解答的判定：${academic.correctness==='correct'?'结论正确':'结论有问题'}，${academic.reasoning==='valid'?'推理成立':'推理有缺陷'}。用自然的话告诉玩家结果和原因，不要写“学术评估”“correct”之类。` : ""}按玩家要的篇幅回答，别用任务菜单打断。玩家答对后，默认用一句话简短补充另一种方法或检查办法，并告诉他想深入可以继续问，不要强制展开；但玩家处于静默状态、或说了“只告诉我对不对”“让我自己想”“不要剧透步骤”时，不要主动给。玩家只是说“先别执行”这类暂缓时，回答“好，先不执行。你可以继续完善方案，或直接问我相关知识”，不要强迫他交步骤；只有他明确让你评估方案时才邀请他写出步骤。要提示只给最小的一条线索，不给完整解答；玩家说“我想自己想想”就极简回应，不主动追加提示；玩家连续表示听不懂就换表示方式（数值/符号/几何）而不是复述；刷题就不要叙事装饰。${quiet ? "现在是静默状态：玩家想自己想，极简回应（一句话），不要泄露任何步骤，不要暗示解法，不要主动给提示。" : ""}${academic && academic.repeatedInsight ? "这是对已记录思路的重复表述，认可即可，不要说它带来了新的优势。" : ""}\n${ctx}\n玩家说“刚才的方法/那个/上一个”时，指上面最近对话里的内容，按那个理解，不要反问“你指哪个方法”。\n玩家输入：${input}`;
   let narration = "";
   try {
     narration = await deps.complete(route.tier, route.provider, prompt, main === "LEARN" ? 1500 : 700);

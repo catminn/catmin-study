@@ -63,11 +63,13 @@ globalThis.fetch = (async (input: any, init?: any) => {
     const q = (lastText.split("玩家输入：")[1] || "").split("\n")[0].trim();
     let special: string | null = null;
     if (lastText.includes("[[CLASSIFY]]")) {
-      const C = (i: string[], c: boolean, r: boolean, e: any, p = false, k: string | null = null, pr = "none") => JSON.stringify({ intents: i, explicitCommit: c, storyResume: r, pauseStory: p, insightKey: k, planRef: pr, evaluation: e });
+      const C = (i: string[], c: boolean, r: boolean, e: any, p = false, k: string | null = null, pr = "none", act = "apply-derivative-method") => JSON.stringify({ intents: i, explicitCommit: c, storyResume: r, pauseStory: p, insightKey: k, planRef: pr, conceptId: e ? "math1920.derivative-basics" : null, actionId: act, evaluation: e });
       if (q.includes("BADJSON")) special = "不是json";
       else if (q.includes("自己算")) special = JSON.stringify({ intents: ["ASK"], explicitCommit: false, quiet: "on", evaluation: null });
       else if (q.includes("给我提示")) special = JSON.stringify({ intents: ["ASK"], explicitCommit: false, quiet: "off", evaluation: null });
-      else if (q.includes("执行方案 A")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, planRef: "previous", planIndex: 1, evaluation: null });
+      else if (q.includes("执行方案 A")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, planRef: "previous", planIndex: 1, actionId: "apply-derivative-method", evaluation: null });
+      else if (q.includes("搬箱子")) special = C(["ACT"], true, false, null, false, null, "inline", "plain-action");
+      else if (q.includes("梯度方法执行")) special = C(["ACT"], true, false, null, false, null, "inline", "apply-gradient-method");
       else if (q.includes("区别")) special = C(["ASK"], false, false, null);
       else if (q.includes("系统讲")) special = C(["LEARN"], false, false, null);
       else if (q.includes("刷5题")) special = C(["PRACTICE"], false, false, null, true);
