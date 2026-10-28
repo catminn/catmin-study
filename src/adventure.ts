@@ -4,6 +4,7 @@
 //   GET  /api/adventure/session?id=
 // 规则：知识加成只来自 verification=confirmed 且 correct+valid 的事件，且每个事件只能被一次行动消费。
 import type { SiteEnv } from "./site";
+import { pinWorldForSession } from "./world";
 
 export const CONFIG = {
   version: "slice-1.0.0",
@@ -102,6 +103,10 @@ export async function sessionOp(env: SiteEnv, body: unknown): Promise<Result> {
   const now = Date.now() / 1000;
   if (op === "start") {
     await env.DB.prepare("INSERT OR IGNORE INTO adventure_sessions (id,status,segment,world_seq,updated_at) VALUES (?,?,?,?,?)").bind(id, "active", 0, 0, now).run();
+    // 可选：显式选择世界（固定 worldId 与各内容修订）；世界不存在/不唯一或会话已固定到别的世界 → 400，不猜
+    if (body.worldId !== undefined) {
+      if (typeof body.worldId !== "string" || !(await pinWorldForSession(env, id, body.worldId))) return fail(400, "bad_world", "worldId 不存在或会话已固定到别的世界");
+    }
   } else {
     const s = await env.DB.prepare("SELECT 1 FROM adventure_sessions WHERE id=?").bind(id).first();
     if (!s) return fail(404, "not_found", "会话不存在");

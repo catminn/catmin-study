@@ -3,11 +3,10 @@
 //   POST /api/adventure/turn {sessionId, turnId, inputText}   同 turnId 重试返回原回复，不重复调用模型/不重复提交
 import type { SiteEnv } from "./site";
 import { sceneRequest, narrationViolatesSceneContract } from "./scene-intent";
-import { applyTrigger, availableChoices, availableMoves, commitChoice, commitTravel, pendingEndingNotice, publicSceneInfo, replayPublicOutcomes, type PublicEvent } from "./world";
+import { readWorldContent, applyTrigger, availableChoices, availableMoves, commitChoice, commitTravel, pendingEndingNotice, publicSceneInfo, replayPublicOutcomes, type PublicEvent } from "./world";
 import { ACTIONS, CONCEPTS, CONFIG, postAction } from "./adventure";
 import { postEvent } from "./events";
 import { extraConcepts, learningOffer } from "./learning";
-import { readContentInternal } from "./content";
 
 export const ROUTING = {
   version: "routing-1.0.0",
@@ -466,7 +465,7 @@ async function runTurn(env: SiteEnv, deps: Deps, sessionId: string, turnId: stri
   // 可选学习提示：只来自当前场景作者声明的公开线索，不改世界、不强制；失败一律不影响回合
   let offer = null as Awaited<ReturnType<typeof learningOffer>>;
   if (sceneInfo.active && !endingNotice) {
-    try { const st = await env.DB.prepare("SELECT scene_id FROM adventure_world WHERE session_id=?").bind(sessionId).first<{ scene_id: string }>(); const sc = st ? (await readContentInternal(env, "scene", st.scene_id))?.content : null; offer = await learningOffer(env, sessionId, sc, { requestedLearning: intents.includes("LEARN"), quiet }); } catch { offer = null; }
+    try { const st = await env.DB.prepare("SELECT scene_id FROM adventure_world WHERE session_id=?").bind(sessionId).first<{ scene_id: string }>(); const sc = st ? (await readWorldContent(env, sessionId, "scene", st.scene_id))?.content : null; offer = await learningOffer(env, sessionId, sc, { requestedLearning: intents.includes("LEARN"), quiet }); } catch { offer = null; }
   }
   const offerHint = offer ? "（可选，绝不强迫：当前场景里有一个自然的数学联系，作者给的话是「" + offer.prompt + "」。只有叙述自然时，才用一句话从场景线索带出这个联系；不要出题、不要要求玩家回答、不要因此阻止探索或推进；玩家可以完全忽略，忽略就当没提。）" : "";
   const facts = endingFact + sceneFact + (commit ? `已提交的事实（只能叙述这些）：判定${commit.success ? "成功" : "失败"}（骰点${commit.roll}+知识加成${commit.bonus}，对 DC${commit.dc}）。${worldEvents.length ? "服务器确认的世界结果（只能据此叙述，可以润色措辞，但不能增加新事实）：" + worldEvents.map((w) => w.publicOutcome).join(" / ") + "。除此之外不要编造别的变化。" : "具体的环境变化、后果和故事推进服务器还没有给出，所以只能说“判定成功/失败，具体后果尚未确定”这类话；绝不能编造门打开、敌人退走、场景切换、目标达成或时间流逝。允许一句不带新事实的过渡，如“你按计划尝试，检定成功”。"}` : moved && !worldEvents.length ? "玩家移动到了新的场景，服务器没有额外的事件结果；只能根据上面给出的场景公开描述叙述。" : worldEvents.length ? "玩家提交了一个选择或移动。服务器确认的世界结果（只能据此叙述，可以润色措辞，但不能增加新事实）：" + worldEvents.map((w) => w.publicOutcome).join(" / ") + "。除此之外不要编造别的变化。" : "本回合没有任何世界行动被提交，不要叙述世界发生了什么。");

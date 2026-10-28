@@ -5,6 +5,15 @@ import { validateCoursePacks } from "./learning-adapter";
 
 export const CONTENT_KINDS = ["world", "npc", "event", "knowledge-link", "scene", "course"] as const;
 const ID_RE = /^[a-z0-9][a-z0-9_.-]{0,79}$/;
+// 多世界命名空间（world-bible-ref-contract-v1）：世界内容的存储 id 为 <worldId>:<localId>；无前缀的是旧版（单世界）内容。课程包是跨世界共享库，只能用无前缀 id。
+export const WORLD_ID_RE = /^[a-z][a-z0-9_-]{1,63}$/;
+export const LOCAL_ID_RE = /^[a-z0-9][a-z0-9._-]{0,79}$/;
+export const idOk = (kind: string, id: unknown): boolean => {
+  if (typeof id !== "string") return false;
+  const i = id.indexOf(":");
+  if (i < 0) return ID_RE.test(id);
+  return kind !== "course" && i === id.lastIndexOf(":") && WORLD_ID_RE.test(id.slice(0, i)) && LOCAL_ID_RE.test(id.slice(i + 1));
+};
 const MAX_BYTES = 64 * 1024;
 
 let ready = false;
@@ -22,7 +31,7 @@ export async function putContent(env: SiteEnv, b: any): Promise<R> {
   await ensure(env);
   if (!b || typeof b !== "object") return bad(400, "bad_request", "需要 JSON");
   if (!(CONTENT_KINDS as readonly string[]).includes(b.kind)) return bad(400, "bad_kind", `kind 只能是 ${CONTENT_KINDS.join("/")}`);
-  if (typeof b.id !== "string" || !ID_RE.test(b.id)) return bad(400, "bad_id", "id 需为小写字母/数字/._-");
+  if (!idOk(b.kind, b.id)) return bad(400, "bad_id", "id 需为小写字母/数字/._-（世界内容可用 worldId:localId）");
   if (b.content === undefined || b.content === null || typeof b.content !== "object") return bad(400, "bad_content", "content 需为 JSON 对象");
   if (b.kind === "course") { // 课程包：结构必须合法（跨包前置概念引用在运行时整体校验，这里不拦）
     const errs = validateCoursePacks([b.content]).filter((e) => e !== "missing_prerequisite");
@@ -45,8 +54,10 @@ export async function listContent(env: SiteEnv, _url: URL): Promise<R> {
 }
 
 // 仅服务端内部使用（DM 上下文）。不得把返回值原样放进玩家可见的响应。
-export async function readContentInternal(env: SiteEnv, kind: string, id: string): Promise<{ rev: number; content: any } | null> {
+export async function readContentInternal(env: SiteEnv, kind: string, id: string, rev?: number): Promise<{ rev: number; content: any } | null> {
   await ensure(env);
-  const r = await env.DB.prepare("SELECT rev, body FROM adventure_content WHERE kind=? AND id=? ORDER BY rev DESC LIMIT 1").bind(kind, id).first<{ rev: number; body: string }>();
+  const r = rev === undefined
+    ? await env.DB.prepare("SELECT rev, body FROM adventure_content WHERE kind=? AND id=? ORDER BY rev DESC LIMIT 1").bind(kind, id).first<{ rev: number; body: string }>()
+    : await env.DB.prepare("SELECT rev, body FROM adventure_content WHERE kind=? AND id=? AND rev=?").bind(kind, id, rev).first<{ rev: number; body: string }>();
   return r ? { rev: r.rev, content: JSON.parse(r.body) } : null;
 }

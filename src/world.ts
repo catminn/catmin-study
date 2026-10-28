@@ -22,33 +22,89 @@ function ensure(env: SiteEnv) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_ending_snapshot (session_id TEXT PRIMARY KEY, ending_commit_id TEXT NOT NULL, snapshot TEXT NOT NULL, created_at REAL NOT NULL)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_threads (session_id TEXT NOT NULL, thread_id TEXT NOT NULL, audience TEXT NOT NULL, carryover TEXT NOT NULL, status TEXT NOT NULL, opened_by TEXT NOT NULL, resolved_by TEXT, PRIMARY KEY (session_id,thread_id))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_fact_src (session_id TEXT NOT NULL, fact_id TEXT NOT NULL, source_ref TEXT NOT NULL, scene_id TEXT NOT NULL, PRIMARY KEY (session_id,fact_id))`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_pin (session_id TEXT PRIMARY KEY, world_id TEXT NOT NULL, world_rev INTEGER NOT NULL)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_pin (session_id TEXT PRIMARY KEY, world_id TEXT NOT NULL, world_rev INTEGER NOT NULL, ns INTEGER NOT NULL DEFAULT 0)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_pin_rev (session_id TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, rev INTEGER NOT NULL, PRIMARY KEY (session_id,kind,id))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_applied (session_id TEXT NOT NULL, event_key TEXT NOT NULL, action_id TEXT NOT NULL, public_outcome TEXT, PRIMARY KEY (session_id,event_key))`),
-  ]).catch((e) => { ready = null; throw e; }));
+  ]).then(async (r) => { await env.DB.prepare("ALTER TABLE adventure_world_pin ADD COLUMN ns INTEGER NOT NULL DEFAULT 0").run().catch(() => null); return r; }).catch((e) => { ready = null; throw e; }));
 }
 
 export type PublicEvent = { publicOutcome: string };
 type St = { scene: string; version: number };
 
-// 世界选择：会话在初始化时固定 worldId 与内容修订（adventure_world_pin）。
-// 已固定的会话只用自己固定的世界，之后内容库新增别的世界也不会串用；未固定（旧会话）且内容库里世界不唯一 → 失败关闭，不猜。
-type Pin = { id: string; rev: number };
-async function uniqueWorld(env: SiteEnv): Promise<Pin | null> {
-  const rs = await env.DB.prepare("SELECT id, MAX(rev) AS rev FROM adventure_content WHERE kind='world' GROUP BY id LIMIT 2").all<Pin>().catch(() => ({ results: [] as Pin[] }));
-  return rs.results.length === 1 ? rs.results[0] : null;
+// 世界选择与内容读取（world-bible-ref-contract-v1）：
+// 会话固定 worldId + 当时各内容的修订（adventure_world_pin / adventure_world_pin_rev）。命名空间世界（ns=1）的存储 id 为 <worldId>:<localId>，
+// 其内容读取只看本会话固定的修订，没有固定的对象视为不存在（绝不读 latest、绝不回落到别的世界）；
+// 旧版单世界内容（ns=0，无前缀 id）保持原行为：固定的修订优先，固定之后才新增的对象仍按最新读取。
+// 状态表里的场景/NPC/事件 id 一律是世界内的 localId；内容里写 <worldId>:<localId> 时必须是本世界，别的世界前缀一律当作不存在。
+type Pin = { id: string; rev: number; ns: number };
+const WORLD_RECORD = "world"; // 命名空间世界的世界记录 localId：<worldId>:world
+const PIN_KINDS = ["world", "scene", "npc", "event", "knowledge-link"];
+async function listWorlds(env: SiteEnv): Promise<Pin[]> {
+  const rs = await env.DB.prepare("SELECT id, MAX(rev) AS rev FROM adventure_content WHERE kind='world' GROUP BY id").all<{ id: string; rev: number }>().catch(() => ({ results: [] as { id: string; rev: number }[] }));
+  const out: Pin[] = [];
+  for (const r of rs.results) {
+    if (!r.id.includes(":")) out.push({ id: r.id, rev: r.rev, ns: 0 });
+    else if (r.id.endsWith(":" + WORLD_RECORD)) out.push({ id: r.id.slice(0, r.id.indexOf(":")), rev: r.rev, ns: 1 });
+  }
+  return out;
+}
+async function chooseWorld(env: SiteEnv, requested?: string): Promise<Pin | null> {
+  const all = await listWorlds(env);
+  if (requested !== undefined) { const m = all.filter((w) => w.id === requested); return m.length === 1 ? m[0] : null; }
+  return all.length === 1 ? all[0] : null;
+}
+const sstore = (pin: Pin, local: string) => (pin.ns ? pin.id + ":" + local : local);
+async function writePin(env: SiteEnv, sid: string, w: Pin): Promise<void> {
+  await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_pin (session_id,world_id,world_rev,ns) VALUES (?,?,?,?)").bind(sid, w.id, w.rev, w.ns).run();
+  const pref = w.ns ? w.id + ":%" : null;
+  const rs = await (pref
+    ? env.DB.prepare(`SELECT kind, id, MAX(rev) AS rev FROM adventure_content WHERE kind IN (${PIN_KINDS.map(() => "?").join(",")}) AND id LIKE ? GROUP BY kind, id`).bind(...PIN_KINDS, pref)
+    : env.DB.prepare(`SELECT kind, id, MAX(rev) AS rev FROM adventure_content WHERE kind IN (${PIN_KINDS.map(() => "?").join(",")}) AND id NOT LIKE '%:%' GROUP BY kind, id`).bind(...PIN_KINDS)
+  ).all<{ kind: string; id: string; rev: number }>();
+  for (const r of rs.results ?? []) await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_pin_rev (session_id,kind,id,rev) VALUES (?,?,?,?)").bind(sid, r.kind, r.id, r.rev).run();
 }
 async function pinFor(env: SiteEnv, sid: string): Promise<Pin | null> {
-  const r = await env.DB.prepare("SELECT world_id AS id, world_rev AS rev FROM adventure_world_pin WHERE session_id=?").bind(sid).first<Pin>();
+  const r = await env.DB.prepare("SELECT world_id AS id, world_rev AS rev, ns FROM adventure_world_pin WHERE session_id=?").bind(sid).first<Pin>();
   if (r) return r;
-  const u = await uniqueWorld(env);
+  const u = await chooseWorld(env); // 旧会话/未显式选择：只有世界唯一时才固定，否则失败关闭
   if (!u) return null;
-  await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_pin (session_id,world_id,world_rev) VALUES (?,?,?)").bind(sid, u.id, u.rev).run();
-  return (await env.DB.prepare("SELECT world_id AS id, world_rev AS rev FROM adventure_world_pin WHERE session_id=?").bind(sid).first<Pin>()) ?? null;
+  await writePin(env, sid, u);
+  return (await env.DB.prepare("SELECT world_id AS id, world_rev AS rev, ns FROM adventure_world_pin WHERE session_id=?").bind(sid).first<Pin>()) ?? null;
 }
+// 会话开始时显式选择世界（可选）：世界不存在/不唯一 → false；已固定的会话不能改（换世界需要显式迁移）。
+export async function pinWorldForSession(env: SiteEnv, sid: string, worldId: string): Promise<boolean> {
+  await ensure(env);
+  const have = await env.DB.prepare("SELECT world_id FROM adventure_world_pin WHERE session_id=?").bind(sid).first<{ world_id: string }>();
+  if (have) return have.world_id === worldId;
+  const w = await chooseWorld(env, worldId);
+  if (!w) return false;
+  await writePin(env, sid, w);
+  return true;
+}
+// 读世界内容（会话固定的世界与修订）。ref 可为 localId 或本世界的 <worldId>:<localId>。
+export async function readWorldContent(env: SiteEnv, sid: string, kind: string, ref: unknown): Promise<{ rev: number; content: any } | null> {
+  if (typeof ref !== "string") return null;
+  const pin = await pinFor(env, sid);
+  if (!pin) return null;
+  let local = ref;
+  const i = ref.indexOf(":");
+  if (i >= 0) { if (!pin.ns || ref.slice(0, i) !== pin.id) return null; local = ref.slice(i + 1); }
+  const store = sstore(pin, local);
+  const pr = await env.DB.prepare("SELECT rev FROM adventure_world_pin_rev WHERE session_id=? AND kind=? AND id=?").bind(sid, kind, store).first<{ rev: number }>();
+  if (pr) return readContentInternal(env, kind, store, pr.rev).catch(() => null);
+  if (pin.ns) return null; // 命名空间世界：未固定的对象不存在
+  return readContentInternal(env, kind, store).catch(() => null);
+}
+const localOf = (pin: Pin, ref: unknown): string | null => {
+  if (typeof ref !== "string") return null;
+  const i = ref.indexOf(":");
+  if (i < 0) return ref;
+  return pin.ns && ref.slice(0, i) === pin.id ? ref.slice(i + 1) : null;
+};
 async function findWorld(env: SiteEnv, sid: string): Promise<any | null> {
   const pin = await pinFor(env, sid);
   if (!pin) return null;
-  return (await readContentInternal(env, "world", pin.id))?.content ?? null;
+  return (await readContentInternal(env, "world", sstore(pin, pin.ns ? WORLD_RECORD : pin.id), pin.rev).catch(() => null))?.content ?? null;
 }
 
 async function flagGet(env: SiteEnv, sid: string, key: string): Promise<string | null> {
@@ -85,7 +141,7 @@ async function evalCond(env: SiteEnv, sid: string, scene: string, c: any): Promi
   return false;
 }
 
-async function sceneContent(env: SiteEnv, id: string) { return (await readContentInternal(env, "scene", id).catch(() => null))?.content ?? null; }
+async function sceneContent(env: SiteEnv, sid: string, id: string) { return (await readWorldContent(env, sid, "scene", id))?.content ?? null; }
 
 // 结局同意契约（world-content-semantics-v1）：scene.ending={id,costNotice}；scene.entryRequirements=条件。
 // 所有进入场景的入口（travel / advance_scene）都先过 entryRequirements；进入结局场景只能经 travel，且必须先展示 costNotice、再单独确认。
@@ -106,10 +162,13 @@ export async function pendingEndingNotice(env: SiteEnv, sid: string, now = Date.
 }
 
 // 事件缓存（单次请求内）
-async function allEvents(env: SiteEnv): Promise<{ id: string; c: any }[]> {
-  const rs = await env.DB.prepare("SELECT DISTINCT id FROM adventure_content WHERE kind='event'").all<{ id: string }>().catch(() => ({ results: [] as { id: string }[] }));
+async function allEvents(env: SiteEnv, sid: string): Promise<{ id: string; c: any }[]> {
+  const pin = await pinFor(env, sid);
+  if (!pin) return [];
+  let ids = ((await env.DB.prepare("SELECT id FROM adventure_world_pin_rev WHERE session_id=? AND kind='event' ORDER BY id").bind(sid).all<{ id: string }>().catch(() => ({ results: [] as { id: string }[] }))).results ?? []).map((r) => r.id);
+  if (!ids.length && !pin.ns) ids = ((await env.DB.prepare("SELECT DISTINCT id FROM adventure_content WHERE kind='event' AND id NOT LIKE '%:%'").all<{ id: string }>().catch(() => ({ results: [] as { id: string }[] }))).results ?? []).map((r) => r.id);
   const out: { id: string; c: any }[] = [];
-  for (const r of rs.results) { const e = await readContentInternal(env, "event", r.id); if (e) out.push({ id: r.id, c: e.content }); }
+  for (const store of ids) { const local = pin.ns ? store.slice(pin.id.length + 1) : store; const e = await readWorldContent(env, sid, "event", local); if (e) out.push({ id: local, c: e.content }); }
   return out;
 }
 
@@ -118,8 +177,9 @@ async function ensureState(env: SiteEnv, sid: string): Promise<St | null> {
   const r = await env.DB.prepare("SELECT scene_id, version FROM adventure_world WHERE session_id=?").bind(sid).first<{ scene_id: string; version: number }>();
   if (r) return { scene: r.scene_id, version: r.version };
   const w = await findWorld(env, sid);
-  const start = w && typeof w.startSceneId === "string" ? w.startSceneId : null;
-  if (!start || !(await sceneContent(env, start))) return null; // 没有世界或没有合法起点：引擎不介入
+  const pinW = await pinFor(env, sid);
+  const start = w && pinW ? localOf(pinW, typeof w.startSceneId === "string" ? w.startSceneId : w.startSceneRef) : null;
+  if (!start || !(await sceneContent(env, sid, start))) return null; // 没有世界或没有合法起点：引擎不介入
   await env.DB.prepare("INSERT OR IGNORE INTO adventure_world (session_id,scene_id,version) VALUES (?,?,0)").bind(sid, start).run();
   return { scene: start, version: 0 };
 }
@@ -194,13 +254,13 @@ async function execThreadOps(env: SiteEnv, sid: string, ops: any[], ref: string)
 async function planEffects(env: SiteEnv, sid: string, scene: string, effects: any[], reveals: unknown, threads?: { open?: unknown; resolves?: unknown }): Promise<{ ok: true; ops: any[] } | { ok: false }> {
   if (!Array.isArray(effects)) return { ok: false };
   if (reveals !== undefined && (!Array.isArray(reveals) || !reveals.every(strOk))) return { ok: false };
-  const sc = await sceneContent(env, scene);
+  const sc = await sceneContent(env, sid, scene);
   const locks = new Map<string, string>();
   const held = new Set<string>(), removed = new Set<string>();
   for (const e of effects) {
     if (!e || typeof e !== "object" || !WORLD_CONFIG.allowedEffects.has(e.type) || !strOk(e.target)) return { ok: false };
     if (e.type === "advance_scene") {
-      const dest = await sceneContent(env, e.target);
+      const dest = await sceneContent(env, sid, e.target);
       if (!sc || !Array.isArray(sc.choices) || !sc.choices.includes(e.target) || !dest) return { ok: false };
       if (dest.ending !== undefined) return { ok: false }; // 结局只能经显式确认的 travel 进入
       if (!(await entryOk(env, sid, scene, dest))) return { ok: false };
@@ -281,7 +341,7 @@ async function enterScene(env: SiteEnv, sid: string, st: St, target: string, nex
   st = { scene: target, version: st.version + 1 };
   await env.DB.prepare("UPDATE adventure_world SET scene_id=?, version=? WHERE session_id=?").bind(st.scene, st.version, sid).run();
   next.push({ type: "scene_entered", scene: st.scene });
-  const sc = await sceneContent(env, target);
+  const sc = await sceneContent(env, sid, target);
   await openSceneThreads(env, sid, sc, ref); // 已提交的场景进入才开启线索
   if (sc && Array.isArray(sc.stateEffects) && sc.stateEffects.length) {
     const ins = await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_applied (session_id,event_key,action_id,public_outcome) VALUES (?,?,?,NULL)").bind(sid, "scene-state:" + target + ":" + st.version, "scene-state").run();
@@ -302,7 +362,7 @@ export async function applyTrigger(
   const out: PublicEvent[] = [];
   let st = await ensureState(env, sid);
   if (!st) return out;
-  const events = (await allEvents(env)).sort((a, b) => (b.c.priority ?? 0) - (a.c.priority ?? 0) || (a.id < b.id ? -1 : 1));
+  const events = (await allEvents(env, sid)).sort((a, b) => (b.c.priority ?? 0) - (a.c.priority ?? 0) || (a.id < b.id ? -1 : 1));
   let pending: Pending[] = [{ type: trigger.type, scene: st.scene, success: trigger.success, actionTemplate: trigger.actionTemplate, choiceId: trigger.choiceId, npcId: trigger.npcId }];
   if (startScene) pending = [{ type: "scene_entered", scene: startScene }]; // 提交过的转场：scene_entered 由调用方先完成状态变更
   for (let depth = 0; depth < WORLD_CONFIG.maxChain && pending.length; depth++) {
@@ -376,8 +436,8 @@ async function commitOp(env: SiteEnv, body: unknown, kind: "travel" | "choice"):
   if (b.expectedVersion !== undefined && b.expectedVersion !== st.version) return wfail(409, "stale_world", "世界已经变化，请按当前情况重新选择");
   let outcomes: PublicEvent[] = [];
   if (kind === "travel") {
-    const sc = await sceneContent(env, st.scene);
-    const dest = sc && Array.isArray(sc.choices) && sc.choices.includes(b.target) ? await sceneContent(env, b.target) : null;
+    const sc = await sceneContent(env, sid, st.scene);
+    const dest = sc && Array.isArray(sc.choices) && sc.choices.includes(b.target) ? await sceneContent(env, sid, b.target) : null;
     if (!dest || !(await entryOk(env, sid, st.scene, dest))) return wfail(422, "not_available", "现在去不了那里");
     if (dest.ending !== undefined) {
       const en = endingOf(dest);
@@ -404,7 +464,7 @@ async function commitOp(env: SiteEnv, body: unknown, kind: "travel" | "choice"):
     if (dest.ending !== undefined) await createEndingSnapshot(env, sid, b.commitId, endingOf(dest)!.id, b.target);
   } else {
     // 只有内容里确实存在、且挂在当前场景的选择才算数；否则不泄露存在与否，统一 not_available
-    const evs = await allEvents(env);
+    const evs = await allEvents(env, sid);
     const ok = evs.some((e) => e.c.trigger?.type === "dialogue_choice_committed" && e.c.trigger.choiceId === b.choiceId && (!e.c.trigger.npcId || e.c.trigger.npcId === (b.npcId ?? null)) && (!e.c.trigger.sceneId || e.c.trigger.sceneId === st.scene));
     if (!ok) return wfail(422, "not_available", "现在没有这个选择");
     const claim = await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_commits (session_id,commit_id,kind,payload) VALUES (?,?,?,?)").bind(sid, b.commitId, kind, pj).run();
@@ -419,7 +479,7 @@ async function applyChained(env: SiteEnv, sid: string, actionId: string, t: Pend
   const st = await ensureState(env, sid);
   if (!st) return [];
   const out: PublicEvent[] = [];
-  for (const ev of (await allEvents(env)).sort((a, b) => (b.c.priority ?? 0) - (a.c.priority ?? 0) || (a.id < b.id ? -1 : 1))) {
+  for (const ev of (await allEvents(env, sid)).sort((a, b) => (b.c.priority ?? 0) - (a.c.priority ?? 0) || (a.id < b.id ? -1 : 1))) {
     const tr = ev.c.trigger ?? {};
     if (tr.fallback === true || !matches(tr, { ...t, scene: st.scene })) continue;
     if (!(await evalCond(env, sid, st.scene, ev.c.preconditions))) continue;
@@ -442,12 +502,12 @@ export async function availableChoices(env: SiteEnv, sid: string): Promise<{ cho
   const st = await ensureState(env, sid);
   if (!st) return [];
   const out: { choiceId: string; npcId: string }[] = [];
-  for (const ev of await allEvents(env)) {
+  for (const ev of await allEvents(env, sid)) {
     const t = ev.c.trigger ?? {};
     if (t.type !== "dialogue_choice_committed" || typeof t.choiceId !== "string" || typeof t.npcId !== "string") continue;
     const row = await env.DB.prepare("SELECT location FROM adventure_world_npc WHERE session_id=? AND npc_id=?").bind(sid, t.npcId).first<{ location: string | null }>();
     let loc = row?.location ?? null;
-    if (!loc) loc = (await readContentInternal(env, "npc", t.npcId).catch(() => null))?.content?.initial?.locationId ?? null;
+    if (!loc) loc = (await readWorldContent(env, sid, "npc", t.npcId))?.content?.initial?.locationId ?? null;
     if (loc === st.scene && !out.some((o) => o.choiceId === t.choiceId && o.npcId === t.npcId)) out.push({ choiceId: t.choiceId, npcId: t.npcId });
   }
   return out;
@@ -459,7 +519,7 @@ export async function publicSceneInfo(env: SiteEnv, sid: string): Promise<{ acti
   if (!st) return { active: false };
   const entered = (await worldIntro(env, sid).catch(() => [])).map((e) => e.publicOutcome);
   const options = (await availableMoves(env, sid).catch(() => [])).map((m) => m.label);
-  const sc = await sceneContent(env, st.scene);
+  const sc = await sceneContent(env, sid, st.scene);
   const w = st.version === 0 ? await findWorld(env, sid) : null;
   return { active: true, entered, options, opening: typeof w?.public_opening === "string" ? w.public_opening : undefined, publicText: typeof sc?.publicText === "string" ? sc.publicText : undefined };
 }
@@ -468,11 +528,11 @@ export async function publicSceneInfo(env: SiteEnv, sid: string): Promise<{ acti
 export async function availableMoves(env: SiteEnv, sid: string): Promise<{ sceneId: string; label: string }[]> {
   const st = await ensureState(env, sid);
   if (!st) return [];
-  const sc = await sceneContent(env, st.scene);
+  const sc = await sceneContent(env, sid, st.scene);
   if (!sc || !Array.isArray(sc.choices)) return [];
   const out: { sceneId: string; label: string }[] = [];
   for (const id of sc.choices) {
-    const dest = await sceneContent(env, id);
+    const dest = await sceneContent(env, sid, id);
     if (!dest || !(await entryOk(env, sid, st.scene, dest))) continue;
     const label = (sc.choiceLabels && typeof sc.choiceLabels[id] === "string" && sc.choiceLabels[id]) || "地点" + (out.length + 1);
     out.push({ sceneId: id, label });
@@ -486,7 +546,7 @@ export async function availableMoves(env: SiteEnv, sid: string): Promise<{ scene
 export async function worldIntro(env: SiteEnv, sid: string): Promise<PublicEvent[]> {
   const st = await ensureState(env, sid);
   if (!st || st.version !== 0) return st ? await replayPublicOutcomes(env, sid, "init") : [];
-  await openSceneThreads(env, sid, await sceneContent(env, st.scene), "init");
+  await openSceneThreads(env, sid, await sceneContent(env, sid, st.scene), "init");
   await applyTrigger(env, sid, { type: "scene_entered", actionId: "init" });
   return replayPublicOutcomes(env, sid, "init");
 }
@@ -504,7 +564,7 @@ async function createEndingSnapshot(env: SiteEnv, sid: string, commitId: string,
   const pin = await pinFor(env, sid);
   if (!pin) return; // 世界来源不可唯一确认：失败关闭，不建快照
   const world = { rev: pin.rev };
-  const sceneRev = (await readContentInternal(env, "scene", endingScene).catch(() => null))?.rev ?? 0;
+  const sceneRev = (await readWorldContent(env, sid, "scene", endingScene))?.rev ?? 0;
   const applied = await all("SELECT event_key FROM adventure_world_applied WHERE session_id=? ORDER BY event_key");
   const appliedKeys = new Set(applied.map((r) => String(r.event_key)));
   const facts = await all("SELECT fact_id FROM adventure_world_facts WHERE session_id=? ORDER BY fact_id");
