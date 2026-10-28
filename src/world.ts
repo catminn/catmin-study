@@ -65,7 +65,11 @@ async function writePin(env: SiteEnv, sid: string, w: Pin): Promise<void> {
 }
 async function pinFor(env: SiteEnv, sid: string): Promise<Pin | null> {
   const r = await env.DB.prepare("SELECT world_id AS id, world_rev AS rev, ns FROM adventure_world_pin WHERE session_id=?").bind(sid).first<Pin>();
-  if (r) return r;
+  if (r) {
+    // 旧版固定记录（只有世界修订、没有逐对象修订）：补记一次当时的逐对象修订，之后同样冻结
+    if (!(await env.DB.prepare("SELECT 1 FROM adventure_world_pin_rev WHERE session_id=? LIMIT 1").bind(sid).first())) await writePin(env, sid, r);
+    return r;
+  }
   const u = await chooseWorld(env); // 旧会话/未显式选择：只有世界唯一时才固定，否则失败关闭
   if (!u) return null;
   await writePin(env, sid, u);
@@ -91,9 +95,18 @@ export async function readWorldContent(env: SiteEnv, sid: string, kind: string, 
   if (i >= 0) { if (!pin.ns || ref.slice(0, i) !== pin.id) return null; local = ref.slice(i + 1); }
   const store = sstore(pin, local);
   const pr = await env.DB.prepare("SELECT rev FROM adventure_world_pin_rev WHERE session_id=? AND kind=? AND id=?").bind(sid, kind, store).first<{ rev: number }>();
-  if (pr) return readContentInternal(env, kind, store, pr.rev).catch(() => null);
-  if (pin.ns) return null; // 命名空间世界：未固定的对象不存在
-  return readContentInternal(env, kind, store).catch(() => null);
+  if (pr) { const r = await readContentInternal(env, kind, store, pr.rev).catch(() => null); return r && pin.ns ? { rev: r.rev, content: normRefs(r.content, pin.id) } : r; }
+  return null; // 未固定的对象视为不存在（新旧世界一致，绝不读 latest）
+}
+// 内容里的限定引用：本世界的 <worldId>:<localId> 一律还原为 localId（引擎内部比较都用 localId）；
+// 别的世界的限定引用替换为不可解析的占位，保证任何比较/查找都落空（失败关闭，不回落）。
+const QREF = /^([a-z][a-z0-9_-]{1,63}):([a-z0-9][a-z0-9._-]{0,79})$/;
+const FOREIGN = "\u0000foreign-world-ref";
+function normRefs(x: any, worldId: string): any {
+  if (typeof x === "string") { const m = QREF.exec(x); return m ? (m[1] === worldId ? m[2] : FOREIGN) : x; }
+  if (Array.isArray(x)) return x.map((v) => normRefs(v, worldId));
+  if (x && typeof x === "object") { const o: any = {}; for (const k of Object.keys(x)) o[typeof normRefs(k, worldId) === "string" ? normRefs(k, worldId) : k] = normRefs(x[k], worldId); return o; }
+  return x;
 }
 const localOf = (pin: Pin, ref: unknown): string | null => {
   if (typeof ref !== "string") return null;
@@ -166,7 +179,6 @@ async function allEvents(env: SiteEnv, sid: string): Promise<{ id: string; c: an
   const pin = await pinFor(env, sid);
   if (!pin) return [];
   let ids = ((await env.DB.prepare("SELECT id FROM adventure_world_pin_rev WHERE session_id=? AND kind='event' ORDER BY id").bind(sid).all<{ id: string }>().catch(() => ({ results: [] as { id: string }[] }))).results ?? []).map((r) => r.id);
-  if (!ids.length && !pin.ns) ids = ((await env.DB.prepare("SELECT DISTINCT id FROM adventure_content WHERE kind='event' AND id NOT LIKE '%:%'").all<{ id: string }>().catch(() => ({ results: [] as { id: string }[] }))).results ?? []).map((r) => r.id);
   const out: { id: string; c: any }[] = [];
   for (const store of ids) { const local = pin.ns ? store.slice(pin.id.length + 1) : store; const e = await readWorldContent(env, sid, "event", local); if (e) out.push({ id: local, c: e.content }); }
   return out;

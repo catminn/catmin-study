@@ -1,0 +1,8 @@
+{"records":[
+ {"kind":"world","id":"pw","content":{"startSceneId":"p-a"}},
+ {"kind":"scene","id":"p-a","content":{"choices":["p-b"],"choiceLabels":{"p-b":"PH-TO-B"},"publicText":"PH-PA"}},
+ {"kind":"scene","id":"p-b","content":{"choices":["p-a"],"publicText":"PH-PB"}},
+ {"kind":"npc","id":"pn","content":{"initial":{"locationId":"p-a"}}},
+ {"kind":"event","id":"pe1","content":{"trigger":{"type":"action_resolved","sceneId":"p-a"},"effects":[{"type":"set_flag","target":"pf","value":true}],"publicOutcome":"PH-PE1"}},
+ {"kind":"event","id":"pe2","content":{"trigger":{"type":"scene_entered","sceneId":"p-b"},"effects":[],"publicOutcome":"PH-PE2"}}
+]}

@@ -13,11 +13,34 @@ function leavesOk(c) {
   if ('not' in c) return leavesOk(c.not);
   return LEAVES.some(k => k in c);
 }
+// 多世界命名空间包（<worldId>:<localId>）：按引擎同样的规则还原为世界内视图再检查（本世界限定引用→localId，别的世界→不可解析）。
+const QREF = /^([a-z][a-z0-9_-]{1,63}):([a-z0-9][a-z0-9._-]{0,79})$/;
+function normRefs(x, w) {
+  if (typeof x === 'string') { const m = QREF.exec(x); return m ? (m[1] === w ? m[2] : '\u0000foreign') : x; }
+  if (Array.isArray(x)) return x.map((v) => normRefs(v, w));
+  if (x && typeof x === 'object') { const o = {}; for (const k of Object.keys(x)) { const nk = normRefs(k, w); o[nk] = normRefs(x[k], w); } return o; }
+  return x;
+}
+function worldView(b, nsErr) {
+  const pre = new Set(b.records.map((r) => (typeof r.id === 'string' && r.id.includes(':') ? r.id.slice(0, r.id.indexOf(':')) : '')));
+  if (pre.size !== 1) { nsErr('记录 id 混用了不同世界前缀或有无前缀混用'); return { ns: null, b }; }
+  const w = [...pre][0];
+  if (!w) return { ns: null, b };
+  const records = b.records.map((r) => {
+    const c = normRefs(r.content, w);
+    if (r.kind === 'world' && c && typeof c === 'object' && typeof c.startSceneId !== 'string' && typeof c.startSceneRef === 'string') c.startSceneId = c.startSceneRef;
+    return { ...r, id: r.id.slice(w.length + 1), content: c };
+  });
+  if (!records.some((r) => r.kind === 'world' && r.id === 'world')) nsErr('命名空间包的 world 记录 id 必须是 <worldId>:world');
+  return { ns: w, b: { ...b, records } };
+}
 try {
-  const b = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  const nsErrs = {};
+  const view = worldView(JSON.parse(readFileSync(process.argv[2], 'utf8')), (k) => { nsErrs[k] = (nsErrs[k] ?? 0) + 1; });
+  const b = view.b;
   const by = (k) => b.records.filter(r => r.kind === k);
   const scenes = new Map(by('scene').map(r => [r.id, r.content]));
-  const errs = {};
+  const errs = { ...nsErrs };
   const bad = (k) => { errs[k] = (errs[k] ?? 0) + 1; };
   const worlds = by('world');
   if (worlds.length !== 1) bad('world 记录不是恰好 1 条');
@@ -136,5 +159,5 @@ try {
     if (Array.isArray(rs)) for (const r of rs) if (typeof r === 'string' && !declared.has(r)) bad('resolvesThreads 引用了未声明的线索');
   }
   const threadsDeclared = declared.size;
-  process.stdout.write(JSON.stringify({ ok: Object.keys(errs).length === 0, errors: errs, eventsWithoutPublicOutcome: noPublic, warnings: warns, eventsWithTriggerTypeIgnoredByV0: unsupportedTrigger, scenes: scenes.size, threadsDeclared, events: by('event').length }) + '\n');
+  process.stdout.write(JSON.stringify({ ok: Object.keys(errs).length === 0, namespaced: !!view.ns, errors: errs, eventsWithoutPublicOutcome: noPublic, warnings: warns, eventsWithTriggerTypeIgnoredByV0: unsupportedTrigger, scenes: scenes.size, threadsDeclared, events: by('event').length }) + '\n');
 } catch { process.stderr.write('读取或解析失败（未显示内容）\n'); process.exitCode = 1; }

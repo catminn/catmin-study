@@ -41,4 +41,24 @@ start("MA3", worldId="wa")
 labels = world("MA3").get("options", [])
 check("M6 别的世界的限定引用被拒（不回落）；本世界的限定引用等同 localId", len(labels) == 2, labels)
 check("M7 玩家响应不含 worldId/限定 id", "wb:" not in json.dumps(world("MA3")) and "wa:" not in json.dumps(world("MA3")))
+# 内容里写本世界的限定引用（作者规范写法）：与 localId 等价
+put("world", "wq:world", {"startSceneRef": "wq:start"})
+put("scene", "wq:start", {"choices": ["wq:s2"], "choiceLabels": {"wq:s2": "PH-Q-LABEL"}, "publicText": "PQ-START"})
+put("scene", "wq:s2", {"choices": [], "publicText": "PQ-S2"})
+put("event", "wq:e1", {"trigger": {"type": "action_resolved", "sceneId": "wq:start"}, "effects": [], "publicOutcome": "EQ-OUT"})
+start("MQ", worldId="wq"); oq = turn("现在执行", "MQ", "mq1")
+check("M8 本世界限定引用（startSceneRef/choices/choiceLabels 键/触发场景）可用", world("MQ").get("publicText") == "PQ-START" and world("MQ").get("options") == ["PH-Q-LABEL"] and outs(oq) == ["EQ-OUT"], [world("MQ"), outs(oq)])
+
+# 转换+导入流水线（占位旧包）：namespace-bundle → import-bundle（本地站点）→ 世界清单按确切修订校验 → 显式选世界可玩
+import subprocess, tempfile, os
+d = tempfile.mkdtemp(); nb = os.path.join(d, "ns.json")
+cv = subprocess.run(["node", "scripts/namespace-bundle.mjs", "test/fixtures/placeholder-legacy-bundle.json", nb, "world01", "global-v1"], capture_output=True, text=True)
+im = subprocess.run(["python3", "scripts/import-bundle.py", nb], capture_output=True, text=True, env=dict(os.environ, SITE=B, PASS="test-pass-123"))
+man = json.load(open(nb + ".manifest.json")) if os.path.exists(nb + ".manifest.json") else {}
+check("M9 转换+导入成功，清单按服务器返回的确切修订校验通过", cv.returncode == 0 and im.returncode == 0 and "已校验通过" in im.stdout and man.get("worldId") == "world01" and len(man.get("contentRefs", [])) == 6 and all(e["rev"] >= 1 for e in man["contentRefs"]), [cv.stdout, im.stdout[-300:], im.stderr[-300:]])
+check("M10 导入不改动已有世界：wa 旧会话仍读固定修订", world("MA").get("publicText") == "PA-START")
+start("MW", worldId="world01"); ow = turn("现在执行", "MW", "mw1")
+check("M11 导入的世界可显式选择并运行（事件触发）", world("MW").get("publicText") == "PH-PA" and outs(ow) == ["PH-PE1"], [world("MW"), outs(ow)])
+im2 = subprocess.run(["python3", "scripts/import-bundle.py", nb], capture_output=True, text=True, env=dict(os.environ, SITE=B, PASS="test-pass-123"))
+check("M12 重复导入幂等（全部未变，修订不增）", im2.returncode == 0 and "新写入/更新 0" in im2.stdout and json.load(open(nb + ".manifest.json")) == man, im2.stdout[-200:])
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)

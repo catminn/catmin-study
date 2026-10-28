@@ -204,6 +204,16 @@ check("P4 学习证据引用绑定到本会话（learningRefs=1）；其它会�
 txt = json.dumps([b, snap("P1")], ensure_ascii=False)
 check("P5 玩家侧/计数视图不含事实 id、证据 id、提交引用", all(k not in txt for k in ["fact-ph", "p1turn", "sourceCommitRef"]), txt)
 
+# 旧版（无前缀）世界也严格固定修订（#54）：固定后的新修订、新对象都不影响已固定会话
+wpt = lambda sid: s.get(B + "/api/adventure/world", params={"id": sid}).json().get("publicText")
+s.post(B + "/api/adventure/session", json={"sessionId": "LG", "op": "start"}); p0 = wpt("LG")
+put("scene", "s-a", {"choices": ["s-b", "s-c", "x-a"], "publicText": "LEGACY-NEW-REV"})
+put("event", "e-late", {"trigger": {"type": "action_resolved", "sceneId": "s-a"}, "effects": [], "publicOutcome": "LATE-EVENT", "priority": 99})
+o = turn("现在执行", "LG", "lgt1")
+check("LG1 已固定的旧世界会话：场景新修订不可见", wpt("LG") != "LEGACY-NEW-REV", [p0, wpt("LG")])
+check("LG2 已固定的旧世界会话：固定之后新增的事件不可见", "LATE-EVENT" not in outs(o), outs(o))
+s.post(B + "/api/adventure/session", json={"sessionId": "LH", "op": "start"})
+check("LG3 新会话读到新修订", wpt("LH") == "LEGACY-NEW-REV", wpt("LH"))
 # 世界绑定（#50）：会话固定 worldId 与内容修订；内容库新增别的世界后，已固定的会话不串用，未固定的新会话不猜世界（失败关闭）
 wact = lambda sid: s.get(B + "/api/adventure/world", params={"id": sid}).json().get("active")
 before = wact("P1")
