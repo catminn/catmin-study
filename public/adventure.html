@@ -40,7 +40,8 @@ button:disabled{opacity:.5}
 </head>
 <body>
 <main>
-  <header><h1>冒险中学习 · MATH 1920 切片</h1><a href="/">返回主页</a></header>
+  <header><h1>冒险中学习 · MATH 1920 切片</h1><span><a href="#" id="newgame">新游戏</a> · <a href="/">返回主页</a></span></header>
+  <div id="goal" class="note" hidden></div>
   <div class="bar" id="bar"></div>
   <p class="note">用自然语言说你想做什么：观察、提问、和人交谈、前往某处，或者让我讲一章、刷题。想执行行动时先说方案，确认后说“现在执行”。</p>
   <div id="log"></div>
@@ -76,10 +77,14 @@ function bubble(text,cls,md){const d=document.createElement("div");d.className="
 function tag(box,t,c){const e=document.createElement("span");e.className="tag "+(c||"");e.textContent=t;box.append(e)}
 const IN={ASK:"提问",LEARN:"学习",PRACTICE:"练习",EXPLORE:"探索",ACT:"行动"};
 const CO={correct:"答案正确",incorrect:"答案不对",partial:"部分正确",unknown:"正确性未知"},RE={valid:"推理成立",partial:"推理部分成立",invalid:"推理不成立",not_assessed:"推理未评估"},AS={none:"独立完成",minor_hint:"小提示",major_hint:"大提示",worked_solution:"看了解答",unknown:"提示未知"},VE={confirmed:"已确认",pending:"待验证",rejected:"被驳回"};
+let optionLine=null;
+function splitOptions(t){const m=/\n?\s*【可选】([^\n]*)\s*$/.exec(t||"");if(!m)return{text:t,opts:null};return{text:t.slice(0,m.index).trimEnd(),opts:m[1].split(/[｜|]/).map(x=>x.trim()).filter(Boolean).slice(0,4)}}
+function showOpts(opts){const box=$("#context-actions");box.replaceChildren();for(const l of opts){const b=document.createElement("button");b.type="button";b.textContent=l;b.onclick=()=>{$("#t").value=l;$("#t").focus()};box.append(b)}}
 function render(o){
+  optionLine=null;if(o.narration){const sp=splitOptions(o.narration);o.narration=sp.text;optionLine=sp.opts}
   if(o.narration)latestNarration=o.narration;
   if(o.scene?.publicText)currentPublicText=o.scene.publicText;
-  contextualActions();
+  if(optionLine&&optionLine.length)showOpts(optionLine);else contextualActions();
   const d=bubble(o.narration||o.visibleFeedback||"（没有回复）","",!!o.narration);const m=document.createElement("div");m.className="meta";
   (o.intentSegments||[]).forEach(i=>tag(m,IN[i]||i));
   const a=o.academicEvaluation;if(a){tag(m,CO[a.correctness]||a.correctness,a.correctness==="correct"?"ok":"");tag(m,RE[a.reasoning]||a.reasoning,a.reasoning==="valid"?"ok":a.reasoning==="invalid"?"warn":"");tag(m,AS[a.assistance]||a.assistance);tag(m,VE[a.verification]||a.verification,a.verification==="confirmed"?"ok":"");if(a.repeatedInsight)tag(m,"重复思路，不加成")}
@@ -101,9 +106,11 @@ async function send(text){
 $("#f").addEventListener("submit",e=>{e.preventDefault();const v=$("#t").value;$("#t").value="";send(v)});
 $("#t").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){e.preventDefault();$("#f").requestSubmit()}});
 document.querySelectorAll(".quick button").forEach(b=>b.onclick=()=>{if(b.dataset.fill){$("#t").value=b.dataset.fill;$("#t").focus()}else send(b.dataset.t)});
-async function moves(){try{const r=await api("/api/adventure/world?id="+encodeURIComponent(SID));const j=r.j;const box=$("#moves");box.innerHTML="";if(!j||!j.active){currentPublicText="";contextualActions();return;}currentPublicText=j.publicText||"";contextualActions();(j.options||[]).forEach(l=>{const b=document.createElement("button");b.type="button";b.textContent="前往："+l;b.onclick=()=>{$("#t").value="前往"+l;$("#t").focus()};box.append(b)})}catch(e){}}
+function goalBar(j){const g=$("#goal");const t=[j.objective?"当前目标："+j.objective:"",j.learningGoal?"正在练：" + j.learningGoal:""].filter(Boolean).join("　｜　");g.hidden=!t;g.textContent=t}
+async function moves(){try{const r=await api("/api/adventure/world?id="+encodeURIComponent(SID));const j=r.j;const box=$("#moves");box.innerHTML="";if(!j||!j.active){currentPublicText="";contextualActions();return;}currentPublicText=j.publicText||"";if(!(optionLine&&optionLine.length))contextualActions();goalBar(j);(j.options||[]).forEach(l=>{const b=document.createElement("button");b.type="button";b.textContent="前往："+l;b.onclick=()=>{$("#t").value="前往"+l;$("#t").focus()};box.append(b)})}catch(e){}}
 async function intro(){try{const r=await api("/api/adventure/world?id="+encodeURIComponent(SID));const j=r.j;if(!j||!j.active)return;
   if(j.opening)bubble(j.opening,"",true);if(j.publicText){currentPublicText=j.publicText;bubble(j.publicText,"",true)}contextualActions();(j.entered||[]).forEach(x=>bubble(x,"",true));moves()}catch(e){}}
+$("#newgame").onclick=e=>{e.preventDefault();if(confirm("开始新游戏？当前这局会留在服务器上，但页面不再继续它。")){try{localStorage.removeItem("adv-sid")}catch(x){}location.reload()}};
 refresh().then(intro);
 </script>
 </body>

@@ -571,14 +571,14 @@ export async function availableChoices(env: SiteEnv, sid: string): Promise<{ cho
 }
 
 // 玩家可见的场景信息：只给 publicText（以及世界开场白，仅在会话刚开始时）。
-export async function publicSceneInfo(env: SiteEnv, sid: string): Promise<{ active: boolean; opening?: string; publicText?: string; entered?: string[]; options?: string[] }> {
+export async function publicSceneInfo(env: SiteEnv, sid: string): Promise<{ active: boolean; opening?: string; publicText?: string; entered?: string[]; options?: string[]; objective?: string; learningGoal?: string }> {
   const st = await ensureState(env, sid);
   if (!st) return { active: false };
   const entered = (await worldIntro(env, sid).catch(() => [])).map((e) => e.publicOutcome);
   const options = (await availableMoves(env, sid).catch(() => [])).map((m) => m.label);
   const sc = await sceneContent(env, sid, st.scene);
   const w = st.version === 0 ? await findWorld(env, sid) : null;
-  return { active: true, entered, options, opening: typeof w?.public_opening === "string" ? w.public_opening : undefined, publicText: typeof sc?.publicText === "string" ? sc.publicText : undefined };
+  return { active: true, entered, options, opening: typeof w?.public_opening === "string" ? w.public_opening : undefined, publicText: typeof sc?.publicText === "string" ? sc.publicText : undefined, ...(typeof sc?.objective === "string" ? { objective: sc.objective } : {}), ...(typeof sc?.learningGoal === "string" ? { learningGoal: sc.learningGoal } : {}) };
 }
 
 // 可前往的场景：当前场景 content.choices 里的目的地。玩家可见的标签优先用当前场景的 choiceLabels[目的地]，否则“地点N”（内部 role 不给玩家看）。
