@@ -2,6 +2,7 @@
 // 服务器规则优先于模型输出：模型不能自己提交行动、不能指定依据事件、不能把待验证说成已确认。
 //   POST /api/adventure/turn {sessionId, turnId, inputText}   同 turnId 重试返回原回复，不重复调用模型/不重复提交
 import type { SiteEnv } from "./site";
+import { sceneRequest, narrationViolatesSceneContract } from "./scene-intent";
 import { applyTrigger, availableChoices, availableMoves, commitChoice, commitTravel, publicSceneInfo, replayPublicOutcomes, type PublicEvent } from "./world";
 import { ACTIONS, CONCEPTS, CONFIG, postAction } from "./adventure";
 import { postEvent } from "./events";
@@ -26,18 +27,6 @@ const fail = (status: number, code: string, message: string): Result => ({ statu
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
 const idOk = (x: unknown): x is string => typeof x === "string" && /^[\w.:-]{1,100}$/.test(x);
 const INTENTS = new Set(["ASK", "LEARN", "PRACTICE", "EXPLORE", "ACT"]);
-export function sceneRequest(input: string, moves: {sceneId:string;label:string}[]) {
-  const t=input.trim().replace(/[。！？!?.]+$/g,"");
-  const observation=/^(?:仔细|先|再)?(?:看看|观察|环顾|打量|查看)(?:一下)?(?:四周|周围|附近|这里|环境|街道|街上|周遭|景象|情况)?$|^周围(?:有什么|怎么样)$/.test(t);
-  const travel=t.match(/^(?:我想|我要|请|现在|直接|先)?\s*(?:前往|去往|走向|走到|前去|去|进入)\s*(.+)$/);
-  const dest=travel?.[1]?.trim();
-  const matched=dest?moves.filter((m,i)=>dest===m.label||dest===m.sceneId||(dest==="地点"+(i+1)&&/^地点\d+$/.test(m.label))):[];
-  return {observation,moveTo:matched.length===1?matched[0].sceneId:null};
-}
-export function narrationViolatesSceneContract(answer: string) {
-  return /(?:没有|尚未|还没)(?:提交|提供)(?:具体的?)?(?:世界)?行动|(?:不能|无法|还不能)(?:描写|描述)(?:四周|周围|环境)|探索意图|具体世界行动|验证数学方法|把.*(?:题目|数学方法).*发给我/.test(answer);
-}
-
 const CORRECT = new Set(["correct", "incorrect", "partial", "unknown"]);
 const REASON = new Set(["valid", "partial", "invalid", "not_assessed"]);
 const ASSIST = new Set(["none", "minor_hint", "major_hint", "worked_solution", "unknown"]);
