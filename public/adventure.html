@@ -50,14 +50,18 @@ button:disabled{opacity:.5}
     <button type="button" data-fill="看看四周。">观察四周</button>
     <button type="button" data-fill="我想和身边的人交谈。">交谈</button>
     <span id="moves" class="row"></span>
+    <span id="context-actions" class="row"></span>
     <button type="button" data-t="先去刷5题，不要剧情。">刷题模式</button>
     <button type="button" data-t="继续刚才的。">继续</button>
     <button type="button" data-t="现在就用刚才验证过的方法执行。">执行行动</button>
   </div>
   <div class="row"><textarea id="t" rows="1" placeholder="说点什么…" maxlength="4000"></textarea><button class="go" id="send">发送</button></div>
 </div></form>
-<script>
+<script type="module">
+import {suggestSceneActions} from "/adventure-quick.mjs";
 const $=s=>document.querySelector(s),log=$("#log");
+let latestNarration="",currentPublicText="";
+function contextualActions(){const box=$("#context-actions");box.replaceChildren();for(const item of suggestSceneActions(currentPublicText,latestNarration)){const b=document.createElement("button");b.type="button";b.textContent=item.label;b.onclick=()=>{$("#t").value=item.prompt;$("#t").focus()};box.append(b)}}
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2)).replace(/[^\w-]/g,"").slice(0,40);
 let SID=null;try{SID=localStorage.getItem("adv-sid")}catch(e){}
 if(!SID){SID="s-"+uid();try{localStorage.setItem("adv-sid",SID)}catch(e){}}
@@ -73,6 +77,9 @@ function tag(box,t,c){const e=document.createElement("span");e.className="tag "+
 const IN={ASK:"提问",LEARN:"学习",PRACTICE:"练习",EXPLORE:"探索",ACT:"行动"};
 const CO={correct:"答案正确",incorrect:"答案不对",partial:"部分正确",unknown:"正确性未知"},RE={valid:"推理成立",partial:"推理部分成立",invalid:"推理不成立",not_assessed:"推理未评估"},AS={none:"独立完成",minor_hint:"小提示",major_hint:"大提示",worked_solution:"看了解答",unknown:"提示未知"},VE={confirmed:"已确认",pending:"待验证",rejected:"被驳回"};
 function render(o){
+  if(o.narration)latestNarration=o.narration;
+  if(o.scene?.publicText)currentPublicText=o.scene.publicText;
+  contextualActions();
   const d=bubble(o.narration||o.visibleFeedback||"（没有回复）","",!!o.narration);const m=document.createElement("div");m.className="meta";
   (o.intentSegments||[]).forEach(i=>tag(m,IN[i]||i));
   const a=o.academicEvaluation;if(a){tag(m,CO[a.correctness]||a.correctness,a.correctness==="correct"?"ok":"");tag(m,RE[a.reasoning]||a.reasoning,a.reasoning==="valid"?"ok":a.reasoning==="invalid"?"warn":"");tag(m,AS[a.assistance]||a.assistance);tag(m,VE[a.verification]||a.verification,a.verification==="confirmed"?"ok":"");if(a.repeatedInsight)tag(m,"重复思路，不加成")}
@@ -94,9 +101,9 @@ async function send(text){
 $("#f").addEventListener("submit",e=>{e.preventDefault();const v=$("#t").value;$("#t").value="";send(v)});
 $("#t").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){e.preventDefault();$("#f").requestSubmit()}});
 document.querySelectorAll(".quick button").forEach(b=>b.onclick=()=>{if(b.dataset.fill){$("#t").value=b.dataset.fill;$("#t").focus()}else send(b.dataset.t)});
-async function moves(){try{const r=await api("/api/adventure/world?id="+encodeURIComponent(SID));const j=r.j;const box=$("#moves");box.innerHTML="";if(!j||!j.active)return;(j.options||[]).forEach(l=>{const b=document.createElement("button");b.type="button";b.textContent="前往："+l;b.onclick=()=>{$("#t").value="前往"+l;$("#t").focus()};box.append(b)})}catch(e){}}
+async function moves(){try{const r=await api("/api/adventure/world?id="+encodeURIComponent(SID));const j=r.j;const box=$("#moves");box.innerHTML="";if(!j||!j.active){currentPublicText="";contextualActions();return;}currentPublicText=j.publicText||"";contextualActions();(j.options||[]).forEach(l=>{const b=document.createElement("button");b.type="button";b.textContent="前往："+l;b.onclick=()=>{$("#t").value="前往"+l;$("#t").focus()};box.append(b)})}catch(e){}}
 async function intro(){try{const r=await api("/api/adventure/world?id="+encodeURIComponent(SID));const j=r.j;if(!j||!j.active)return;
-  if(j.opening)bubble(j.opening,"",true);if(j.publicText)bubble(j.publicText,"",true);(j.entered||[]).forEach(x=>bubble(x,"",true));moves()}catch(e){}}
+  if(j.opening)bubble(j.opening,"",true);if(j.publicText){currentPublicText=j.publicText;bubble(j.publicText,"",true)}contextualActions();(j.entered||[]).forEach(x=>bubble(x,"",true));moves()}catch(e){}}
 refresh().then(intro);
 </script>
 </body>
