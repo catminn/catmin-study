@@ -20,6 +20,7 @@ function ensure(env: SiteEnv) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_commits (session_id TEXT NOT NULL, commit_id TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY (session_id,commit_id))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_ending_notice (session_id TEXT NOT NULL, target TEXT NOT NULL, ending_id TEXT NOT NULL, world_version INTEGER NOT NULL, shown_at REAL NOT NULL, PRIMARY KEY (session_id,target))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_ending_snapshot (session_id TEXT PRIMARY KEY, ending_commit_id TEXT NOT NULL, snapshot TEXT NOT NULL, created_at REAL NOT NULL)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_threads (session_id TEXT NOT NULL, thread_id TEXT NOT NULL, audience TEXT NOT NULL, carryover TEXT NOT NULL, status TEXT NOT NULL, opened_by TEXT NOT NULL, resolved_by TEXT, PRIMARY KEY (session_id,thread_id))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS adventure_world_applied (session_id TEXT NOT NULL, event_key TEXT NOT NULL, action_id TEXT NOT NULL, public_outcome TEXT, PRIMARY KEY (session_id,event_key))`),
   ]).catch((e) => { ready = null; throw e; }));
 }
@@ -119,8 +120,62 @@ type Pending = { type: string; scene: string; success?: boolean; actionTemplate?
 
 const strOk = (x: unknown): x is string => typeof x === "string" && x.length > 0 && x.length <= 200;
 
+// 未解线索（world-content-semantics-v1「Unresolved thread authoring and carryover」）：
+// 声明 {id, authorizedAudience: player|server_private, carryover: eligible|local_only}；只在已提交的场景进入/事件提交时开启，resolvesThreads 只在事件提交时关闭。
+// 已关闭的线索不会因重访/重放而重开；结构非法、冲突（受众或携带策略与已有记录不同）、关闭从未开启的线索 → 整条事件拒绝 / 场景声明整体忽略（失败关闭）。
+export type ThreadDecl = { id: string; authorizedAudience: "player" | "server_private"; carryover: "eligible" | "local_only" };
+export function parseThreadDecls(x: unknown): ThreadDecl[] | null {
+  if (x === undefined) return [];
+  if (!Array.isArray(x)) return null;
+  const seen = new Set<string>(), out: ThreadDecl[] = [];
+  for (const d of x) {
+    if (!d || typeof d !== "object" || Array.isArray(d)) return null;
+    const keys = Object.keys(d);
+    if (keys.length !== 3 || !["id", "authorizedAudience", "carryover"].every((k) => keys.includes(k))) return null;
+    if (!idOk((d as any).id) || !["player", "server_private"].includes((d as any).authorizedAudience) || !["eligible", "local_only"].includes((d as any).carryover) || seen.has((d as any).id)) return null;
+    seen.add((d as any).id); out.push({ id: (d as any).id, authorizedAudience: (d as any).authorizedAudience, carryover: (d as any).carryover });
+  }
+  return out;
+}
+export function parseThreadResolves(x: unknown): string[] | null {
+  if (x === undefined) return [];
+  if (!Array.isArray(x) || !x.every(idOk) || new Set(x).size !== x.length) return null;
+  return x as string[];
+}
+async function threadRow(env: SiteEnv, sid: string, id: string) {
+  return env.DB.prepare("SELECT audience, carryover, status FROM adventure_world_threads WHERE session_id=? AND thread_id=?").bind(sid, id).first<{ audience: string; carryover: string; status: string }>();
+}
+// 校验线索声明与已有记录不冲突；返回可执行的 ops
+async function planThreads(env: SiteEnv, sid: string, open: unknown, resolves: unknown): Promise<any[] | null> {
+  const decls = parseThreadDecls(open), res = parseThreadResolves(resolves);
+  if (!decls || !res) return null;
+  const ops: any[] = [];
+  for (const d of decls) {
+    if (res.includes(d.id)) return null; // 同一事件既开又关：内容冲突
+    const row = await threadRow(env, sid, d.id);
+    if (row && (row.audience !== d.authorizedAudience || row.carryover !== d.carryover)) return null;
+    ops.push({ type: "__thread_open", ...d });
+  }
+  for (const id of res) {
+    if (!(await threadRow(env, sid, id))) return null; // 不得凭空创造或静默“解决”从未开启的线索
+    ops.push({ type: "__thread_resolve", id });
+  }
+  return ops;
+}
+async function openSceneThreads(env: SiteEnv, sid: string, sc: any, ref: string): Promise<void> {
+  const ops = await planThreads(env, sid, sc?.openThreads, undefined);
+  if (!ops) return; // 非法/冲突：整体忽略，不部分开启
+  await execThreadOps(env, sid, ops, ref);
+}
+async function execThreadOps(env: SiteEnv, sid: string, ops: any[], ref: string): Promise<void> {
+  for (const o of ops) {
+    if (o.type === "__thread_open") await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_threads (session_id,thread_id,audience,carryover,status,opened_by) VALUES (?,?,?,?,'open',?)").bind(sid, o.id, o.authorizedAudience, o.carryover, ref).run();
+    else if (o.type === "__thread_resolve") await env.DB.prepare("UPDATE adventure_world_threads SET status='resolved', resolved_by=? WHERE session_id=? AND thread_id=? AND status='open'").bind(ref, sid, o.id).run();
+  }
+}
+
 // 校验所有 effects（含 revealsFacts），通过才应用；任何一条非法就整条事件拒绝（不部分应用）。
-async function planEffects(env: SiteEnv, sid: string, scene: string, effects: any[], reveals: unknown): Promise<{ ok: true; ops: any[] } | { ok: false }> {
+async function planEffects(env: SiteEnv, sid: string, scene: string, effects: any[], reveals: unknown, threads?: { open?: unknown; resolves?: unknown }): Promise<{ ok: true; ops: any[] } | { ok: false }> {
   if (!Array.isArray(effects)) return { ok: false };
   if (reveals !== undefined && (!Array.isArray(reveals) || !reveals.every(strOk))) return { ok: false };
   const sc = await sceneContent(env, scene);
@@ -152,7 +207,9 @@ async function planEffects(env: SiteEnv, sid: string, scene: string, effects: an
     if (e.type === "grant_item") held.add(e.target);
     if (e.type === "record_npc_memory" && (!WORLD_CONFIG.npcMemoryLayers.has(e.layer) || !strOk(e.value))) return { ok: false };
   }
-  return { ok: true, ops: [...effects, ...(Array.isArray(reveals) ? reveals.map((f: string) => ({ type: "record_fact_discovery", target: f })) : [])] };
+  const tops = threads ? await planThreads(env, sid, threads.open, threads.resolves) : [];
+  if (!tops) return { ok: false };
+  return { ok: true, ops: [...effects, ...(Array.isArray(reveals) ? reveals.map((f: string) => ({ type: "record_fact_discovery", target: f })) : []), ...tops] };
 }
 
 function matches(tr: any, t: Pending): boolean {
@@ -173,8 +230,9 @@ function matches(tr: any, t: Pending): boolean {
   return true;
 }
 
-async function execOps(env: SiteEnv, sid: string, st: St, ops: any[], next: Pending[]): Promise<St> {
+async function execOps(env: SiteEnv, sid: string, st: St, ops: any[], next: Pending[], ref: string): Promise<St> {
   for (const e of ops) {
+    if (e.type === "__thread_open" || e.type === "__thread_resolve") { await execThreadOps(env, sid, [e], ref); continue; }
     if (e.type === "set_flag" || e.type === "lock_flag") {
       const nv = JSON.stringify(e.value ?? true);
       const old = await flagGet(env, sid, e.target);
@@ -193,22 +251,23 @@ async function execOps(env: SiteEnv, sid: string, st: St, ops: any[], next: Pend
     else if (e.type === "grant_item") await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_items (session_id,item_id) VALUES (?,?)").bind(sid, e.target).run();
     else if (e.type === "remove_item") await env.DB.prepare("DELETE FROM adventure_world_items WHERE session_id=? AND item_id=?").bind(sid, e.target).run();
     else if (e.type === "record_npc_memory") await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_npc_memory (session_id,npc_id,layer,item) VALUES (?,?,?,?)").bind(sid, e.target, e.layer, e.value).run();
-    else if (e.type === "advance_scene") st = await enterScene(env, sid, st, e.target, next);
+    else if (e.type === "advance_scene") st = await enterScene(env, sid, st, e.target, next, ref);
   }
   return st;
 }
 
 // 进入场景：提交 + 触发 scene_entered；场景自带的 stateEffects（同一套 effects，非法则整体忽略）在进入时应用一次。
-async function enterScene(env: SiteEnv, sid: string, st: St, target: string, next: Pending[]): Promise<St> {
+async function enterScene(env: SiteEnv, sid: string, st: St, target: string, next: Pending[], ref: string): Promise<St> {
   st = { scene: target, version: st.version + 1 };
   await env.DB.prepare("UPDATE adventure_world SET scene_id=?, version=? WHERE session_id=?").bind(st.scene, st.version, sid).run();
   next.push({ type: "scene_entered", scene: st.scene });
   const sc = await sceneContent(env, target);
+  await openSceneThreads(env, sid, sc, ref); // 已提交的场景进入才开启线索
   if (sc && Array.isArray(sc.stateEffects) && sc.stateEffects.length) {
     const ins = await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_applied (session_id,event_key,action_id,public_outcome) VALUES (?,?,?,NULL)").bind(sid, "scene-state:" + target + ":" + st.version, "scene-state").run();
     if (ins.meta.changes === 1) {
       const plan = await planEffects(env, sid, target, sc.stateEffects.filter((x: any) => x?.type !== "advance_scene"), undefined);
-      if (plan.ok && sc.stateEffects.every((x: any) => x?.type !== "advance_scene")) st = await execOps(env, sid, st, plan.ops, next);
+      if (plan.ok && sc.stateEffects.every((x: any) => x?.type !== "advance_scene")) st = await execOps(env, sid, st, plan.ops, next, "scene:" + target + ":" + st.version);
     }
   }
   return st;
@@ -233,12 +292,12 @@ export async function applyTrigger(
         if (!(await evalCond(env, sid, st!.scene, ev.c.preconditions))) return false;
         const once = (ev.c.repeatPolicy ?? "once_per_world") === "once_per_world";
         const key = once ? ev.id : ev.id + ":" + trigger.actionId;
-        const plan = await planEffects(env, sid, st!.scene, ev.c.effects ?? [], ev.c.revealsFacts);
+        const plan = await planEffects(env, sid, st!.scene, ev.c.effects ?? [], ev.c.revealsFacts, { open: ev.c.openThreads, resolves: ev.c.resolvesThreads });
         if (!plan.ok) return false;
         const po = publicText(ev.c);
         const ins = await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_applied (session_id,event_key,action_id,public_outcome) VALUES (?,?,?,?)").bind(sid, key, trigger.actionId, po).run();
         if (ins.meta.changes !== 1) return false; // 幂等：已经应用过
-        st = await execOps(env, sid, st!, plan.ops, next);
+        st = await execOps(env, sid, st!, plan.ops, next, trigger.actionId);
         if (po) out.push({ publicOutcome: po });
         return !!po;
       };
@@ -316,7 +375,7 @@ async function commitOp(env: SiteEnv, body: unknown, kind: "travel" | "choice"):
     const claim = await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_commits (session_id,commit_id,kind,payload) VALUES (?,?,?,?)").bind(sid, b.commitId, kind, pj).run();
     if (claim.meta.changes !== 1) return wfail(409, "commit_in_progress", "这次提交正在处理，请稍后重试");
     const next: Pending[] = [];
-    const st2 = await enterScene(env, sid, st, b.target, next);
+    const st2 = await enterScene(env, sid, st, b.target, next, actionId);
     await env.DB.prepare("DELETE FROM adventure_world_ending_notice WHERE session_id=?").bind(sid).run();
     // 进入后的 scene_entered 及连锁事件
     outcomes = await applyTrigger(env, sid, { type: "scene_entered", actionId }, st2.scene);
@@ -346,12 +405,12 @@ async function applyChained(env: SiteEnv, sid: string, actionId: string, t: Pend
     if (!(await evalCond(env, sid, st.scene, ev.c.preconditions))) continue;
     const once = (ev.c.repeatPolicy ?? "once_per_world") === "once_per_world";
     const key = once ? ev.id : ev.id + ":" + actionId;
-    const plan = await planEffects(env, sid, st.scene, ev.c.effects ?? [], ev.c.revealsFacts);
+    const plan = await planEffects(env, sid, st.scene, ev.c.effects ?? [], ev.c.revealsFacts, { open: ev.c.openThreads, resolves: ev.c.resolvesThreads });
     if (!plan.ok) continue;
     const po = publicText(ev.c);
     const ins = await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_applied (session_id,event_key,action_id,public_outcome) VALUES (?,?,?,?)").bind(sid, key, actionId, po).run();
     if (ins.meta.changes !== 1) continue;
-    await execOps(env, sid, st, plan.ops.filter((o: any) => o.type !== "advance_scene"), []);
+    await execOps(env, sid, st, plan.ops.filter((o: any) => o.type !== "advance_scene"), [], actionId);
     if (po) out.push({ publicOutcome: po });
   }
   return out;
@@ -407,6 +466,7 @@ export async function availableMoves(env: SiteEnv, sid: string): Promise<{ scene
 export async function worldIntro(env: SiteEnv, sid: string): Promise<PublicEvent[]> {
   const st = await ensureState(env, sid);
   if (!st || st.version !== 0) return st ? await replayPublicOutcomes(env, sid, "init") : [];
+  await openSceneThreads(env, sid, await sceneContent(env, st.scene), "init");
   await applyTrigger(env, sid, { type: "scene_entered", actionId: "init" });
   return replayPublicOutcomes(env, sid, "init");
 }
@@ -432,6 +492,8 @@ async function createEndingSnapshot(env: SiteEnv, sid: string, commitId: string,
   const hist = await all("SELECT npc_id, n FROM adventure_world_rel_history WHERE session_id=? ORDER BY npc_id, n");
   const mem = await all("SELECT npc_id, layer, item FROM adventure_world_npc_memory WHERE session_id=? ORDER BY npc_id, layer, item");
   const items = await all("SELECT item_id FROM adventure_world_items WHERE session_id=? ORDER BY item_id");
+  const threads = await all("SELECT thread_id, audience, opened_by FROM adventure_world_threads WHERE session_id=? AND status='open' AND carryover='eligible' ORDER BY thread_id");
+  if (threads.some((t) => !t.opened_by)) return; // 缺少开启来源：失败关闭，不建快照
   const snap = {
     snapshotSchemaVersion: SNAPSHOT_CONFIG.schemaVersion,
     sourceWorldRef: wr.results[0].id, sourceWorldVersion: st.version, sourceContentRevision: { world: world.rev, endingScene: sceneRev }, engineVersion: WORLD_CONFIG.version,
@@ -446,7 +508,8 @@ async function createEndingSnapshot(env: SiteEnv, sid: string, commitId: string,
       confirmedKnowledge: mem.filter((m) => m.npc_id === n.npc_id && m.layer === "confirmedNpcKnowledge").map((m) => m.item),
     })),
     inventory: items.map((i) => ({ itemRef: i.item_id })),
-    openThreads: [], // 未解线索只能来自内容显式标注的引用；引擎不推断
+    // 未解线索：只带“开启已提交、尚未解决、carryover=eligible”的引用；不含解答或叙述；local_only 与已解决的不带
+    openThreads: threads.map((t) => ({ threadRef: t.thread_id, status: "unresolved", audience: t.audience, openedByCommitRef: t.opened_by })),
     learningEvidenceRefs: [], // 学习事件当前未与会话绑定；仅在以后有显式证据引用时写入，快照不重复发奖
     carryoverPolicyVersion: SNAPSHOT_CONFIG.carryoverPolicyVersion,
   };
@@ -454,7 +517,7 @@ async function createEndingSnapshot(env: SiteEnv, sid: string, commitId: string,
 }
 // 授权投影：只有玩家已知事实、可见关系档位、持有物品；不含结局 id、NPC 私有信念/知识、内部提交引用。
 // 来源不可核验（快照版本/政策版本不符）→ 失败关闭返回 null。
-export async function snapshotProjection(env: SiteEnv, sid: string): Promise<{ facts: string[]; relations: { npc: string; band: string | null }[]; items: string[] } | null> {
+export async function snapshotProjection(env: SiteEnv, sid: string): Promise<{ facts: string[]; relations: { npc: string; band: string | null }[]; items: string[]; openThreads: string[] } | null> {
   await ensure(env);
   const r = await env.DB.prepare("SELECT snapshot FROM adventure_world_ending_snapshot WHERE session_id=?").bind(sid).first<{ snapshot: string }>();
   if (!r) return null;
@@ -465,6 +528,8 @@ export async function snapshotProjection(env: SiteEnv, sid: string): Promise<{ f
     facts: s.confirmedFacts.filter((f: any) => f.audience === "player").map((f: any) => f.factRef),
     relations: s.npcContinuity.map((n: any) => ({ npc: n.npcRef, band: n.relationBand })),
     items: s.inventory.map((i: any) => i.itemRef),
+    // 只有 audience=player 且仍为 unresolved 的线索引用；server_private 永不进入玩家/DM 视图
+    openThreads: (s.openThreads ?? []).filter((t: any) => t.audience === "player" && t.status === "unresolved").map((t: any) => t.threadRef),
   };
 }
 // 管理员计数视图（测试/运维用）：只给分类计数，不给任何 id
@@ -473,5 +538,5 @@ export async function snapshotStats(env: SiteEnv, sid: string): Promise<Record<s
   const rows = await env.DB.prepare("SELECT snapshot FROM adventure_world_ending_snapshot WHERE session_id=?").bind(sid).all<{ snapshot: string }>();
   if (!rows.results.length) return null;
   const s = JSON.parse(rows.results[0].snapshot);
-  return { snapshots: rows.results.length, facts: s.confirmedFacts.length, npcs: s.npcContinuity.length, items: s.inventory.length, heard: s.npcContinuity.reduce((a: number, n: any) => a + n.heardClaims.length, 0), beliefs: s.npcContinuity.reduce((a: number, n: any) => a + n.beliefs.length, 0), openThreads: s.openThreads.length, learningRefs: s.learningEvidenceRefs.length };
+  return { snapshots: rows.results.length, facts: s.confirmedFacts.length, npcs: s.npcContinuity.length, items: s.inventory.length, heard: s.npcContinuity.reduce((a: number, n: any) => a + n.heardClaims.length, 0), beliefs: s.npcContinuity.reduce((a: number, n: any) => a + n.beliefs.length, 0), openThreads: s.openThreads.length, openThreadsPlayer: s.openThreads.filter((t: any) => t.audience === "player").length, openThreadsPrivate: s.openThreads.filter((t: any) => t.audience === "server_private").length, projectedOpenThreads: (await snapshotProjection(env, sid))?.openThreads.length ?? -1, learningRefs: s.learningEvidenceRefs.length };
 }

@@ -92,5 +92,36 @@ try {
     }
     if (t.type === 'fact_discovered' && t.factId && !revealed.has(t.factId)) bad('fact_discovered 引用了从未被揭示的事实');
   }
-  process.stdout.write(JSON.stringify({ ok: Object.keys(errs).length === 0, errors: errs, eventsWithoutPublicOutcome: noPublic, warnings: warns, eventsWithTriggerTypeIgnoredByV0: unsupportedTrigger, scenes: scenes.size, events: by('event').length }) + '\n');
+  // ---- 未解线索（openThreads / resolvesThreads）：声明唯一、结构严格、受众与携带策略显式 ----
+  const declared = new Set();
+  const idRe = /^[\w.:-]{1,120}$/;
+  const declsOf = (x) => {
+    if (x === undefined) return [];
+    if (!Array.isArray(x)) { bad('openThreads 结构非法'); return []; }
+    const out = [];
+    for (const d of x) {
+      const ks = d && typeof d === 'object' && !Array.isArray(d) ? Object.keys(d) : [];
+      if (ks.length !== 3 || !['id', 'authorizedAudience', 'carryover'].every(k => ks.includes(k)) || typeof d.id !== 'string' || !idRe.test(d.id)) { bad('openThreads 结构非法'); continue; }
+      if (!['player', 'server_private'].includes(d.authorizedAudience)) bad('线索缺少或写错 authorizedAudience');
+      if (!['eligible', 'local_only'].includes(d.carryover)) bad('线索缺少或写错 carryover（不推断默认值）');
+      out.push(d.id);
+    }
+    return out;
+  };
+  const opened = [];
+  for (const [, sc] of scenes) opened.push(...declsOf(sc.openThreads));
+  for (const e of by('event')) {
+    const ids = declsOf(e.content.openThreads);
+    opened.push(...ids);
+    const rs = e.content.resolvesThreads;
+    if (rs !== undefined && (!Array.isArray(rs) || !rs.every(x => typeof x === 'string' && idRe.test(x)) || new Set(rs).size !== rs.length)) bad('resolvesThreads 结构非法');
+    else for (const r of rs ?? []) if (ids.includes(r)) bad('同一事件既开启又关闭同一线索');
+  }
+  for (const id of opened) { if (declared.has(id)) bad('线索 id 重复声明'); declared.add(id); }
+  for (const e of by('event')) {
+    const rs = e.content.resolvesThreads;
+    if (Array.isArray(rs)) for (const r of rs) if (typeof r === 'string' && !declared.has(r)) bad('resolvesThreads 引用了未声明的线索');
+  }
+  const threadsDeclared = declared.size;
+  process.stdout.write(JSON.stringify({ ok: Object.keys(errs).length === 0, errors: errs, eventsWithoutPublicOutcome: noPublic, warnings: warns, eventsWithTriggerTypeIgnoredByV0: unsupportedTrigger, scenes: scenes.size, threadsDeclared, events: by('event').length }) + '\n');
 } catch { process.stderr.write('读取或解析失败（未显示内容）\n'); process.exitCode = 1; }

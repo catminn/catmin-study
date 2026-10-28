@@ -150,4 +150,46 @@ check("S3 未走到结局的会话（E1）没有快照；被拒绝/未确认的�
 st = snap("E4")["snapshot"]
 check("S4 另一个会话（E4 → END-A）有独立快照，字段只有计数", st is not None and st["learningRefs"] == 0 and st["openThreads"] == 0, st)
 check("S5 玩家会话不能读快照计数（403），响应也不含任何 id", requests.get(B + "/api/adventure/ending-snapshot", params={"id": "E2"}, headers={"Cookie": s.headers["Cookie"]}).status_code == 403 and "END-B" not in json.dumps(snap("E2")))
+
+# ---- 未解线索 openThreads / resolvesThreads（占位内容）----
+D = lambda i, a, c: {"id": i, "authorizedAudience": a, "carryover": c}
+put("scene", "x-a", {"choices": ["t-a"]})
+put("scene", "t-a", {"choices": ["t-b", "t-end"], "openThreads": [D("th1", "player", "eligible")]})
+put("scene", "t-b", {"choices": ["t-a", "t-end"], "openThreads": [D("th2", "server_private", "eligible"), D("th3", "player", "local_only")]})
+put("scene", "t-end", {"choices": [], "ending": {"id": "END-T", "costNotice": "PH-COST-T"}, "entryRequirements": [{"flag": "tg"}]})
+ev("te0", trigger={"type": "scene_entered", "sceneId": "t-a"}, effects=[{"type": "set_flag", "target": "tg", "value": True}])
+ev("tlock", trigger={"type": "scene_entered", "sceneId": "t-end"}, effects=[{"type": "lock_flag", "target": "ending_locked", "value": "END-T"}], publicOutcome="PH-LOCK-T")
+ev("tev1", trigger={"type": "dialogue_choice_committed", "choiceId": "c-open", "npcId": "n2", "sceneId": "t-a"}, openThreads=[D("th4", "player", "eligible")], publicOutcome="PH-T1")
+ev("tev2", trigger={"type": "dialogue_choice_committed", "choiceId": "c-res", "npcId": "n2", "sceneId": "t-a"}, resolvesThreads=["th1"], publicOutcome="PH-T2")
+ev("tev3", trigger={"type": "dialogue_choice_committed", "choiceId": "c-bad", "npcId": "n2", "sceneId": "t-a"}, resolvesThreads=["never-opened"], publicOutcome="PH-T-BAD")
+ev("tev4", trigger={"type": "dialogue_choice_committed", "choiceId": "c-conf", "npcId": "n2", "sceneId": "t-a"}, openThreads=[D("th1", "server_private", "eligible")], publicOutcome="PH-T-CONF")
+ev("tev5", trigger={"type": "dialogue_choice_committed", "choiceId": "c-shape", "npcId": "n2", "sceneId": "t-a"}, openThreads=[{"id": "th9", "authorizedAudience": "player"}], publicOutcome="PH-T-SHAPE")
+def to_end(sid, tag, via_b=False):
+    start(sid)
+    travel(sid, tag + "a", "t-a")
+    if via_b: travel(sid, tag + "b", "t-b"); travel(sid, tag + "c", "t-a")
+    travel(sid, tag + "n", "t-end"); return travel(sid, tag + "e", "t-end", confirmEnding=True)
+c, b = to_end("T1", "t1", True); st = snap("T1")["snapshot"]
+check("T1 场景入场开启线索；重访不重复；只带 eligible 且未解：th1(player)+th2(private)，th3(local_only) 不带", c == 200 and st["openThreads"] == 2 and st["openThreadsPlayer"] == 1 and st["openThreadsPrivate"] == 1, [b, st])
+check("T2 授权投影只含 player 线索，server_private 不进入", st["projectedOpenThreads"] == 1, st)
+start("T3"); travel("T3", "t3a", "t-a")
+c, b = choice("T3", "t3o", "c-res"); check("T3 resolvesThreads 在事件提交后关闭线索", c == 200 and wo(b) == ["PH-T2"], b)
+travel("T3", "t3b", "t-b"); travel("T3", "t3c", "t-a"); travel("T3", "t3n", "t-end"); c, b = travel("T3", "t3e", "t-end", confirmEnding=True); st = snap("T3")["snapshot"]
+check("T4 已关闭的线索不因重访重开；快照只剩未解的 th2(private)", c == 200 and st["openThreads"] == 1 and st["openThreadsPlayer"] == 0 and st["openThreadsPrivate"] == 1 and st["projectedOpenThreads"] == 0, [b, st])
+start("T5"); travel("T5", "t5a", "t-a")
+c, b = choice("T5", "t5x", "c-bad"); check("T5 关闭从未开启的线索 → 整条事件拒绝（无输出）", c == 200 and wo(b) == [], b)
+c, b = choice("T5", "t5y", "c-conf"); check("T6 受众/携带策略与已有记录冲突 → 整条事件拒绝", c == 200 and wo(b) == [], b)
+c, b = choice("T5", "t5z", "c-shape"); check("T7 声明缺少 carryover（结构非法）→ 整条事件拒绝，不推断默认值", c == 200 and wo(b) == [], b)
+c, b = choice("T5", "t5o", "c-open"); check("T8 事件提交时开启线索", c == 200 and wo(b) == ["PH-T1"], b)
+c, b2 = choice("T5", "t5o", "c-open"); check("T9 同 commitId 重放幂等", b2.get("replay") and wo(b2) == ["PH-T1"], b2)
+travel("T5", "t5n", "t-end"); travel("T5", "t5e", "t-end", confirmEnding=True); st = snap("T5")["snapshot"]
+check("T10 快照带 th1 + th4 两个 player 线索；被拒事件没有留下半个线索", st["openThreads"] == 2 and st["openThreadsPlayer"] == 2 and st["projectedOpenThreads"] == 2, st)
+c, b = travel("T5", "t5e", "t-end", confirmEnding=True); st = snap("T5")["snapshot"]
+check("T11 快照重放不改变线索集合", b.get("replay") and st["snapshots"] == 1 and st["openThreads"] == 2, [b, st])
+# 没经过的场景/被拒的结局不会提前开启线索：未确认的结局会话没有快照
+start("T6"); travel("T6", "t6a", "t-a"); travel("T6", "t6n", "t-end")
+check("T12 未确认的结局没有快照，也不泄露线索", snap("T6")["snapshot"] is None)
+txt = json.dumps([b, snap("T5")], ensure_ascii=False)
+check("T13 玩家响应不含线索 id / 受众", all(k not in txt for k in ["th1", "th2", "th4", "server_private", "openedByCommitRef"]), txt)
+
 print("\nALL PASS" if ok else "\nSOME FAILED"); raise SystemExit(0 if ok else 1)

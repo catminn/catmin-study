@@ -44,3 +44,10 @@
 - 终局 travel 成功提交、且 `ending_locked` 等于该结局 `ending.id` 后创建，表 `adventure_world_ending_snapshot`（每会话一份，INSERT OR IGNORE；重放、被拒、未确认、冲突都不建、不重复）。
 - 字段（全部是引用/计数来源，无叙述文字）：snapshotSchemaVersion、sourceWorldRef/Version/ContentRevision、endingRef/endingCommitRef、confirmedFacts（玩家已知事实，audience=player）、npcContinuity（关系档位、历史引用、heardClaims/beliefs/confirmedKnowledge 分层）、inventory、openThreads（引擎不推断，目前为空）、learningEvidenceRefs（学习事件未与会话绑定，目前为空，不会重复发奖）、carryoverPolicyVersion。
 - 世界内容不能唯一确认来源时失败关闭，不建快照。快照本体不经 HTTP；管理员 GET /api/adventure/ending-snapshot?id= 只返回分类计数。`snapshotProjection` 是给下一章开场叙述的授权视图（事实、关系档位、物品；无结局 id、NPC 私有信念）。
+
+## 8. 未解线索 openThreads / resolvesThreads（world-1.2.0 起，服务端私有）
+- 声明：`scene.openThreads` 或 `event.openThreads` = `[{id, authorizedAudience:"player"|"server_private", carryover:"eligible"|"local_only"}]`（三个键缺一不可，不推断默认值）；`event.resolvesThreads` = `[线索 id]`。
+- 时机：场景声明只在该场景被**已提交的**转场进入（或起始场景开场）时开启；事件声明只在事件**提交**时开启/关闭。预览、列出 choices、失败行动、讨论、数学答案本身都不开启也不关闭。
+- 规则：已关闭的线索不会因重访或重放重开；关闭从未开启的线索、受众/携带策略与已有记录冲突、同一事件既开又关、结构非法 → 事件整条拒绝（场景声明整体忽略），不部分应用。表 `adventure_world_threads`（含 opened_by 提交引用、resolved_by）。
+- 快照：终局锁成功后，`openThreads` 只带“已开启、未解决、carryover=eligible”的 `{threadRef,status:"unresolved",audience,openedByCommitRef}`；local_only 不带；缺开启来源 → 不建快照。授权投影 `snapshotProjection.openThreads` 只含 audience=player；server_private 永不进入玩家/DM 视图。管理员计数视图含 openThreadsPlayer/Private/projectedOpenThreads（仅计数）。
+- 预检脚本新增 error：openThreads/resolvesThreads 结构非法、缺 authorizedAudience/carryover、线索 id 重复声明、resolvesThreads 引用未声明线索、同一事件既开又关。
