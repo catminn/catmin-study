@@ -1,7 +1,7 @@
 // 世界事件引擎 v0（服务端是唯一的世界变化确认方）。
 // 读取私有内容包（world/scene/npc/event），只在服务端使用；对玩家只返回事件内容里写明的 publicOutcome，不返回 id、effects、条件。
 // 契约：content/contracts/world-content-semantics-v1.md（ChatGPT 设计分支）。
-import { readContentInternal } from "./content";
+import { readContentInternal, grantFromWorldEvent } from "./content";
 import type { SiteEnv } from "./site";
 import { ACTION_ALIASES } from "./adventure";
 
@@ -435,6 +435,7 @@ export async function applyTrigger(
         const ins = await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_applied (session_id,event_key,action_id,public_outcome) VALUES (?,?,?,?)").bind(sid, key, trigger.actionId, po).run();
         if (ins.meta.changes !== 1) return false; // 幂等：已经应用过
         st = await execOps(env, sid, st!, plan.ops, next, trigger.actionId);
+        await grantFromWorldEvent(env, { sid, eventKey: key, eventId: ev.id, triggerRef: ev.c.grantTriggerRef });
         if (po) out.push({ publicOutcome: po });
         return !!po;
       };
@@ -548,6 +549,7 @@ async function applyChained(env: SiteEnv, sid: string, actionId: string, t: Pend
     const ins = await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_applied (session_id,event_key,action_id,public_outcome) VALUES (?,?,?,?)").bind(sid, key, actionId, po).run();
     if (ins.meta.changes !== 1) continue;
     await execOps(env, sid, st, plan.ops.filter((o: any) => o.type !== "advance_scene"), [], actionId);
+    await grantFromWorldEvent(env, { sid, eventKey: key, eventId: ev.id, triggerRef: ev.c.grantTriggerRef });
     if (po) out.push({ publicOutcome: po });
   }
   return out;

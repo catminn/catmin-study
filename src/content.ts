@@ -213,7 +213,32 @@ async function ensureProg(env: SiteEnv) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_progress (dungeon TEXT NOT NULL, ch INTEGER NOT NULL, challenge TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, verified_at TEXT, PRIMARY KEY (dungeon,ch,challenge))").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_skills (dungeon TEXT NOT NULL, ch INTEGER NOT NULL, skill TEXT NOT NULL, effect TEXT NOT NULL, unlocked_at TEXT NOT NULL, PRIMARY KEY (dungeon,ch))").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_grants (dungeon TEXT NOT NULL, grant_name TEXT NOT NULL, granted_at TEXT NOT NULL, PRIMARY KEY (dungeon,grant_name))").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_triggers (trigger_ref TEXT PRIMARY KEY, world_id TEXT NOT NULL, dungeon_id TEXT NOT NULL, manifest_revision INTEGER NOT NULL, kind TEXT NOT NULL)").run();
+  for (const c of ["event_id", "trigger_ref", "manifest_revision"]) await env.DB.prepare("ALTER TABLE dungeon_grants ADD COLUMN " + c + " TEXT").run().catch(() => null); // 来源记录（旧行为空）
   pready = true;
+}
+// 私有触发器注册表（仅管理员通道写入；绝不经 HTTP 返回）：opaque triggerRef → {worldId, dungeonId, manifestRevision, kind}
+export async function registerDungeonTrigger(env: SiteEnv, b: any): Promise<R> {
+  await ensureProg(env);
+  const ref = b?.triggerRef, w = b?.worldId, d = b?.dungeonId, rev = b?.manifestRevision, kind = b?.kind;
+  if (typeof ref !== "string" || !/^[A-Za-z0-9_.:-]{1,80}$/.test(ref) || typeof w !== "string" || !w || typeof d !== "string" || !d || !Number.isInteger(rev) || rev < 1 || (kind !== "zeroUnlocked" && kind !== "hiddenUnlocked")) return bad(400, "bad_trigger", "触发器注册格式不对");
+  const old = await env.DB.prepare("SELECT 1 AS x FROM dungeon_triggers WHERE trigger_ref=?").bind(ref).first();
+  if (old) return bad(409, "exists", "触发器已存在（不可覆盖）");
+  await env.DB.prepare("INSERT INTO dungeon_triggers (trigger_ref,world_id,dungeon_id,manifest_revision,kind) VALUES (?,?,?,?,?)").bind(ref, w, d, rev, kind).run();
+  return { status: 200, body: { ok: true } };
+}
+// 世界事件日志 → 副本授权。只被世界引擎在“事件已提交（adventure_world_applied 已写入）”之后调用；失败关闭、幂等、按副本+版本隔离。
+export async function grantFromWorldEvent(env: SiteEnv, ev: { sid: string; eventKey: string; eventId: string; triggerRef: unknown }): Promise<boolean> {
+  if (typeof ev.triggerRef !== "string") return false;
+  await ensureProg(env);
+  const reg = await env.DB.prepare("SELECT world_id,dungeon_id,manifest_revision,kind FROM dungeon_triggers WHERE trigger_ref=?").bind(ev.triggerRef).first<{ world_id: string; dungeon_id: string; manifest_revision: number; kind: string }>();
+  if (!reg) return false;
+  const pin = await env.DB.prepare("SELECT world_id,world_rev FROM adventure_world_pin WHERE session_id=?").bind(ev.sid).first<{ world_id: string; world_rev: number }>();
+  if (!pin || pin.world_id !== reg.world_id || pin.world_rev !== reg.manifest_revision) return false; // 跨世界/跨版本不授权
+  const evidence = await env.DB.prepare("SELECT 1 AS x FROM adventure_world_applied WHERE session_id=? AND event_key=?").bind(ev.sid, ev.eventKey).first();
+  if (!evidence) return false; // 没有已提交的事件记录 → 无证据
+  const r = await env.DB.prepare("INSERT OR IGNORE INTO dungeon_grants (dungeon,grant_name,granted_at,event_id,trigger_ref,manifest_revision) VALUES (?,?,?,?,?,?)").bind(reg.dungeon_id, reg.kind, new Date().toISOString(), ev.eventId, ev.triggerRef, String(reg.manifest_revision)).run();
+  return r.meta.changes === 1;
 }
 // 服务端内部授权（无 HTTP 入口：客户端声明、模型发言、答题尝试都不是授权）。按副本作用域持久化。
 export async function grantDungeon(env: SiteEnv, dungeon: string, grant: "zeroUnlocked" | "hiddenUnlocked"): Promise<void> {
