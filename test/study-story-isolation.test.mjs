@@ -132,3 +132,44 @@ test('study action preserves all story-owned fields byte-for-byte',()=>{
   s=success(run(s,study('exit')));
   assert.equal(JSON.stringify([s.frontier,s.committedChapters,s.committedEvents,s.storyCursor,s.worldId,s.revision]),before);
 });
+
+test('active story cursor must match current frontier entry',()=>{
+  const s=enter(baseline(),0);assert.equal(validateState(m,s),true);
+  const forged={...s,storyCursor:m.chapters[2].storyEntry};
+  assert.equal(validateState(m,forged),false);
+  fail(run(forged,story('ask')),'STATE_INVALID');
+});
+test('past story cursor is invalid after chapter commit',()=>{
+  const s=commit(enter(baseline(),0),0);
+  const forged={...s,storyCursor:m.chapters[0].storyEntry};
+  assert.equal(validateState(m,forged),false);
+  fail(run(forged,story('preview')),'STATE_INVALID');
+});
+test('current frontier cursor is allowed after a prior commit',()=>{
+  const s=enter(commit(enter(baseline(),0),0),1);
+  assert.equal(validateState(m,s),true);
+});
+test('terminal story cannot retain a chapter cursor',()=>{
+  let s=baseline();for(let i=0;i<m.chapters.length;i++)s=commit(enter(s,i),i);
+  assert.equal(validateState(m,s),true);
+  const forged={...s,storyCursor:m.chapters[2].storyEntry};
+  assert.equal(validateState(m,forged),false);
+});
+test('study selection must have a matching recorded visit',()=>{
+  const forged={...baseline(),studySelection:m.dungeons[2].id};
+  assert.equal(validateState(m,forged),false);
+  fail(run(forged,study('exit')),'STATE_INVALID');
+});
+test('a legitimately selected future study dungeon remains valid',()=>{
+  const s=success(run(baseline(),study('select',{dungeonId:m.dungeons[2].id})));
+  assert.equal(validateState(m,s),true);
+  assert.equal(s.frontier,chapter(0));
+  assert.deepEqual(s.studyVisits,[m.dungeons[2].id]);
+});
+test('forged future cursor remains invalid even after future study verification',()=>{
+  let s=success(run(baseline(),study('select',{dungeonId:m.dungeons[2].id})));
+  s=success(run(s,study('practice_verified',{practiceId:m.dungeons[2].practiceId,source:'trusted-demo'})));
+  const forged={...s,storyCursor:m.chapters[2].storyEntry};
+  assert.equal(validateState(m,forged),false);
+  fail(run(forged,story('commit',{chapterId:chapter(2),eventId:'demo.event.fake',source:'trusted-demo'})),'STATE_INVALID');
+});
