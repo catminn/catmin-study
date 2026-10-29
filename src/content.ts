@@ -3,6 +3,7 @@
 import type { SiteEnv } from "./site";
 import { validateCoursePacks } from "./learning-adapter";
 import { answerMatches } from "./answer";
+import { reviewPreflight, recordDigest, provenanceOk } from "./review";
 
 export const CONTENT_KINDS = ["world", "npc", "event", "knowledge-link", "scene", "course", "dungeon"] as const;
 const ID_RE = /^[a-z0-9][a-z0-9_.-]{0,79}$/;
@@ -137,14 +138,48 @@ export async function listDungeons(env: SiteEnv): Promise<R> {
   const pv = (await env.DB.prepare("SELECT dungeon,ch,challenge FROM dungeon_progress WHERE verified_at IS NOT NULL").all<{ dungeon: string; ch: number; challenge: string }>()).results ?? [];
   const gr = (await env.DB.prepare("SELECT dungeon,grant_name FROM dungeon_grants").all<{ dungeon: string; grant_name: string }>()).results ?? [];
   const out: any[] = [];
+  const enforce = await reviewEnforced(env);
+  const approved = new Set(((await env.DB.prepare("SELECT record_id,content_digest FROM dungeon_review").all<{ record_id: string; content_digest: string }>()).results ?? []).map((x) => x.record_id + "|" + x.content_digest));
   for (const r of rs.results ?? []) {
     const c = JSON.parse(r.body);
     if (validateDungeon(c)) continue;
+    if (enforce && !approved.has(r.id + "|" + (await recordDigest({ kind: "dungeon", id: r.id, content: c })))) continue; // 无匹配审批 → 整个副本 fail closed
     const grants: DungeonGrants = { dungeonId: c.dungeon.id, zeroUnlocked: gr.some((g) => g.dungeon === c.dungeon.id && g.grant_name === "zeroUnlocked"), hiddenUnlocked: gr.some((g) => g.dungeon === c.dungeon.id && g.grant_name === "hiddenUnlocked") };
     const v = new Set(pv.filter((x) => x.dungeon === c.dungeon.id).map((x) => x.ch + "|" + x.challenge));
     try { out.push({ subject: c.subject, after: c.after ?? null, dungeon: projectDungeon(c.dungeon, v, grants) }); } catch { /* 畸形 cast：fail closed */ }
   }
   return { status: 200, body: { ok: true, dungeons: out } };
+}
+
+// ---- 公开字段审批侧车（dungeon-public-field-review-v1）----
+// enforce 开启后：导入副本必须带通过校验的侧车；GET 只下发有匹配审批的最新版本（缺审批 → 整个副本不出现）。默认关闭，以免旧线上副本在没有作者审批前消失；开启由管理员通道决定。
+async function reviewEnforced(env: SiteEnv): Promise<boolean> {
+  await ensureProg(env);
+  const r = await env.DB.prepare("SELECT v FROM dungeon_review_mode WHERE k='enforce'").first<{ v: string }>();
+  return r?.v === "1";
+}
+export async function setReviewMode(env: SiteEnv, b: any): Promise<R> {
+  await ensureProg(env);
+  if (typeof b?.enforce !== "boolean") return bad(400, "bad_request", "需要 {enforce:boolean}");
+  await env.DB.prepare("INSERT INTO dungeon_review_mode (k,v) VALUES ('enforce',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(b.enforce ? "1" : "0").run();
+  return { status: 200, body: { ok: true, enforce: b.enforce } };
+}
+async function storeReview(env: SiteEnv, id: string, digest: string, prov: { approvedBy: string; approvedAt: string }) {
+  await env.DB.prepare("INSERT OR REPLACE INTO dungeon_review (record_id,content_digest,approved_by,approved_at,created_at) VALUES (?,?,?,?,?)").bind(id, digest, prov.approvedBy.trim(), prov.approvedAt, new Date().toISOString()).run();
+}
+// 给已入库的最新版本补挂侧车（不改正文）。
+export async function attachReview(env: SiteEnv, b: any): Promise<R> {
+  await ensure(env); await ensureProg(env);
+  const id = b?.id;
+  if (!idOk("dungeon", id)) return bad(400, "bad_id", "需要副本 id");
+  if (!provenanceOk(b?.reviewApproval)) return bad(400, "review_failed", "缺审批归属", ) ;
+  const row = await env.DB.prepare("SELECT body FROM adventure_content WHERE kind='dungeon' AND id=? ORDER BY rev DESC LIMIT 1").bind(id).first<{ body: string }>();
+  if (!row) return bad(404, "not_found", "没有这个副本");
+  const rec = { kind: "dungeon", id, content: JSON.parse(row.body) };
+  const codes = await reviewPreflight(rec, b?.reviewSidecar);
+  if (codes.length) return { status: 400, body: { ok: false, error: "review_failed", codes } };
+  await storeReview(env, id, await recordDigest(rec), b.reviewApproval);
+  return { status: 200, body: { ok: true } };
 }
 
 export async function putContent(env: SiteEnv, b: any): Promise<R> {
@@ -160,10 +195,22 @@ export async function putContent(env: SiteEnv, b: any): Promise<R> {
   }
   const body = JSON.stringify(b.content);
   if (body.length > MAX_BYTES) return bad(413, "too_large", "单条内容上限 64KB");
+  let reviewDigest: string | null = null;
+  if (b.kind === "dungeon") { // 侧车只经管理员通道到达；内容里自报的 review 字段不算数
+    await ensureProg(env);
+    if (b.reviewSidecar !== undefined || (await reviewEnforced(env))) {
+      if (!provenanceOk(b.reviewApproval)) return { status: 400, body: { ok: false, error: "review_failed", codes: ["missing_provenance"] } };
+      const rec = { kind: "dungeon", id: b.id, content: b.content };
+      const codes = await reviewPreflight(rec, b.reviewSidecar);
+      if (codes.length) return { status: 400, body: { ok: false, error: "review_failed", codes } };
+      reviewDigest = await recordDigest(rec);
+    }
+  }
   const last = await env.DB.prepare("SELECT rev, body FROM adventure_content WHERE kind=? AND id=? ORDER BY rev DESC LIMIT 1").bind(b.kind, b.id).first<{ rev: number; body: string }>();
-  if (last && last.body === body) return { status: 200, body: { ok: true, unchanged: true, rev: last.rev } };
+  if (last && last.body === body) { if (reviewDigest) await storeReview(env, b.id, reviewDigest, b.reviewApproval); return { status: 200, body: { ok: true, unchanged: true, rev: last.rev } }; }
   const rev = (last?.rev ?? 0) + 1;
   await env.DB.prepare("INSERT INTO adventure_content (kind,id,rev,body,created_at) VALUES (?,?,?,?,?)").bind(b.kind, b.id, rev, body, new Date().toISOString()).run();
+  if (reviewDigest) await storeReview(env, b.id, reviewDigest, b.reviewApproval);
   return { status: 200, body: { ok: true, kind: b.kind, id: b.id, rev } };
 }
 
@@ -214,6 +261,8 @@ async function ensureProg(env: SiteEnv) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_skills (dungeon TEXT NOT NULL, ch INTEGER NOT NULL, skill TEXT NOT NULL, effect TEXT NOT NULL, unlocked_at TEXT NOT NULL, PRIMARY KEY (dungeon,ch))").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_grants (dungeon TEXT NOT NULL, grant_name TEXT NOT NULL, granted_at TEXT NOT NULL, PRIMARY KEY (dungeon,grant_name))").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_triggers (trigger_ref TEXT PRIMARY KEY, world_id TEXT NOT NULL, dungeon_id TEXT NOT NULL, manifest_revision INTEGER NOT NULL, kind TEXT NOT NULL)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_review (record_id TEXT NOT NULL, content_digest TEXT NOT NULL, approved_by TEXT NOT NULL, approved_at TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (record_id,content_digest))").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_review_mode (k TEXT PRIMARY KEY, v TEXT NOT NULL)").run();
   for (const c of ["event_id", "trigger_ref", "manifest_revision"]) await env.DB.prepare("ALTER TABLE dungeon_grants ADD COLUMN " + c + " TEXT").run().catch(() => null); // 来源记录（旧行为空）
   pready = true;
 }

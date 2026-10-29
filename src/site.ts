@@ -7,7 +7,7 @@ import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
 import { handleTurn } from "./turn";
 import { commitChoice, commitTravel, snapshotStats } from "./world";
-import { putContent, listContent, compareContent, listDungeons, checkDungeon, dungeonProgress, expandDungeonMarkers, registerDungeonTrigger } from "./content";
+import { putContent, listContent, compareContent, listDungeons, checkDungeon, dungeonProgress, expandDungeonMarkers, registerDungeonTrigger, setReviewMode, attachReview } from "./content";
 import { pinLegacySessions, getDefaultWorld, setDefaultWorld } from "./world";
 import { publicSceneInfo } from "./world";
 import { approveProposal, courseStatus, getProposal, proposePack, removeFolder, setFolder, syncCourse } from "./coursesync";
@@ -539,6 +539,8 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
         if (req.method === "PUT") return asJson(await setDefaultWorld(env, await req.json().catch(() => null)));
       }
       if (p === "/api/adventure/admin/dungeon-trigger" && req.method === "PUT") return asJson(await registerDungeonTrigger(env, await req.json().catch(() => null))); // 只登记私有注册表，不授予任何东西
+      if (p === "/api/adventure/admin/dungeon-review-mode" && req.method === "PUT") return asJson(await setReviewMode(env, await req.json().catch(() => null)));
+      if (p === "/api/adventure/admin/dungeon-review" && req.method === "PUT") return asJson(await attachReview(env, await req.json().catch(() => null)));
       if (p === "/api/adventure/content" && req.method === "PUT") return asJson(await putContent(env, await req.json().catch(() => null)));
       if (p === "/api/adventure/content" && req.method === "GET") return asJson(await listContent(env, url)); // 只返回元数据，正文永不经 HTTP 返回
       return err("not_found", "没有这个接口", 404);
