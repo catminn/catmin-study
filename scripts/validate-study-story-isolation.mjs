@@ -48,9 +48,12 @@ export function validateState(m, s) {
   const expected = m.chapters.slice(0, s.committedChapters.length).map(c => c.id);
   if (JSON.stringify(expected) !== JSON.stringify(s.committedChapters)) return false;
   if (s.frontier !== (m.chapters[s.committedChapters.length]?.id ?? null)) return false;
+  const current = m.chapters[s.committedChapters.length];
+  if (s.storyCursor !== null && s.storyCursor !== (current?.storyEntry ?? null)) return false;
   if (s.committedEvents.length !== s.committedChapters.length) return false;
   if (s.verifiedPractices.some(x => !m.dungeons.some(d => d.practiceId === x))) return false;
   if (s.studyVisits.some(x => !m.dungeons.some(d => d.id === x))) return false;
+  if (s.studySelection !== null && !s.studyVisits.includes(s.studySelection)) return false;
   return true;
 }
 
