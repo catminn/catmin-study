@@ -30,6 +30,10 @@ ASK without a chapter target remains read-only. A chapter-targeted ASK or previe
 
 A non-null story cursor must point to the entry of the **current committed frontier**, never to a future or previously completed chapter; after the final commit it must be null. A selected study dungeon must also appear in the synthetic visit log. These are authoring/reference state-shape checks, not proof that client state is trustworthy. The real service must derive cursor and visit provenance from persisted server state; do not treat a client-supplied cursor, visit log, or `trusted-demo` assertion as authority.
 
+### Malformed nested record handling (synthetic reference)
+
+A parsed manifest may contain `null`, numbers, strings, arrays, or incomplete objects inside its `chapters` or `dungeons` arrays. These are invalid authoring records, not exceptional runtime conditions. Validation, initial-state creation, and synthetic action dispatch must reject them with fixed diagnostic codes or a null initial state, never throw or echo nested content. The 18 regression cases are offline and do not establish real API input safety.
+
 ## Release boundary
 
 This is an authoring constraint, not an instruction to rewrite the live save schema or alter existing story progress. Do not replace the site's production state or import synthetic fixtures. The first formal world remains **DO-NOT-IMPORT** pending private per-field review and Catherine's explicit authorization while present. The design PR stays draft; no merge or deployment is authorized.
