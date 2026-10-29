@@ -67,8 +67,24 @@ test('exiting study does not enter story',()=>{
   let s=success(run(baseline(),study('select',{dungeonId:m.dungeons[2].id})));
   s=success(run(s,study('exit')));assert.equal(s.studySelection,null);assert.equal(s.storyCursor,null);assert.equal(s.frontier,chapter(0));
 });
-for(const type of ['ask','preview']) test(`${type} is strictly read-only`,()=>{
-  const s=baseline();const n=success(run(s,story(type,{chapterId:chapter(2)})));assert.deepEqual(n,s);assert.notEqual(n,s);
+for(const type of ['ask','preview']) test(`${type} on current frontier is strictly read-only`,()=>{
+  const s=baseline();const n=success(run(s,story(type,{chapterId:chapter(0)})));assert.deepEqual(n,s);assert.notEqual(n,s);
+});
+test('unscoped ASK remains read-only',()=>{
+  const s=baseline();const n=success(run(s,story('ask')));assert.deepEqual(n,s);
+});
+for(const type of ['ask','preview']) test(`${type} cannot target a future story chapter`,()=>{
+  fail(run(baseline(),story(type,{chapterId:chapter(2)})),'STORY_LOCKED');
+});
+test('preview requires an explicit current chapter',()=>fail(run(baseline(),story('preview')),'STORY_LOCKED'));
+test('old chapter preview is denied after advancing',()=>{
+  const s=commit(enter(baseline(),0),0);
+  fail(run(s,story('preview',{chapterId:chapter(0)})),'STORY_LOCKED');
+});
+test('completed story cannot preview a chapter',()=>{
+  let s=baseline();for(let i=0;i<m.chapters.length;i++)s=commit(enter(s,i),i);
+  fail(run(s,story('preview',{chapterId:chapter(2)})),'STORY_LOCKED');
+  assert.deepEqual(success(run(s,story('ask'))),s);
 });
 test('cannot enter chapter 2 before chapter 1 committed',()=>fail(run(baseline(),story('enter',{chapterId:chapter(1)})),'STORY_LOCKED'));
 test('cannot commit chapter without entering it',()=>fail(run(baseline(),story('commit',{chapterId:chapter(0),eventId:'demo.event.one',source:'trusted-demo'})),'COMMIT_NOT_VERIFIED'));
@@ -172,4 +188,19 @@ test('forged future cursor remains invalid even after future study verification'
   const forged={...s,storyCursor:m.chapters[2].storyEntry};
   assert.equal(validateState(m,forged),false);
   fail(run(forged,story('commit',{chapterId:chapter(2),eventId:'demo.event.fake',source:'trusted-demo'})),'STATE_INVALID');
+});
+
+test('verified practice requires a prior visit to its dungeon',()=>{
+  const s={...baseline(),verifiedPractices:[m.dungeons[2].practiceId]};
+  assert.equal(validateState(m,s),false);
+  fail(run(s,story('ask')),'STATE_INVALID');
+});
+test('visit to a different dungeon cannot justify practice evidence',()=>{
+  const s={...baseline(),studyVisits:[m.dungeons[0].id],verifiedPractices:[m.dungeons[2].practiceId]};
+  assert.equal(validateState(m,s),false);
+});
+test('verified practice with matching prior visit remains valid',()=>{
+  let s=success(run(baseline(),study('select',{dungeonId:m.dungeons[2].id})));
+  s=success(run(s,study('practice_verified',{practiceId:m.dungeons[2].practiceId,source:'trusted-demo'})));
+  assert.equal(validateState(m,s),true);
 });
