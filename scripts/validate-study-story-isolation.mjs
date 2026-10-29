@@ -66,6 +66,12 @@ export function applySyntheticAction(m, s, a) {
   if (!validateState(m, s)) return fail('STATE_INVALID');
   if (!exactKeys(a, ['mode', 'type', 'dungeonId', 'practiceId', 'chapterId', 'eventId', 'source'])) return fail('ACTION_SHAPE');
   if (a.mode !== 'study' && a.mode !== 'story') return fail('MODE_INVALID');
+  // A field valid for one action must not be silently accepted by another.
+  const permitted = a.mode === 'study'
+    ? { select: ['dungeonId'], practice_verified: ['practiceId', 'source'], exit: [] }
+    : { ask: ['chapterId'], preview: ['chapterId'], enter: ['chapterId'], commit: ['chapterId', 'eventId', 'source'] };
+  if (!Object.hasOwn(permitted, a.type)) return fail('MODE_ACTION_INVALID');
+  if (!exactKeys(a, ['mode', 'type', ...permitted[a.type]])) return fail('ACTION_SHAPE');
   const next = structuredClone(s);
   if (a.mode === 'study') {
     if (!['select', 'practice_verified', 'exit'].includes(a.type)) return fail('MODE_ACTION_INVALID');
