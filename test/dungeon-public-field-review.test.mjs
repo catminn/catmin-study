@@ -157,7 +157,7 @@ test('zero copy must require completion plus grant', () =>
 test('hidden copy cannot unlock just from completion', () =>
   fails((r, a) => { a.fields.find(x => x.path === 'dungeon.pub.hidden').gate = 'all_done'; }, 'wrong_gate'));
 test('new public field needs new approval', () =>
-  fails((r) => { r.content.dungeon.ch[0].pub.recap = 'Changed'; }, 'field_changed'));
+  fails((r) => { r.content.dungeon.ch[1].pub = { intro: 'New' }; }, 'missing_approval'));
 test('answer, hint, director script and private cast field are never approvable', () => {
   const paths = projectedFields(sample()).map(x => x.path);
   for (const secret of ['dungeon.pre', 'dungeon.hidden', 'dungeon.ch[0].s',
