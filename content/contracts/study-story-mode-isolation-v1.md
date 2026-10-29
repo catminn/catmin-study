@@ -18,6 +18,10 @@ The manifest uses an ordered chapter chain with opaque `predecessor`, `storyEntr
 
 **Important limitations:** `source:'trusted-demo'` is an explicit synthetic assumption, **not** real server authentication. This code does not implement session pinning, event signing, real evidence verification, content approval, UI routing, D1 transactions, or concurrency. Claude owns those engineering decisions and real Worker/D1 integration. The narrative author must separately inspect whether practice questions teach real concepts, world decisions remain meaningful when tutoring is declined, and a later story chapter remembers only actually committed events.
 
+### State-continuity invariant (synthetic reference)
+
+A non-null story cursor must point to the entry of the **current committed frontier**, never to a future or previously completed chapter; after the final commit it must be null. A selected study dungeon must also appear in the synthetic visit log. These are authoring/reference state-shape checks, not proof that client state is trustworthy. The real service must derive cursor and visit provenance from persisted server state; do not treat a client-supplied cursor, visit log, or `trusted-demo` assertion as authority.
+
 ## Release boundary
 
 This is an authoring constraint, not an instruction to rewrite the live save schema or alter existing story progress. Do not replace the site's production state or import synthetic fixtures. The first formal world remains **DO-NOT-IMPORT** pending private per-field review and Catherine's explicit authorization while present. The design PR stays draft; no merge or deployment is authorized.
