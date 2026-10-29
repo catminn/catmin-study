@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {projectAdvantageEvidence} from '../scripts/validate-dungeon-advantage-evidence.mjs';
 const annotation = Object.freeze({schema:'dungeon-advantage-evidence-v1',worldId:'demo-world',dungeonId:'demo-dungeon',manifestRevision:1,sessionId:'demo-session',commitId:'demo-commit',eventKey:'demo-event',actionKey:'demo.action.01',advantage:'evidence_option',evidenceRefs:['demo.evidence.01']});
-const binding = {actionKey:'demo.action.01',advantage:'evidence_option'};
+const binding = {worldId:'demo-world',dungeonId:'demo-dungeon',manifestRevision:1,actionKey:'demo.action.01',advantage:'evidence_option'};
 const committedEvent = {...Object.fromEntries(['worldId','dungeonId','manifestRevision','sessionId','commitId','eventKey','actionKey'].map(k=>[k,annotation[k]])),status:'committed',outcome:'success',publicOutcome:'A neutral approved outcome.'};
 const context = {binding,committedEvent,trustedEvidenceRefs:['demo.evidence.01','demo.evidence.02'],publicCopyApproved:true};
 const run = (a=annotation,c=context) => projectAdvantageEvidence(a,c);
@@ -33,3 +33,35 @@ test('trusted evidence registry must exist and be valid',()=>{for(const r of [un
 test('tampered committed event metadata is rejected',()=>{for(const k of ['worldId','dungeonId','manifestRevision','sessionId','commitId','eventKey','actionKey']){const c=copy(context);c.committedEvent[k]='tampered';reject(annotation,c)}});
 test('same committed event replay is pure and deterministic',()=>{const before=copy(context),a=copy(annotation);assert.deepEqual(run(),run());assert.deepEqual(context,before);assert.deepEqual(annotation,a)});
 test('malformed inputs fail closed and do not echo secrets',()=>{for(const a of [null,{},[],{...annotation,evidenceRefs:['SECRET-NPC-NAME']}, {...annotation,evidenceRefs:null}]){const r=run(a);assert.deepEqual(r,{ok:false,code:'not_authorized'});assert.doesNotMatch(JSON.stringify(r),/SECRET|NPC|demo/)} });
+
+test('binding must include explicit pinned world, dungeon and revision',()=>{
+  for(const key of ['worldId','dungeonId','manifestRevision']){const c=copy(context);delete c.binding[key];reject(annotation,c)}
+});
+test('binding with a different world is rejected even if actionKey collides',()=>{
+  const c=copy(context);c.binding.worldId='other-world';reject(annotation,c);
+});
+test('binding with a different dungeon is rejected even if actionKey collides',()=>{
+  const c=copy(context);c.binding.dungeonId='other-dungeon';reject(annotation,c);
+});
+test('binding from a stale or future manifest revision is rejected',()=>{
+  for(const revision of [0,2,99]){const c=copy(context);c.binding.manifestRevision=revision;reject(annotation,c)}
+});
+test('binding revision must be a positive safe integer',()=>{
+  for(const revision of ['1',1.5,-1,NaN,Infinity]){const c=copy(context);c.binding.manifestRevision=revision;reject(annotation,c)}
+});
+test('malformed binding scope is rejected',()=>{
+  for(const [key,value] of [['worldId',null],['worldId',42],['dungeonId','bad space'],['dungeonId',[]]]){const c=copy(context);c.binding[key]=value;reject(annotation,c)}
+});
+test('valid scoped binding still supports failure outcomes without granting success',()=>{
+  const c=copy(context);c.committedEvent.outcome='failure';c.committedEvent.publicOutcome='The attempt did not succeed.';
+  assert.deepEqual(run(annotation,c),{ok:true,public:{publicOutcome:'The attempt did not succeed.'}});
+});
+test('scope rejection never echoes untrusted or private identifiers',()=>{
+  const c=copy(context);c.binding.worldId='SECRET_PRIVATE_WORLD';
+  const r=run(annotation,c);assert.deepEqual(r,{ok:false,code:'not_authorized'});
+  assert.doesNotMatch(JSON.stringify(r),/SECRET|PRIVATE|demo/);
+});
+test('scope denial does not mutate annotation, binding or committed event',()=>{
+  const a=copy(annotation),c=copy(context);c.binding.manifestRevision=2;
+  const before=JSON.stringify({a,c});reject(a,c);assert.equal(JSON.stringify({a,c}),before);
+});

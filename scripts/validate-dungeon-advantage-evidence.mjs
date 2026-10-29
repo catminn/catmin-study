@@ -17,7 +17,11 @@ export function projectAdvantageEvidence(annotation, {binding, committedEvent, t
         !['evidence_option','risk_context'].includes(annotation.advantage) ||
         !Array.isArray(annotation.evidenceRefs) || annotation.evidenceRefs.length < 1 || annotation.evidenceRefs.length > 8 ||
         !annotation.evidenceRefs.every(isId) || !unique(annotation.evidenceRefs)) return denied();
-    if (!binding || !isId(binding.actionKey) || !['evidence_option','risk_context'].includes(binding.advantage) ||
+    if (!binding || !isId(binding.actionKey) || !isId(binding.worldId) || !isId(binding.dungeonId) ||
+        !Number.isSafeInteger(binding.manifestRevision) || binding.manifestRevision < 1 ||
+        !['evidence_option','risk_context'].includes(binding.advantage) ||
+        annotation.worldId !== binding.worldId || annotation.dungeonId !== binding.dungeonId ||
+        annotation.manifestRevision !== binding.manifestRevision ||
         annotation.actionKey !== binding.actionKey || annotation.advantage !== binding.advantage) return denied();
     if (!committedEvent || committedEvent.status !== 'committed' ||
         !['success','failure'].includes(committedEvent.outcome) ||
