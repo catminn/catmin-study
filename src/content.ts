@@ -263,6 +263,8 @@ async function ensureProg(env: SiteEnv) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_triggers (trigger_ref TEXT PRIMARY KEY, world_id TEXT NOT NULL, dungeon_id TEXT NOT NULL, manifest_revision INTEGER NOT NULL, kind TEXT NOT NULL)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_review (record_id TEXT NOT NULL, content_digest TEXT NOT NULL, approved_by TEXT NOT NULL, approved_at TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (record_id,content_digest))").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_review_mode (k TEXT PRIMARY KEY, v TEXT NOT NULL)").run();
+  await env.DB.prepare("ALTER TABLE dungeon_skills ADD COLUMN skill_id TEXT").run().catch(() => null); // 稳定技能 ID（旧行为空，下面回填为章位置 ID）
+  await env.DB.prepare("UPDATE dungeon_skills SET skill_id='ch'||ch WHERE skill_id IS NULL").run();
   for (const c of ["event_id", "trigger_ref", "manifest_revision"]) await env.DB.prepare("ALTER TABLE dungeon_grants ADD COLUMN " + c + " TEXT").run().catch(() => null); // 来源记录（旧行为空）
   pready = true;
 }
@@ -323,7 +325,7 @@ export async function checkDungeon(env: SiteEnv, b: any): Promise<R> {
   const allDone = pr.every((q, i) => done.has(q.id ?? "c" + (i + 1)));
   let skill: any = null;
   if (allDone && ch.skill) {
-    await env.DB.prepare("INSERT OR IGNORE INTO dungeon_skills (dungeon,ch,skill,effect,unlocked_at) VALUES (?,?,?,?,?)").bind(did, ci, ch.skill.name, ch.skill.effect, now).run();
+    await env.DB.prepare("INSERT OR IGNORE INTO dungeon_skills (dungeon,ch,skill,effect,unlocked_at,skill_id) VALUES (?,?,?,?,?,?)").bind(did, ci, ch.skill.name, ch.skill.effect, now, typeof ch.skill.id === "string" && ch.skill.id ? ch.skill.id : "ch" + ci).run();
     skill = ch.skill;
   }
   return { status: 200, body: { ok: true, correct: ok, verified, hint: ok ? null : (pr[idx].hint ?? null), chapterDone: allDone, skill, next: pr.find((q, i) => !done.has(q.id ?? "c" + (i + 1)))?.id ?? null } };
@@ -333,4 +335,9 @@ export async function dungeonProgress(env: SiteEnv): Promise<R> {
   const v = (await env.DB.prepare("SELECT dungeon,ch,challenge FROM dungeon_progress WHERE verified_at IS NOT NULL").all()).results ?? [];
   const sk = (await env.DB.prepare("SELECT dungeon,ch,skill,effect FROM dungeon_skills").all()).results ?? [];
   return { status: 200, body: { ok: true, verified: v, skills: sk } };
+}
+// 服务端内部：某副本已持久解锁的技能 ID（供 4c actionKey 适配器使用；绝不经 HTTP 返回）
+export async function unlockedSkillIds(env: SiteEnv, dungeon: string): Promise<string[]> {
+  await ensureProg(env);
+  return ((await env.DB.prepare("SELECT COALESCE(skill_id,'ch'||ch) AS skill_id FROM dungeon_skills WHERE dungeon=? ORDER BY ch").bind(dungeon).all<{ skill_id: string }>()).results ?? []).map((r) => r.skill_id);
 }
