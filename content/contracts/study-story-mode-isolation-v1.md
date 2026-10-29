@@ -37,3 +37,12 @@ A parsed manifest may contain `null`, numbers, strings, arrays, or incomplete ob
 ## Release boundary
 
 This is an authoring constraint, not an instruction to rewrite the live save schema or alter existing story progress. Do not replace the site's production state or import synthetic fixtures. The first formal world remains **DO-NOT-IMPORT** pending private per-field review and Catherine's explicit authorization while present. The design PR stays draft; no merge or deployment is authorized.
+
+
+### Minimum entry-surface product decision (provisional; no production authorization)
+
+Catherine's established direction requires two visible choices: **continue story** (only the current sequential saga frontier) and **free study** (select a course/practice set regardless of story position). Returning from study must resume the same chapter and story cursor; returning to study must retain verified academic work. Declining optional practice cannot block ordinary story progress. This is a narrative UX acceptance decision, not an authorization to alter the live site.
+
+The executable `projectEntrySurface(manifest,state,mode)` reference specifies the **minimum player-facing envelope**. Story entry yields `{mode,currentChapterId,canContinue,resumeActive}`; study entry yields `{mode,selectedDungeonId,availablePractices,verifiedPracticeIds}`. The synthetic fixture exposes every `demo.*` practice for study; a real service must separately enforce enrollment, entitlements, review gates, and authorization. Free study must not return future chapter titles, scene/event refs, director-only copy, NPC identity, hidden conditions, puzzle answers, or unreviewed narration. Story entry must not enumerate future chapters. Both views are read-only and never accept client claims of authoritative progression.
+
+Claude owns endpoint names, frontend controls, authenticated server state, backward-compatible persistence and Worker/D1 tests. The existing site must not infer saga progress from a free-study selection or trust client-submitted `source`, `studyVisits`, or `storyCursor`. This provisional author contract supports synthetic negative tests; it does not approve shipping, data migration, or changing production behavior. Catherine must review the entry UX and save compatibility before release. The first formal world remains DO-NOT-IMPORT.

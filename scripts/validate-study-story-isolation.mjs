@@ -109,6 +109,33 @@ export function applySyntheticAction(m, s, a) {
   return validateState(m, next) ? success(next) : fail('STATE_INVALID');
 }
 
+/** Minimal spoiler-free entry projection; NOT a live state or authorization service. */
+export function projectEntrySurface(m, s, mode) {
+  if (!validateManifest(m).ok) return fail('MANIFEST_INVALID');
+  if (!validateState(m, s)) return fail('STATE_INVALID');
+  if (mode !== 'study' && mode !== 'story') return fail('MODE_INVALID');
+  if (mode === 'study') return {
+    ok: true, code: 'OK',
+    view: {
+      mode: 'study',
+      selectedDungeonId: s.studySelection,
+      availablePractices: m.dungeons.map(d => ({
+        dungeonId: d.id, practiceId: d.practiceId, conceptId: d.conceptId
+      })),
+      verifiedPracticeIds: [...s.verifiedPractices]
+    }
+  };
+  return {
+    ok: true, code: 'OK',
+    view: {
+      mode: 'story',
+      currentChapterId: s.frontier,
+      canContinue: s.frontier !== null,
+      resumeActive: s.storyCursor !== null
+    }
+  };
+}
+
 if (process.argv[1]?.endsWith('validate-study-story-isolation.mjs')) {
   let result;
   try { result = validateManifest(JSON.parse(readFileSync(process.argv[2], 'utf8'))); }

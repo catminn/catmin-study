@@ -256,3 +256,63 @@ for (const [name, edit] of [
   assert.equal(initialState(x), null);
   fail(run(baseline(), story('ask'), x), 'MANIFEST_INVALID');
 });
+
+
+// Minimum spoiler-free player entry surfaces: no story content in free study.
+test('study entry surface has exact non-story keys and all synthetic practice choices', () => {
+  const r = projectEntrySurface(m, baseline(), 'study');
+  assert.equal(r.ok, true);
+  assert.deepEqual(Object.keys(r.view).sort(), ['availablePractices','mode','selectedDungeonId','verifiedPracticeIds']);
+  assert.deepEqual(r.view.availablePractices, m.dungeons.map(d => ({dungeonId:d.id,practiceId:d.practiceId,conceptId:d.conceptId})));
+  assert.equal(r.view.selectedDungeonId, null);
+});
+test('study surface never includes chapter, story entry, copy slot, or event references', () => {
+  const r = projectEntrySurface(m, baseline(), 'study');
+  const json = JSON.stringify(r.view);
+  for (const c of m.chapters) for (const ref of [c.id,c.storyEntry,c.publicCopySlot]) assert.equal(json.includes(ref), false);
+  for (const key of ['storyCursor','frontier','committedEvents','publicCopySlot','npc','secret']) assert.equal(Object.hasOwn(r.view,key), false);
+});
+test('story entry surface contains only the current frontier and resume flags', () => {
+  const r = projectEntrySurface(m, baseline(), 'story');
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.view, {mode:'story',currentChapterId:chapter(0),canContinue:true,resumeActive:false});
+  for (const d of m.dungeons) assert.equal(JSON.stringify(r.view).includes(d.id),false);
+  assert.equal(JSON.stringify(r.view).includes(chapter(1)),false);
+});
+test('entry projection is read-only for both modes', () => {
+  const s = baseline(), before = JSON.stringify(s);
+  projectEntrySurface(m,s,'study');
+  projectEntrySurface(m,s,'story');
+  assert.equal(JSON.stringify(s),before);
+});
+test('story resume remains available after free study selection', () => {
+  let s = enter(baseline(),0);
+  s = success(run(s,study('select',{dungeonId:m.dungeons[2].id})));
+  assert.equal(projectEntrySurface(m,s,'story').view.resumeActive,true);
+  assert.equal(projectEntrySurface(m,s,'story').view.currentChapterId,chapter(0));
+  assert.equal(projectEntrySurface(m,s,'study').view.selectedDungeonId,m.dungeons[2].id);
+});
+test('study evidence remains visible independently of story progress', () => {
+  let s=success(run(baseline(),study('select',{dungeonId:m.dungeons[1].id})));
+  s=success(run(s,study('practice_verified',{practiceId:m.dungeons[1].practiceId,source:'trusted-demo'})));
+  assert.deepEqual(projectEntrySurface(m,s,'study').view.verifiedPracticeIds,[m.dungeons[1].practiceId]);
+  assert.equal(projectEntrySurface(m,s,'story').view.currentChapterId,chapter(0));
+});
+test('completed story projects no future entry or cursor', () => {
+  let s=baseline();
+  for(let i=0;i<m.chapters.length;i++) s=commit(enter(s,i),i);
+  assert.deepEqual(projectEntrySurface(m,s,'story').view,{mode:'story',currentChapterId:null,canContinue:false,resumeActive:false});
+});
+test('invalid entry mode fails closed with fixed code', () => {
+  for(const mode of [null,{},['study'],'STORY',42]) fail(projectEntrySurface(m,baseline(),mode),'MODE_INVALID');
+});
+test('invalid state entry projection fails closed', () => {
+  const s={...baseline(),frontier:chapter(1)};
+  fail(projectEntrySurface(m,s,'study'),'STATE_INVALID');
+});
+test('invalid manifest entry projection fails closed without echo', () => {
+  const x=clone(m);x.chapters[0]={private:'DO_NOT_ECHO'};
+  const r=projectEntrySurface(x,baseline(),'story');
+  fail(r,'MANIFEST_INVALID');
+  assert.equal(JSON.stringify(r).includes('DO_NOT_ECHO'),false);
+});
