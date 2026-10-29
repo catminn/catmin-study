@@ -1,6 +1,9 @@
 // Synthetic, spoiler-free narrative-author reference. Not a production engine.
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const clone = x => structuredClone(x);
+// Keep commit keys within the same safe author-ID grammar as scene/event refs.
+// In particular, '__proto__' cannot be a commit key in a plain-object ledger.
+const validEventId = x => typeof x === 'string' && /^[a-z][a-z0-9._-]{0,79}$/.test(x);
 const equalScope = (a, b) => !!a && !!b && ['worldId', 'revision', 'sessionId'].every(k => a[k] === b[k] && typeof a[k] === 'string' && a[k].length > 0);
 
 export const policy = Object.freeze({
@@ -37,7 +40,7 @@ export function initialState(p = policy) {
 export function applyCommitted(state, event, p = policy) {
   if (!state || !event || !equalScope(state.scope, p.scope) || !equalScope(event.scope, state.scope)) return { ok: false, code: 'scope_invalid', state };
   if (event.mode === 'ask' || event.mode === 'preview') return { ok: true, committed: false, state };
-  if (event.source !== 'server' || event.status !== 'committed' || typeof event.id !== 'string' || !event.id) return { ok: false, code: 'not_committed', state };
+  if (event.source !== 'server' || event.status !== 'committed' || !validEventId(event.id)) return { ok: false, code: 'not_committed', state };
   const fingerprint = JSON.stringify({ type: event.type, scope: event.scope, route: event.route, factId: event.factId, next: event.next, subject: event.subject });
   if (own(state.commits, event.id)) {
     return state.commits[event.id] === fingerprint

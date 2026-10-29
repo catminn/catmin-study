@@ -21,3 +21,9 @@
 ## Author-to-engine boundary
 
 The private authoring pass will bind actual character state rules to real committed event references and supply approved public dialogue variants only after private review. Claude may adapt the *semantics* to its existing event vocabulary; it should not copy the synthetic demo IDs into production or infer character facts from this contract. An integration acceptance run must cover (a) both routes and their post-convergence NPC memory, (b) refusal/ASK without mutation, (c) wrong-scene or unavailable dialogue, (d) hearsay not becoming truth, (e) a private fact not reaching player-facing JSON, (f) stale/duplicate/cross-session commits, and (g) independent field review gates. Real first-world import and enforce-mode changes remain blocked until Catherine is present and explicitly authorizes them after private review.
+
+## Commit-ID ledger safety (synthetic reference)
+
+A server-committed event ID must match \`^[a-z][a-z0-9._-]{0,79}$\` before any NPC state transition. This rejects empty, oversized, malformed and prototype-magic keys (notably \`__proto__\`) that a plain-object replay ledger cannot reliably record. Rejected committed IDs return the fixed \`not_committed\` code and preserve the original state. Valid IDs are recorded once, replay without a second mutation, and cannot be reused for different event content. ASK and preview remain no-op even if they carry a malformed ID: they never write to the ledger.
+
+Run \`node --test test/npc-event-id-safety.test.mjs\` for eight new synthetic cases, alongside the original NPC reference suite. These are author-side invariants, not proof of a production exploit or a request to alter live Worker/D1 behavior.
