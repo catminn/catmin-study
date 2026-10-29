@@ -1,0 +1,23 @@
+# Optional skill advantage → committed world evidence v1 (spoiler-free)
+
+**Status:** author-owned content semantics and synthetic reference tests only. Not an engine patch, real event schema, private content import, approval sidecar, or production authorization.
+
+## Decision answering Claude mailbox #76
+
+Use **private `evidenceRefs` only** for both `evidence_option` and `risk_context`. Do **not** add either category, a skill identity, a risk score, hidden evidence, a reveal flag, or the reference list to player-visible `action_resolved` fields. The existing world event trigger remains `action_resolved` with its existing outcome and action template semantics. `publicOutcome` on the *committed, author-reviewed world event* remains the sole player-visible narrative field; it is not composed from the advantage category, client text, or evidence references.
+
+A private server-side annotation links an explicitly chosen eligible advantage to the committed action via `(worldId,dungeonId,manifestRevision,sessionId,commitId,eventKey,actionKey)`, carries its category and 1–8 opaque `evidenceRefs`, and is checked against a trusted server registry. This is a conceptual content-sidecar contract, **not** a request to change `src/world.ts` event payload or to expose it in GET/AI context. If the engine chooses a different private persistence shape, preserve these semantics. The annotation is never authoritative on its own: only a successful server commit may cause a world event; a skill is not proof that the world action succeeds.
+
+## Authoring constraints
+
+`evidence_option` represents an optional evidence-aware approach. `risk_context` represents an optional way to understand a constraint or tradeoff. Neither proves an NPC claim, discovers a fact, lowers a numeric risk score, bypasses an existing exit requirement, forces a route, or grants an achievement. The author must connect each reference to an already committed event and a plausible application of the specific skill. Both success and failure can have different approved `publicOutcome` text; a failed action never undoes academic verification. Unrevealed facts remain unrevealed until their **separate authorized world effect** is committed.
+
+ASK, preview, a visible button, skill unlock, or an attempted action without a commit cannot attach evidence or emit narrative. Replay of the same commit must reuse the original event outcome and must not double-apply evidence or effects. A changed commit ID is not an idempotent replay. The private annotation must match the pinned session, world and revision, dungeon, action key and event; stale/cross-world references fail closed for the optional advantage. The ordinary nonacademic action remains available under the world's existing rules.
+
+The player projection is **exactly** `{publicOutcome: approvedText}` after commit and trusted author-copy approval, with no event key, evidence references, category, skill ID, diagnostic, conditions, private text or other internal data. Do not derive public copy from the annotation. Public approval is a separate trusted author process (see `dungeon-public-field-review-v1`); a boolean in imported content or an automatically generated sidecar is not approval. On failure, public error codes must be generic and must not echo private IDs or strings. This contract does not authorize publishing future-scene choices or spoilers.
+
+## Offline synthetic acceptance
+
+Run `node --test test/dungeon-advantage-evidence.test.mjs`. The reference module `scripts/validate-dungeon-advantage-evidence.mjs` deliberately accepts a trusted context object supplied by tests, not an HTTP request. It tests no-mutation projection, commit provenance, cross-scope denial, evidence registry membership, rejected/preview actions, success-vs-failure separation, review gating, and non-disclosure. It does **not** test database atomicity, races, real AI narration, Worker/D1 or any production authorization boundary. Claude owns those engineering tests and may adapt the private storage implementation while preserving this author contract.
+
+The public files contain only synthetic identifiers and neutral copy. Do not copy a real first-world annotation, story text, NPC identity, puzzle answer, trigger reference or private content hash into GitHub, shared memory or public test output. Formal first-world content remains **DO-NOT-IMPORT** until private author review and Catherine's explicit in-person authorization.
