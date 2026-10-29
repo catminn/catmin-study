@@ -20,6 +20,9 @@ export const policy = Object.freeze({
   },
   publicCopies: {
     'demo-neutral': { text: 'The person waits for your question.', relation: 'neutral', approved: true },
+    'demo-heard': { text: 'I have heard that account.', relation: 'neutral', approved: true, requiresNpcKnowledge: { factId: 'demo-public-fact', tier: 'heard' } },
+    'demo-confirmed': { text: 'I checked the account.', relation: 'neutral', approved: true, requiresNpcKnowledge: { factId: 'demo-public-fact', tier: 'confirmed' } },
+    'demo-private-gated': { text: 'The person looks away.', relation: 'neutral', approved: true, requiresNpcKnowledge: { factId: 'demo-private-fact', tier: 'confirmed' } },
     'demo-guarded': { text: 'The reply is careful.', relation: 'guarded', approved: true },
     'demo-open': { text: 'The reply is more forthcoming.', relation: 'open', approved: true },
     'demo-unreviewed': { text: 'Unreviewed placeholder.', relation: 'open', approved: false }
@@ -105,5 +108,20 @@ export function projectDialogue(state, copyId, p = policy) {
   if (!available) return { available: false, text: null };
   const copy = p.publicCopies[copyId];
   if (!copy || copy.approved !== true || copy.relation !== state.npc.relation) return { available: true, text: null };
+  // An approved line may require an NPC knowledge tier; player knowledge is not NPC knowledge.
+  // A malformed gate is never interpreted as an unrestricted line.
+  if (Object.prototype.hasOwnProperty.call(copy, 'requiresNpcKnowledge')) {
+    const gate = copy.requiresNpcKnowledge;
+    if (!gate || typeof gate !== 'object' || Array.isArray(gate) ||
+        Object.keys(gate).sort().join(',') !== 'factId,tier' ||
+        typeof gate.factId !== 'string' || !own(p.facts, gate.factId) ||
+        !['heard', 'confirmed'].includes(gate.tier) ||
+        !Array.isArray(state.npc.heardClaims) || !Array.isArray(state.npc.confirmedFacts)) {
+      return { available: true, text: null };
+    }
+    const confirmed = state.npc.confirmedFacts.includes(gate.factId);
+    const heard = state.npc.heardClaims.includes(gate.factId);
+    if (!(confirmed || (gate.tier === 'heard' && heard))) return { available: true, text: null };
+  }
   return { available: true, text: copy.text };
 }
