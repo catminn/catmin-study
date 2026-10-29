@@ -1640,6 +1640,10 @@ function renderPractice(){const old=$("#practiceCard");if(old)old.remove();if(!S
   const card=h("div",{class:"fatebox",id:"practiceCard"});
   const sel=h("select",{style:{maxWidth:"100%"},onchange:e=>{try{localStorage.setItem("pracSel-"+CUR,e.target.value)}catch(_){}renderPractice()}},...C.map(x=>h("option",{value:x.id,selected:x===w},x.name+(pracDone(x)?" ✓":""))));
   card.append(h("div",{class:"eyebrow"},"系统课 · 自由学习（不影响主线进度）"),sel,h("div",{class:"small"},"第 "+(ci+1)+" 章《"+c.t+"》"+(c.k?" · "+c.k:"")+" · "+(sk?"技能【"+sk.name+"】"+(got?"已解锁":"待解锁"):"练习")),h("div",{class:"small"},"本章进度 "+P.filter(x=>DGP.v.has(key(x))).length+" / "+P.length));
+  const kTopic=(c.k||c.t).replace(/^MATH 1920[｜|]?|^CHEM 2090[｜|]?|^ENGRI 1170[｜|]?/,"").trim()||c.t;
+  const teach=()=>send("这一节我是零基础。暂停剧情，现在只做教学：请你（零）用中文从零开始教我【"+kTopic+"】（"+SUBJ[CUR].full+"）。要求：每次只讲一小块，先用一句话说清这一小块在干什么，再用一个很具体的小例子；讲完只问我一个检查点小问题，等我回答后再继续，不要一次讲完，也不要出本章的练习题答案。");
+  const stuck=cur?()=>send("我卡在练习题上了：“"+cur.q+"”。不要直接给答案，先问我哪一步不会，用更简单的小例子带我一步步想到，再让我自己算。"):null;
+  card.append(h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap",margin:"6px 0"}},h("button",{class:"btn sm go",onclick:teach,disabled:!SAMPLE||!!CTL,title:"零一小块一小块教，每块一个检查点"},"先讲给我听（从零开始）"),cur?h("button",{class:"btn sm",onclick:stuck,disabled:!SAMPLE||!!CTL},"这题我没思路"):null));
   if(!cur){card.append(h("div",null,fin?"这个副本的练习已全部通过。":"本章练习全部通过。"))}
   else{const out=h("div",{class:"small",style:{minHeight:"18px"}});const inp=h("input",{type:"text",placeholder:"你的答案",style:{width:"100%",margin:"6px 0"}});
     const go=async()=>{const a=inp.value.trim();if(!a)return;go_.disabled=true;try{const r=await fetch("/api/dungeons/check",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({dungeon:d,ch:ci,challenge:cur.id,answer:a})});const j=await r.json();
