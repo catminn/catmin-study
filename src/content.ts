@@ -266,6 +266,8 @@ async function ensureProg(env: SiteEnv) {
   await env.DB.prepare("ALTER TABLE dungeon_skills ADD COLUMN skill_id TEXT").run().catch(() => null); // 稳定技能 ID（旧行为空，下面回填为章位置 ID）
   await env.DB.prepare("UPDATE dungeon_skills SET skill_id='ch'||ch WHERE skill_id IS NULL").run();
   for (const c of ["event_id", "trigger_ref", "manifest_revision"]) await env.DB.prepare("ALTER TABLE dungeon_grants ADD COLUMN " + c + " TEXT").run().catch(() => null); // 来源记录（旧行为空）
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_skill_bindings (action_key TEXT PRIMARY KEY, world_id TEXT NOT NULL, dungeon_id TEXT NOT NULL, manifest_revision INTEGER NOT NULL, chapter INTEGER NOT NULL, skill_id TEXT NOT NULL, from_scene TEXT NOT NULL, to_scene TEXT NOT NULL, advantage TEXT NOT NULL)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS adventure_action_notes (session_id TEXT NOT NULL, commit_id TEXT NOT NULL, action_key TEXT NOT NULL, world_id TEXT NOT NULL, world_rev INTEGER NOT NULL, dungeon_id TEXT NOT NULL, skill_id TEXT NOT NULL, advantage TEXT NOT NULL, from_scene TEXT NOT NULL, to_scene TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (session_id,commit_id))").run();
   pready = true;
 }
 // 私有触发器注册表（仅管理员通道写入；绝不经 HTTP 返回）：opaque triggerRef → {worldId, dungeonId, manifestRevision, kind}
@@ -340,4 +342,32 @@ export async function dungeonProgress(env: SiteEnv): Promise<R> {
 export async function unlockedSkillIds(env: SiteEnv, dungeon: string): Promise<string[]> {
   await ensureProg(env);
   return ((await env.DB.prepare("SELECT COALESCE(skill_id,'ch'||ch) AS skill_id FROM dungeon_skills WHERE dungeon=? ORDER BY ch").bind(dungeon).all<{ skill_id: string }>()).results ?? []).map((r) => r.skill_id);
+}
+
+// ---- 4c：技能→世界出口的自愿增强（actionKey 适配器）。绑定表仅管理员通道写入、不可覆盖、绝不经 HTTP 返回；注记仅服务端私有 ----
+const KEY_RE = /^[A-Za-z0-9_.:-]{1,80}$/;
+export async function registerSkillBinding(env: SiteEnv, b: any): Promise<R> {
+  await ensureProg(env);
+  const k = b?.actionKey, w = b?.worldId, d = b?.dungeonId, rev = b?.manifestRevision, ch = b?.chapter, sk = b?.skillId, f = b?.from, t = b?.to, adv = b?.advantage;
+  const sid = (x: unknown) => typeof x === "string" && KEY_RE.test(x);
+  if (!sid(k) || !sid(w) || !sid(d) || !Number.isInteger(rev) || rev < 1 || !Number.isInteger(ch) || ch < 0 || !sid(sk) || !sid(f) || !sid(t) || f === t || (adv !== "evidence_option" && adv !== "risk_context")) return bad(400, "bad_binding", "绑定格式不对");
+  if (await env.DB.prepare("SELECT 1 AS x FROM dungeon_skill_bindings WHERE action_key=?").bind(k).first()) return bad(409, "exists", "绑定已存在（不可覆盖）");
+  await env.DB.prepare("INSERT INTO dungeon_skill_bindings (action_key,world_id,dungeon_id,manifest_revision,chapter,skill_id,from_scene,to_scene,advantage) VALUES (?,?,?,?,?,?,?,?,?)").bind(k, w, d, rev, ch, sk, f, t, adv).run();
+  return { status: 200, body: { ok: true } };
+}
+// 判定某次 travel 是否可带“技能增强”。任何一项不符都返回 null（调用方按普通出口处理，不报错、不泄露原因）。
+export async function resolveSkillAction(env: SiteEnv, sid: string, scene: string, target: string, actionKey: unknown): Promise<{ actionKey: string; worldId: string; worldRev: number; dungeonId: string; skillId: string; advantage: string } | null> {
+  if (typeof actionKey !== "string" || !KEY_RE.test(actionKey)) return null;
+  await ensureProg(env);
+  const bd = await env.DB.prepare("SELECT world_id,dungeon_id,manifest_revision,chapter,skill_id,from_scene,to_scene,advantage FROM dungeon_skill_bindings WHERE action_key=?").bind(actionKey).first<any>();
+  if (!bd || bd.from_scene !== scene || bd.to_scene !== target) return null;
+  const pin = await env.DB.prepare("SELECT world_id,world_rev FROM adventure_world_pin WHERE session_id=?").bind(sid).first<{ world_id: string; world_rev: number }>();
+  if (!pin || pin.world_id !== bd.world_id || pin.world_rev !== bd.manifest_revision) return null;
+  const unlocked = await env.DB.prepare("SELECT 1 AS x FROM dungeon_skills WHERE dungeon=? AND ch=? AND COALESCE(skill_id,'ch'||ch)=?").bind(bd.dungeon_id, bd.chapter, bd.skill_id).first();
+  if (!unlocked) return null; // 章节未全部核验通过（技能行只在全章核验后写入）
+  return { actionKey, worldId: bd.world_id, worldRev: bd.manifest_revision, dungeonId: bd.dungeon_id, skillId: bd.skill_id, advantage: bd.advantage };
+}
+export async function recordActionNote(env: SiteEnv, sid: string, commitId: string, from: string, to: string, r: NonNullable<Awaited<ReturnType<typeof resolveSkillAction>>>): Promise<void> {
+  await ensureProg(env);
+  await env.DB.prepare("INSERT OR IGNORE INTO adventure_action_notes (session_id,commit_id,action_key,world_id,world_rev,dungeon_id,skill_id,advantage,from_scene,to_scene,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(sid, commitId, r.actionKey, r.worldId, r.worldRev, r.dungeonId, r.skillId, r.advantage, from, to, new Date().toISOString()).run();
 }

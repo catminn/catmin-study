@@ -1,7 +1,7 @@
 // 世界事件引擎 v0（服务端是唯一的世界变化确认方）。
 // 读取私有内容包（world/scene/npc/event），只在服务端使用；对玩家只返回事件内容里写明的 publicOutcome，不返回 id、effects、条件。
 // 契约：content/contracts/world-content-semantics-v1.md（ChatGPT 设计分支）。
-import { readContentInternal, grantFromWorldEvent } from "./content";
+import { readContentInternal, grantFromWorldEvent, resolveSkillAction, recordActionNote } from "./content";
 import type { SiteEnv } from "./site";
 import { ACTION_ALIASES } from "./adventure";
 
@@ -475,7 +475,8 @@ const idOk = (x: unknown): x is string => typeof x === "string" && /^[\w.:-]{1,1
 async function commitOp(env: SiteEnv, body: unknown, kind: "travel" | "choice"): Promise<WRes> {
   const b = body as any;
   if (!b || typeof b !== "object" || !idOk(b.sessionId) || !idOk(b.commitId)) return wfail(400, "bad_request", "sessionId / commitId 不合法");
-  const payload = kind === "travel" ? { target: b.target } : { choiceId: b.choiceId, npcId: b.npcId ?? null };
+  if (kind === "travel" && b.actionKey != null && !idOk(b.actionKey)) return wfail(400, "bad_request", "参数不合法");
+  const payload = kind === "travel" ? (b.actionKey != null ? { target: b.target, actionKey: b.actionKey } : { target: b.target }) : { choiceId: b.choiceId, npcId: b.npcId ?? null };
   if (kind === "travel" ? !idOk(b.target) : !idOk(b.choiceId) || (b.npcId != null && !idOk(b.npcId))) return wfail(400, "bad_request", "参数不合法");
   if (b.expectedVersion !== undefined && !Number.isSafeInteger(b.expectedVersion)) return wfail(400, "bad_request", "expectedVersion 不合法");
   await ensure(env);
@@ -513,7 +514,9 @@ async function commitOp(env: SiteEnv, body: unknown, kind: "travel" | "choice"):
     const claim = await env.DB.prepare("INSERT OR IGNORE INTO adventure_world_commits (session_id,commit_id,kind,payload) VALUES (?,?,?,?)").bind(sid, b.commitId, kind, pj).run();
     if (claim.meta.changes !== 1) return wfail(409, "commit_in_progress", "这次提交正在处理，请稍后重试");
     const next: Pending[] = [];
+    const adv = b.actionKey != null ? await resolveSkillAction(env, sid, st.scene, b.target, b.actionKey) : null; // 不符 → null → 普通出口
     const st2 = await enterScene(env, sid, st, b.target, next, actionId);
+    if (adv) await recordActionNote(env, sid, b.commitId, st.scene, b.target, adv); // 仅服务端私有注记；玩家可见输出不变
     await env.DB.prepare("DELETE FROM adventure_world_ending_notice WHERE session_id=?").bind(sid).run();
     // 进入后的 scene_entered 及连锁事件
     outcomes = await applyTrigger(env, sid, { type: "scene_entered", actionId }, st2.scene);

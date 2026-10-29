@@ -7,7 +7,7 @@ import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
 import { handleTurn } from "./turn";
 import { commitChoice, commitTravel, snapshotStats } from "./world";
-import { putContent, listContent, compareContent, listDungeons, checkDungeon, dungeonProgress, expandDungeonMarkers, registerDungeonTrigger, setReviewMode, attachReview } from "./content";
+import { putContent, listContent, compareContent, listDungeons, checkDungeon, dungeonProgress, expandDungeonMarkers, registerDungeonTrigger, registerSkillBinding, setReviewMode, attachReview } from "./content";
 import { pinLegacySessions, getDefaultWorld, setDefaultWorld } from "./world";
 import { publicSceneInfo } from "./world";
 import { approveProposal, courseStatus, getProposal, proposePack, removeFolder, setFolder, syncCourse } from "./coursesync";
@@ -538,6 +538,7 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
         if (req.method === "GET") return asJson(await getDefaultWorld(env));
         if (req.method === "PUT") return asJson(await setDefaultWorld(env, await req.json().catch(() => null)));
       }
+      if (p === "/api/adventure/admin/skill-binding" && req.method === "PUT") return asJson(await registerSkillBinding(env, await req.json().catch(() => null))); // 私有绑定登记：不授予、不返回
       if (p === "/api/adventure/admin/dungeon-trigger" && req.method === "PUT") return asJson(await registerDungeonTrigger(env, await req.json().catch(() => null))); // 只登记私有注册表，不授予任何东西
       if (p === "/api/adventure/admin/dungeon-review-mode" && req.method === "PUT") return asJson(await setReviewMode(env, await req.json().catch(() => null)));
       if (p === "/api/adventure/admin/dungeon-review" && req.method === "PUT") return asJson(await attachReview(env, await req.json().catch(() => null)));
