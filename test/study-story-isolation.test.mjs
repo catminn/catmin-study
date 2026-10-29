@@ -222,3 +222,37 @@ for (const [name, action] of [
   fail(run(s,action),'ACTION_SHAPE');
   assert.equal(JSON.stringify(s),before);
 });
+
+
+
+// Malformed JSON-compatible nested records must fail closed, not throw or echo content.
+for (const [name, edit] of [
+  ['null first chapter', x => { x.chapters[0] = null; }],
+  ['null second chapter', x => { x.chapters[1] = null; }],
+  ['null first dungeon', x => { x.dungeons[0] = null; }],
+  ['null second dungeon', x => { x.dungeons[1] = null; }],
+  ['numeric first chapter', x => { x.chapters[0] = 12; }],
+  ['numeric second chapter', x => { x.chapters[1] = 12; }],
+  ['numeric first dungeon', x => { x.dungeons[0] = 12; }],
+  ['numeric second dungeon', x => { x.dungeons[1] = 12; }],
+  ['array first chapter', x => { x.chapters[0] = []; }],
+  ['array first dungeon', x => { x.dungeons[0] = []; }],
+  ['string second chapter', x => { x.chapters[1] = 'unexpected'; }],
+  ['string second dungeon', x => { x.dungeons[1] = 'unexpected'; }],
+  ['empty first chapter', x => { x.chapters[0] = {}; }],
+  ['empty first dungeon', x => { x.dungeons[0] = {}; }],
+  ['empty second chapter', x => { x.chapters[1] = {}; }],
+  ['empty second dungeon', x => { x.dungeons[1] = {}; }],
+  ['private nested chapter value', x => { x.chapters[0] = { private: { text: 'DO_NOT_ECHO' } }; }],
+  ['private nested dungeon value', x => { x.dungeons[0] = { private: { text: 'DO_NOT_ECHO' } }; }]
+]) test('malformed nested manifest fails closed: ' + name, () => {
+  const x = clone(m); edit(x);
+  const r = validateManifest(x);
+  assert.equal(r.ok, false);
+  assert.ok(r.codes.length > 0);
+  assert.equal(r.errorCount, r.codes.length);
+  assert.ok(r.codes.every(code => /^[A-Z_]+$/.test(code)));
+  assert.equal(JSON.stringify(r).includes('DO_NOT_ECHO'), false);
+  assert.equal(initialState(x), null);
+  fail(run(baseline(), story('ask'), x), 'MANIFEST_INVALID');
+});
