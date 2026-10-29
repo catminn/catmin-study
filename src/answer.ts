@@ -1,6 +1,6 @@
 // 练习题答案判定（纯函数，便于测试）
 const SUP: Record<string, string> = { "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4", "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9", "⁻": "-", "⁺": "+" };
-const norm = (x: string) => x.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺]+/g, (m) => "^" + [...m].map((c) => SUP[c] ?? c).join("")).normalize("NFKC").toLowerCase().replace(/\s+/g, "").replace(/[，。,.;；]+$/g, "");
+const norm = (x: string) => x.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺]+/g, (m) => "^" + [...m].map((c) => SUP[c] ?? c).join("")).normalize("NFKC").toLowerCase().replace(/π/g, "pi").replace(/θ/g, "theta").replace(/ρ/g, "rho").replace(/φ/g, "phi").replace(/\s+/g, "").replace(/(?<=[a-z0-9)\u03b1-\u03c9])\*(?=[a-z(\u03b1-\u03c9])/g, "").replace(/[，。,.;；]+$/g, "");
 // 把常见写法解析成数字：1e-5 / 1×10^-5 / 10^-5 / 1/2 / 带前缀 "ph=" "x=" / 数字后跟单位
 function toNum(t: string): number | null {
   let u = t.replace(/^[a-z\[\]+⁺_()]*=/, "").replace(/[×x*·]10\^?(-?\+?\d+)/, "e$1").replace(/^10\^(-?\d+)$/, "1e$1");
