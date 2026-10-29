@@ -2,6 +2,7 @@
 // 引擎目前不读取内容（沙盒用占位）；这里只提供安全的导入/读取通道，内容字段由 ChatGPT 的内容规格定义。
 import type { SiteEnv } from "./site";
 import { validateCoursePacks } from "./learning-adapter";
+import { answerMatches } from "./answer";
 
 export const CONTENT_KINDS = ["world", "npc", "event", "knowledge-link", "scene", "course", "dungeon"] as const;
 const ID_RE = /^[a-z0-9][a-z0-9_.-]{0,79}$/;
@@ -189,11 +190,6 @@ async function ensureProg(env: SiteEnv) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_progress (dungeon TEXT NOT NULL, ch INTEGER NOT NULL, challenge TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, verified_at TEXT, PRIMARY KEY (dungeon,ch,challenge))").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_skills (dungeon TEXT NOT NULL, ch INTEGER NOT NULL, skill TEXT NOT NULL, effect TEXT NOT NULL, unlocked_at TEXT NOT NULL, PRIMARY KEY (dungeon,ch))").run();
   pready = true;
-}
-const norm = (x: string) => x.normalize("NFKC").toLowerCase().replace(/\s+/g, "").replace(/[，。,.;；]+$/g, "");
-export function answerMatches(given: string, key: string | string[]): boolean {
-  const keys = Array.isArray(key) ? key : [key]; const g = norm(String(given));
-  return keys.some((k) => { const n = norm(k); if (n === g) return true; const a = Number(g), b = Number(n); return g !== "" && n !== "" && Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b)); });
 }
 async function findDungeon(env: SiteEnv, did: string) {
   const rs = await env.DB.prepare("SELECT c.body AS body FROM adventure_content c JOIN (SELECT id, MAX(rev) AS r FROM adventure_content WHERE kind='dungeon' GROUP BY id) m ON c.kind='dungeon' AND c.id=m.id AND c.rev=m.r").all<{ body: string }>();
