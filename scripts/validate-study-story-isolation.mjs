@@ -15,16 +15,16 @@ export function validateManifest(m) {
   const ds = m.dungeons.map(d => d?.id), cs = m.chapters.map(c => c?.id);
   if (!distinct(ds) || !distinct(cs) || ds.some(x => !isId(x)) || cs.some(x => !isId(x))) errors.add('DUPLICATE_OR_BAD_ID');
   for (const d of m.dungeons) {
-    if (!exactKeys(d, ['id', 'practiceId', 'conceptId']) || !isId(d.practiceId) || !isId(d.conceptId)) errors.add('DUNGEON_SHAPE');
+    if (!exactKeys(d, ['id', 'practiceId', 'conceptId']) || !isId(d?.practiceId) || !isId(d?.conceptId)) errors.add('DUNGEON_SHAPE');
   }
-  if (!distinct(m.dungeons.map(d => d.practiceId))) errors.add('PRACTICE_REUSE');
+  if (!distinct(m.dungeons.map(d => d?.practiceId))) errors.add('PRACTICE_REUSE');
   for (let i = 0; i < m.chapters.length; i++) {
     const c = m.chapters[i];
     if (!exactKeys(c, ['id', 'predecessor', 'dungeonId', 'storyEntry', 'publicCopySlot']) ||
         !isId(c?.storyEntry) || !isId(c?.publicCopySlot) || !ds.includes(c?.dungeonId)) errors.add('CHAPTER_SHAPE');
-    if (c?.predecessor !== (i === 0 ? null : m.chapters[i - 1].id)) errors.add('STORY_CHAIN');
+    if (c?.predecessor !== (i === 0 ? null : m.chapters[i - 1]?.id)) errors.add('STORY_CHAIN');
   }
-  if (!distinct(m.chapters.map(c => c.storyEntry)) || !distinct(m.chapters.map(c => c.publicCopySlot))) errors.add('CHAPTER_REF_REUSE');
+  if (!distinct(m.chapters.map(c => c?.storyEntry)) || !distinct(m.chapters.map(c => c?.publicCopySlot))) errors.add('CHAPTER_REF_REUSE');
   return { ok: errors.size === 0, codes: [...errors].sort(), errorCount: errors.size };
 }
 
