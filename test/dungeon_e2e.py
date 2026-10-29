@@ -21,7 +21,7 @@ D={"subject":"math","dungeon":{"id":"tdx","name":"n","desc":"d","mission":"m","r
 s,r=call("PUT","/api/adventure/content",{"kind":"dungeon","id":"d1","content":D},{"X-Owner-Password":PW});ck("put",s==200)
 bad=json.loads(json.dumps(D));bad["dungeon"]["fork"]=None
 ck("reject no fork",call("PUT","/api/adventure/content",{"kind":"dungeon","id":"d2","content":bad},{"X-Owner-Password":PW})[0]==400)
-s,r=call("GET","/api/dungeons");ck("list hides answers","\"a\"" not in json.dumps(r) and r["dungeons"][0]["dungeon"]["ch"][0]["practice"][0]["id"]=="p1")
+s,r=call("GET","/api/dungeons");ck("list hides answers and hints","\"a\"" not in json.dumps(r) and "\"hint\"" not in json.dumps(r) and r["dungeons"][0]["dungeon"]["ch"][0]["practice"][0]["id"]=="p1")
 c=lambda cid,a:call("POST","/api/dungeons/check",{"dungeon":"tdx","ch":0,"challenge":cid,"answer":a})[1]
 r=c("p1","3");ck("wrong",r["correct"]==False and r["hint"]=="hi" and not r["chapterDone"] and r["skill"] is None)
 r=c("p1"," 2 ");ck("right",r["correct"] and r["next"]=="p2" and not r["chapterDone"])
@@ -31,20 +31,25 @@ ck("unknown challenge 404",call("POST","/api/dungeons/check",{"dungeon":"tdx","c
 s,r=call("GET","/api/dungeons/progress");ck("progress",len(r["verified"])==2 and len(r["skills"])==1)
 
 # ---- 阶段性授权投影（合成负例）：未解锁章节/隐藏任务/岔路文字不下发 ----
-E={"subject":"math","dungeon":{"id":"tdy","name":"n","desc":"d","mission":"m","rule":"r","pen":"p","hidden":"SENTINEL_HIDDEN","fork":{"ch":1,"t":"SENTINEL_FORK_T","q":"SENTINEL_FORK_Q","b":"SENTINEL_FORK_B","price":1},
- "ch":[{"t":"t0","k":"k0","s":"SENTINEL_S0","sb":"SENTINEL_SB0","tn":"SENTINEL_TN0","skill":{"name":"A","effect":"EA","id":"a.id"},"practice":[{"id":"q1","q":"Q1","a":"7","hint":"h"}]},
-  {"t":"t1","k":"k1","s":"SENTINEL_S1","sb":"SENTINEL_SB1","tn":"SENTINEL_TN1","skill":{"name":"SENTINEL_SKILL1","effect":"SENTINEL_EFF1"},"practice":[{"id":"q2","q":"SENTINEL_Q2","a":"SENTINEL_ANS2"}]}]}}
+E={"subject":"math","dungeon":{"id":"tdy","name":"n","desc":"d","mission":"m","rule":"r","pen":"p","pre":"SENTINEL_PRE","recap":"SENTINEL_RECAP","zero":"SENTINEL_ZERO","clear":"SENTINEL_CLEAR","hidden":"SENTINEL_HIDDEN",
+ "cast":[["Guide","role0","SENTINEL_CAST_SECRET0",0],["LateGuy","role1","SENTINEL_CAST_SECRET1",1]],
+ "fork":{"ch":1,"t":"SENTINEL_FORK_T","q":"SENTINEL_FORK_Q","b":"SENTINEL_FORK_B","price":1},
+ "ch":[{"t":"t0","k":"k0","s":"SENTINEL_S0","sb":"SENTINEL_SB0","tn":"SENTINEL_TN0","skill":{"name":"A","effect":"EA","id":"a.id"},"practice":[{"id":"q1","q":"Q1","a":"7","hint":"SENTINEL_H0"}]},
+  {"t":"t1","k":"SENTINEL_K1","s":"SENTINEL_S1","sb":"SENTINEL_SB1","tn":"SENTINEL_TN1","skill":{"name":"SENTINEL_SKILL1","effect":"SENTINEL_EFF1"},"practice":[{"id":"q2","q":"SENTINEL_Q2","a":"SENTINEL_ANS2"}]}]}}
 s,r=call("PUT","/api/adventure/content",{"kind":"dungeon","id":"d3","content":E},{"X-Owner-Password":PW});ck("put E",s==200)
+badc=json.loads(json.dumps(E));badc["dungeon"]["cast"][0][3]="0"
+ck("reject malformed cast",call("PUT","/api/adventure/content",{"kind":"dungeon","id":"d4","content":badc},{"X-Owner-Password":PW})[0]==400)
 g=lambda:json.dumps(call("GET","/api/dungeons")[1])
+import re
+DIR=re.compile(r"SENTINEL_(PRE|RECAP|ZERO|CLEAR|HIDDEN|S0|SB0|TN0|S1|SB1|TN1|CAST_SECRET\d|H0|FORK_B|ANS2)")
 t=g()
-ck("ch0 visible, ch1 body hidden","SENTINEL_S0" in t and "SENTINEL_S1" not in t and "SENTINEL_SB1" not in t and "SENTINEL_TN1" not in t)
-ck("locked ch skill/practice/answer not leaked","SENTINEL_SKILL1" not in t and "SENTINEL_EFF1" not in t and "SENTINEL_Q2" not in t and "SENTINEL_ANS2" not in t and "\"a\": \"7\"" not in t)
-ck("hidden + fork text withheld","SENTINEL_HIDDEN" not in t and "SENTINEL_FORK" not in t)
-ck("check on locked chapter refused (no verify without prior chapter)",call("POST","/api/dungeons/check",{"dungeon":"tdy","ch":1,"challenge":"q2","answer":"SENTINEL_ANS2"})[0]==409)
+ck("no director fields in GET (start)",not DIR.search(t))
+ck("revealed NPC name present, late NPC absent","Guide" in t and "LateGuy" not in t)
+ck("locked ch topic/skill/question hidden","SENTINEL_K1" not in t and "SENTINEL_SKILL1" not in t and "SENTINEL_EFF1" not in t and "SENTINEL_Q2" not in t and "SENTINEL_FORK" not in t)
+ck("check on locked chapter refused",call("POST","/api/dungeons/check",{"dungeon":"tdy","ch":1,"challenge":"q2","answer":"SENTINEL_ANS2"})[0]==409)
 r=call("POST","/api/dungeons/check",{"dungeon":"tdy","ch":0,"challenge":"q1","answer":"7"})[1];ck("ch0 done",r["chapterDone"])
 t=g()
-ck("ch1 now visible, answers still hidden","SENTINEL_S1" in t and "SENTINEL_Q2" in t and "SENTINEL_ANS2" not in t and "SENTINEL_FORK_T" in t)
-ck("hidden still withheld until all done","SENTINEL_HIDDEN" not in t)
+ck("ch1 question visible, still no director fields","SENTINEL_Q2" in t and "SENTINEL_FORK_T" in t and "LateGuy" in t and not DIR.search(t))
 r=call("POST","/api/dungeons/check",{"dungeon":"tdy","ch":1,"challenge":"q2","answer":"SENTINEL_ANS2"})[1];ck("ch1 done",r["chapterDone"])
-ck("hidden revealed after completion","SENTINEL_HIDDEN" in g())
+ck("full completion still no director fields",not DIR.search(g()))
 print("fails",fails);sys.exit(1 if fails else 0)

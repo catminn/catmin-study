@@ -7,7 +7,7 @@ import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
 import { handleTurn } from "./turn";
 import { commitChoice, commitTravel, snapshotStats } from "./world";
-import { putContent, listContent, compareContent, listDungeons, checkDungeon, dungeonProgress } from "./content";
+import { putContent, listContent, compareContent, listDungeons, checkDungeon, dungeonProgress, expandDungeonMarkers } from "./content";
 import { pinLegacySessions, getDefaultWorld, setDefaultWorld } from "./world";
 import { publicSceneInfo } from "./world";
 import { approveProposal, courseStatus, getProposal, proposePack, removeFolder, setFolder, syncCourse } from "./coursesync";
@@ -272,6 +272,7 @@ async function aiHandler(req: Request, env: SiteEnv, ctx: ExecutionContext) {
   }
   if (!Array.isArray(r.messages) || !r.messages.length || r.messages[r.messages.length - 1].role !== "user")
     return err("bad_request", "messages 必须以 user 结尾");
+  r.messages = await Promise.all(r.messages.map(async (m) => (m.role === "user" && typeof m.content === "string" ? { ...m, content: await expandDungeonMarkers(env, m.content) } : m)));
   const model = pickModel(env, r);
   if (!model) return err("bad_request", "未知模型");
   const prov = MODELS[model].provider;

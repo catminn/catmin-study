@@ -1173,7 +1173,8 @@ function sagaChapters(subj){return SG_FLAT[subj]||(SG_FLAT[subj]=SAGA[subj].flat
 function sagaState(subj){S.saga=S.saga||{};const s=S.saga[subj]||(S.saga[subj]={n:0});if(!s.seen)s.seen={};return s}
 function sagaNow(subj){const L=sagaChapters(subj);const n=sagaState(subj).n;const it=L[Math.min(n,L.length-1)];return{n,end:n>=L.length,it,w:it.w,ci:it.ci,c:it.c}}
 function branchOf(w,subj){return(S.fate||{})[subj+":"+w.id]==="b"?"b":"a"}
-function chapText(subj,it){return(branchOf(it.w,subj)==="b"&&it.c.sb)?it.c.sb:it.c.s}
+const DGM=(k,...a)=>"⟦DG:"+k+":"+a.join(":")+"⟧";
+function chapText(subj,it){if(it.w.srv)return DGM("s",it.w.id,it.ci,branchOf(it.w,subj));return(branchOf(it.w,subj)==="b"&&it.c.sb)?it.c.sb:it.c.s}
 function worldNo(subj){return SAGA[subj]?sagaNow(subj).it.wi+1:S.world[subj].length}
 function frontier(subj){const L=sagaChapters(subj);const sg=sagaState(subj);let g=sg.n;while(g<L.length&&sg.seen[g])g++;return g}
 function forkAvail(subj){if(!SAGA[subj])return null;const L=sagaChapters(subj);const sg=sagaState(subj);const f=frontier(subj);const it=L[f];
@@ -1187,17 +1188,17 @@ function syncTale(subj){const st=sagaNow(subj);let T=tale(subj);
   for(const m of st.w.cast)if(m[3]<=st.ci)T.npcs[m[0]]=m[1].slice(0,28);return T}
 function splitParas(t){const s=String(t).match(/[^。！？]+[。！？]?/g)||[String(t)];const out=[];for(let i=0;i<s.length;i+=3)out.push(s.slice(i,i+3).join(""));return out}
 function sagaContext(subj){const st=sagaNow(subj);const L=sagaChapters(subj);const T=syncTale(subj);const w=st.w;const sg=sagaState(subj);const q=QUEST[subj];
-  const casts=w.cast.filter(m=>m[3]<=st.ci).map(m=>m[0]+"（"+m[1]+"；隐藏："+m[2]+"）").join("；");
-  const ahead=w.cast.filter(m=>m[3]>st.ci).map(m=>m[0]).join("、");
-  const prevW=SAGA[subj].slice(0,st.it.wi).map(x=>x.name+"："+x.recap).join(" / ");
-  let out="世界设定（作者写好的，必须遵守，里面的真相不要提前说破）："+w.pre+"\n副本任务："+w.mission+" 副本规则："+w.rule+" 失败惩罚："+w.pen+"这些由零以主神广播的口吻在合适的时候提醒她，让她有压力。\n";
+  const casts=w.srv?DGM("cast",w.id,st.ci):w.cast.filter(m=>m[3]<=st.ci).map(m=>m[0]+"（"+m[1]+"；隐藏："+m[2]+"）").join("；");
+  const ahead=w.srv?DGM("ahead",w.id,st.ci):w.cast.filter(m=>m[3]>st.ci).map(m=>m[0]).join("、");
+  const prevW=SAGA[subj].slice(0,st.it.wi).map(x=>x.name+"："+(x.srv?DGM("recap",x.id):x.recap)).join(" / ");
+  let out="世界设定（作者写好的，必须遵守，里面的真相不要提前说破）："+(w.srv?DGM("pre",w.id):w.pre)+"\n副本任务："+w.mission+" 副本规则："+w.rule+" 失败惩罚："+w.pen+"这些由零以主神广播的口吻在合适的时候提醒她，让她有压力。\n";
   if(prevW)out+="前面通关的世界："+prevW+"\n";
   out+="登场人物（括号里是隐藏的真相，只能随剧情自己透露）："+casts+"。"+(ahead?"还没登场的人物："+ahead+"，现在不要让他们出场。":"")+"\n";
   if(st.end){out+="主线篇章已经全部通关。她现在在番外：可以自由写一小段承接结局的后日谈，轻松一点，不开新的大悬念。\n"}
   else{
     const done=L.filter(x=>x.w===w&&x.g<st.n);
     if(done.length)out+="本世界前面已经发生的章节：\n"+done.map(x=>"第"+(x.ci+1)+"章《"+x.c.t+"》："+chapText(subj,x)).join("\n")+"\n";
-    out+="本章的危机（要让它一直压在她头上，随回合逼近）："+st.c.tn+"\n现在是本世界（共 "+w.ch.length+" 章）的第 "+(st.ci+1)+" 章《"+st.c.t+"》。"+(st.ci===0?"这是进入这个世界后的第一章，开头先用旁白交代她抵达这里。":"")+"\n";
+    out+="本章的危机（要让它一直压在她头上，随回合逼近）："+(w.srv?DGM("tn",w.id,st.ci):st.c.tn)+"\n现在是本世界（共 "+w.ch.length+" 章）的第 "+(st.ci+1)+" 章《"+st.c.t+"》。"+(st.ci===0?"这是进入这个世界后的第一章，开头先用旁白交代她抵达这里。":"")+"\n";
     if(q){
       out+="她现在正在玩这一章。作者写好的剧情底稿（事件顺序、人物关系和结局必须按它走，不要自己改结局，不要照抄原文，要拆成互动的回合，让她在关键处用知识点过关）：\n"+chapText(subj,st.it)+"\n";
       out+="底稿里的障碍要用知识点来过。原设计对应的障碍形式："+st.c.k+"她现在实际要学的是「"+q.t+"」。如果两者不同，保留底稿里的事件，把障碍改写成适合「"+q.t+"」的样子。\n";
@@ -1627,7 +1628,7 @@ function renderDungeon(){const w=worldOf(CUR);{const b=S.battle[CUR];if(!QUEST[C
 
 /* ---- 系统课练习：服务端判题，答对才记 verified，整章通过解锁技能 ---- */
 const DGP={v:new Set(),sk:{}};
-async function dgRefresh(){try{const r=await fetch("/api/dungeons",{credentials:"same-origin"});if(!r.ok)return;const j=await r.json();for(const x of (j.dungeons||[])){const w=(SAGA[x.subject]||[]).find(y=>y.id===x.dungeon.id);if(!w||!w.ch||w.ch.length!==x.dungeon.ch.length)continue;x.dungeon.ch.forEach((c,i)=>{Object.assign(w.ch[i],c);w.ch[i].tn=w.ch[i].tn||""});w.fork=x.dungeon.fork;w.hidden=x.dungeon.hidden}for(const k in SG_FLAT)delete SG_FLAT[k]}catch(e){}}
+async function dgRefresh(){try{const r=await fetch("/api/dungeons",{credentials:"same-origin"});if(!r.ok)return;const j=await r.json();for(const x of (j.dungeons||[])){const w=(SAGA[x.subject]||[]).find(y=>y.id===x.dungeon.id);if(!w||!w.ch||w.ch.length!==x.dungeon.ch.length)continue;x.dungeon.ch.forEach((c,i)=>{Object.assign(w.ch[i],c);w.ch[i].tn=w.ch[i].tn||""});w.fork=x.dungeon.fork;w.hidden=x.dungeon.hidden;w.cast=x.dungeon.cast||w.cast}for(const k in SG_FLAT)delete SG_FLAT[k]}catch(e){}}
 async function dgpLoad(){try{const r=await fetch("/api/dungeons/progress",{credentials:"same-origin"});if(!r.ok)return;const j=await r.json();DGP.v=new Set((j.verified||[]).map(x=>x.dungeon+"|"+x.ch+"|"+x.challenge));DGP.sk={};(j.skills||[]).forEach(x=>{DGP.sk[x.dungeon+"|"+x.ch]=x})}catch(e){}}
 function renderPractice(){const old=$("#practiceCard");if(old)old.remove();if(!SAGA[CUR])return;const st=sagaNow(CUR);if(st.end||!st.c.practice||!st.c.practice.length)return;
   const d=st.w.id,ci=st.ci,P=st.c.practice,key=x=>d+"|"+ci+"|"+x.id;const cur=P.find(x=>!DGP.v.has(key(x)));const sk=st.c.skill;const got=!!DGP.sk[d+"|"+ci];
@@ -2260,7 +2261,7 @@ route();
   if(S.chatReset!=="c1"){for(const k in SUBJ){CHATS[k]=[];saveChat(k);QUEST[k]=null}S.battle={};S.tale={};S.skills={};S.qn={};S.chatReset="c1"}
   if(S.sagaTag!=="s1"){for(const k of["math","chem","engri"]){CHATS[k]=[];saveChat(k);QUEST[k]=null}S.battle={};S.tale={};S.saga={};S.fate={};S.sagaTag="s1"}
   if(fresh||!S.clean2){for(const o of occurrences())if(o.soft<Date.now()&&!S.done[o.key])S.skipped[o.key]=Date.now();S.clean2=1}
-  try{const r=await fetch("/api/dungeons",{credentials:"same-origin"});if(r.ok){const j=await r.json();const L=(j.dungeons||[]).slice().sort((a,b)=>0);for(const x of L){const arr=SAGA[x.subject];const d=x.dungeon;if(!arr||!d||arr.some(w=>w.id===d.id))continue;d.pre=d.pre||"";d.cast=d.cast||[];d.recap=d.recap||"";d.zero=d.zero||"";d.clear=d.clear||"";d.tint=d.tint||"#7c6cff";d.st=d.st||"";d.ch.forEach(c=>{c.tn=c.tn||""});arr.push(d)}for(const k in SG_FLAT)delete SG_FLAT[k]}await dgpLoad()}catch(e){}
+  try{const r=await fetch("/api/dungeons",{credentials:"same-origin"});if(r.ok){const j=await r.json();const L=(j.dungeons||[]).slice().sort((a,b)=>0);for(const x of L){const arr=SAGA[x.subject];const d=x.dungeon;if(!arr||!d||arr.some(w=>w.id===d.id))continue;d.srv=true;d.pre=d.pre||"";d.cast=d.cast||[];d.recap=d.recap||"";d.zero=d.zero||"";d.clear=d.clear||"";d.tint=d.tint||"#7c6cff";d.st=d.st||"";d.ch.forEach(c=>{c.tn=c.tn||""});arr.push(d)}for(const k in SG_FLAT)delete SG_FLAT[k]}await dgpLoad()}catch(e){}
   applyDyn();save();S.mistakes.forEach(m=>delete m.smBusy);if(S.focus)S.focus=null;if(S.focusLive){S.focusLive=null;setTimeout(()=>toast("上次专注时网页关掉了，那一轮作废"),1500)}setTimeout(()=>smFlush(false),9000);setTimeout(()=>syncAllMistakes(false),6000);zwLoad();Promise.all(Object.keys(SUBJ).map(loadLib)).then(()=>{if(curView()==="dungeon")renderLib()});if(S.calendar)connectCalendar(false);route();setTimeout(()=>syncCourses(false),4000);cloudBoot();
 
 })();

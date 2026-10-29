@@ -35,6 +35,7 @@ export function validateDungeon(c: any): string | null {
   for (const f of ["id", "name", "desc", "mission", "rule", "pen", "hidden"]) if (typeof d[f] !== "string" || !d[f]) return `dungeon.${f} 需为非空字符串`;
   const f = d.fork; if (!f || typeof f.t !== "string" || typeof f.q !== "string" || typeof f.b !== "string" || !Number.isInteger(f.ch) || typeof f.price !== "number") return "dungeon.fork 需为 {ch,t,q,b,price}";
   if (!Array.isArray(d.ch) || d.ch.length < 1 || d.ch.length > 12) return "dungeon.ch 需为 1–12 章";
+  if (!castOk(d)) return "dungeon.cast 需为 [[名字,公开身份,导演秘密,揭示章索引(0基)],…]";
   for (const ch of d.ch) {
     if (!ch || typeof ch.t !== "string" || typeof ch.k !== "string" || typeof ch.s !== "string" || typeof ch.sb !== "string" || typeof ch.tn !== "string") return "每章需要 t,k,s,sb,tn（字符串）";
     if (ch.skill !== undefined && (typeof ch.skill?.name !== "string" || typeof ch.skill?.effect !== "string")) return "skill 需为 {name,effect}";
@@ -42,22 +43,70 @@ export function validateDungeon(c: any): string | null {
   }
   return null;
 }
-// 阶段性授权投影：只有前面各章全部核验通过（无练习的章视为通过）的章节才下发正文；
-// 未到达的章节只保留标题 t/k，s/sb/tn 清空、skill/practice 去掉；fork 在未到达该章时清空文字；hidden 在整副本完成前清空。
-export function projectDungeon(d: any, verified: Set<string>): any {
-  const out = JSON.parse(JSON.stringify(d));
-  let reach = 0; // 可见章数
+// 白名单投影（content/contracts/dungeon-client-projection-v1）：浏览器永远收不到导演字段。
+// pre/recap/zero/clear/hidden、ch[].s/sb/tn、cast[i][2]、fork.b、practice[].a/hint 一律不下发；
+// 未到达章节只给标题 t；cast 只给已揭示（revealChapter<=当前章）角色的名字与公开身份。
+// 导演内容只在服务端经 expandDungeonMarkers 注入模型提示词。
+export function dungeonReach(d: any, verified: Set<string>): { reach: number; visible: number; current: number; allDone: boolean } {
   const chDone = (ch: any, ci: number) => { const pr: any[] = ch.practice ?? []; return pr.every((q, i) => verified.has(ci + "|" + (q.id ?? "c" + (i + 1)))); };
-  while (reach < out.ch.length && chDone(d.ch[reach], reach)) reach++;
-  const visible = Math.min(reach + 1, out.ch.length); // 已通过的章 + 当前章
-  const allDone = reach >= out.ch.length;
-  out.ch.forEach((ch: any, ci: number) => {
-    if (ci < visible) { if (ch.practice) ch.practice = ch.practice.map((q: any, i: number) => ({ id: q.id ?? "c" + (i + 1), q: q.q, hint: q.hint })); return; }
-    ch.s = ""; ch.sb = ""; ch.tn = ""; delete ch.skill; delete ch.practice;
+  let reach = 0;
+  while (reach < d.ch.length && chDone(d.ch[reach], reach)) reach++;
+  const visible = Math.min(reach + 1, d.ch.length);
+  return { reach, visible, current: visible - 1, allDone: reach >= d.ch.length };
+}
+export function castOk(d: any): boolean {
+  return d.cast === undefined || (Array.isArray(d.cast) && d.cast.every((x: any) => Array.isArray(x) && x.length === 4 && typeof x[0] === "string" && typeof x[1] === "string" && typeof x[2] === "string" && Number.isInteger(x[3]) && x[3] >= 0 && x[3] < d.ch.length));
+}
+export function projectDungeon(d: any, verified: Set<string>): any {
+  if (!castOk(d)) throw new Error("invalid_cast");
+  const { visible, current } = dungeonReach(d, verified);
+  const ch = d.ch.map((x: any, i: number) => i >= visible ? { t: x.t, k: "", s: "", sb: "", tn: "" } : {
+    t: x.t, k: x.k, s: "", sb: "", tn: "",
+    ...(x.practice ? { practice: x.practice.map((q: any, j: number) => ({ id: q.id ?? "c" + (j + 1), q: q.q })) } : {}),
+    ...(x.skill ? { skill: { ...(x.skill.id !== undefined ? { id: x.skill.id } : {}), name: x.skill.name, effect: x.skill.effect } } : {}),
   });
-  if (out.fork && out.fork.ch >= visible) out.fork = { ...out.fork, t: "", q: "", b: "" };
-  if (!allDone) out.hidden = "";
-  return out;
+  const cast = (d.cast ?? []).filter((x: any) => x[3] <= current).map((x: any) => [x[0], x[1], null, x[3]]);
+  const f = d.fork;
+  const fork = f ? { ch: f.ch, price: f.price, t: f.ch <= current ? f.t : "", q: f.ch <= current ? f.q : "", b: "" } : f;
+  return { id: d.id, name: d.name, tint: d.tint, st: d.st, desc: d.desc, mission: d.mission, rule: d.rule, pen: d.pen, pre: "", recap: "", zero: "", clear: "", hidden: "", cast, fork, ch };
+}
+// 服务端展开模型提示词里的导演占位符（只对 user 消息；只展开已授权章节；未授权一律展开为空）。
+const MARK_RE = /⟦DG:(pre|cast|ahead|recap|s|tn):([a-z0-9][a-z0-9_.-]{0,79})(?::(\d{1,2}))?(?::([ab]))?⟧/g;
+export async function expandDungeonMarkers(env: SiteEnv, text: string): Promise<string> {
+  if (!text.includes("⟦DG:")) return text;
+  await ensure(env); await ensureProg(env);
+  const ms = [...text.matchAll(MARK_RE)];
+  const cache = new Map<string, { d: any; r: ReturnType<typeof dungeonReach> } | null>();
+  const load = async (id: string) => {
+    if (cache.has(id)) return cache.get(id)!;
+    let out: { d: any; r: ReturnType<typeof dungeonReach> } | null = null;
+    const row = await env.DB.prepare("SELECT body FROM adventure_content WHERE kind='dungeon' AND id=? ORDER BY rev DESC LIMIT 1").bind(id).first<{ body: string }>();
+    if (row) {
+      const c = JSON.parse(row.body);
+      if (!validateDungeon(c) && castOk(c.dungeon)) {
+        const pv = (await env.DB.prepare("SELECT ch,challenge FROM dungeon_progress WHERE dungeon=? AND verified_at IS NOT NULL").bind(id).all<{ ch: number; challenge: string }>()).results ?? [];
+        out = { d: c.dungeon, r: dungeonReach(c.dungeon, new Set(pv.map((x) => x.ch + "|" + x.challenge))) };
+      }
+    }
+    cache.set(id, out); return out;
+  };
+  let res = text;
+  for (const m of ms) {
+    const [tok, kind, id, n, br] = m;
+    const x = await load(id); let v = "";
+    if (x) {
+      const ci = n === undefined ? -1 : Number(n);
+      const okCh = ci >= 0 && ci < x.d.ch.length && ci < x.r.visible;
+      if (kind === "pre") v = x.d.pre ?? "";
+      else if (kind === "recap") v = x.r.allDone ? (x.d.recap ?? "") : "";
+      else if (kind === "cast" && okCh) v = x.d.cast.filter((c: any) => c[3] <= ci).map((c: any) => c[0] + "（" + c[1] + "；隐藏：" + c[2] + "）").join("；");
+      else if (kind === "ahead" && okCh) v = x.d.cast.filter((c: any) => c[3] > ci).map((c: any) => c[0]).join("、");
+      else if (kind === "s" && okCh) v = (br === "b" && x.d.ch[ci].sb) ? x.d.ch[ci].sb : x.d.ch[ci].s;
+      else if (kind === "tn" && okCh) v = x.d.ch[ci].tn ?? "";
+    }
+    res = res.split(tok).join(v);
+  }
+  return res;
 }
 // 登录后给前端的副本列表：练习题答案只留在服务端；未授权章节不下发。
 export async function listDungeons(env: SiteEnv): Promise<R> {
@@ -69,7 +118,7 @@ export async function listDungeons(env: SiteEnv): Promise<R> {
     const c = JSON.parse(r.body);
     if (validateDungeon(c)) continue;
     const v = new Set(pv.filter((x) => x.dungeon === c.dungeon.id).map((x) => x.ch + "|" + x.challenge));
-    out.push({ subject: c.subject, after: c.after ?? null, dungeon: projectDungeon(c.dungeon, v) });
+    try { out.push({ subject: c.subject, after: c.after ?? null, dungeon: projectDungeon(c.dungeon, v) }); } catch { /* 畸形 cast：fail closed */ }
   }
   return { status: 200, body: { ok: true, dungeons: out } };
 }
