@@ -204,3 +204,21 @@ test('verified practice with matching prior visit remains valid',()=>{
   s=success(run(s,study('practice_verified',{practiceId:m.dungeons[2].practiceId,source:'trusted-demo'})));
   assert.equal(validateState(m,s),true);
 });
+
+// Known union fields are not valid across unrelated action types.
+for (const [name, action] of [
+  ['study select carrying story chapter', study('select', {dungeonId:m.dungeons[0].id, chapterId:chapter(2)})],
+  ['study select carrying event ID', study('select', {dungeonId:m.dungeons[0].id, eventId:'demo.event.shadow'})],
+  ['study verification carrying story chapter', study('practice_verified', {practiceId:m.dungeons[0].practiceId, source:'trusted-demo', chapterId:chapter(2)})],
+  ['study exit carrying event provenance', study('exit', {eventId:'demo.event.shadow', source:'trusted-demo'})],
+  ['story ASK carrying practice ID', story('ask', {practiceId:m.dungeons[0].practiceId})],
+  ['story ASK carrying study dungeon', story('ask', {dungeonId:m.dungeons[0].id})],
+  ['story preview carrying source', story('preview', {chapterId:chapter(0), source:'trusted-demo'})],
+  ['story enter carrying practice ID', story('enter', {chapterId:chapter(0), practiceId:m.dungeons[0].practiceId})],
+  ['story commit carrying study dungeon', story('commit', {chapterId:chapter(0), eventId:'demo.event.shadow', source:'trusted-demo', dungeonId:m.dungeons[0].id})],
+  ['story commit carrying practice ID', story('commit', {chapterId:chapter(0), eventId:'demo.event.shadow', source:'trusted-demo', practiceId:m.dungeons[0].practiceId})]
+]) test(`reject cross-action payload: ${name}`, () => {
+  const s=baseline(), before=JSON.stringify(s);
+  fail(run(s,action),'ACTION_SHAPE');
+  assert.equal(JSON.stringify(s),before);
+});
