@@ -1,6 +1,6 @@
 // 公开字段审批侧车（content/contracts/dungeon-public-field-review-v1）。
 // 侧车是独立的、经管理员通道提交的作者审批断言，不是导入内容里自报的 review 标记。
-// 摘要 = SHA-256( JSON.stringify(值) )（UTF-8，十六进制小写）；整条记录摘要对 {kind,id,content}。
+// 摘要 = SHA-256( canonicalJson(值) )（UTF-8，十六进制小写）；整条记录摘要对 {kind,id,content}。
 // 错误只返回错误码，绝不回显文字、路径、摘要。
 export const REVIEW_SCHEMA = "dungeon-public-field-review-v1";
 
@@ -8,7 +8,26 @@ export async function sha256Hex(s: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
-const dig = (v: unknown) => sha256Hex(JSON.stringify(v));
+// canonical JSON（dungeon-public-field-review-wire-v1）：递归按 UTF-16 码元升序排键、数组保序、无空白、标量用 JSON.stringify；
+// 拒绝 undefined/稀疏数组/非有限数/函数/循环/非 JSON 对象。非完整 RFC8785。
+export function canonicalJson(v: unknown, seen: Set<unknown> = new Set()): string {
+  if (v === null || typeof v === "string" || typeof v === "boolean") return JSON.stringify(v);
+  if (typeof v === "number") { if (!Number.isFinite(v)) throw new TypeError("non_json_number"); return JSON.stringify(v); }
+  if (typeof v !== "object" || seen.has(v)) throw new TypeError("non_json_value");
+  const proto = Object.getPrototypeOf(v);
+  if (!Array.isArray(v) && proto !== Object.prototype && proto !== null) throw new TypeError("non_json_object");
+  seen.add(v);
+  try {
+    if (Array.isArray(v)) {
+      const items: string[] = [];
+      for (let i = 0; i < v.length; i++) { if (!Object.hasOwn(v, i)) throw new TypeError("sparse_array"); items.push(canonicalJson(v[i], seen)); }
+      return "[" + items.join(",") + "]";
+    }
+    const o = v as Record<string, unknown>;
+    return "{" + Object.keys(o).sort().map((k) => JSON.stringify(k) + ":" + canonicalJson(o[k], seen)).join(",") + "}";
+  } finally { seen.delete(v); }
+}
+const dig = (v: unknown) => sha256Hex(canonicalJson(v));
 export const recordDigest = (record: { kind: string; id: string; content: unknown }) => dig({ kind: record.kind, id: record.id, content: record.content });
 
 type PF = { path: string; value: unknown; gate: string };
@@ -47,6 +66,9 @@ export function projectedFields(record: { content: any }): PF[] {
 
 // 返回错误码集合（空 = 通过）。record = {kind,id,content}；调用方须先确认侧车来自受信的管理员通道。
 export async function reviewPreflight(record: { kind: string; id: string; content: any }, sidecar: any): Promise<string[]> {
+  try { return await reviewPreflightInner(record, sidecar); } catch { return ["non_canonical_content"]; }
+}
+async function reviewPreflightInner(record: { kind: string; id: string; content: any }, sidecar: any): Promise<string[]> {
   if (!sidecar || typeof sidecar !== "object" || Array.isArray(sidecar)) return ["missing_sidecar"];
   const errors = new Set<string>();
   if (sidecar.schema !== REVIEW_SCHEMA) errors.add("bad_schema");

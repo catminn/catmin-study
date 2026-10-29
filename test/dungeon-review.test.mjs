@@ -10,8 +10,8 @@ import { pathToFileURL } from 'node:url';
 const out = join(mkdtempSync(join(tmpdir(), 'rv-')), 'review.mjs');
 execSync(`npx esbuild src/review.ts --bundle --format=esm --platform=node --outfile=${out} --log-level=error`, { stdio: 'inherit' });
 const M = await import(pathToFileURL(out).href);
-const { projectedFields, reviewPreflight, recordDigest, sha256Hex } = M;
-const digest = (v) => sha256Hex(JSON.stringify(v));
+const { projectedFields, reviewPreflight, recordDigest, sha256Hex, canonicalJson } = M;
+const digest = (v) => sha256Hex(canonicalJson(v));
 async function syntheticSidecar(record) {
   const fields = [];
   for (const f of projectedFields(record)) fields.push({ path: f.path, digest: await digest(f.value), gate: f.gate });
