@@ -52,4 +52,25 @@ t=g()
 ck("ch1 question visible, still no director fields","SENTINEL_Q2" in t and "SENTINEL_FORK_T" in t and "LateGuy" in t and not DIR.search(t))
 r=call("POST","/api/dungeons/check",{"dungeon":"tdy","ch":1,"challenge":"q2","answer":"SENTINEL_ANS2"})[1];ck("ch1 done",r["chapterDone"])
 ck("full completion still no director fields",not DIR.search(g()))
+
+# ---- 公开文案 pub（dungeon-public-copy-v1）：阶段授权，无授权不下发 zero/hidden ----
+P=json.loads(json.dumps(E));P["dungeon"]["id"]="tdz"
+P["dungeon"]["pub"]={"open":"PUB_OPEN","clear":"PUB_CLEAR","zero":"PUB_ZERO","hidden":"PUB_HIDDEN"}
+P["dungeon"]["ch"][0]["pub"]={"intro":"PUB_I0","recap":"PUB_R0"};P["dungeon"]["ch"][1]["pub"]={"intro":"PUB_I1","recap":"PUB_R1"}
+s,r=call("PUT","/api/adventure/content",{"kind":"dungeon","id":"d5","content":P},{"X-Owner-Password":PW});ck("put pub dungeon",s==200)
+for nm,mut in [("unknown key",lambda d:d["pub"].update(leak="x")),("marker",lambda d:d["ch"][0]["pub"].update(intro="⟦DG:pre:tdz⟧")),("empty",lambda d:d["pub"].update(open="")),("newline",lambda d:d["pub"].update(open="a\nb")),("non-string",lambda d:d["ch"][1]["pub"].update(recap=5))]:
+    q=json.loads(json.dumps(P));q["dungeon"]["id"]="tdq";mut(q["dungeon"])
+    ck("reject bad pub: "+nm,call("PUT","/api/adventure/content",{"kind":"dungeon","id":"d6","content":q},{"X-Owner-Password":PW})[0]==400)
+def tdz():
+    return [x for x in call("GET","/api/dungeons")[1]["dungeons"] if x["dungeon"]["id"]=="tdz"][0]["dungeon"]
+d=tdz();j=json.dumps(d)
+ck("pub open + ch0 intro at start","PUB_OPEN" in j and "PUB_I0" in j)
+ck("future intro/recap absent, no clear/zero/hidden at start","PUB_I1" not in j and "PUB_R0" not in j and "PUB_R1" not in j and "PUB_CLEAR" not in j and "PUB_ZERO" not in j and "PUB_HIDDEN" not in j)
+ck("no legacy fallback",not DIR.search(j) and d["clear"]=="" and d["zero"]=="" and d["hidden"]=="")
+call("POST","/api/dungeons/check",{"dungeon":"tdz","ch":0,"challenge":"q1","answer":"7"})
+j=json.dumps(tdz());ck("ch0 verified: recap0 + intro1 appear, recap1 not","PUB_R0" in j and "PUB_I1" in j and "PUB_R1" not in j)
+call("POST","/api/dungeons/check",{"dungeon":"tdz","ch":1,"challenge":"q2","answer":"SENTINEL_ANS2"})
+j=json.dumps(tdz());ck("all done: clear appears; zero/hidden still absent without grants","PUB_CLEAR" in j and "PUB_R1" in j and "PUB_ZERO" not in j and "PUB_HIDDEN" not in j)
+ck("client cannot spoof grants",call("POST","/api/dungeons/grant",{"dungeon":"tdz","grant":"zeroUnlocked"})[0] in (401,403,404,405))
+j=json.dumps(tdz());ck("still no zero/hidden after spoof attempt","PUB_ZERO" not in j and "PUB_HIDDEN" not in j)
 print("fails",fails);sys.exit(1 if fails else 0)

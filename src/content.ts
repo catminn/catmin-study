@@ -30,6 +30,20 @@ const bad = (status: number, error: string, message: string): R => ({ status, bo
 
 // 副本（原版主神空间格式）：{subject,after?,dungeon:{id,name,tint,st,desc,pre,cast,recap,zero,clear,fork,mission,rule,pen,hidden,ch:[{t,k,s,sb,tn,skill?,practice?}]}}
 export const DUNGEON_SUBJECTS = ["math", "chem", "engri", "engl", "phys", "cs"];
+// 公开文案命名空间（dungeon-public-copy-v1）：只接受已列出的键；每条 1–1200 个字符；无控制字符、无导演占位符。
+function pubErr(p: any, keys: string[]): string | null {
+  if (p === undefined) return null;
+  if (!p || typeof p !== "object" || Array.isArray(p)) return "pub 需为对象";
+  for (const k of Object.keys(p)) {
+    if (!keys.includes(k)) return "未知键 " + k;
+    const v = p[k];
+    if (typeof v !== "string") return k + " 需为字符串";
+    const n = [...v].length;
+    if (n < 1 || n > 1200 || /[\u0000-\u001f\u007f]/.test(v) || v.includes("⟦DG:")) return k + " 不合规";
+  }
+  return null;
+}
+export type DungeonGrants = { dungeonId?: string; zeroUnlocked?: boolean; hiddenUnlocked?: boolean };
 export function validateDungeon(c: any): string | null {
   const d = c && c.dungeon;
   if (!c || !DUNGEON_SUBJECTS.includes(c.subject) || !d || typeof d !== "object") return "需要 subject（math/chem/engri/engl/phys/cs）和 dungeon 对象";
@@ -37,7 +51,9 @@ export function validateDungeon(c: any): string | null {
   const f = d.fork; if (!f || typeof f.t !== "string" || typeof f.q !== "string" || typeof f.b !== "string" || !Number.isInteger(f.ch) || typeof f.price !== "number") return "dungeon.fork 需为 {ch,t,q,b,price}";
   if (!Array.isArray(d.ch) || d.ch.length < 1 || d.ch.length > 12) return "dungeon.ch 需为 1–12 章";
   if (!castOk(d)) return "dungeon.cast 需为 [[名字,公开身份,导演秘密,揭示章索引(0基)],…]";
+  const pe = pubErr(d.pub, ["open", "clear", "zero", "hidden"]); if (pe) return "dungeon.pub：" + pe;
   for (const ch of d.ch) {
+    if (ch && ch.pub !== undefined) { const e = pubErr(ch.pub, ["intro", "recap"]); if (e) return "ch.pub：" + e; }
     if (!ch || typeof ch.t !== "string" || typeof ch.k !== "string" || typeof ch.s !== "string" || typeof ch.sb !== "string" || typeof ch.tn !== "string") return "每章需要 t,k,s,sb,tn（字符串）";
     if (ch.skill !== undefined && (typeof ch.skill?.name !== "string" || typeof ch.skill?.effect !== "string")) return "skill 需为 {name,effect}";
     if (ch.practice !== undefined && (!Array.isArray(ch.practice) || ch.practice.length > 8 || ch.practice.some((q: any) => typeof q?.q !== "string" || !(typeof q?.a === "string" || (Array.isArray(q?.a) && q.a.length && q.a.every((x: any) => typeof x === "string"))) || (q.id !== undefined && !/^[a-z0-9][a-z0-9_.-]{0,40}$/.test(q.id))))) return "practice 需为 [{id?,q,a(字符串或数组),hint?}]";
@@ -58,18 +74,23 @@ export function dungeonReach(d: any, verified: Set<string>): { reach: number; vi
 export function castOk(d: any): boolean {
   return d.cast === undefined || (Array.isArray(d.cast) && d.cast.every((x: any) => Array.isArray(x) && x.length === 4 && typeof x[0] === "string" && typeof x[1] === "string" && typeof x[2] === "string" && Number.isInteger(x[3]) && x[3] >= 0 && x[3] < d.ch.length));
 }
-export function projectDungeon(d: any, verified: Set<string>): any {
+export function projectDungeon(d: any, verified: Set<string>, grants: DungeonGrants = {}): any {
   if (!castOk(d)) throw new Error("invalid_cast");
-  const { visible, current } = dungeonReach(d, verified);
-  const ch = d.ch.map((x: any, i: number) => i >= visible ? { t: x.t, k: "", s: "", sb: "", tn: "" } : {
+  if (pubErr(d.pub, ["open", "clear", "zero", "hidden"]) || d.ch.some((x: any) => pubErr(x.pub, ["intro", "recap"]))) throw new Error("invalid_pub");
+  const { visible, current, allDone } = dungeonReach(d, verified);
+  const chDone = (x: any, ci: number) => ((x.practice ?? []) as any[]).every((q, i) => verified.has(ci + "|" + (q.id ?? "c" + (i + 1))));
+  const ch = d.ch.map((x: any, i: number) => i >= visible ? { t: x.t, k: "", s: "", sb: "", tn: "", pub: {} } : {
     t: x.t, k: x.k, s: "", sb: "", tn: "",
+    pub: { ...(x.pub?.intro !== undefined ? { intro: x.pub.intro } : {}), ...(x.pub?.recap !== undefined && chDone(x, i) ? { recap: x.pub.recap } : {}) },
     ...(x.practice ? { practice: x.practice.map((q: any, j: number) => ({ id: q.id ?? "c" + (j + 1), q: q.q })) } : {}),
     ...(x.skill ? { skill: { ...(x.skill.id !== undefined ? { id: x.skill.id } : {}), name: x.skill.name, effect: x.skill.effect } } : {}),
   });
   const cast = (d.cast ?? []).filter((x: any) => x[3] <= current).map((x: any) => [x[0], x[1], null, x[3]]);
   const f = d.fork;
   const fork = f ? { ch: f.ch, price: f.price, t: f.ch <= current ? f.t : "", q: f.ch <= current ? f.q : "", b: "" } : f;
-  return { id: d.id, name: d.name, tint: d.tint, st: d.st, desc: d.desc, mission: d.mission, rule: d.rule, pen: d.pen, pre: "", recap: "", zero: "", clear: "", hidden: "", cast, fork, ch };
+  const own = grants?.dungeonId === d.id; // 授权按副本作用域：别的副本的授权无效
+  const pub = Object.fromEntries(Object.entries(d.pub ?? {}).filter(([k]) => k === "open" || (k === "clear" && allDone) || (k === "zero" && allDone && own && grants.zeroUnlocked === true) || (k === "hidden" && own && grants.hiddenUnlocked === true)));
+  return { id: d.id, name: d.name, tint: d.tint, st: d.st, desc: d.desc, mission: d.mission, rule: d.rule, pen: d.pen, pre: "", recap: "", zero: "", clear: "", hidden: "", pub, cast, fork, ch };
 }
 // 服务端展开模型提示词里的导演占位符（只对 user 消息；只展开已授权章节；未授权一律展开为空）。
 const MARK_RE = /⟦DG:(pre|cast|ahead|recap|s|tn):([a-z0-9][a-z0-9_.-]{0,79})(?::(\d{1,2}))?(?::([ab]))?⟧/g;
@@ -114,12 +135,14 @@ export async function listDungeons(env: SiteEnv): Promise<R> {
   await ensure(env); await ensureProg(env);
   const rs = await env.DB.prepare("SELECT c.id AS id, c.body AS body FROM adventure_content c JOIN (SELECT id, MAX(rev) AS r FROM adventure_content WHERE kind='dungeon' GROUP BY id) m ON c.kind='dungeon' AND c.id=m.id AND c.rev=m.r ORDER BY c.id").all<{ id: string; body: string }>();
   const pv = (await env.DB.prepare("SELECT dungeon,ch,challenge FROM dungeon_progress WHERE verified_at IS NOT NULL").all<{ dungeon: string; ch: number; challenge: string }>()).results ?? [];
+  const gr = (await env.DB.prepare("SELECT dungeon,grant_name FROM dungeon_grants").all<{ dungeon: string; grant_name: string }>()).results ?? [];
   const out: any[] = [];
   for (const r of rs.results ?? []) {
     const c = JSON.parse(r.body);
     if (validateDungeon(c)) continue;
+    const grants: DungeonGrants = { dungeonId: c.dungeon.id, zeroUnlocked: gr.some((g) => g.dungeon === c.dungeon.id && g.grant_name === "zeroUnlocked"), hiddenUnlocked: gr.some((g) => g.dungeon === c.dungeon.id && g.grant_name === "hiddenUnlocked") };
     const v = new Set(pv.filter((x) => x.dungeon === c.dungeon.id).map((x) => x.ch + "|" + x.challenge));
-    try { out.push({ subject: c.subject, after: c.after ?? null, dungeon: projectDungeon(c.dungeon, v) }); } catch { /* 畸形 cast：fail closed */ }
+    try { out.push({ subject: c.subject, after: c.after ?? null, dungeon: projectDungeon(c.dungeon, v, grants) }); } catch { /* 畸形 cast：fail closed */ }
   }
   return { status: 200, body: { ok: true, dungeons: out } };
 }
@@ -189,7 +212,13 @@ async function ensureProg(env: SiteEnv) {
   if (pready) return;
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_progress (dungeon TEXT NOT NULL, ch INTEGER NOT NULL, challenge TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, verified_at TEXT, PRIMARY KEY (dungeon,ch,challenge))").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_skills (dungeon TEXT NOT NULL, ch INTEGER NOT NULL, skill TEXT NOT NULL, effect TEXT NOT NULL, unlocked_at TEXT NOT NULL, PRIMARY KEY (dungeon,ch))").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS dungeon_grants (dungeon TEXT NOT NULL, grant_name TEXT NOT NULL, granted_at TEXT NOT NULL, PRIMARY KEY (dungeon,grant_name))").run();
   pready = true;
+}
+// 服务端内部授权（无 HTTP 入口：客户端声明、模型发言、答题尝试都不是授权）。按副本作用域持久化。
+export async function grantDungeon(env: SiteEnv, dungeon: string, grant: "zeroUnlocked" | "hiddenUnlocked"): Promise<void> {
+  await ensureProg(env);
+  await env.DB.prepare("INSERT OR IGNORE INTO dungeon_grants (dungeon,grant_name,granted_at) VALUES (?,?,?)").bind(dungeon, grant, new Date().toISOString()).run();
 }
 async function findDungeon(env: SiteEnv, did: string) {
   const rs = await env.DB.prepare("SELECT c.body AS body FROM adventure_content c JOIN (SELECT id, MAX(rev) AS r FROM adventure_content WHERE kind='dungeon' GROUP BY id) m ON c.kind='dungeon' AND c.id=m.id AND c.rev=m.r").all<{ body: string }>();
