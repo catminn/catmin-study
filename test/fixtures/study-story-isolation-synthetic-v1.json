@@ -1,0 +1,14 @@
+{
+  "worldId": "demo.world",
+  "revision": "demo.rev1",
+  "dungeons": [
+    {"id": "demo.dungeon.math", "practiceId": "demo.practice.vector", "conceptId": "demo.concept.vector"},
+    {"id": "demo.dungeon.chem", "practiceId": "demo.practice.energy", "conceptId": "demo.concept.energy"},
+    {"id": "demo.dungeon.engineering", "practiceId": "demo.practice.force", "conceptId": "demo.concept.force"}
+  ],
+  "chapters": [
+    {"id": "demo.chapter.one", "predecessor": null, "dungeonId": "demo.dungeon.math", "storyEntry": "demo.scene.one", "publicCopySlot": "demo.copy.one"},
+    {"id": "demo.chapter.two", "predecessor": "demo.chapter.one", "dungeonId": "demo.dungeon.chem", "storyEntry": "demo.scene.two", "publicCopySlot": "demo.copy.two"},
+    {"id": "demo.chapter.three", "predecessor": "demo.chapter.two", "dungeonId": "demo.dungeon.engineering", "storyEntry": "demo.scene.three", "publicCopySlot": "demo.copy.three"}
+  ]
+}
