@@ -29,7 +29,7 @@ export function projectedFields(record) {
     for (const k of ['id', 'name', 'effect'])
       put(out, p + '.skill.' + k, ch.skill?.[k], 'chapter:' + i);
     (ch.practice ?? []).forEach((q, j) => {
-      put(out, p + '.practice[' + j + '].id', q.id, 'chapter:' + i);
+      put(out, p + '.practice[' + j + '].id', q.id ?? 'c' + (j + 1), 'chapter:' + i);
       put(out, p + '.practice[' + j + '].q', q.q, 'chapter:' + i);
     });
   });
@@ -158,6 +158,11 @@ test('hidden copy cannot unlock just from completion', () =>
   fails((r, a) => { a.fields.find(x => x.path === 'dungeon.pub.hidden').gate = 'all_done'; }, 'wrong_gate'));
 test('new public field needs new approval', () =>
   fails((r) => { r.content.dungeon.ch[1].pub = { intro: 'New' }; }, 'missing_approval'));
+test('server-generated fallback practice ids also require review', () => {
+  const r = sample(); delete r.content.dungeon.ch[0].practice[0].id;
+  const paths = projectedFields(r);
+  assert.ok(paths.some(x => x.path === 'dungeon.ch[0].practice[0].id' && x.digest === digest('c1')));
+});
 test('answer, hint, director script and private cast field are never approvable', () => {
   const paths = projectedFields(sample()).map(x => x.path);
   for (const secret of ['dungeon.pre', 'dungeon.hidden', 'dungeon.ch[0].s',
