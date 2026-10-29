@@ -76,6 +76,12 @@ export function applyCommitted(state, event, p = policy) {
     case 'player_told_npc': {
       if (!coLocated) return { ok: false, code: 'encounter_invalid', state };
       if (!own(p.facts, event.factId)) return { ok: false, code: 'fact_unknown', state };
+      // Player testimony requires an accessible fact already acquired by that player.
+      if (p.facts[event.factId].audience !== 'player') return { ok: false, code: 'audience_denied', state };
+      if (!Array.isArray(state.player.heardClaims) || !Array.isArray(state.player.confirmedFacts) ||
+          (!state.player.heardClaims.includes(event.factId) && !state.player.confirmedFacts.includes(event.factId))) {
+        return { ok: false, code: 'player_cannot_testify', state };
+      }
       if (!next.npc.heardClaims.includes(event.factId)) next.npc.heardClaims.push(event.factId);
       break;
     }

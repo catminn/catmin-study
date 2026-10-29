@@ -15,7 +15,7 @@ test('knowledge-dependent dialogue is silent before the NPC learns the claim',()
   for(const id of ['demo-heard','demo-confirmed','demo-private-gated'])assert.equal(text(s,id),null);
 });
 test('NPC hearing a claim unlocks only heard-tier wording, not confirmed wording',()=>{
-  const s=emit(fresh(),'player_told_npc',{factId:'demo-public-fact'});
+  const s=emit(emit(fresh(),'fact_verified',{factId:'demo-public-fact',subject:'player'}),'player_told_npc',{factId:'demo-public-fact'});
   assert.equal(text(s,'demo-heard'),'I have heard that account.');
   assert.equal(text(s,'demo-confirmed'),null);
   assert.deepEqual(s.npc.confirmedFacts,[]);
@@ -52,7 +52,8 @@ test('unapproved, wrong-relation, unavailable and remote copies remain inaccessi
   assert.equal(text(s,'demo-guarded'),null);
   const p=structuredClone(policy);
   p.publicCopies['demo-heard'].approved=false;
-  const heard=emit(s,'player_told_npc',{factId:'demo-public-fact'});
+  const learned=emit(s,'fact_verified',{factId:'demo-public-fact',subject:'player'});
+  const heard=emit(learned,'player_told_npc',{factId:'demo-public-fact'});
   assert.equal(text(heard,'demo-heard',p),null);
   const away=emit(heard,'availability_changed',{next:'unavailable'});
   assert.deepEqual(projectDialogue(away,'demo-heard'),{available:false,text:null});

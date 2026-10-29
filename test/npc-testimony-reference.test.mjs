@@ -79,13 +79,14 @@ test('unlisted destination and arbitrary event types are rejected', () => {
   assert.equal(apply(s, 'grant_secret', {}).code, 'event_unsupported');
 });
 test('a player claim heard by NPC does not become confirmed NPC knowledge', () => {
-  const s = apply(fresh(), 'player_told_npc', { factId: 'demo-public-fact' }).state;
+  const learned = apply(fresh(), 'fact_verified', { factId: 'demo-public-fact', subject: 'player' }).state;
+  const s = apply(learned, 'player_told_npc', { factId: 'demo-public-fact' }).state;
   assert.deepEqual(s.npc.heardClaims, ['demo-public-fact']);
   assert.deepEqual(s.npc.confirmedFacts, []);
-  assert.deepEqual(s.player.confirmedFacts, []);
+  assert.deepEqual(s.player.confirmedFacts, ['demo-public-fact']);
 });
 test('an NPC repeats a claim without turning it into verified player fact', () => {
-  const s = apply(fresh(), 'player_told_npc', { factId: 'demo-public-fact' }).state;
+  const s = apply(fresh(), 'fact_verified', { factId: 'demo-public-fact', subject: 'npc' }).state;
   const after = apply(s, 'npc_told_player', { factId: 'demo-public-fact' }).state;
   assert.deepEqual(after.player.heardClaims, ['demo-public-fact']);
   assert.deepEqual(after.player.confirmedFacts, []);
