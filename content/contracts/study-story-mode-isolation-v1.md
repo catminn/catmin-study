@@ -18,6 +18,10 @@ The manifest uses an ordered chapter chain with opaque `predecessor`, `storyEntr
 
 **Important limitations:** `source:'trusted-demo'` is an explicit synthetic assumption, **not** real server authentication. This code does not implement session pinning, event signing, real evidence verification, content approval, UI routing, D1 transactions, or concurrency. Claude owns those engineering decisions and real Worker/D1 integration. The narrative author must separately inspect whether practice questions teach real concepts, world decisions remain meaningful when tutoring is declined, and a later story chapter remembers only actually committed events.
 
+### Per-action payload isolation (synthetic reference)
+
+The reference rejects fields belonging to a different action, even when those fields are valid elsewhere in the union of accepted action keys. For example, a free-study selection cannot carry a story chapter or event reference, and ASK/preview cannot carry practice evidence or commit provenance. Such requests return only `ACTION_SHAPE` without applying state changes. This is an authoring boundary against accidental cross-mode payload acceptance, not a substitute for server-side request schemas, authorization, or content filtering.
+
 ### Read-only chapter visibility and learning provenance (synthetic reference)
 
 ASK without a chapter target remains read-only. A chapter-targeted ASK or preview is valid only for the current saga frontier; preview must name that chapter. Requests for future, past, or terminal chapters fail with the fixed `STORY_LOCKED` code, even though they would not mutate state. This guards authoring-time chapter visibility and must not be mistaken for a production content projection or authorization check. A recorded verified practice also requires a visit to its owning study dungeon; an unrelated visit cannot justify it. This is a consistency check, not proof of academic completion or trusted evidence.
