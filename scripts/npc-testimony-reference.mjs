@@ -29,6 +29,19 @@ export const policy = Object.freeze({
   }
 });
 
+// The synthetic route ledger must agree with the persisted scene, relationship,
+// and NPC position. Otherwise a corrupt save could erase a chosen route while
+// still qualifying for a different approved line after convergence.
+const causalStageValid = (s, p) => Object.values(p.routes).some(r =>
+  (s.scene === r.from && s.routeTrace === null &&
+    s.npc.relation === 'neutral' && s.npc.location === r.from) ||
+  (s.scene === r.to && s.routeTrace === r.trace &&
+    s.npc.relation === r.relation && s.npc.location === r.from) ||
+  (s.scene === p.convergence.to && p.convergence.from.includes(r.to) &&
+    s.routeTrace === r.trace && s.npc.relation === r.relation &&
+    s.npc.location === p.convergence.to)
+);
+
 // Corrupt persisted state cannot grant approved dialogue or partially commit.
 const record = x => x !== null && typeof x === 'object' && !Array.isArray(x);
 const validState = (s, p) => {
@@ -46,8 +59,10 @@ const validState = (s, p) => {
   if (!claims(s.npc.heardClaims, false) || !claims(s.npc.confirmedFacts, false) ||
       !claims(s.player.heardClaims, true) || !claims(s.player.confirmedFacts, true)) return false;
   const proto = Object.getPrototypeOf(s.commits);
-  return (proto === Object.prototype || proto === null) &&
-    Object.keys(s.commits).every(id => validEventId(id) && typeof s.commits[id] === 'string');
+  const ids = Object.keys(s.commits);
+  return causalStageValid(s, p) && ids.length === s.version &&
+    (proto === Object.prototype || proto === null) &&
+    ids.every(id => validEventId(id) && typeof s.commits[id] === 'string');
 };
 
 export function initialState(p = policy) {
