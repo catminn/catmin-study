@@ -25,7 +25,9 @@ test('both branches may offer the same optional practice without requiring compl
   assert.deepEqual(check(m),{ok:true,nodeCount:5,practiceCount:1});
 });
 test('a shared opportunity before a fork covers both routes',()=>{
-  const m=fixture();m.nodes[0].offers=['demo-practice'];m.nodes[1].offers=[];
+  const m=fixture();m.start='demo-prelude';
+  m.nodes.unshift(beat('demo-prelude',{teaches:['demo-skill'],exits:['demo-entry']}));
+  m.nodes[1].teaches=[];m.nodes[1].offers=['demo-practice'];m.nodes[2].offers=[];
   assert.equal(check(m).ok,true);
 });
 test('a shared opportunity after a fork but before ending covers both routes',()=>{

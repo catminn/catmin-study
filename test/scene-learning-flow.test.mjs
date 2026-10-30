@@ -21,9 +21,9 @@ test('two routes teach before shared optional practice; story exit stays open',(
 });
 test('one branch missing teaching cannot unlock practice at join',()=>code(mutate(m=>m.nodes[2].teaches=[]),'practice_before_teaching'));
 test('practice on entry before teaching is rejected',()=>code(mutate(m=>m.nodes[0].offers=['demo-practice']),'practice_before_teaching'));
-test('teaching in same beat precedes its optional practice',()=>{
+test('teaching in same beat without prior lesson is not enough to unlock optional practice',()=>{
   const m=mutate(m=>{m.nodes[1].offers=['demo-practice'];m.nodes[2].offers=['demo-practice'];m.nodes[3].offers=[];});
-  assert.equal(check(m).ok,true);
+  code(m,'practice_before_teaching');
 });
 test('a shared skill taught before fork is safe at join',()=>{
   const m=mutate(m=>{m.nodes[0].teaches=['demo-skill'];m.nodes[1].teaches=[];m.nodes[2].teaches=[];});

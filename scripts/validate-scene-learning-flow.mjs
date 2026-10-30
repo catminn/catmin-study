@@ -70,10 +70,12 @@ export function validateSceneLearningFlow(m) {
     const prior = parents.length === 0 ? new Set() :
       new Set([...guaranteed.get(parents[0])].filter(skill =>
         parents.every(parent => guaranteed.get(parent).has(skill))));
-    for (const skill of n.teaches) prior.add(skill);
+    // A beat is atomic in this projection: it cannot prove whether its own
+    // teaching appears before its offer. Require teaching in a preceding beat.
     for (const practiceId of n.offers) {
       if (!prior.has(practiceMap.get(practiceId))) return fail('practice_before_teaching');
     }
+    for (const skill of n.teaches) prior.add(skill);
     guaranteed.set(id, prior);
     const hadOpportunity = parents.length > 0 && parents.every(parent => practiceSeenOnAllPaths.get(parent));
     // A practice offered only at the terminal beat is an epilogue, not an
