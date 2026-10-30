@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createDeferredCallbackTraceReference as make} from '../scripts/deferred-callback-trace-reference.mjs';
+import {createDeferredCallbackTraceReference as rawMake} from '../scripts/deferred-callback-trace-reference.mjs';
+import {legacyCallbackAdapter} from './lib/legacy-callback-adapter.mjs';
+const make=legacyCallbackAdapter(rawMake);
 
 // All data is synthetic. Two independently selected branches create two due callbacks.
 const n=(id,end=false,exits=[],acknowledges=[])=>({id,end,exits,acknowledges});

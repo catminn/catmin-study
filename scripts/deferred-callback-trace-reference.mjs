@@ -23,7 +23,10 @@ export function createDeferredCallbackTraceReference(outline) {
   const chapterIndex = new Map(chapters.map((ch,i)=>[ch.id,i]));
   const dueByImpact = new Map(outline.deferrals.map(d=>[d.impactKey,chapterIndex.get(d.dueChapterId)]));
 
+  let sessionCounter=0;
   function openSession() {
+    const sessionSerial=++sessionCounter;
+    let nextOfferOrdinal=0;
     let ci=0, cursor=chapters[0].start, finished=false, pending=null;
     const chosen = new Set(), confirmed = new Set(), commits = new Map();
 
@@ -62,20 +65,23 @@ export function createDeferredCallbackTraceReference(outline) {
     function render() {
       if(finished) return fail('session_finished');
       const n=chapters[ci].nodes.get(cursor);
-      const visible=n.acknowledges.filter(k=>chosen.has(k) && ci<=dueByImpact.get(k) && !confirmed.has(k));
-      pending={chapterId:chapters[ci].id,nodeId:cursor,keys:visible.slice(0,1)};
-      return {ok:true,visibleCount:Math.min(1,visible.length)};
+      const eligible=n.acknowledges.filter(k=>chosen.has(k) && ci<=dueByImpact.get(k) && !confirmed.has(k));
+      const key=eligible[0] ?? null;
+      if(key===null) {pending=null;return {ok:true,visibleCount:0,offerId:null};}
+      if(!pending || pending.chapterId!==chapters[ci].id || pending.nodeId!==cursor || pending.key!==key)
+        pending={chapterId:chapters[ci].id,nodeId:cursor,key,offerId:'offer-'+sessionSerial+'-'+(++nextOfferOrdinal)};
+      return {ok:true,visibleCount:1,offerId:pending.offerId};
     }
     function acknowledge(request) {
-      if(!exact(request,['chapterId','nodeId','commitId','source']) || !idOK(request.chapterId) || !idOK(request.nodeId) || !idOK(request.commitId)) return fail('request_invalid');
+      if(!exact(request,['chapterId','nodeId','commitId','source','offerId']) || !idOK(request.chapterId) || !idOK(request.nodeId) || !idOK(request.commitId) || !idOK(request.offerId)) return fail('request_invalid');
       if(request.source!=='server') return fail('untrusted_event');
-      const signature=JSON.stringify(['acknowledge',request.chapterId,request.nodeId]);
+      const signature=JSON.stringify(['acknowledge',request.chapterId,request.nodeId,request.offerId]);
       const replay=commitReplay(request.commitId,signature);
       if(replay) return replay;
       if(finished) return fail('session_finished');
       if(request.chapterId!==chapters[ci].id || request.nodeId!==cursor) return fail('stale_cursor');
-      if(!pending || pending.chapterId!==request.chapterId || pending.nodeId!==request.nodeId || pending.keys.length===0) return fail('callback_not_offered');
-      for(const key of pending.keys) confirmed.add(key);
+      if(!pending || pending.chapterId!==request.chapterId || pending.nodeId!==request.nodeId || pending.offerId!==request.offerId) return fail('callback_not_offered');
+      confirmed.add(pending.key);
       pending=null;
       commits.set(request.commitId,signature);
       return {ok:true,replayed:false};
