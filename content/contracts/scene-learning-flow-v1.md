@@ -16,3 +16,11 @@ This is a **synthetic author-side chapter-beat validator**, not a production eng
 `node --test test/scene-learning-flow.test.mjs` (Node 22) runs 19 synthetic tests for valid branching, route-specific teaching, practice at a join, unknown IDs, duplicate IDs, malformed data, unreachable beats, cycles, optional exits and fixed-code failure output. The validator is `scripts/validate-scene-learning-flow.mjs` and returns `{ok:true,nodeCount,practiceCount}` only on success.
 
 This does **not** prove actual chapter prose, approved knowledge content, real learning assessment, private first-world behavior, production APIs or Worker/D1. A future private author review must check objective clarity, pacing, pedagogical accuracy and DM dialogue before any authorized import. First formal world remains **DO-NOT-IMPORT** until Catherine is present and approves it.
+
+## Strict author-only schema (addendum)
+
+This validator accepts **exactly** the declared keys. Root: `start`, `skills`, `practices`, `nodes`; each practice: `id`, `skillId`; each beat: `id`, `objectiveKey`, `end`, `teaches`, `offers`, `exits`. Required keys cannot be omitted. Extra keys are rejected with `shape_invalid`, `catalog_invalid`, or `node_invalid`, respectively, without returning the offending value.
+
+All `exits` in this **author-only outline** mean unconditional story-only transitions. Fields such as `exitGates`, `requiresPractice`, `requiresVerifiedPractice`, `practiceMandatory`, or an unknown custom field are not silently ignored: they invalidate the outline. A richer authored format must be explicitly mapped to this narrow projection and separately checked for whether every projected story exit truly stays ungated. The current validator cannot inspect external runtime gates, prose presentation order, or other systems' interpretations of these IDs; a passing outline is **not** proof that the production story can progress without practice.
+
+Additional executable acceptance: `node --test test/scene-learning-flow.test.mjs test/scene-learning-schema.test.mjs` runs the original 19 synthetic tests and 15 strict-schema tests (34 total), including hidden gate metadata and fixed-code no-echo behavior. This is a reference-only contract; it does not authorize production changes or private content import.

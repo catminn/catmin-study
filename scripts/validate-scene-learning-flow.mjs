@@ -2,24 +2,27 @@
 // Validate an acyclic chapter-beat graph, not a free-roaming world map.
 const idOK = x => typeof x === 'string' && /^[a-z][a-z0-9._-]{0,79}$/.test(x);
 const record = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+// This narrow author contract must never silently ignore hidden gating fields.
+const exactKeys = (x, keys) => record(x) && Object.keys(x).length === keys.length &&
+  keys.every(key => Object.hasOwn(x, key));
 const unique = xs => new Set(xs).size === xs.length;
 const listOfIds = (xs, limit = 200) => Array.isArray(xs) && xs.length <= limit && xs.every(idOK) && unique(xs);
 const fail = code => ({ ok: false, code }); // No user-supplied names or text in errors.
 
 export function validateSceneLearningFlow(m) {
-  if (!record(m) || !idOK(m.start) || !listOfIds(m.skills) || !Array.isArray(m.practices) ||
+  if (!exactKeys(m, ['start', 'skills', 'practices', 'nodes']) || !idOK(m.start) || !listOfIds(m.skills) || !Array.isArray(m.practices) ||
       !Array.isArray(m.nodes) || m.nodes.length < 2 || m.nodes.length > 200 ||
       m.practices.length > 200 || m.skills.length === 0) return fail('shape_invalid');
   const skills = new Set(m.skills);
   const practiceMap = new Map();
   for (const p of m.practices) {
-    if (!record(p) || !idOK(p.id) || !idOK(p.skillId) ||
+    if (!exactKeys(p, ['id', 'skillId']) || !idOK(p.id) || !idOK(p.skillId) ||
         !skills.has(p.skillId) || practiceMap.has(p.id)) return fail('catalog_invalid');
     practiceMap.set(p.id, p.skillId);
   }
   const nodes = new Map();
   for (const n of m.nodes) {
-    if (!record(n) || !idOK(n.id) || !idOK(n.objectiveKey) ||
+    if (!exactKeys(n, ['id', 'objectiveKey', 'end', 'teaches', 'offers', 'exits']) || !idOK(n.id) || !idOK(n.objectiveKey) ||
         typeof n.end !== 'boolean' || !listOfIds(n.teaches) ||
         !listOfIds(n.offers) || !listOfIds(n.exits) || nodes.has(n.id)) return fail('node_invalid');
     if (n.teaches.some(x => !skills.has(x)) || n.offers.some(x => !practiceMap.has(x))) return fail('reference_invalid');
