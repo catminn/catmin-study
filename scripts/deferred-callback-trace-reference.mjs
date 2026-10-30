@@ -63,8 +63,8 @@ export function createDeferredCallbackTraceReference(outline) {
       if(finished) return fail('session_finished');
       const n=chapters[ci].nodes.get(cursor);
       const visible=n.acknowledges.filter(k=>chosen.has(k) && ci<=dueByImpact.get(k) && !confirmed.has(k));
-      pending={chapterId:chapters[ci].id,nodeId:cursor,keys:[...visible]};
-      return {ok:true,visibleCount:visible.length};
+      pending={chapterId:chapters[ci].id,nodeId:cursor,keys:visible.slice(0,1)};
+      return {ok:true,visibleCount:Math.min(1,visible.length)};
     }
     function acknowledge(request) {
       if(!exact(request,['chapterId','nodeId','commitId','source']) || !idOK(request.chapterId) || !idOK(request.nodeId) || !idOK(request.commitId)) return fail('request_invalid');
