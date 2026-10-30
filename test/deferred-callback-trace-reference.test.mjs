@@ -16,6 +16,7 @@ const outline=()=>({chapters:[
   {impactKey:'demo-right-impact',dueChapterId:'demo-two'}]});
 const s=(to,commitId,source='server',chapterId='demo-one',fromNodeId='demo-fork')=>({chapterId,fromNodeId,to,commitId,source});
 const a=(toChapterId,commitId,source='server',fromChapterId=toChapterId===null?'demo-two':'demo-one')=>({fromChapterId,toChapterId,commitId,source});
+const ack=(commitId='demo-delivery',nodeId='demo-callback')=>({chapterId:'demo-two',nodeId,commitId,source:'server'});
 const left=()=>{const x=make(outline()).openSession();assert.equal(x.step(s('demo-left','demo-event-one')).ok,true);return x};
 const reachTwo=(x,from='demo-left')=>{assert.equal(x.step(s('demo-end','demo-event-two','server','demo-one',from)).ok,true);assert.equal(x.advance(a('demo-two','demo-event-three')).ok,true);return x};
 const done=(x)=>{assert.equal(x.step(s('demo-two-end','demo-event-four','server','demo-two','demo-callback')).ok,true);return x};
@@ -25,24 +26,24 @@ test('valid outline accepted, invalid outline fails closed',()=>{
   assert.equal(make(outline()).ok,true);const m=outline();m.chapters[1].nodes[0].acknowledges=[];reject(make(m),'outline_invalid');
 });
 test('only selected left callback is visible, competing right hidden',()=>{
-  const x=reachTwo(left());assert.deepEqual(x.render(),{ok:true,visibleCount:1});
+  const x=reachTwo(left());assert.deepEqual(x.render(),{ok:true,visibleCount:1});x.acknowledge(ack());
   assert.equal(x.snapshot().renderedCount,1);assert.equal(done(x).advance(a(null,'demo-event-five')).finished,true);
 });
 test('selected right callback visible, left hidden',()=>{
   const x=make(outline()).openSession();x.step(s('demo-right','demo-event-one'));
-  reachTwo(x,'demo-right');assert.deepEqual(x.render(),{ok:true,visibleCount:1});
+  reachTwo(x,'demo-right');assert.deepEqual(x.render(),{ok:true,visibleCount:1});x.acknowledge(ack());
   assert.equal(done(x).advance(a(null,'demo-event-five')).ok,true);
 });
 test('no callback may render before the choice',()=>{
   const x=make(outline()).openSession();assert.deepEqual(x.render(),{ok:true,visibleCount:0});
 });
 test('missing render at due chapter blocks completion',()=>{
-  const x=done(reachTwo(left()));reject(x.advance(a(null,'demo-event-five')),'callback_not_rendered');
+  const x=done(reachTwo(left()));reject(x.advance(a(null,'demo-event-five')),'callback_not_confirmed');
   assert.equal(x.snapshot().finished,false); // failed transition is atomic
   assert.equal(x.render().visibleCount,0); // at terminal: cannot fabricate a callback
 });
 test('render at callback beat permits later completion',()=>{
-  const x=reachTwo(left());x.render();done(x);assert.equal(x.advance(a(null,'demo-event-five')).ok,true);
+  const x=reachTwo(left());x.render();x.acknowledge(ack());done(x);assert.equal(x.advance(a(null,'demo-event-five')).ok,true);
 });
 test('ASK and preview never mutate cursor or evidence',()=>{
   const x=make(outline()).openSession(),before=x.snapshot();
@@ -83,9 +84,9 @@ test('replayed chapter advance does not advance twice',()=>{
 test('separate sessions never share selected impacts or callback renders',()=>{
   const ref=make(outline()),x=ref.openSession(),y=ref.openSession();
   x.step(s('demo-left','demo-event-one'));y.step(s('demo-right','demo-event-one'));
-  reachTwo(x);reachTwo(y,'demo-right');x.render();
+  reachTwo(x);reachTwo(y,'demo-right');x.render();x.acknowledge(ack());
   assert.equal(x.snapshot().renderedCount,1);assert.equal(y.snapshot().renderedCount,0);
-  reject(done(y).advance(a(null,'demo-event-five')),'callback_not_rendered');
+  reject(done(y).advance(a(null,'demo-event-five')),'callback_not_confirmed');
 });
 test('extra action fields and invalid event IDs fail closed',()=>{
   const x=make(outline()).openSession();reject(x.step({...s('demo-left','demo-event-one'),secretGate:true}),'request_invalid');
@@ -98,7 +99,7 @@ test('caller mutation after construction cannot rewrite callback eligibility',()
   assert.equal(x.render().visibleCount,1);
 });
 test('completion is terminal and cannot be advanced again with new commit',()=>{
-  const x=reachTwo(left());x.render();done(x);x.advance(a(null,'demo-event-five'));
+  const x=reachTwo(left());x.render();x.acknowledge(ack());done(x);x.advance(a(null,'demo-event-five'));
   reject(x.advance(a(null,'demo-event-six')),'session_finished');
   reject(x.step(s('demo-left','demo-event-seven')),'session_finished');
 });

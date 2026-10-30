@@ -24,8 +24,8 @@ export function createDeferredCallbackTraceReference(outline) {
   const dueByImpact = new Map(outline.deferrals.map(d=>[d.impactKey,chapterIndex.get(d.dueChapterId)]));
 
   function openSession() {
-    let ci=0, cursor=chapters[0].start, finished=false;
-    const chosen = new Set(), rendered = new Set(), commits = new Map();
+    let ci=0, cursor=chapters[0].start, finished=false, pending=null;
+    const chosen = new Set(), confirmed = new Set(), commits = new Map();
 
     function commitReplay(id, signature) {
       if (!commits.has(id)) return null;
@@ -33,7 +33,7 @@ export function createDeferredCallbackTraceReference(outline) {
     }
     function snapshot() {
       return {ok:true,chapterOrdinal:ci+1,atTerminal:finished || chapters[ci].nodes.get(cursor).end,
-        chosenCount:chosen.size,renderedCount:rendered.size,finished};
+        chosenCount:chosen.size,renderedCount:confirmed.size,finished};
     }
     function preview(request) {
       if(finished) return fail('session_finished');
@@ -55,16 +55,30 @@ export function createDeferredCallbackTraceReference(outline) {
       if(!edge) return fail('target_invalid');
       if(n.exits.length>1) chosen.add(edge.impactKey);
       cursor=edge.to;
+      pending=null;
       commits.set(request.commitId,signature);
       return {ok:true,replayed:false};
     }
     function render() {
       if(finished) return fail('session_finished');
       const n=chapters[ci].nodes.get(cursor);
-      // Project each selected consequence once per session, even across eligible beats.
-      const visible=n.acknowledges.filter(k=>chosen.has(k) && ci<=dueByImpact.get(k) && !rendered.has(k));
-      for(const k of visible) rendered.add(k);
+      const visible=n.acknowledges.filter(k=>chosen.has(k) && ci<=dueByImpact.get(k) && !confirmed.has(k));
+      pending={chapterId:chapters[ci].id,nodeId:cursor,keys:[...visible]};
       return {ok:true,visibleCount:visible.length};
+    }
+    function acknowledge(request) {
+      if(!exact(request,['chapterId','nodeId','commitId','source']) || !idOK(request.chapterId) || !idOK(request.nodeId) || !idOK(request.commitId)) return fail('request_invalid');
+      if(request.source!=='server') return fail('untrusted_event');
+      const signature=JSON.stringify(['acknowledge',request.chapterId,request.nodeId]);
+      const replay=commitReplay(request.commitId,signature);
+      if(replay) return replay;
+      if(finished) return fail('session_finished');
+      if(request.chapterId!==chapters[ci].id || request.nodeId!==cursor) return fail('stale_cursor');
+      if(!pending || pending.chapterId!==request.chapterId || pending.nodeId!==request.nodeId || pending.keys.length===0) return fail('callback_not_offered');
+      for(const key of pending.keys) confirmed.add(key);
+      pending=null;
+      commits.set(request.commitId,signature);
+      return {ok:true,replayed:false};
     }
     function advance(request) {
       if(!exact(request,['fromChapterId','toChapterId','commitId','source']) || !idOK(request.fromChapterId) ||
@@ -78,14 +92,15 @@ export function createDeferredCallbackTraceReference(outline) {
       if(!chapters[ci].nodes.get(cursor).end) return fail('chapter_not_finished');
       const expected=chapters[ci+1]?.id ?? null;
       if(request.toChapterId!==expected) return fail('chapter_order_invalid');
-      for(const key of chosen) if(dueByImpact.has(key) && dueByImpact.get(key)<=ci && !rendered.has(key))
-        return fail('callback_not_rendered');
+      for(const key of chosen) if(dueByImpact.has(key) && dueByImpact.get(key)<=ci && !confirmed.has(key))
+        return fail('callback_not_confirmed');
+      pending=null;
       if(expected===null) finished=true;
       else {ci++;cursor=chapters[ci].start;}
       commits.set(request.commitId,signature);
       return {ok:true,replayed:false,finished};
     }
-    return Object.freeze({snapshot,preview,ask,step,render,advance});
+    return Object.freeze({snapshot,preview,ask,step,render,acknowledge,advance});
   }
   return Object.freeze({ok:true,openSession});
 }
