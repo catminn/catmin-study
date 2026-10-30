@@ -49,7 +49,11 @@ const record = x => x !== null && typeof x === 'object' && !Array.isArray(x);
 // A count-matched ledger alone cannot justify a saved route or reunion.
 // Inspect only synthetic commit shapes/order; real provenance remains server-owned.
 function routeLedgerConsistent(s, p) {
-  let routeKey = null, joined = false;
+  let routeKey = null, joined = false, availability = 'available';
+  const npcHeard = new Set(), npcConfirmed = new Set();
+  const playerHeard = new Set(), playerConfirmed = new Set();
+  const publicFact = key => own(p.facts, key) && p.facts[key]?.audience === 'player';
+  const canConverse = () => (routeKey === null || joined) && availability === 'available';
   for (const raw of Object.values(s.commits)) {
     let entry;
     try { entry = JSON.parse(raw); } catch { return false; }
@@ -66,17 +70,30 @@ function routeLedgerConsistent(s, p) {
         break;
       case 'availability_changed':
         if (!['available', 'unavailable'].includes(entry.next)) return false;
+        availability = entry.next;
         break;
       case 'player_told_npc':
+        if (!publicFact(entry.factId) || !canConverse() ||
+            !(playerHeard.has(entry.factId) || playerConfirmed.has(entry.factId))) return false;
+        npcHeard.add(entry.factId);
+        break;
       case 'npc_told_player':
-        if (!own(p.facts, entry.factId)) return false;
+        if (!publicFact(entry.factId) || !canConverse() ||
+            !(npcHeard.has(entry.factId) || npcConfirmed.has(entry.factId))) return false;
+        playerHeard.add(entry.factId);
         break;
       case 'fact_verified':
-        if (!own(p.facts, entry.factId) || !['npc', 'player'].includes(entry.subject)) return false;
+        if (!own(p.facts, entry.factId) || !['npc', 'player'].includes(entry.subject) ||
+            (entry.subject === 'player' && !publicFact(entry.factId))) return false;
+        (entry.subject === 'npc' ? npcConfirmed : playerConfirmed).add(entry.factId);
         break;
       default: return false;
     }
   }
+  const sameFacts = (actual, derived) => actual.length === derived.size && actual.every(x => derived.has(x));
+  if (s.npc.availability !== availability ||
+      !sameFacts(s.npc.heardClaims, npcHeard) || !sameFacts(s.npc.confirmedFacts, npcConfirmed) ||
+      !sameFacts(s.player.heardClaims, playerHeard) || !sameFacts(s.player.confirmedFacts, playerConfirmed)) return false;
   if (routeKey === null) {
     const starts = Object.values(p.routes).map(r => r.from);
     return !joined && starts.length === 2 && starts[0] === starts[1] &&
