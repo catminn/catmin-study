@@ -89,5 +89,9 @@ export function validateSceneLearningFlow(m) {
     if (n.end && !opportunity) return fail('learning_path_missing');
   }
   if ([...practiceMap.keys()].some(id => !offeredBeforeEnd.has(id))) return fail('practice_unoffered');
+  // Every chapter-local skill needs an actual exercise. Otherwise a catalog can
+  // advertise a knowledge point that the player can never practise or unlock.
+  const practicedSkills = new Set(practiceMap.values());
+  if ([...skills].some(skill => !practicedSkills.has(skill))) return fail('skill_without_practice');
   return { ok: true, nodeCount: nodes.size, practiceCount: practiceMap.size };
 }
