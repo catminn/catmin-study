@@ -33,8 +33,11 @@ export function validateDmNpcRouteBridge(flow, npcPolicy, bridge) {
   const beats = new Map(flow.beats.map(b => [b.id,b]));
   const choice = beats.get(bridge.choiceBeatId);
   const merge = beats.get(bridge.convergenceBeatId);
+  let initialScene;
+  try { initialScene = initialState(npcPolicy).scene; }
+  catch { fail('invalid_npc_policy'); fail('route_mismatch'); return finish(errors); }
   if (choice?.type !== 'choice' || merge?.type !== 'convergence' ||
-      choice.id !== initialState(npcPolicy).scene || npcPolicy.convergence.to !== merge?.id) fail('scene_mismatch');
+      choice.id !== initialScene || npcPolicy.convergence.to !== merge?.id) fail('scene_mismatch');
   if (errors.size) return finish(errors);
 
   const routeIds = new Set(), npcKeys = new Set(), traces = new Set(), callbacks = new Set(), copies = new Set();

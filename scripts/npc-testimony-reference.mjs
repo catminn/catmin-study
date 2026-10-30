@@ -51,7 +51,7 @@ const validState = (s, p) => {
       !(s.routeTrace === null || typeof s.routeTrace === 'string') ||
       typeof s.npc.location !== 'string' || !s.npc.location ||
       !['available', 'unavailable'].includes(s.npc.availability) ||
-      !['neutral', 'guarded', 'open'].includes(s.npc.relation)) return false;
+      !['neutral', ...Object.values(p.routes).map(r => r.relation)].includes(s.npc.relation)) return false;
   const claims = (list, player) => Array.isArray(list) &&
     list.every(id => typeof id === 'string' && own(p.facts, id) &&
       (!player || p.facts[id].audience === 'player')) &&
@@ -66,9 +66,16 @@ const validState = (s, p) => {
 };
 
 export function initialState(p = policy) {
+  // Reference routes share one starting scene; never hard-code the demo fixture.
+  // An inconsistent policy cannot silently invent an NPC starting location.
+  if (!record(p?.routes)) throw new TypeError('invalid_route_policy');
+  const starts = Object.values(p.routes).map(r => r?.from);
+  if (starts.length !== 2 || new Set(starts).size !== 1 ||
+      typeof starts[0] !== 'string' || !starts[0]) throw new TypeError('invalid_route_policy');
+  const start = starts[0];
   return {
-    scope: clone(p.scope), version: 0, scene: 'demo-fork', routeTrace: null,
-    npc: { location: 'demo-fork', availability: 'available', relation: 'neutral', heardClaims: [], confirmedFacts: [] },
+    scope: clone(p.scope), version: 0, scene: start, routeTrace: null,
+    npc: { location: start, availability: 'available', relation: 'neutral', heardClaims: [], confirmedFacts: [] },
     player: { heardClaims: [], confirmedFacts: [] },
     commits: {}
   };

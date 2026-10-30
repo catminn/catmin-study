@@ -16,3 +16,9 @@
 Run `node --test test/dm-npc-route-bridge.test.mjs` from the repository root. The bridge imports the existing `scripts/validate-dm-beat-flow.mjs` and `scripts/npc-testimony-reference.mjs`; it never writes a save, accesses a network endpoint, or calls an admin API. Its two routes must each reach the convergence with different relations and distinct approved dialogue. Negative tests cover wrong scopes, route/callback aliases, missing approval, invalid graph, premature dialogue, and erased route consequences.
 
 **Unverified:** Real private NPC identities and world scenes, actual dialogue quality, trusted review provenance, production authorization, D1/Worker state transitions, concurrent submissions, model narration, and real-world gameplay. Keep the formal v2 world **DO-NOT-IMPORT** until private review and Catherine's authorization.
+
+## Reference-policy portability (synthetic only)
+
+The NPC reference no longer assumes the invented `demo-fork` scene or the invented `guarded/open` relationship labels. Its initial scene is derived from the two authored route origins, which must agree; malformed or inconsistent origins fail closed. Persisted relation validation accepts the authored route labels, while causal stage validation still binds each label to the matching committed route trace. The bridge converts an invalid initial-route policy to a fixed `invalid_npc_policy` code without echoing scene names or dialogue.
+
+Run `node --test test/npc-policy-portability.test.mjs` alongside the existing NPC/bridge suites. The test uses renamed invented scenes and relationship bands only. This author-side flexibility is not production persistence, author approval, or permission to import the first formal world.
