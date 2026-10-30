@@ -61,6 +61,9 @@ export function validateSceneLearningFlow(m) {
   // Every offered exercise must be supported by teaching on EVERY story-only path.
   // At joins, intersect guaranteed skills from incoming branches (not union).
   const guaranteed = new Map();
+  // A learning-first chapter must *offer* practice before its ending on every
+  // story-only route. This never requires the player to complete that practice.
+  const practiceSeenOnAllPaths = new Map();
   for (const id of order) {
     const n = nodes.get(id);
     const parents = predecessors.get(id);
@@ -72,6 +75,12 @@ export function validateSceneLearningFlow(m) {
       if (!prior.has(practiceMap.get(practiceId))) return fail('practice_before_teaching');
     }
     guaranteed.set(id, prior);
+    const hadOpportunity = parents.length > 0 && parents.every(parent => practiceSeenOnAllPaths.get(parent));
+    // A practice offered only at the terminal beat is an epilogue, not an
+    // opportunity encountered before reaching the chapter's ending.
+    const opportunity = hadOpportunity || (!n.end && n.offers.length > 0);
+    practiceSeenOnAllPaths.set(id, opportunity);
+    if (n.end && !opportunity) return fail('learning_path_missing');
   }
   return { ok: true, nodeCount: nodes.size, practiceCount: practiceMap.size };
 }
