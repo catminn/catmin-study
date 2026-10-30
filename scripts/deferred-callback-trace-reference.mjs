@@ -61,7 +61,8 @@ export function createDeferredCallbackTraceReference(outline) {
     function render() {
       if(finished) return fail('session_finished');
       const n=chapters[ci].nodes.get(cursor);
-      const visible=n.acknowledges.filter(k=>chosen.has(k) && ci<=dueByImpact.get(k));
+      // Project each selected consequence once per session, even across eligible beats.
+      const visible=n.acknowledges.filter(k=>chosen.has(k) && ci<=dueByImpact.get(k) && !rendered.has(k));
       for(const k of visible) rendered.add(k);
       return {ok:true,visibleCount:visible.length};
     }
