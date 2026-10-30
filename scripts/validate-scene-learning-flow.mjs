@@ -64,6 +64,9 @@ export function validateSceneLearningFlow(m) {
   // A learning-first chapter must *offer* practice before its ending on every
   // story-only route. This never requires the player to complete that practice.
   const practiceSeenOnAllPaths = new Map();
+  // A chapter-local practice catalog must not advertise cards that the story
+  // never offers before its ending (even if another card covers every route).
+  const offeredBeforeEnd = new Set();
   for (const id of order) {
     const n = nodes.get(id);
     const parents = predecessors.get(id);
@@ -74,6 +77,7 @@ export function validateSceneLearningFlow(m) {
     // teaching appears before its offer. Require teaching in a preceding beat.
     for (const practiceId of n.offers) {
       if (!prior.has(practiceMap.get(practiceId))) return fail('practice_before_teaching');
+      if (!n.end) offeredBeforeEnd.add(practiceId);
     }
     for (const skill of n.teaches) prior.add(skill);
     guaranteed.set(id, prior);
@@ -84,5 +88,6 @@ export function validateSceneLearningFlow(m) {
     practiceSeenOnAllPaths.set(id, opportunity);
     if (n.end && !opportunity) return fail('learning_path_missing');
   }
+  if ([...practiceMap.keys()].some(id => !offeredBeforeEnd.has(id))) return fail('practice_unoffered');
   return { ok: true, nodeCount: nodes.size, practiceCount: practiceMap.size };
 }
