@@ -7,7 +7,11 @@ const obj = x => x !== null && typeof x === 'object' && !Array.isArray(x);
 const exact = (x, keys) => obj(x) && Object.keys(x).length === keys.length &&
   keys.every(k => Object.hasOwn(x,k));
 const fail = code => ({ok:false,code}); // Never echo private text or IDs.
-const normalized = text => text.normalize('NFKC').trim().replace(/\s+/gu,' ').toLocaleLowerCase('und');
+// Invisible format characters must not manufacture a distinct-looking response.
+// Keep this conservative: emoji joiners/variation selectors are ignored only for QA comparison.
+const ignorable = /[\u00ad\u034f\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\ufe00-\ufe0f\u{e0100}-\u{e01ef}]/gu;
+const unsafe = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;
+const normalized = text => text.normalize('NFKC').replace(ignorable,'').trim().replace(/\s+/gu,' ').toLocaleLowerCase('und');
 
 export function validateRouteResponseDifferentiation(outline, plan) {
   try {
@@ -22,7 +26,7 @@ export function validateRouteResponseDifferentiation(outline, plan) {
     for (const r of plan.responses) {
       if (!exact(r,['impactKey','approved','copy']) || !id(r.impactKey) ||
           typeof r.approved !== 'boolean' || typeof r.copy !== 'string' ||
-          r.copy.length > 2000) return fail('response_invalid');
+          r.copy.length > 2000 || unsafe.test(r.copy)) return fail('response_invalid');
       if (!expected.has(r.impactKey) || responseMap.has(r.impactKey)) return fail('response_catalog_invalid');
       responseMap.set(r.impactKey,r);
     }
