@@ -1,0 +1,15 @@
+# Chapter route consequence coverage — spoiler-free author acceptance v1
+
+This is a synthetic, **author-only** acceptance tool for local consequences of story choices. It does not contain formal-world scenes, NPC identities, hidden facts, puzzles, answers, private identifiers or approved prose. It is not a live engine, persistence implementation, private importer or authorization to deploy. First formal world remains **DO-NOT-IMPORT**.
+
+## Narrow projection
+
+Root keys are exactly `start` and `nodes`. Every node has exactly `id`, `end`, `exits`, `acknowledges`. Each exit has exactly `to`, `impactKey`. A linear transition has `impactKey:null`; every exit of a branching node must carry a globally unique opaque impact key and target a different node. An acknowledgement key identifies a **conditional narrative callback** that should be shown only when that particular route outcome was actually chosen. The author must separately approve the corresponding prose and runtime condition; this checker only proves structural coverage. Terminal nodes have no exits or acknowledgements. Unknown fields, dangling references, duplicate IDs, cycles and unreachable beats fail closed with fixed codes and no author text echoed.
+
+For **each** branch outcome, every possible story-only continuation from its target to an ending must encounter at least one nonterminal beat declaring an acknowledgement of that outcome. The reverse topological proof checks all suffixes without enumerating exponentially many routes. A callback may appear immediately on a branch, later on that branch, or at a reunion beat if it is genuinely conditional on the chosen impact key. A callback that appears only at the ending does not count. A linear chapter without choices remains valid. The tool does not require practice completion or gate any exit.
+
+This closes a specific authoring loophole: two visible options could immediately reconverge without any recorded later narrative acknowledgement. A passing result does **not** prove the choices change game state, that an NPC remembers them, that text is actually displayed, that an acknowledgement is conditional at runtime, or that the choice is meaningful to a player. Claude must separately test engine persistence and route-conditioned projections with placeholder data; ChatGPT must privately review scene writing and NPC reactions. Branches whose consequences deliberately unfold in later chapters need a different, explicitly reviewed cross-chapter contract, not an invented callback here.
+
+## Executable checks
+
+`node --test test/route-consequence-outline.test.mjs` runs synthetic success and failure cases. The reference validator is `scripts/validate-route-consequence-outline.mjs` and returns only `{ok:true,nodeCount,branchOutcomeCount}` or `{ok:false,code}`. This contract is deliberately independent of `validate-scene-learning-flow.mjs`: a chapter must satisfy both learning opportunity coverage and route consequence coverage, while the production importer is not allowed to infer approval from either. No private content should be submitted to public CI, GitHub or shared memory.
