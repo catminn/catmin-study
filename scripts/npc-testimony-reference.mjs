@@ -45,6 +45,49 @@ const causalStageValid = (s, p) => Object.values(p.routes).some(r =>
 
 // Corrupt persisted state cannot grant approved dialogue or partially commit.
 const record = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+
+// A count-matched ledger alone cannot justify a saved route or reunion.
+// Inspect only synthetic commit shapes/order; real provenance remains server-owned.
+function routeLedgerConsistent(s, p) {
+  let routeKey = null, joined = false;
+  for (const raw of Object.values(s.commits)) {
+    let entry;
+    try { entry = JSON.parse(raw); } catch { return false; }
+    if (!record(entry) || !equalScope(entry.scope, p.scope)) return false;
+    switch (entry.type) {
+      case 'route_committed':
+        if (routeKey !== null || joined || !own(p.routes, entry.route) ||
+            entry.next !== p.routes[entry.route].to) return false;
+        routeKey = entry.route;
+        break;
+      case 'scene_entered':
+        if (routeKey === null || joined || entry.next !== p.convergence.to) return false;
+        joined = true;
+        break;
+      case 'availability_changed':
+        if (!['available', 'unavailable'].includes(entry.next)) return false;
+        break;
+      case 'player_told_npc':
+      case 'npc_told_player':
+        if (!own(p.facts, entry.factId)) return false;
+        break;
+      case 'fact_verified':
+        if (!own(p.facts, entry.factId) || !['npc', 'player'].includes(entry.subject)) return false;
+        break;
+      default: return false;
+    }
+  }
+  if (routeKey === null) {
+    const starts = Object.values(p.routes).map(r => r.from);
+    return !joined && starts.length === 2 && starts[0] === starts[1] &&
+      s.scene === starts[0] && s.routeTrace === null;
+  }
+  const r = p.routes[routeKey];
+  return s.routeTrace === r.trace && s.npc.relation === r.relation &&
+    (joined ? s.scene === p.convergence.to && s.npc.location === p.convergence.to
+            : s.scene === r.to && s.npc.location === r.from);
+}
+
 const validState = (s, p) => {
   if (!record(s) || !record(s.npc) || !record(s.player) || !record(s.commits) ||
       !Number.isSafeInteger(s.version) || s.version < 0 ||
@@ -61,7 +104,7 @@ const validState = (s, p) => {
       !claims(s.player.heardClaims, true) || !claims(s.player.confirmedFacts, true)) return false;
   const proto = Object.getPrototypeOf(s.commits);
   const ids = Object.keys(s.commits);
-  return causalStageValid(s, p) && ids.length === s.version &&
+  return causalStageValid(s, p) && ids.length === s.version && routeLedgerConsistent(s, p) &&
     (proto === Object.prototype || proto === null) &&
     ids.every(id => validEventId(id) && typeof s.commits[id] === 'string');
 };
