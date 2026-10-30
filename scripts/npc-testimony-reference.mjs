@@ -1,4 +1,5 @@
 // Synthetic, spoiler-free narrative-author reference. Not a production engine.
+import {npcPublicCopySafe} from './npc-public-copy-safety.mjs';
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const clone = x => structuredClone(x);
 // Keep commit keys within the same safe author-ID grammar as scene/event refs.
@@ -157,7 +158,7 @@ export function projectDialogue(state, copyId, p = policy) {
   const available = state.scene === state.npc.location && state.npc.availability === 'available';
   if (!available) return { available: false, text: null };
   const copy = p.publicCopies[copyId];
-  if (!copy || copy.approved !== true || copy.relation !== state.npc.relation) return { available: true, text: null };
+  if (!npcPublicCopySafe(copy) || copy.relation !== state.npc.relation) return { available: true, text: null };
   // An approved line may require an NPC knowledge tier; player knowledge is not NPC knowledge.
   // A malformed gate is never interpreted as an unrestricted line.
   if (Object.prototype.hasOwnProperty.call(copy, 'requiresNpcKnowledge')) {

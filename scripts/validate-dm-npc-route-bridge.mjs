@@ -6,6 +6,7 @@
  */
 import { validateDmBeatFlow } from './validate-dm-beat-flow.mjs';
 import { initialState, applyCommitted, projectDialogue } from './npc-testimony-reference.mjs';
+import {npcPublicCopySafe} from './npc-public-copy-safety.mjs';
 
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const obj = x => x !== null && typeof x === 'object' && !Array.isArray(x);
@@ -56,8 +57,7 @@ export function validateDmNpcRouteBridge(flow, npcPolicy, bridge) {
     const callback = merge.callbacks.find(c => c.traceRef === b.traceRef);
     if (!callback || callback.copySlot !== b.callbackCopySlot || callback.requiresCommittedTrace !== true) fail('callback_mismatch');
     const copy = own(npcPolicy.publicCopies,b.dialogueCopyId) ? npcPolicy.publicCopies[b.dialogueCopyId] : null;
-    if (!obj(copy) || copy.approved !== true || copy.relation !== route.relation ||
-        typeof copy.text !== 'string' || copy.text.trim().length === 0) fail('dialogue_unapproved');
+    if (!npcPublicCopySafe(copy) || copy.relation !== route.relation) fail('dialogue_unapproved');
     else { relations.add(route.relation); texts.add(copy.text); }
   }
   if (choice.next.some(r => !routeIds.has(r)) || merge.callbacks.some(c => !traces.has(c.traceRef)) ||
