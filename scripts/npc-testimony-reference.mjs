@@ -29,6 +29,27 @@ export const policy = Object.freeze({
   }
 });
 
+// Corrupt persisted state cannot grant approved dialogue or partially commit.
+const record = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+const validState = (s, p) => {
+  if (!record(s) || !record(s.npc) || !record(s.player) || !record(s.commits) ||
+      !Number.isSafeInteger(s.version) || s.version < 0 ||
+      typeof s.scene !== 'string' || !s.scene ||
+      !(s.routeTrace === null || typeof s.routeTrace === 'string') ||
+      typeof s.npc.location !== 'string' || !s.npc.location ||
+      !['available', 'unavailable'].includes(s.npc.availability) ||
+      !['neutral', 'guarded', 'open'].includes(s.npc.relation)) return false;
+  const claims = (list, player) => Array.isArray(list) &&
+    list.every(id => typeof id === 'string' && own(p.facts, id) &&
+      (!player || p.facts[id].audience === 'player')) &&
+    new Set(list).size === list.length;
+  if (!claims(s.npc.heardClaims, false) || !claims(s.npc.confirmedFacts, false) ||
+      !claims(s.player.heardClaims, true) || !claims(s.player.confirmedFacts, true)) return false;
+  const proto = Object.getPrototypeOf(s.commits);
+  return (proto === Object.prototype || proto === null) &&
+    Object.keys(s.commits).every(id => validEventId(id) && typeof s.commits[id] === 'string');
+};
+
 export function initialState(p = policy) {
   return {
     scope: clone(p.scope), version: 0, scene: 'demo-fork', routeTrace: null,
@@ -42,6 +63,7 @@ export function initialState(p = policy) {
 // resolved against author policy; a model's proposed effects have no authority.
 export function applyCommitted(state, event, p = policy) {
   if (!state || !event || !equalScope(state.scope, p.scope) || !equalScope(event.scope, state.scope)) return { ok: false, code: 'scope_invalid', state };
+  if (!validState(state, p)) return { ok: false, code: 'state_invalid', state };
   if (event.mode === 'ask' || event.mode === 'preview') return { ok: true, committed: false, state };
   if (event.source !== 'server' || event.status !== 'committed' || !validEventId(event.id)) return { ok: false, code: 'not_committed', state };
   const fingerprint = JSON.stringify({ type: event.type, scope: event.scope, route: event.route, factId: event.factId, next: event.next, subject: event.subject });
@@ -109,7 +131,7 @@ export function applyCommitted(state, event, p = policy) {
 // This is an author-approved-text projection example, not a player API.
 // No NPC identifiers, fact identifiers, claim tiers, traces or internal state.
 export function projectDialogue(state, copyId, p = policy) {
-  if (!state || !equalScope(state.scope, p.scope)) return { available: false, text: null };
+  if (!state || !equalScope(state.scope, p.scope) || !validState(state, p)) return { available: false, text: null };
   const available = state.scene === state.npc.location && state.npc.availability === 'available';
   if (!available) return { available: false, text: null };
   const copy = p.publicCopies[copyId];

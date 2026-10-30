@@ -11,7 +11,7 @@ test('unlearned public fact cannot be laundered from player to NPC',()=>{
 });
 test('server-only fact cannot be introduced by player even if local player state is forged',()=>{
  const s=fresh();s.player.heardClaims.push('demo-private-fact');const r=apply(s,'player_told_npc',{factId:'demo-private-fact'});
- assert.equal(r.code,'audience_denied');assert.strictEqual(r.state,s);assert.deepEqual(s.npc.heardClaims,[]);
+ assert.equal(r.code,'state_invalid');assert.strictEqual(r.state,s);assert.deepEqual(s.npc.heardClaims,[]);
 });
 test('verified player may tell NPC, but NPC remains unconfirmed',()=>{
  const s=verified(),r=apply(s,'player_told_npc',{factId:'demo-public-fact'});
@@ -30,7 +30,7 @@ test('wrong fact and malformed player knowledge fail closed',()=>{
  const s=verified(),p=structuredClone(policy);p.facts['demo-other-public']={audience:'player'};
  assert.equal(apply(s,'player_told_npc',{factId:'demo-other-public'},p).code,'player_cannot_testify');
  const corrupt=structuredClone(s);corrupt.player.heardClaims=null;corrupt.player.confirmedFacts=null;
- assert.equal(apply(corrupt,'player_told_npc',{factId:'demo-public-fact'}).code,'player_cannot_testify');
+ assert.equal(apply(corrupt,'player_told_npc',{factId:'demo-public-fact'}).code,'state_invalid');
 });
 test('remote player testimony remains blocked after player learns',()=>{
  const s=verified(),away=apply(s,'route_committed',{route:'demo-a',next:'demo-route-a'}).state;
