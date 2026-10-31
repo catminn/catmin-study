@@ -107,3 +107,52 @@ test('does not mutate any input',()=>{
   assert.deepEqual(check(x),{ok:true,validatedRoutes:2,validatedLinks:2});
   assert.equal(JSON.stringify(x),before);
 });
+
+
+// Process-level smoke tests: real CLI + real validators + synthetic fixtures.
+// Protocol-only CLI tests with a stub cannot establish this behavior.
+import {spawnSync} from 'node:child_process';
+const cliPath=new URL('../scripts/check-dm-authoring-json.mjs',import.meta.url);
+function invokeRealCli(sheet){
+  const proc=spawnSync(process.execPath,[cliPath.pathname],{
+    input:JSON.stringify(sheet),encoding:'utf8',maxBuffer:1024*1024,timeout:10000
+  });
+  assert.equal(proc.error,undefined);
+  assert.equal(proc.signal,null);
+  assert.equal(proc.stderr,'');
+  const lines=proc.stdout.trim().split('\n');
+  assert.equal(lines.length,1);
+  const value=JSON.parse(lines[0]);
+  assert.doesNotMatch(proc.stdout,/demo|secret|private|trace|story|skill|world/i);
+  return {status:proc.status,value};
+}
+test('native CLI accepts a complete two-route synthetic sheet using real validators',()=>{
+  assert.deepEqual(invokeRealCli(fixture()),{
+    status:0,value:{ok:true,validatedRoutes:2,validatedLinks:2}
+  });
+});
+test('native CLI accepts reversed route registration without changing identities',()=>{
+  const sheet=fixture();
+  sheet.bridge.routes.reverse();sheet.links.reverse();sheet.proof.routes.reverse();
+  assert.deepEqual(invokeRealCli(sheet),{
+    status:0,value:{ok:true,validatedRoutes:2,validatedLinks:2}
+  });
+});
+test('native CLI rejects a mismatched committed event with a fixed code',()=>{
+  const sheet=fixture();sheet.bridge.routes[1].callbackEventRef='secret';
+  assert.deepEqual(invokeRealCli(sheet),{
+    status:1,value:{ok:false,code:'event_guard_invalid'}
+  });
+});
+test('native CLI rejects a second-route learning mismatch with a fixed code',()=>{
+  const sheet=fixture();sheet.links[1].traceRef='secret';
+  assert.deepEqual(invokeRealCli(sheet),{
+    status:1,value:{ok:false,code:'learning_payoff_invalid'}
+  });
+});
+test('native CLI rejects an incomplete synthetic declaration before validation',()=>{
+  const sheet=fixture();sheet.links[1].synthetic=false;
+  assert.deepEqual(invokeRealCli(sheet),{
+    status:1,value:{ok:false,code:'synthetic_required'}
+  });
+});
