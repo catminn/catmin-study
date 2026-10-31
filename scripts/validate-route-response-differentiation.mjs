@@ -9,7 +9,7 @@ const exact = (x, keys) => obj(x) && Object.keys(x).length === keys.length &&
 const fail = code => ({ok:false,code}); // Never echo private text or IDs.
 // Invisible format characters must not manufacture a distinct-looking response.
 // Keep this conservative: emoji joiners/variation selectors are ignored only for QA comparison.
-const ignorable = /[\u00ad\u034f\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\ufe00-\ufe0f\u{e0100}-\u{e01ef}]/gu;
+const ignorable = /\p{Default_Ignorable_Code_Point}/gu;
 const unsafe = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;
 const normalized = text => text.normalize('NFKC').replace(ignorable,'').trim().replace(/\s+/gu,' ').toLocaleLowerCase('und');
 

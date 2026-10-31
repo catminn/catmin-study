@@ -29,3 +29,9 @@ test('null byte is rejected',()=>reject(plan('Alpha\0','Beta'),'response_invalid
 test('C1 control is rejected',()=>reject(plan('Alpha\u0085','Beta'),'response_invalid'));
 test('newlines and tabs are allowed for legitimate prose',()=>assert.deepEqual(check(outline(),plan('Alpha\n\tline','Beta')),{ok:true,branchCount:1,copyCount:2}));
 test('diagnostics do not echo invisible-bearing author text',()=>{const p=plan('private\u202e-text','Beta');assert.equal(JSON.stringify(check(outline(),p)).includes('private'),false);});
+
+test('Hangul filler cannot manufacture a distinct sibling reply',()=>reject(plan('Alpha\u115f','Alpha'),'response_indistinct'));
+test('compatibility Hangul filler cannot manufacture distinction after NFKC',()=>reject(plan('Alpha\u3164','Alpha'),'response_indistinct'));
+test('Khmer invisible vowel sign cannot manufacture distinction',()=>reject(plan('Alpha\u17b4','Alpha'),'response_indistinct'));
+test('unlisted default-ignorable-only copy is not visible dialogue',()=>reject(plan(' \u115f\u17b4','Beta'),'response_unapproved'));
+test('visible emoji ZWJ responses remain distinguishable',()=>assert.deepEqual(check(outline(),plan('Reply 👩‍🔬','Different reply 🧑‍💻')),{ok:true,branchCount:1,copyCount:2}));
