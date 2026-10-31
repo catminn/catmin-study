@@ -8,15 +8,26 @@ const ids = (xs, max = 200) => Array.isArray(xs) && xs.length <= max &&
   xs.every(idOK) && new Set(xs).size === xs.length;
 const fail = code => ({ok:false,code}); // Never echo author-supplied IDs.
 
+// Each outcome requires a reverse-DAG pass. Bound the total work as well as
+// the node count so dense synthetic graphs cannot exhaust an author check.
+const MAX_EDGES = 2048;
+const MAX_ACKNOWLEDGEMENTS = 2048;
+const MAX_BRANCH_OUTCOMES = 512;
+
 export function validateRouteConsequenceOutline(m) {
   if (!exact(m, ['start','nodes']) || !idOK(m.start) || !Array.isArray(m.nodes) ||
       m.nodes.length < 2 || m.nodes.length > 200) return fail('shape_invalid');
   const nodes = new Map();
   const impacts = new Map();
+  let edgeCount = 0, acknowledgementCount = 0;
   for (const n of m.nodes) {
     if (!exact(n, ['id','end','exits','acknowledges']) || !idOK(n.id) ||
         typeof n.end !== 'boolean' || !Array.isArray(n.exits) || n.exits.length > 200 ||
         !ids(n.acknowledges) || nodes.has(n.id)) return fail('node_invalid');
+    edgeCount += n.exits.length;
+    acknowledgementCount += n.acknowledges.length;
+    if (edgeCount > MAX_EDGES || acknowledgementCount > MAX_ACKNOWLEDGEMENTS)
+      return fail('graph_budget_exceeded');
     if ((n.end && (n.exits.length !== 0 || n.acknowledges.length !== 0)) ||
         (!n.end && n.exits.length === 0)) return fail('exit_invalid');
     const targets = new Set();
@@ -28,6 +39,7 @@ export function validateRouteConsequenceOutline(m) {
       if (n.exits.length > 1) {
         if (edge.impactKey === null || impacts.has(edge.impactKey)) return fail('impact_invalid');
         impacts.set(edge.impactKey, edge.to);
+        if (impacts.size > MAX_BRANCH_OUTCOMES) return fail('graph_budget_exceeded');
       } else if (edge.impactKey !== null) return fail('impact_invalid');
     }
     nodes.set(n.id,n);
