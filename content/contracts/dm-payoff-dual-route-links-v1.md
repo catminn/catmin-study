@@ -1,0 +1,11 @@
+# DM optional learning payoff — dual-route link consistency v1
+
+**Boundary:** Public, spoiler-free, purely synthetic author preflight. This is not a runtime gate, story approval, authorization to import, or proof of private plot correctness.
+
+The independent `validateDmLearningPayoff` check accepts a **single** committed DM route, while `validateDmPayoffRouteReachability` covers **two** routes. Both checks could pass separately on inconsistent author inputs, or the single-route link could be reviewed only for one branch. A reachable optional world action is not enough if the two branches do not have consistent, independently reviewable lesson-to-action links.
+
+`validateDmPayoffDualRouteLinks(links, proof)` requires **exactly two** `dm-learning-payoff-v1` link records and one `dm-payoff-route-reachability-v1` proof. It compares the same world, DM revision, dungeon, action revision, lesson beat, application reference, skill and chapter across all records. Each of the two distinct route beat IDs and committed trace references must match one link, including optional action, ordinary base action, world source and destination. Route ordering is irrelevant; separate registered actions on separate routes are allowed. Duplicate routes, missing links, mismatches, unknown fields and non-synthetic inputs fail closed with fixed diagnostic codes that do not echo author content.
+
+Run `node --test test/dm-payoff-dual-route-links.test.mjs` with Node 22. **All three independent preflights must still run:** call `validateDmLearningPayoff` separately on **each** link, call `validateDmPayoffRouteReachability` on the proof, and call this consistency check on both links and the proof. This check does not independently validate DM structure, chapter pacing, world graph reachability, action registry, mathematical causality, real route-to-world entry mapping, server authorization or model presentation. The author must not treat a passing result as import approval.
+
+The first formal world remains **DO-NOT-IMPORT** pending private field-by-field review, engineering verification, and Catherine's explicit in-person authorization. No real story, NPC identity, hidden fact, puzzle solution or private content identifier belongs in this public contract or its synthetic tests.
