@@ -62,6 +62,15 @@ export function validateDmBeatFlow(input) {
       || !beats.has(input.end) || beats.get(input.end)?.type !== 'aftermath') fail('invalid_endpoints');
   const byType = (type) => [...beats.values()].filter((b) => b.type === type);
   for (const type of TYPES) if (byType(type).length !== (type === 'route' ? 2 : 1)) fail('beat_type_cardinality');
+  // Reachability alone cannot prove the learning offer precedes a committed
+  // choice: a fully connected sheet could place observation/lesson after the
+  // route callback. Keep the authored presentation order explicit.
+  const [entry, observation, lessonOffer, choice, convergence, aftermath] =
+    ['entry','observation','lesson_offer','choice','convergence','aftermath'].map(type => byType(type)[0]);
+  if ([entry, observation, lessonOffer, choice, convergence, aftermath].every(Boolean) &&
+      (entry.next[0] !== observation.id || observation.next[0] !== lessonOffer.id ||
+       lessonOffer.next[0] !== choice.id || convergence.next[0] !== aftermath.id))
+    fail('beat_sequence_invalid');
   for (const b of beats.values()) for (const to of b.next) if (!beats.has(to)) fail('dangling_edge');
   if (!errors.has('invalid_beat') && !errors.has('dangling_edge') && !errors.has('invalid_endpoints')) {
     // All paths must terminate. Check graph acyclicity, reachability and a non-lesson path.

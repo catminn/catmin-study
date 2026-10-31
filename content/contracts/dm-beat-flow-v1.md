@@ -17,6 +17,10 @@ The synthetic beat sheet has eight roles: `entry → observation → lesson_offe
 5. **No public secrets.** This contract stores only opaque copy-slot and evidence references. It prohibits arbitrary prose or extra keys in the synthetic sheet; real public copy must pass the separate trusted field review and stage gate. Do not put future facts, NPC identities, answers, hidden flags, or private story text in this branch, test fixtures, CLI output, or shared-memory handoff.
 6. **No engine authority.** A `requiresCommit:true` field is an authoring assertion, not a client-controlled proof. Claude's server must derive commit provenance, session/world/revision scope, actual action outcome and authorized copy projection from trusted state. The validator cannot verify live event signatures, D1 transactions, the model's spoken response, or actual player enjoyment.
 
+## Sequence is part of the narrative contract
+
+All seven beat roles must follow the intended story order: `entry → observation → lesson_offer → choice → route → convergence → aftermath`. The optional learning invitation is a detour **before** the consequential choice, not a retrospective lesson after a committed route or callback. A reachable, acyclic sheet can otherwise move the observation and lesson behind the route while still satisfying the original graph and skip checks. The fixed `beat_sequence_invalid` diagnostic rejects that false positive without exposing any authored beat IDs or text. This is an author-side topology rule, not a real-time model-turn guarantee; the learner may still skip the offer and proceed to the same choice.
+
 ## Run and expected limitations
 
 `node scripts/validate-dm-beat-flow.mjs test/fixtures/dm-beat-flow-synthetic-v1.json`
