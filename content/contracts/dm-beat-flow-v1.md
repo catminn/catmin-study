@@ -21,6 +21,10 @@ The synthetic beat sheet has eight roles: `entry → observation → lesson_offe
 
 All seven beat roles must follow the intended story order: `entry → observation → lesson_offer → choice → route → convergence → aftermath`. The optional learning invitation is a detour **before** the consequential choice, not a retrospective lesson after a committed route or callback. A reachable, acyclic sheet can otherwise move the observation and lesson behind the route while still satisfying the original graph and skip checks. The fixed `beat_sequence_invalid` diagnostic rejects that false positive without exposing any authored beat IDs or text. This is an author-side topology rule, not a real-time model-turn guarantee; the learner may still skip the offer and proceed to the same choice.
 
+## Reviewed copy slots are single-use per narrative gate
+
+A `copySlot` names one author-reviewed public presentation position, not a reusable text template. Every beat and every conditional convergence callback must have a **globally distinct** slot within this sheet. Reusing a pre-choice observation or optional-lesson slot for a post-commit callback could blur the review gate; sharing route slots could erase an authored consequence. The fixed `copy_slot_collision` diagnostic rejects these aliases without returning authored names. This does **not** verify stage approval, semantic difference, or actual runtime projection; those require separate author review and trusted server evidence.
+
 ## Run and expected limitations
 
 `node scripts/validate-dm-beat-flow.mjs test/fixtures/dm-beat-flow-synthetic-v1.json`

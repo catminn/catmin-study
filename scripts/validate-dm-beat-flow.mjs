@@ -58,6 +58,19 @@ export function validateDmBeatFlow(input) {
         || !isId(c.copySlot) || !isId(c.traceRef) || c.requiresCommittedTrace !== true))) fail('callback_shape');
     if (b.type === 'aftermath' && b.next.length !== 0) fail('aftermath_not_terminal');
   }
+  // A copy slot identifies one separately reviewed public presentation gate.
+  // Reuse across beats or callbacks can cross a stage boundary or erase a route.
+  const usedCopySlots = new Set();
+  const reserveCopySlot = (slot) => {
+    if (!isId(slot)) return; // Shape errors are reported above.
+    if (usedCopySlots.has(slot)) fail('copy_slot_collision');
+    usedCopySlots.add(slot);
+  };
+  for (const b of beats.values()) {
+    reserveCopySlot(b.copySlot);
+    if (b.type === 'convergence' && Array.isArray(b.callbacks))
+      for (const c of b.callbacks) if (obj(c)) reserveCopySlot(c.copySlot);
+  }
   if (!beats.has(input.start) || beats.get(input.start)?.type !== 'entry'
       || !beats.has(input.end) || beats.get(input.end)?.type !== 'aftermath') fail('invalid_endpoints');
   const byType = (type) => [...beats.values()].filter((b) => b.type === type);
