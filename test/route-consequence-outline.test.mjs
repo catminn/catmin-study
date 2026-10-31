@@ -29,3 +29,27 @@ test('extra unreviewed fields cannot hide runtime gates',()=>{const m=fixture();
 test('unreviewed edge fields are rejected',()=>{const m=fixture();m.nodes[0].exits[0].requiresVerifiedPractice=true;reject(m,'edge_invalid')});
 test('errors never echo opaque author keys',()=>{const m=fixture();m.nodes[2].acknowledges=[];const out=check(m);assert.deepEqual(out,{ok:false,code:'callback_missing'});assert.equal(JSON.stringify(out).includes('demo-right-effect'),false)});
 test('a linear chapter without choices is allowed',()=>{const m={start:'demo-a',nodes:[node('demo-a',{exits:[edge('demo-b')]}),node('demo-b',{end:true})]};assert.deepEqual(check(m),{ok:true,nodeCount:2,branchOutcomeCount:0})});
+
+test('callback for one outcome on the opposite exclusive route is rejected even when correctly covered',()=>{
+  const m=fixture();
+  m.nodes[2].acknowledges.push('demo-left-effect');
+  reject(m,'callback_off_route');
+});
+test('callback before the decision is rejected even when correctly covered afterward',()=>{
+  const m=fixture();
+  m.nodes.unshift(node('demo-prologue',{exits:[edge('demo-entry')],acknowledges:['demo-left-effect']}));
+  m.start='demo-prologue';
+  reject(m,'callback_off_route');
+});
+test('multiple conditional callbacks at shared reunion are allowed',()=>{
+  const m=fixture();
+  m.nodes[3].acknowledges=['demo-left-effect','demo-right-effect'];
+  assert.equal(check(m).ok,true);
+});
+test('wrong-route callback failure does not echo its key',()=>{
+  const m=fixture();
+  m.nodes[2].acknowledges.push('demo-left-effect');
+  const r=check(m);
+  assert.deepEqual(r,{ok:false,code:'callback_off_route'});
+  assert.equal(JSON.stringify(r).includes('demo-left-effect'),false);
+});

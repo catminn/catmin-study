@@ -19,6 +19,7 @@ export function validateRouteConsequenceOutline(m) {
       m.nodes.length < 2 || m.nodes.length > 200) return fail('shape_invalid');
   const nodes = new Map();
   const impacts = new Map();
+  const ackLocations = new Map();
   let edgeCount = 0, acknowledgementCount = 0;
   for (const n of m.nodes) {
     if (!exact(n, ['id','end','exits','acknowledges']) || !idOK(n.id) ||
@@ -41,6 +42,10 @@ export function validateRouteConsequenceOutline(m) {
         impacts.set(edge.impactKey, edge.to);
         if (impacts.size > MAX_BRANCH_OUTCOMES) return fail('graph_budget_exceeded');
       } else if (edge.impactKey !== null) return fail('impact_invalid');
+    }
+    for (const key of n.acknowledges) {
+      if (!ackLocations.has(key)) ackLocations.set(key, []);
+      ackLocations.get(key).push(n.id);
     }
     nodes.set(n.id,n);
   }
@@ -71,6 +76,14 @@ export function validateRouteConsequenceOutline(m) {
   // conditionally rendered callback for that edge's impact key before ending.
   // This reverse DAG proof avoids enumerating exponentially many story routes.
   for (const [key, destination] of impacts) {
+    // An acknowledgement cannot be assigned to an unrelated or earlier beat.
+    // Even if a different valid callback covers every suffix, a stray callback
+    // on the opposite route is an authoring mistake that must fail closed.
+    const suffix = new Set([destination]);
+    for (const id of order) if (suffix.has(id))
+      for (const e of nodes.get(id).exits) suffix.add(e.to);
+    if ((ackLocations.get(key) || []).some(id => !suffix.has(id)))
+      return fail('callback_off_route');
     const guaranteed = new Map();
     for (const id of [...order].reverse()) {
       const n = nodes.get(id);

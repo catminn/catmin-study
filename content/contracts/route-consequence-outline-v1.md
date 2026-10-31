@@ -15,3 +15,9 @@ This closes a specific authoring loophole: two visible options could immediately
 ## Executable checks
 
 `node --test test/route-consequence-outline.test.mjs test/route-consequence-budget.test.mjs` runs the existing synthetic consequence tests and the new dense-graph budget regression tests. The reference validator is `scripts/validate-route-consequence-outline.mjs` and returns only `{ok:true,nodeCount,branchOutcomeCount}` or `{ok:false,code}`. This contract is deliberately independent of `validate-scene-learning-flow.mjs`: a chapter must satisfy both learning opportunity coverage and route consequence coverage, while the production importer is not allowed to infer approval from either. No private content should be submitted to public CI, GitHub or shared memory.
+
+## Acknowledgement locality (author-side regression)
+
+A declaration of an outcome's acknowledgement is valid only on a beat reachable **after that outcome's chosen exit**. A second, valid acknowledgement elsewhere does not excuse a stray declaration on the opposite exclusive route or in the prologue before the choice. Shared reunion beats remain valid for multiple conditionally keyed acknowledgements when reachable from each corresponding exit. The validator checks this forward suffix reachability independently of the existing all-suffix guarantee; a violation returns `callback_off_route` without exposing the key. This is a static authoring consistency check, not proof that runtime conditions or visible prose are correct.
+
+The regression suite adds wrong-exclusive-route, pre-choice, shared-reunion, and no-echo cases. Run the two Node tests listed above; synthetic data only.
