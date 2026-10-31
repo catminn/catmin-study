@@ -52,6 +52,10 @@ const cases=[
  ['post-convergence revisit of opening is legal',x=>x.world.nodes[4].next.push('demo.entry'),null],
  ['acyclic pre-choice detour still reaches choice',x=>{x.world.nodes[0].next.push('demo.before');x.world.nodes.push({id:'demo.before',next:['demo.choice']});},null],
  ['implicit unique graph root is accepted',x=>delete x.world.nodes[0].role,null],
+ ['both branches share a scene before declared reunion',x=>{x.world.nodes[2].next=['demo.shared'];x.world.nodes[3].next=['demo.shared'];x.world.nodes.push({id:'demo.shared',next:['demo.join']});},'premature_convergence'],
+ ['optional routes overlap at an intermediate scene',x=>{x.world.nodes[2].next=['demo.join','demo.shared'];x.world.nodes[3].next=['demo.join','demo.shared'];x.world.nodes.push({id:'demo.shared',next:['demo.join']});},'premature_convergence'],
+ ['independent detours preserve distinct branch interiors',x=>{x.world.nodes[2].next=['demo.a-detour'];x.world.nodes[3].next=['demo.b-detour'];x.world.nodes.push({id:'demo.a-detour',next:['demo.join']},{id:'demo.b-detour',next:['demo.join']});},null],
+ ['shared scene after declared reunion is legal',x=>{x.world.nodes[4].next=['demo.post'];x.world.nodes.push({id:'demo.post',next:['demo.end']});},null],
  ['no input mutation',()=>{},null]
 ];
 for(const [name,mutate,code] of cases)test(name,()=>{

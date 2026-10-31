@@ -67,7 +67,8 @@ export function validateWorld01RouteAgency(world, causal) {
     };
     if(beforeFork(entry))return fail('choice_bypass');
     if(!reachedFork)return fail('fork_unreachable');
-    // No branch may enter the other branch before the shared convergence.
+    // Distinct branches must not share a scene before their declared reunion.
+    const branchInteriors=[];
     for(let i=0;i<2;i++){
       const start=events[i].to,other=events[1-i].to;
       const seen=new Set(),stack=[start];let reached=false;
@@ -104,7 +105,10 @@ export function validateWorld01RouteAgency(world, causal) {
         }
       }
       if([...seen].some(node=>!canReach.has(node)))return fail('route_dead_end');
+      branchInteriors.push(seen);
     }
+    if([...branchInteriors[0]].some(node=>branchInteriors[1].has(node)))
+      return fail('premature_convergence');
     const npc=causal.npcContinuity;
     if(!obj(npc)||!Array.isArray(npc.transitions)||npc.transitions.length!==2)
       return fail('npc_invalid');
