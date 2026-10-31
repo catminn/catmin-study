@@ -4,7 +4,7 @@ const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
 const object=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const exact=(x,ks)=>object(x)&&Object.keys(x).length===ks.length&&ks.every(k=>own(x,k));
 const id=x=>typeof x==='string'&&/^[a-z][a-z0-9._-]{0,79}$/.test(x);
-const ids=x=>Array.isArray(x)&&x.every(id)&&new Set(x).size===x.length;
+const ids=(x,max=12)=>Array.isArray(x)&&x.length<=max&&x.every(id)&&new Set(x).size===x.length;
 const done=e=>({ok:e.size===0,codes:[...e].sort(),errorCount:e.size});
 const ROOT=['schemaVersion','synthetic','worldId','manifestRevision','startScene','forkScene','mergeScene','endScene','scenes','flags','transitions','routes','publicCopySlots'];
 const TRANS=['id','from','to','mode','guard','effects','eventRef','copySlot'];
@@ -20,14 +20,14 @@ export function validateDmEventGuards(v){
  const e=new Set(),fail=x=>e.add(x);
  if(!exact(v,ROOT))return done(new Set(['invalid_root']));
  if(v.schemaVersion!=='dm-event-guards-v1'||v.synthetic!==true||![v.worldId,v.manifestRevision,v.startScene,v.forkScene,v.mergeScene,v.endScene].every(id))fail('invalid_schema');
- if(!ids(v.scenes)||v.scenes.length<4||v.scenes.length>16||!ids(v.flags)||v.flags.length>12||!ids(v.publicCopySlots))fail('invalid_registry');
+ if(!ids(v.scenes,16)||v.scenes.length<4||!ids(v.flags,12)||!ids(v.publicCopySlots,128))fail('invalid_registry');
  if(!Array.isArray(v.transitions)||v.transitions.length<5||v.transitions.length>48||!Array.isArray(v.routes)||v.routes.length!==2)return done(new Set([...e,'invalid_structure']));
  if(e.size)return done(e);
  const order=new Map(v.scenes.map((s,i)=>[s,i])),flags=new Set(v.flags),copies=new Set(v.publicCopySlots);
  if(new Set([v.startScene,v.forkScene,v.mergeScene,v.endScene]).size!==4||![v.startScene,v.forkScene,v.mergeScene,v.endScene].every(s=>order.has(s))||!(order.get(v.startScene)<order.get(v.forkScene)&&order.get(v.forkScene)<order.get(v.mergeScene)&&order.get(v.mergeScene)<order.get(v.endScene)))fail('invalid_scene_order');
  const transitions=new Map(),events=new Set(),slots=new Set();
  for(const t of v.transitions){
-  if(!exact(t,TRANS)||!id(t.id)||!id(t.from)||!id(t.to)||!['commit','ask','preview'].includes(t.mode)||!exact(t.guard,GUARD)||!exact(t.effects,EFFECT)||!ids(t.guard.all)||!ids(t.guard.none)||!ids(t.effects.set)||!ids(t.effects.clear)){fail('invalid_transition');continue;}
+  if(!exact(t,TRANS)||!id(t.id)||!id(t.from)||!id(t.to)||!['commit','ask','preview'].includes(t.mode)||!exact(t.guard,GUARD)||!exact(t.effects,EFFECT)||!ids(t.guard.all,12)||!ids(t.guard.none,12)||!ids(t.effects.set,12)||!ids(t.effects.clear,12)){fail('invalid_transition');continue;}
   if(transitions.has(t.id))fail('duplicate_transition');
   transitions.set(t.id,t);
   if(![...t.guard.all,...t.guard.none,...t.effects.set,...t.effects.clear].every(x=>flags.has(x))||t.guard.all.some(x=>t.guard.none.includes(x))||t.effects.set.some(x=>t.effects.clear.includes(x)))fail('invalid_flag_logic');
@@ -96,7 +96,7 @@ export function applySyntheticGuardAction(state,t,request){
  if(!object(state)||!(state.flags instanceof Set)||!object(t)||!object(request))return no('invalid_request');
  if(request.mode==='ask'||request.mode==='preview')return {ok:true,committed:false,replay:false,state};
  if(request.mode!=='commit'||request.source!=='server'||!id(request.commitId))return no('untrusted_request');
- if(!object(state.applied)||!exact(t,TRANS)||!exact(t.guard,GUARD)||!exact(t.effects,EFFECT)||!ids(t.guard.all)||!ids(t.guard.none)||!ids(t.effects.set)||!ids(t.effects.clear))return no('invalid_request');
+ if(!object(state.applied)||!exact(t,TRANS)||!exact(t.guard,GUARD)||!exact(t.effects,EFFECT)||!ids(t.guard.all,12)||!ids(t.guard.none,12)||!ids(t.effects.set,12)||!ids(t.effects.clear,12))return no('invalid_request');
  if(own(state.applied,request.commitId))return state.applied[request.commitId]===t.id?{ok:true,committed:false,replay:true,state}:no('commit_conflict');
  if(!Number.isSafeInteger(state.version)||request.expectedVersion!==state.version)return no('stale_version');
  if(t.mode!=='commit'||t.from!==state.scene||!enabled(state,t))return no('guard_denied');

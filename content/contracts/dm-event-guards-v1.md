@@ -24,3 +24,7 @@ node --test test/dm-event-guards.test.mjs
 ```
 
 These checks cover guard contradictions, forged or erased route evidence, wrong callback, aliasing, unregistered copy slots, unreachable scenes/actions, softlocks, branch bypass, preview mutation, stale requests, idempotent replay and fixed-code privacy. They do not run the real Worker/D1, real model narration or the private first-world content. Formal v2 stays **DO-NOT-IMPORT** pending private per-field review and Catherine's explicit authorization in her presence.
+
+## Bounded author registries and guard arrays
+
+The reference rejects oversized arrays **before** scanning their contents: at most 16 scenes, 12 flags, and 128 registered public copy-slot IDs per synthetic sheet; each transition guard/effect ID list has a 12-item limit. The 48-transition and 128-state limits remain unchanged. These authoring QA resource limits are not narrative or gameplay restrictions. Registry overflow returns `invalid_registry`, and transition guard/effect overflow returns `invalid_transition`, with fixed diagnostics that do not echo IDs. Run `node --test test/dm-event-guard-array-bounds.test.mjs` for the new synthetic regression. This does not constitute real Worker/D1 or production security testing.
