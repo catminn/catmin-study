@@ -11,7 +11,7 @@ const actions = () => ({schema:'dungeon-skill-action-binding-v1',scope:'syntheti
   worldId:'demo-world',dungeonId:'demo-dungeon',manifestRevision:1,
   skills:[{chapter:0,skillId:'demo-target'}],bindings:[
     {actionKey:'demo-optional',baseActionKey:'demo-base',skillId:'demo-target',
-      from:'demo-join',to:'demo-goal'}]});
+      from:'demo-join',to:'demo-goal',advantage:'evidence_option'}]});
 const graph = () => ({nodes:[
   {id:'demo-start',next:['demo-left','demo-right']},
   {id:'demo-left',next:['demo-join']},
@@ -126,3 +126,47 @@ test('no identifiers or hidden text appear in diagnostics',() => {
 });
 test('a missing graph never throws or passes',() =>
   reject({graph:null},'graph_invalid'));
+
+test('duplicate DM beat IDs cannot select a favorable route shadow',() => {
+  const f=flow();f.beats.push({...f.beats[2],requiresCommit:false});
+  reject({flow:f},'flow_scope_invalid');
+});
+test('duplicate registered optional keys are rejected even if first matches',() => {
+  const a=actions();a.bindings.push({...a.bindings[0],to:'demo-left'});
+  reject({actions:a},'action_registry_invalid');
+});
+test('duplicate skill IDs are not an unambiguous chapter binding',() => {
+  const a=actions();a.skills.push({chapter:1,skillId:'demo-target'});
+  reject({actions:a},'action_registry_invalid');
+});
+test('duplicate chapter assignments are not an unambiguous registry',() => {
+  const a=actions();a.skills.push({chapter:0,skillId:'demo-other'});
+  reject({actions:a},'action_registry_invalid');
+});
+test('an optional action cannot be its own ordinary base action',() => {
+  const a=actions();a.bindings[0].baseActionKey='demo-optional';
+  const p=proof();for(const r of p.routes)r.baseActionKey='demo-optional';
+  reject({actions:a,proof:p},'action_registry_invalid');
+});
+test('unknown advantage type cannot masquerade as a valid payoff',() => {
+  const a=actions();a.bindings[0].advantage='auto_success';
+  reject({actions:a},'action_registry_invalid');
+});
+test('unreviewed action binding metadata is rejected',() => {
+  const a=actions();a.bindings[0].secretGate='private';
+  reject({actions:a},'action_registry_invalid');
+});
+test('unreviewed action registry root fields are rejected',() => {
+  const a=actions();a.privateOverride=true;
+  reject({actions:a},'action_scope_invalid');
+});
+test('unreviewed world node gate cannot be silently treated as traversable',() => {
+  const g=graph();g.nodes[1].requiresStudy=true;
+  reject({graph:g},'graph_invalid');
+});
+test('unreviewed world graph root metadata cannot silently disappear',() => {
+  const g=graph();g.secretRoute='private';
+  reject({graph:g},'graph_invalid');
+});
+test('ordinary valid synthetic action remains optional after checks',() =>
+  assert.deepEqual(run(),{ok:true,coveredRoutes:2}));

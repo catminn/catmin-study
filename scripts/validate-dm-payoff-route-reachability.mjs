@@ -42,6 +42,8 @@ export function validateDmPayoffRouteReachability(flow, actions, graph, proof) {
     // The full DM and action contracts must also pass their existing preflights.
     // Here, check only the source identities and committed two-route reference.
     if (!obj(flow) || !Array.isArray(flow.beats) ||
+        flow.beats.some(b => !obj(b) || !id(b.id)) ||
+        new Set(flow.beats.map(b => b.id)).size !== flow.beats.length ||
         flow.worldId !== proof.worldId || flow.manifestRevision !== proof.dmRevision)
       return fail('flow_scope_invalid');
     const choices = flow.beats.filter(b => b?.type === 'choice');
@@ -62,18 +64,42 @@ export function validateDmPayoffRouteReachability(flow, actions, graph, proof) {
       !routes.has(r.id) || routes.get(r.id).traceRef !== r.traceRef))
       return fail('route_coverage_invalid');
 
-    if (!obj(actions) || actions.schema !== 'dungeon-skill-action-binding-v1' ||
+    if (!exact(actions, ['schema','scope','worldId','dungeonId',
+          'manifestRevision','skills','bindings']) ||
+        actions.schema !== 'dungeon-skill-action-binding-v1' ||
         actions.scope !== 'synthetic-mechanics-only' ||
         actions.worldId !== proof.worldId || actions.dungeonId !== proof.dungeonId ||
         actions.manifestRevision !== proof.actionRevision ||
         !Array.isArray(actions.skills) || !Array.isArray(actions.bindings))
       return fail('action_scope_invalid');
-    if (!actions.skills.some(s => s?.skillId === proof.skillId &&
+    // Ambiguous registries must not pass because Array.find() selects
+    // one favorable duplicate. Full four-skill coverage is checked separately.
+    if (actions.skills.length === 0 || actions.skills.length > 4 ||
+        actions.skills.some(s => !exact(s, ['chapter','skillId']) ||
+          !id(s.skillId) || !Number.isSafeInteger(s.chapter) ||
+          s.chapter < 0 || s.chapter > 3) ||
+        new Set(actions.skills.map(s => s.skillId)).size !== actions.skills.length ||
+        new Set(actions.skills.map(s => s.chapter)).size !== actions.skills.length ||
+        actions.bindings.length === 0 || actions.bindings.length > 4 ||
+        actions.bindings.some(b =>
+          !exact(b, ['actionKey','baseActionKey','skillId','from','to','advantage']) ||
+          !['actionKey','baseActionKey','skillId','from','to'].every(k => id(b[k])) ||
+          b.actionKey === b.baseActionKey ||
+          !['evidence_option','risk_context'].includes(b.advantage) ||
+          !actions.skills.some(s => s.skillId === b.skillId)))
+      return fail('action_registry_invalid');
+    const actionKeys = actions.bindings.map(b => b.actionKey);
+    const baseKeys = actions.bindings.map(b => b.baseActionKey);
+    if (new Set(actionKeys).size !== actionKeys.length ||
+        new Set(baseKeys).size !== baseKeys.length ||
+        actionKeys.some(k => baseKeys.includes(k)))
+      return fail('action_registry_invalid');
+    if (!actions.skills.some(s => s.skillId === proof.skillId &&
         s.chapter === proof.chapterIndex)) return fail('action_unbound');
 
-    if (!obj(graph) || !Array.isArray(graph.nodes) ||
+    if (!exact(graph, ['nodes']) || !Array.isArray(graph.nodes) ||
         graph.nodes.length < 2 || graph.nodes.length > 200 ||
-        graph.nodes.some(n => !obj(n) || !id(n.id) || !Array.isArray(n.next) ||
+        graph.nodes.some(n => !exact(n, ['id','next']) || !id(n.id) || !Array.isArray(n.next) ||
           n.next.length > 200 || n.next.some(v => !id(v)) ||
           new Set(n.next).size !== n.next.length)) return fail('graph_invalid');
     const nodes = new Map(graph.nodes.map(n => [n.id, n]));
