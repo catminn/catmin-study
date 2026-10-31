@@ -25,10 +25,14 @@ export function validateDmFailureForward(value) {
     fail('invalid_scenes'); return done(errors);
   }
   const scenes = new Map();
+  const scenePositions = new Set();
   for (const s of value.scenes) {
     if (!exact(s,SCENE) || !isId(s.id) || !Number.isSafeInteger(s.chapterIndex) || s.chapterIndex < 0 ||
         !Number.isSafeInteger(s.order) || s.order < 0) {fail('invalid_scene'); continue;}
     if (scenes.has(s.id)) fail('duplicate_scene');
+    const position = `${s.chapterIndex}:${s.order}`;
+    if (scenePositions.has(position)) fail('duplicate_scene_position');
+    scenePositions.add(position);
     scenes.set(s.id,s);
   }
   const pos = (id) => {const s=scenes.get(id); return s ? [s.chapterIndex,s.order] : null;};
@@ -56,9 +60,12 @@ export function validateDmFailureForward(value) {
   if (['success','setback','refusal'].some((k)=>!kinds.has(k))) fail('missing_outcome');
   if (!Array.isArray(a.recovery) || a.recovery.length < 1 || a.recovery.length > 3) fail('invalid_recovery');
   let baseRecovery = false;
+  const recoveryIds = new Set([a.id]);
   for (const r of Array.isArray(a.recovery) ? a.recovery : []) {
     if (!exact(r,RECOVERY) || ![r.id,r.from,r.to,r.eventRef,r.copySlot].every(isId) ||
         typeof r.requiresSkill !== 'boolean' || r.committed !== true) {fail('invalid_recovery');continue;}
+    if (recoveryIds.has(r.id)) fail('recovery_id_collision');
+    recoveryIds.add(r.id);
     if (r.from !== a.recoverySceneId || r.to !== a.endSceneId) fail('recovery_dead_end');
     if (!r.requiresSkill) baseRecovery = true;
     if (eventRefs.has(r.eventRef) || slots.has(r.copySlot)) fail('recovery_alias_collision');

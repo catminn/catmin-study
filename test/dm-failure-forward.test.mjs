@@ -44,5 +44,9 @@ const cases=[
  ['reject arbitrary outcome payload',x=>x.attempt.outcomes[0].answer='hidden','invalid_outcome'],
  ['reject malformed preview policy',x=>x.previewPolicy=null,'preview_mutates'],
  ['reject non-opaque ID',x=>x.attempt.outcomes[0].eventRef='secret value','invalid_outcome'],
+ ['reject ambiguous scene order',x=>x.scenes.push({id:'demo.shadow',chapterIndex:0,order:1}),'duplicate_scene_position'],
+ ['reject duplicate recovery action id with optional skill variant',x=>x.attempt.recovery.push({...x.attempt.recovery[0],eventRef:'demo.other',copySlot:'demo.other.copy',requiresSkill:true}),'recovery_id_collision'],
+ ['reject recovery id equal to attempt id',x=>x.attempt.recovery[0].id=x.attempt.id,'recovery_id_collision'],
+ ['permit a separate optional skill recovery alongside ordinary recovery',x=>x.attempt.recovery.push({...x.attempt.recovery[0],id:'demo.enhanced',eventRef:'demo.other',copySlot:'demo.other.copy',requiresSkill:true}),null],
 ];
 for(const [name,mutate,expected] of cases){test(name,()=>{const x=clone();mutate(x);const r=validateDmFailureForward(x);if(expected){assert.equal(r.ok,false);assert.ok(r.codes.includes(expected),JSON.stringify(r));}else assert.deepEqual(r,{ok:true,codes:[],errorCount:0});assert.deepEqual(Object.keys(r).sort(),['codes','errorCount','ok']);assert.ok(!JSON.stringify(r).includes('hidden'));});}
