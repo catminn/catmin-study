@@ -1,44 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
-import vm from 'node:vm';
+import {registerHooks} from 'node:module';
 
-// Isolated author-orchestration unit tests. Import targets are replaced with
-// deterministic synthetic stubs; real validator integration is separate.
-const source = readFileSync(new URL('../scripts/validate-dm-payoff-full-preflight.mjs', import.meta.url), 'utf8');
+// Isolated author-orchestration unit tests: the three imports are replaced by
+// synthetic stubs using Node 22 synchronous module hooks. Real-validator
+// integration and full repository CI remain separate checks.
 const names = new Map([
   ['./validate-dm-learning-payoff.mjs','validateDmLearningPayoff'],
   ['./validate-dm-payoff-route-reachability.mjs','validateDmPayoffRouteReachability'],
   ['./validate-dm-payoff-dual-route-links.mjs','validateDmPayoffDualRouteLinks'],
 ]);
+registerHooks({resolve(specifier, context, nextResolve) {
+  if (!names.has(specifier)) return nextResolve(specifier, context);
+  const name = names.get(specifier);
+  const code = `export const ${name} = (...args) => globalThis.__dmPayoffStub(${JSON.stringify(name)}, args);`;
+  return {url:'data:text/javascript,'+encodeURIComponent(code),shortCircuit:true};
+}});
+let sequence = 0;
 async function setup(overrides = {}) {
   const calls = [];
-  const context = vm.createContext({});
-  const mod = new vm.SourceTextModule(source,{context});
-  await mod.link(async specifier => {
-    assert.ok(names.has(specifier));
-    const name = names.get(specifier);
-    return new vm.SyntheticModule([name], function () {
-      this.setExport(name, (...args) => {
-        calls.push({name,args});
-        return overrides[name] ? overrides[name](...args) : {ok:true};
-      });
-    }, {context});
-  });
-  await mod.evaluate();
-  return {check:mod.namespace.validateDmPayoffFullPreflight,calls};
+  globalThis.__dmPayoffStub = (name, args) => {
+    calls.push({name,args});
+    return overrides[name] ? overrides[name](...args) : {ok:true};
+  };
+  const url = new URL('../scripts/validate-dm-payoff-full-preflight.mjs', import.meta.url);
+  const mod = await import(url.href+'?unit='+ ++sequence);
+  return {check:mod.validateDmPayoffFullPreflight,calls};
 }
 const sample = () => ({flow:{},chapter:{},alignment:{},actions:{},
   worldGraph:{},links:[{routeBeatId:'demo-a'},{routeBeatId:'demo-b'}],proof:{}});
-const result = value => JSON.parse(JSON.stringify(value));
 const fail = (value, code) => {
-  assert.deepEqual(result(value),{ok:false,code});
+  assert.deepEqual(value,{ok:false,code});
   assert.doesNotMatch(JSON.stringify(value),/demo|secret|private/i);
 };
 
 test('both route links are checked before world reachability',async()=>{
   const {check,calls}=await setup();
-  assert.deepEqual(result(check(sample())),{ok:true,validatedLinks:2,validatedRoutes:2});
+  assert.deepEqual(check(sample()),{ok:true,validatedLinks:2,validatedRoutes:2});
   assert.deepEqual(calls.map(x=>x.name),[
     'validateDmPayoffDualRouteLinks','validateDmLearningPayoff',
     'validateDmLearningPayoff','validateDmPayoffRouteReachability']);
