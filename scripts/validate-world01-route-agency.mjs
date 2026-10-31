@@ -50,6 +50,20 @@ export function validateWorld01RouteAgency(world, causal) {
         for(const next of nodes.get(cur).next)stack.push(next);
       }
       if(!reached)return fail('route_dead_end');
+      // A reachable pre-convergence cycle can postpone the reunion forever,
+      // even when every node has an optional path out of the cycle.
+      const active=new Set(),complete=new Set();
+      const hasCycle=node=>{
+        if(active.has(node))return true;
+        if(complete.has(node))return false;
+        active.add(node);
+        for(const next of nodes.get(node).next){
+          if(next!==convergence.scene&&hasCycle(next))return true;
+        }
+        active.delete(node);complete.add(node);
+        return false;
+      };
+      if(hasCycle(start))return fail('route_cycle');
       // Every route continuation, not merely one lucky path, must reach the reunion.
       const canReach=new Set([convergence.scene]);
       let changed=true;
