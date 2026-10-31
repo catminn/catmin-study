@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {validateWorld01RouteAgency as check} from '../scripts/validate-world01-route-agency.mjs';
 const base=()=>{
   const world={packageId:'demo-world',visibility:'mechanics_only',nodes:[
-    {id:'demo.entry',next:['demo.choice']},{id:'demo.choice',next:['demo.a','demo.b']},
+    {id:'demo.entry',role:'orientation',next:['demo.choice']},{id:'demo.choice',next:['demo.a','demo.b']},
     {id:'demo.a',next:['demo.join']},{id:'demo.b',next:['demo.join']},
     {id:'demo.join',next:['demo.end']},{id:'demo.end',next:[]}]};
   const commit=(s)=>({id:'demo.event-'+s,from:'demo.choice',to:'demo.'+s,
@@ -43,6 +43,15 @@ const cases=[
  ['one route missing learning opportunity',x=>x.causal.learning.scenes=['demo.a'],'learning_route_gap'],
  ['forced learning gate',x=>x.causal.learning.allowsNonAcademicProgress=false,'learning_route_gap'],
  ['learning fabricates world evidence',x=>x.causal.learning.fabricateMeasurements=true,'learning_route_gap'],
+ ['opening can skip the choice to reunion',x=>x.world.nodes[0].next.push('demo.join'),'choice_bypass'],
+ ['opening can skip the choice to ending',x=>x.world.nodes[0].next.push('demo.end'),'choice_bypass'],
+ ['opening can enter a route without committing',x=>x.world.nodes[0].next.push('demo.a'),'choice_bypass'],
+ ['pre-choice cycle can postpone choice forever',x=>x.world.nodes[0].next.push('demo.entry'),'choice_bypass'],
+ ['detached scene cannot be visited from opening',x=>x.world.nodes.push({id:'demo.orphan',next:['demo.orphan']}),'graph_unreachable'],
+ ['ambiguous opening role',x=>x.world.nodes[1].role='orientation','entry_invalid'],
+ ['post-convergence revisit of opening is legal',x=>x.world.nodes[4].next.push('demo.entry'),null],
+ ['acyclic pre-choice detour still reaches choice',x=>{x.world.nodes[0].next.push('demo.before');x.world.nodes.push({id:'demo.before',next:['demo.choice']});},null],
+ ['implicit unique graph root is accepted',x=>delete x.world.nodes[0].role,null],
  ['no input mutation',()=>{},null]
 ];
 for(const [name,mutate,code] of cases)test(name,()=>{

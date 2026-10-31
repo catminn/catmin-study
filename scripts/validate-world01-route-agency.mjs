@@ -37,6 +37,36 @@ export function validateWorld01RouteAgency(world, causal) {
     if(!obj(convergence)||!id(convergence.scene)||!nodes.has(convergence.scene)||
        convergence.scene===events[0].from||events.some(e=>e.to===convergence.scene))
       return fail('convergence_invalid');
+    // Find the opening from the declared orientation, or a unique graph root.
+    const incoming=new Map([...nodes.keys()].map(k=>[k,0]));
+    for(const n of nodes.values())for(const to of n.next)incoming.set(to,incoming.get(to)+1);
+    const openings=world.nodes.filter(n=>n.role==='orientation');
+    const roots=[...incoming].filter(([,count])=>count===0).map(([k])=>k);
+    const entry=openings.length===1?openings[0].id:
+      openings.length===0&&roots.length===1?roots[0]:null;
+    if(!entry||entry===fork.id)return fail('entry_invalid');
+    const reachable=new Set(),pending=[entry];
+    while(pending.length){
+      const cur=pending.pop();
+      if(reachable.has(cur))continue;
+      reachable.add(cur);pending.push(...nodes.get(cur).next);
+    }
+    if(reachable.size!==nodes.size)return fail('graph_unreachable');
+    // The committed choice must dominate the routes, reunion and ending.
+    const visiting=new Set(),visited=new Set();let reachedFork=false;
+    const beforeFork=cur=>{
+      if(cur===fork.id){reachedFork=true;return false;}
+      if(visiting.has(cur))return true;
+      if(visited.has(cur))return false;
+      const n=nodes.get(cur);
+      if(cur===convergence.scene||events.some(e=>e.to===cur)||n.next.length===0)
+        return true;
+      visiting.add(cur);
+      for(const next of n.next)if(beforeFork(next))return true;
+      visiting.delete(cur);visited.add(cur);return false;
+    };
+    if(beforeFork(entry))return fail('choice_bypass');
+    if(!reachedFork)return fail('fork_unreachable');
     // No branch may enter the other branch before the shared convergence.
     for(let i=0;i<2;i++){
       const start=events[i].to,other=events[1-i].to;
