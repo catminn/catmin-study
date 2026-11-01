@@ -15,6 +15,7 @@ const SCOPES = [
   "openid",
   "email",
   "https://www.googleapis.com/auth/calendar.readonly",
+  "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/drive.readonly",
 ].join(" ");
 const K_REFRESH = "google:refresh";
@@ -157,15 +158,19 @@ async function accessToken(env: SiteEnv, force = false): Promise<string> {
   return t.access_token;
 }
 
-async function gfetch(env: SiteEnv, url: string): Promise<Response> {
-  let r = await fetch(url, { headers: { Authorization: "Bearer " + (await accessToken(env)) } });
-  if (r.status === 401) r = await fetch(url, { headers: { Authorization: "Bearer " + (await accessToken(env, true)) } });
+async function gfetch(env: SiteEnv, url: string, init: RequestInit = {}): Promise<Response> {
+  const go = async (force: boolean) => fetch(url, { ...init, headers: { ...(init.headers as Record<string, string> || {}), Authorization: "Bearer " + (await accessToken(env, force)) } });
+  let r = await go(false);
+  if (r.status === 401) r = await go(true);
   return r;
 }
-async function gjson(env: SiteEnv, url: string): Promise<any> {
-  const r = await gfetch(env, url);
+async function gjson(env: SiteEnv, url: string, init: RequestInit = {}): Promise<any> {
+  const r = await gfetch(env, url, init);
+  if (r.status === 204) return {};
   if (!r.ok) {
     const t = (await r.json().catch(() => ({}))) as any;
+    if (r.status === 403 && /insufficient|scope/i.test(String(t?.error?.message || "") + JSON.stringify(t?.error?.details || "")))
+      throw new GErr("needs_reauth", "Google 日历还没有写入权限：点「连接 Google」重新授权一次", 403);
     throw new GErr("upstream_error", "Google " + r.status + "：" + String(t?.error?.message || "").slice(0, 160), r.status === 404 ? 404 : 502);
   }
   return r.json();
@@ -193,6 +198,39 @@ async function listEvents(env: SiteEnv, input: Record<string, any>) {
   if (input.pageToken) q.set("pageToken", String(input.pageToken));
   const o = await gjson(env, `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(id)}/events?${q}`);
   return { events: o.items || [], nextPageToken: o.nextPageToken };
+}
+
+// 学习空间自己加的待办写进 Google 日历（只动她自己的主日历）
+function evBody(input: Record<string, any>) {
+  const b: Record<string, any> = {};
+  if (input.summary != null) b.summary = String(input.summary).slice(0, 200);
+  if (input.description != null) b.description = String(input.description).slice(0, 2000);
+  if (input.allDay && input.startTime) {
+    const d = String(input.startTime).slice(0, 10), e = String(input.endTime || input.startTime).slice(0, 10);
+    b.start = { date: d }; b.end = { date: e > d ? e : new Date(Date.parse(d + "T12:00:00Z") + 864e5).toISOString().slice(0, 10) };
+  } else {
+    if (input.startTime) b.start = { dateTime: toRfc3339(String(input.startTime)), timeZone: TZ };
+    if (input.endTime) b.end = { dateTime: toRfc3339(String(input.endTime)), timeZone: TZ };
+  }
+  if (Array.isArray(input.overrideReminders)) b.reminders = { useDefault: false, overrides: input.overrideReminders.slice(0, 5).map((x: any) => ({ method: x.method === "email" ? "email" : "popup", minutes: Math.max(0, Number(x.minutes) || 0) })) };
+  if (input.availability === "AVAILABILITY_FREE") b.transparency = "transparent";
+  if (input.colorId) b.colorId = String(input.colorId);
+  return b;
+}
+const evUrl = (id: string, ev = "") => `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(id)}/events${ev ? "/" + encodeURIComponent(ev) : ""}`;
+async function createEvent(env: SiteEnv, input: Record<string, any>) {
+  if (!input.summary || !input.startTime || !input.endTime) throw new GErr("bad_request", "需要 summary、startTime、endTime");
+  return gjson(env, evUrl(String(input.calendarId || "primary")), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(evBody(input)) });
+}
+async function updateEvent(env: SiteEnv, input: Record<string, any>) {
+  if (!input.eventId) throw new GErr("bad_request", "需要 eventId");
+  return gjson(env, evUrl(String(input.calendarId || "primary"), String(input.eventId)), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(evBody(input)) });
+}
+async function deleteEvent(env: SiteEnv, input: Record<string, any>) {
+  if (!input.eventId) throw new GErr("bad_request", "需要 eventId");
+  try { await gjson(env, evUrl(String(input.calendarId || "primary"), String(input.eventId)), { method: "DELETE" }); }
+  catch (e) { if (!(e instanceof GErr && /Google 410|Google 404/.test(e.message))) throw e; }
+  return { deleted: true };
 }
 
 // ---------- Drive ----------
@@ -249,6 +287,9 @@ async function readFile(env: SiteEnv, input: Record<string, any>) {
 // ---------- 对外入口 ----------
 export async function googleTool(env: SiteEnv, server: string, tool: string, input: Record<string, any>): Promise<unknown> {
   if (server === "Google Calendar" && tool === "list_events") return listEvents(env, input);
+  if (server === "Google Calendar" && tool === "create_event") return createEvent(env, input);
+  if (server === "Google Calendar" && tool === "update_event") return updateEvent(env, input);
+  if (server === "Google Calendar" && tool === "delete_event") return deleteEvent(env, input);
   if (server === "Google Drive") {
     if (tool === "search_files") return driveList(env, driveQuery(String(input.query || "")), "modifiedTime desc", input);
     if (tool === "list_recent_files") return driveList(env, "trashed=false", "modifiedTime desc", input);
