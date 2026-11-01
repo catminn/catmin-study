@@ -16,7 +16,10 @@ same('variation selectors do not manufacture a difference', '⚙️', '⚙');
 same('ZWJ emoji are conservatively compared', '👩‍🔬', '👩🔬');
 distinct('different responses remain distinct', 'The door is open.', 'The door is closed.');
 distinct('a meaningful negation remains distinct', 'You may proceed.', 'You may not proceed.');
-distinct('different punctuation remains distinct under lexical QA', 'Wait.', 'Wait!');
+same('terminal punctuation alone cannot distinguish NPC outcomes', 'Wait.', 'Wait!');
+same('Unicode terminal punctuation alone is not a distinct outcome', 'We can proceed。', 'We can proceed？');
+same('terminal ellipsis does not manufacture a different NPC response', 'A cautious reply…', 'a cautious reply.');
+distinct('internal punctuation is preserved when it can change meaning', 'Wait, go.', 'Wait go!');
 test('invalid inputs are never coerced into text', () => {
   for (const value of [null, undefined, 0, true, {}, ['copy']]) assert.equal(key(value), null);
 });
