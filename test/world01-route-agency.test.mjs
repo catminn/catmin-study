@@ -4,7 +4,7 @@ import {validateWorld01RouteAgency as check} from '../scripts/validate-world01-r
 const base=()=>{
   const world={packageId:'demo-world',visibility:'mechanics_only',nodes:[
     {id:'demo.entry',role:'orientation',next:['demo.choice']},{id:'demo.choice',next:['demo.a','demo.b']},
-    {id:'demo.a',next:['demo.join']},{id:'demo.b',next:['demo.join']},
+    {id:'demo.a',next:['demo.join'],learning:'math1920.partial-derivative'},{id:'demo.b',next:['demo.join'],learning:'math1920.gradient'},
     {id:'demo.join',next:['demo.end']},{id:'demo.end',next:[]}]};
   const commit=(s)=>({id:'demo.event-'+s,from:'demo.choice',to:'demo.'+s,
     cause:{type:'scene_entered',sceneId:'demo.'+s,requiresCommittedTransition:true},
@@ -94,6 +94,13 @@ const cases=[
  ['mandatory learning metadata',x=>{x.world.nodes[2].learning='required';},"learning_route_gap"],
  ['nonstring learning metadata',x=>{x.world.nodes[2].learning={kind:'optional'};},"learning_route_gap"],
  ['invalid role metadata',x=>{x.world.nodes[2].role='Scene Title';},"graph_invalid"],
+ ['unreviewed world-level auto-reveal field',x=>{x.world.autoReveal=true;},'input_invalid'],
+ ['unreviewed world-level private-facts field',x=>{x.world.privateFacts=['demo.private'];},'input_invalid'],
+ ['unreviewed causal-level on-enter action',x=>{x.causal.onEnter='demo.private';},'input_invalid'],
+ ['unreviewed causal-level hidden-claim field',x=>{x.causal.hiddenClaim='demo.private';},'input_invalid'],
+ ['missing learning metadata on route A',x=>{delete x.world.nodes[2].learning;},'learning_route_gap'],
+ ['missing learning metadata on route B',x=>{delete x.world.nodes[3].learning;},'learning_route_gap'],
+ ['both routes explicitly offer optional learning',x=>{x.world.nodes[2].learning='math1920.partial-derivative';x.world.nodes[3].learning='math1920.gradient';},null],
  ['no input mutation',()=>{},null]
 ];
 for(const [name,mutate,code] of cases)test(name,()=>{

@@ -15,6 +15,14 @@ export function validateWorld01RouteAgency(world, causal) {
        !Array.isArray(world.nodes)||world.nodes.length<5||world.nodes.length>32||
        !Array.isArray(causal.routeCommits)||causal.routeCommits.length!==2)
       return fail('input_invalid');
+    // Unreviewed top-level declarations must not bypass the scoped author contract.
+    const worldKeys=['schemaVersion','packageId','visibility','warning','ownership',
+      'nodes','authoringConstraints','acceptance'];
+    const causalKeys=['schema','scope','warning','worldId','sceneContract','routeCommits',
+      'npcContinuity','convergence','learning','publicProjection'];
+    if(Object.keys(world).some(k=>!worldKeys.includes(k))||
+       Object.keys(causal).some(k=>!causalKeys.includes(k)))
+      return fail('input_invalid');
     const nodes=new Map();
     for(const n of world.nodes){
       if(!obj(n)||!id(n.id)||!Array.isArray(n.next)||n.next.length>8||
@@ -46,7 +54,7 @@ export function validateWorld01RouteAgency(world, causal) {
     const fork=nodes.get(events[0].from);
     if(!fork||!equalSet(fork.next,events.map(e=>e.to)))return fail('choice_mismatch');
     // A branch advertised as an optional learning opportunity cannot say "none".
-    if(events.some(e=>nodes.get(e.to).learning==='none'))
+    if(events.some(e=>nodes.get(e.to).learning===undefined||nodes.get(e.to).learning==='none'))
       return fail('learning_route_gap');
     const convergence=causal.convergence;
     if(!exact(convergence,['scene','preserve','routeOutcomes'])||!id(convergence.scene)||!nodes.has(convergence.scene)||
