@@ -234,10 +234,11 @@ function setTodoMode(mode) {
     // 从书签处展开：先把窗口放到展开位置但只露出书签那么大，再往外拉开
     const k = conf.todoDock, r = todo.getBounds();
     const start = k.edge === "top" ? { x: to.x, y: to.y, width: to.width, height: DOCK } : k.edge === "left" ? { x: to.x, y: to.y, width: DOCK, height: to.height } : { x: to.x + to.width - DOCK, y: to.y, width: DOCK, height: to.height };
-    todoState = "full"; tellTodo(); todo.setBounds(start); animateBounds(todo, to, 180);
+    todoState = "full"; tellTodo(); todo.setResizable(true); todo.setBounds(start); animateBounds(todo, to, 180);
     return;
   }
   todoState = mode; tellTodo();
+  if (mode !== "full") todo.setResizable(false); else todo.setResizable(true);
   animateBounds(todo, to, mode === "full" ? 140 : 160);
 }
 ipcMain.on("todo-mode", (e, mode) => setTodoMode(mode));
@@ -481,6 +482,21 @@ function undoInbox() {
   lastInbox = null; refreshMenu();
 }
 
+// ---------- 自动更新：从 GitHub Releases（catminn/catmin-study）后台下载，退出或点托盘时换上 ----------
+let updater = null, updateReady = "";
+function startUpdater() {
+  if (!app.isPackaged) return;
+  try { ({ autoUpdater: updater } = require("electron-updater")); } catch (e) { updater = null; return; }
+  updater.autoDownload = true; updater.autoInstallOnAppQuit = true;
+  updater.on("update-downloaded", (info) => {
+    updateReady = info && info.version || "新版本"; refreshMenu();
+    try { new Notification({ title: "学习空间有新版本", body: "已下载好 " + updateReady + "，下次启动自动换上。也可以在托盘菜单里马上重启。", icon: ICON, silent: true }).show(); } catch (e) {}
+  });
+  updater.on("error", () => {});
+  const check = () => { try { updater.checkForUpdates().catch(() => {}); } catch (e) {} };
+  setTimeout(check, 20000); setInterval(check, 4 * 3600 * 1000);
+}
+
 // ---------- 托盘 ----------
 function menu() {
   return Menu.buildFromTemplate([
@@ -500,6 +516,8 @@ function menu() {
     { label: lastInbox ? "撤销上次收纳（" + path.basename(lastInbox.to).slice(0, 24) + "）" : "撤销上次收纳", enabled: !!lastInbox, click: undoInbox },
     { label: "开机启动", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
     { label: hotkey ? "设置快捷键…（现在是 " + keyName(hotkey) + "）" : "设置快捷键…（现在没有）", click: openHotkeyWin },
+    ...(updateReady ? [{ label: "重启并更新到 " + updateReady, click: () => { app.isQuitting = true; updater.quitAndInstall(true, true); } }] : []),
+    { label: "版本 " + app.getVersion(), enabled: false },
     { type: "separator" },
     { label: "退出", click: () => { app.isQuitting = true; app.quit(); } },
   ]);
@@ -535,6 +553,7 @@ app.whenReady().then(() => {
   createRing();
   startRingHook();
   startInbox();
+  startUpdater();
   const files = filesFromArgv(process.argv);
   if (files.length) deliverPaths(files);
   screen.on("display-metrics-changed", () => { if (bubble && !onScreen({ x: bubble.getPosition()[0], y: bubble.getPosition()[1] })) { const a = workArea(); bubble.setPosition(a.x + a.width - BUB - 2, a.y + a.height - BUB - 2); } });

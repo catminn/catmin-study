@@ -2523,8 +2523,10 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
 /* 桌面版：平时收成小标签（或吸在屏幕边上的书签），鼠标移上去展开；展开收起由桌面程序根据鼠标位置决定 */
 if(EMBED==="todo"&&DESK&&DESK.todoMode){const B=document.body;
   DESK.onTodoState&&DESK.onTodoState(st=>{B.classList.toggle("td-collapsed",st.mode==="mini");B.classList.toggle("td-docked",st.mode==="dock");for(const e of["left","right","top"])B.classList.toggle("dock-"+e,st.mode==="dock"&&st.edge===e)});
-  const busy=()=>!!((document.activeElement&&document.activeElement.tagName==="INPUT")||document.querySelector(".scrim,.qz,.pop"));
-  const tell=()=>DESK.todoBusy&&DESK.todoBusy(busy());document.addEventListener("focusin",tell);document.addEventListener("focusout",()=>setTimeout(tell,50));new MutationObserver(tell).observe(B,{childList:true});
+  // 输入框里打了字、或者有弹窗时才算“正在用”，空着的输入框不拦着收起
+  const busy=()=>!!((document.activeElement&&document.activeElement.tagName==="INPUT"&&document.activeElement.value.trim())||document.querySelector(".scrim,.qz,.pop"));
+  const tell=()=>DESK.todoBusy&&DESK.todoBusy(busy());["focusin","input","keyup"].forEach(ev=>document.addEventListener(ev,tell));document.addEventListener("focusout",()=>setTimeout(tell,50));new MutationObserver(tell).observe(B,{childList:true});
+  DESK.onTodoState&&DESK.onTodoState(st=>{if(st.mode!=="full"&&document.activeElement&&document.activeElement.tagName==="INPUT")document.activeElement.blur()});
   if(DESK.isGlass)DESK.isGlass().then(g=>{if(g)B.classList.add("glass")}).catch(()=>{})}
 let S_PIN=true;if(DESK&&DESK.getPin)DESK.getPin().then(v=>{S_PIN=!!v;if(EMBED==="todo")renderTodoEmbed()}).catch(()=>{});
 if(EMBED==="todo"){setInterval(()=>{if(!document.hidden)renderTodoEmbed()},60000)}

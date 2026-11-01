@@ -1,7 +1,7 @@
 {
   "name": "xuexi-kongjian",
   "productName": "学习空间",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "学习空间桌面版：零的小圆、置顶待办、把文件丢给零",
   "main": "main.js",
   "author": "Catherine Min",
@@ -34,9 +34,8 @@
       "hotkey-preload.js",
       "ring.html",
       "ring-preload.js",
-      "node_modules/uiohook-napi/**",
       "glass.js",
-      "node_modules/koffi/**"
+      "node_modules/**"
     ],
     "asarUnpack": [
       "selected.ps1",
@@ -54,10 +53,16 @@
       "include": "build/installer.nsh",
       "runAfterFinish": true
     },
-    "publish": null,
+    "publish": {
+      "provider": "github",
+      "owner": "catminn",
+      "repo": "catmin-study",
+      "releaseType": "release"
+    },
     "npmRebuild": false
   },
   "dependencies": {
+    "electron-updater": "^6.8.11",
     "koffi": "^2.16.3",
     "uiohook-napi": "^1.5.5"
   }
