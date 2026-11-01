@@ -199,6 +199,43 @@ async function onHotkey() {
   if (paths.length) deliverPaths(paths); else toggleZero();
 }
 
+// ---------- 存到 桌面\Cornell\<课程> ----------
+function courseDir(course) {
+  const safe = String(course).replace(/[\\/:*?"<>|]/g, " ").trim() || "其他";
+  const dir = path.join(app.getPath("desktop"), "Cornell", safe);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+function freeName(dir, name, size) {
+  const base = String(name).replace(/[\\/:*?"<>|]/g, "_");
+  let p = path.join(dir, base);
+  if (!fs.existsSync(p)) return p;
+  if (size != null && fs.statSync(p).size === size) return null; // 已经有同一个文件
+  const ext = path.extname(base), stem = base.slice(0, base.length - ext.length);
+  for (let i = 2; i < 100; i++) { p = path.join(dir, `${stem} (${i})${ext}`); if (!fs.existsSync(p)) return p; }
+  return null;
+}
+ipcMain.handle("save-local", (e, course, list) => {
+  const dir = courseDir(course); let n = 0;
+  for (const f of (list || []).slice(0, 6)) {
+    try { const buf = Buffer.from(f.data); const p = freeName(dir, f.name, buf.length); if (p) fs.writeFileSync(p, buf); n++; } catch (err) {}
+  }
+  return n;
+});
+ipcMain.handle("save-pdf", async (e, course, name, html) => {
+  const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: true } });
+  try {
+    await w.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
+    await w.webContents.executeJavaScript("(window.MathJax&&MathJax.startup&&MathJax.startup.promise)?MathJax.startup.promise.then(()=>1):new Promise(r=>setTimeout(()=>r(1),1500))");
+    const pdf = await w.webContents.printToPDF({ pageSize: "Letter", printBackground: true });
+    const dir = courseDir(course);
+    let p = path.join(dir, String(name).replace(/[\\/:*?"<>|]/g, "_"));
+    if (fs.existsSync(p)) p = freeName(dir, path.basename(p), -1) || p;
+    fs.writeFileSync(p, pdf);
+    return { path: p, data: pdf.toString("base64") };
+  } finally { w.destroy(); }
+});
+
 // ---------- 托盘 ----------
 function menu() {
   return Menu.buildFromTemplate([

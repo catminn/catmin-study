@@ -17,7 +17,12 @@ const SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/drive.readonly",
+  "https://www.googleapis.com/auth/drive.file",
 ].join(" ");
+// 第二个账号（Cornell）只用来往它的 Drive 里存文件
+const CORNELL_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/drive.file"].join(" ");
+type Acct = "main" | "cornell";
+const KK = (acct: Acct) => acct === "main" ? { refresh: "google:refresh", access: "google:access", email: "google:email", scope: "google:scope" } : { refresh: "google:cornell:refresh", access: "google:cornell:access", email: "google:cornell:email", scope: "google:cornell:scope" };
 const K_REFRESH = "google:refresh";
 const K_ACCESS = "google:access";
 const K_EMAIL = "google:email";
@@ -49,17 +54,19 @@ export function startAuth(env: SiteEnv, url: URL): Promise<Response> | Response 
   if (!googleConfigured(env)) return new Response("还没有在 Cloudflare 里设置 GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET。", { status: 400 });
   return (async () => {
     const state = [...crypto.getRandomValues(new Uint8Array(24))].map((x) => x.toString(16).padStart(2, "0")).join("");
-    await env.OAUTH_KV.put("google:state:" + state, "1", { expirationTtl: 600 });
+    const acct: Acct = url.searchParams.get("acct") === "cornell" ? "cornell" : "main";
+    await env.OAUTH_KV.put("google:state:" + state, acct, { expirationTtl: 600 });
     const q = new URLSearchParams({
       client_id: env.GOOGLE_CLIENT_ID!,
       redirect_uri: url.origin + "/auth/google/callback",
       response_type: "code",
-      scope: SCOPES,
+      scope: acct === "cornell" ? CORNELL_SCOPES : SCOPES,
       access_type: "offline",
       prompt: "consent",
       include_granted_scopes: "false",
       state,
     });
+    if (acct === "cornell") { q.set("login_hint", "jm3235@cornell.edu"); q.set("hd", "cornell.edu"); }
     return Response.redirect("https://accounts.google.com/o/oauth2/v2/auth?" + q, 302);
   })();
 }
@@ -79,6 +86,7 @@ export async function finishAuth(env: SiteEnv, url: URL): Promise<Response> {
   if (e) return page("Google 返回：" + esc(e), false);
   const state = url.searchParams.get("state") || "";
   const code = url.searchParams.get("code") || "";
+  const acct: Acct = (await env.OAUTH_KV.get("google:state:" + state)) === "cornell" ? "cornell" : "main";
   if (!/^[0-9a-f]{48}$/.test(state) || !(await env.OAUTH_KV.get("google:state:" + state))) return page("授权已过期，请回学习空间再点一次「连接 Google」。", false);
   await env.OAUTH_KV.delete("google:state:" + state);
   const r = await fetch("https://oauth2.googleapis.com/token", {
@@ -94,22 +102,29 @@ export async function finishAuth(env: SiteEnv, url: URL): Promise<Response> {
   });
   const t = (await r.json().catch(() => ({}))) as any;
   if (!r.ok || !t.refresh_token) return page("换取令牌失败：" + esc(String(t.error_description || t.error || r.status)), false);
-  if (!String(t.scope || "").includes("calendar.readonly") || !String(t.scope || "").includes("drive.readonly"))
+  if (acct === "cornell" && !String(t.scope || "").includes("drive.file")) return page("Cornell 账号没有给存文件的权限，文件会改存到个人 Drive。", false);
+  if (acct === "main" && (!String(t.scope || "").includes("calendar.readonly") || !String(t.scope || "").includes("drive.readonly")))
     return page("授权时没有勾选全部权限（日历和 Drive 都需要）。请重新点「连接 Google」并勾选。", false);
   let email = "";
   try {
     email = JSON.parse(dec.decode(unb64(String(t.id_token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(String(t.id_token).split(".")[1].length / 4) * 4, "=")))).email || "";
   } catch {}
-  await env.OAUTH_KV.put(K_REFRESH, await seal(env, t.refresh_token));
-  await env.OAUTH_KV.put(K_EMAIL, email);
-  if (t.access_token) await env.OAUTH_KV.put(K_ACCESS, t.access_token, { expirationTtl: Math.max(60, Number(t.expires_in || 3600) - 120) });
-  return page("已连接 " + esc(email || "你的 Google 账号") + "（只读）。", true);
+  const k = KK(acct);
+  await env.OAUTH_KV.put(k.refresh, await seal(env, t.refresh_token));
+  await env.OAUTH_KV.put(k.email, email);
+  await env.OAUTH_KV.put(k.scope, String(t.scope || ""));
+  if (t.access_token) await env.OAUTH_KV.put(k.access, t.access_token, { expirationTtl: Math.max(60, Number(t.expires_in || 3600) - 120) });
+  return page(acct === "cornell" ? "已连接 " + esc(email || "Cornell 账号") + "，以后交给零的文件会存进这个账号的 Drive。" : "已连接 " + esc(email || "你的 Google 账号") + "。", true);
 }
 
 export async function googleStatus(env: SiteEnv) {
   const configured = googleConfigured(env);
   const connected = configured && !!(await env.OAUTH_KV.get(K_REFRESH));
-  return { configured, connected, email: connected ? (await env.OAUTH_KV.get(K_EMAIL)) || "" : "" };
+  const scope = (await env.OAUTH_KV.get("google:scope")) || "";
+  const cornell = configured && !!(await env.OAUTH_KV.get("google:cornell:refresh"));
+  return { configured, connected, email: connected ? (await env.OAUTH_KV.get(K_EMAIL)) || "" : "",
+    needsUpgrade: connected && !(scope.includes("calendar.events") && scope.includes("drive.file")),
+    cornell, cornellEmail: cornell ? (await env.OAUTH_KV.get("google:cornell:email")) || "" : "" };
 }
 
 export async function googleDisconnect(env: SiteEnv) {
@@ -123,17 +138,18 @@ export async function googleDisconnect(env: SiteEnv) {
       });
     } catch {}
   }
-  await Promise.all([K_REFRESH, K_ACCESS, K_EMAIL].map((k) => env.OAUTH_KV.delete(k)));
+  await Promise.all([K_REFRESH, K_ACCESS, K_EMAIL, "google:scope"].map((k) => env.OAUTH_KV.delete(k)));
 }
 
 // ---------- 访问令牌 ----------
-async function accessToken(env: SiteEnv, force = false): Promise<string> {
+async function accessToken(env: SiteEnv, force = false, acct: Acct = "main"): Promise<string> {
   if (!googleConfigured(env)) throw new GErr("server_not_connected", "Google 还没设置密钥", 400);
+  const k = KK(acct);
   if (!force) {
-    const c = await env.OAUTH_KV.get(K_ACCESS);
+    const c = await env.OAUTH_KV.get(k.access);
     if (c) return c;
   }
-  const sealed = await env.OAUTH_KV.get(K_REFRESH);
+  const sealed = await env.OAUTH_KV.get(k.refresh);
   if (!sealed) throw new GErr("server_not_connected", "还没连接 Google：点页面右上角的「连接 Google」", 400);
   let refresh: string;
   try {
@@ -149,23 +165,23 @@ async function accessToken(env: SiteEnv, force = false): Promise<string> {
   const t = (await r.json().catch(() => ({}))) as any;
   if (!r.ok || !t.access_token) {
     if (t.error === "invalid_grant") {
-      await Promise.all([K_REFRESH, K_ACCESS].map((k) => env.OAUTH_KV.delete(k)));
+      await Promise.all([k.refresh, k.access].map((x) => env.OAUTH_KV.delete(x)));
       throw new GErr("needs_reauth", "Google 授权已失效，请重新点「连接 Google」", 400);
     }
     throw new GErr("upstream_error", "刷新 Google 令牌失败：" + (t.error_description || t.error || r.status), 502);
   }
-  await env.OAUTH_KV.put(K_ACCESS, t.access_token, { expirationTtl: Math.max(60, Number(t.expires_in || 3600) - 120) });
+  await env.OAUTH_KV.put(k.access, t.access_token, { expirationTtl: Math.max(60, Number(t.expires_in || 3600) - 120) });
   return t.access_token;
 }
 
-async function gfetch(env: SiteEnv, url: string, init: RequestInit = {}): Promise<Response> {
-  const go = async (force: boolean) => fetch(url, { ...init, headers: { ...(init.headers as Record<string, string> || {}), Authorization: "Bearer " + (await accessToken(env, force)) } });
+async function gfetch(env: SiteEnv, url: string, init: RequestInit = {}, acct: Acct = "main"): Promise<Response> {
+  const go = async (force: boolean) => fetch(url, { ...init, headers: { ...(init.headers as Record<string, string> || {}), Authorization: "Bearer " + (await accessToken(env, force, acct)) } });
   let r = await go(false);
   if (r.status === 401) r = await go(true);
   return r;
 }
-async function gjson(env: SiteEnv, url: string, init: RequestInit = {}): Promise<any> {
-  const r = await gfetch(env, url, init);
+async function gjson(env: SiteEnv, url: string, init: RequestInit = {}, acct: Acct = "main"): Promise<any> {
+  const r = await gfetch(env, url, init, acct);
   if (r.status === 204) return {};
   if (!r.ok) {
     const t = (await r.json().catch(() => ({}))) as any;
@@ -233,6 +249,50 @@ async function deleteEvent(env: SiteEnv, input: Record<string, any>) {
   return { deleted: true };
 }
 
+// ---------- 往 Drive 里存文件（Cornell 账号连上了就存那边，否则存个人账号） ----------
+async function uploadAcct(env: SiteEnv): Promise<Acct> { return (await env.OAUTH_KV.get("google:cornell:refresh")) ? "cornell" : "main"; }
+const qEsc = (s: string) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+async function ensureFolder(env: SiteEnv, acct: Acct, path: string[]): Promise<string> {
+  let parent = "root";
+  for (const raw of path) {
+    const name = String(raw).replace(/[\\/]/g, " ").trim().slice(0, 80) || "未命名";
+    const ck = `gdrive:${acct}:folder:${parent}:${name}`;
+    const hit = await env.OAUTH_KV.get(ck);
+    if (hit) { parent = hit; continue; }
+    const q = new URLSearchParams({ q: `name='${qEsc(name)}' and mimeType='application/vnd.google-apps.folder' and '${parent}' in parents and trashed=false`, fields: "files(id)", pageSize: "1" });
+    const found = await gjson(env, "https://www.googleapis.com/drive/v3/files?" + q, {}, acct);
+    let id = found.files?.[0]?.id;
+    if (!id) {
+      const made = await gjson(env, "https://www.googleapis.com/drive/v3/files?fields=id", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder", parents: [parent] }) }, acct);
+      id = made.id;
+    }
+    await env.OAUTH_KV.put(ck, id, { expirationTtl: 30 * 86400 });
+    parent = id;
+  }
+  return parent;
+}
+async function uploadFile(env: SiteEnv, input: Record<string, any>) {
+  const name = String(input.name || "").replace(/[\\/]/g, "_").slice(0, 200);
+  const data = String(input.dataBase64 || "");
+  if (!name || !data) throw new GErr("bad_request", "需要 name 和 dataBase64");
+  const bytes = unb64(data);
+  if (bytes.length > 25 * 1024 * 1024) throw new GErr("bad_request", "文件太大（超过 25MB）");
+  const acct = await uploadAcct(env);
+  const folder = await ensureFolder(env, acct, Array.isArray(input.folderPath) ? input.folderPath.slice(0, 4) : ["学习空间"]);
+  const q = new URLSearchParams({ q: `name='${qEsc(name)}' and '${folder}' in parents and trashed=false`, fields: "files(id,size,webViewLink)", pageSize: "5" });
+  const same = (await gjson(env, "https://www.googleapis.com/drive/v3/files?" + q, {}, acct)).files || [];
+  const dup = same.find((f: any) => Number(f.size) === bytes.length);
+  if (dup) return { id: dup.id, webViewLink: dup.webViewLink, duplicate: true, account: acct };
+  const mime = String(input.mimeType || "application/octet-stream");
+  const boundary = "xk" + crypto.randomUUID().replace(/-/g, "");
+  const head = enc.encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, parents: [folder] })}\r\n--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`);
+  const tail = enc.encode(`\r\n--${boundary}--`);
+  const body = new Uint8Array(head.length + bytes.length + tail.length);
+  body.set(head, 0); body.set(bytes, head.length); body.set(tail, head.length + bytes.length);
+  const r = await gjson(env, "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink", { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + boundary }, body }, acct);
+  return { id: r.id, webViewLink: r.webViewLink, account: acct };
+}
+
 // ---------- Drive ----------
 const FILE_FIELDS = "id,name,mimeType,modifiedTime,size,webViewLink";
 // 把连接器的查询语法翻成 Drive API：title contains 'x' / parentId = 'id'
@@ -290,6 +350,7 @@ export async function googleTool(env: SiteEnv, server: string, tool: string, inp
   if (server === "Google Calendar" && tool === "create_event") return createEvent(env, input);
   if (server === "Google Calendar" && tool === "update_event") return updateEvent(env, input);
   if (server === "Google Calendar" && tool === "delete_event") return deleteEvent(env, input);
+  if (server === "Google Drive" && tool === "upload_file") return uploadFile(env, input);
   if (server === "Google Drive") {
     if (tool === "search_files") return driveList(env, driveQuery(String(input.query || "")), "modifiedTime desc", input);
     if (tool === "list_recent_files") return driveList(env, "trashed=false", "modifiedTime desc", input);

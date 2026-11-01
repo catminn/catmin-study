@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld("zsDesktop", {
   saved: () => ipcRenderer.send("saved"),
   ready: () => ipcRenderer.send("ready"),
   badge: (n) => ipcRenderer.send("badge", Number(n) || 0),
+  saveLocal: (subj, course, list) => ipcRenderer.invoke("save-local", String(course), list),
+  savePdf: (subj, course, name, html) => ipcRenderer.invoke("save-pdf", String(course), String(name), String(html)),
   onPull: (cb) => ipcRenderer.on("pull", () => cb()),
   onFiles: (cb) => ipcRenderer.on("files", (e, target, list) => cb(target, list)),
   onCommand: (cb) => ipcRenderer.on("cmd", (e, c) => cb(c)),

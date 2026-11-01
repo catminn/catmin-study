@@ -601,7 +601,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 <button class="guideFab" id="guideFab" hidden><span class="lamp">灯</span><span class="gtxt" id="guideTxt">下一步</span></button>
 <div class="zw" id="zw">
   <section class="zw-panel" id="zwPanel" hidden aria-label="零">
-    <header class="zw-head"><div class="zface"><svg class="i"><use href="#i-zero"/></svg></div><div class="zw-t"><select id="zwSubj" aria-label="科目"></select></div><button class="zw-x" id="zwClear" title="清空对话">清空</button><button class="zw-x" id="zwClose" aria-label="收起">×</button></header>
+    <header class="zw-head"><div class="zface"><svg class="i"><use href="#i-zero"/></svg></div><div class="zw-t"><select id="zwSubj" aria-label="科目"></select></div><button class="zw-x" id="zwHw" title="把这次收集的作业题目整理成 PDF">作业</button><button class="zw-x" id="zwClear" title="清空对话">清空</button><button class="zw-x" id="zwClose" aria-label="收起">×</button></header>
     <div class="zw-log" id="zwLog" aria-live="polite"></div>
     <div class="zw-thumbs" id="zwThumbs"></div>
     <div class="zw-in"><label class="zw-clip" id="zwClipL" title="附图片"><svg class="i"><use href="#i-camera"/></svg><input type="file" id="zwImg" accept="image/*" multiple hidden></label><textarea id="zwInput" rows="1" placeholder="问零"></textarea><button class="btn go sm" id="zwSend">发送</button></div>
@@ -928,7 +928,8 @@ const COMMON_RULES=`你在写一部和玩家实时互动的无限流小说，同
 [命中] —— 她这次答对了检查问题或练习题时写
 [失误] —— 她这次答错时写（同时写 [错题]）
 [关卡完成] —— 这是一个主线关卡，并且她已经答对了这一关最后的检查问题时写
-[击败 编号] —— 这轮是在复活错题，且她这次做对了时写，编号照抄题目里给的`;
+[击败 编号] —— 这轮是在复活错题，且她这次做对了时写，编号照抄题目里给的
+[题目] 题号 || 题目原文 —— 她发来一道作业题（截图或文字）时写，原文完整照抄（公式用 LaTeX，图里有图表就用一句话描述），题号看不出来就写「?」；同一道题只写一次`;
 
 const PACK={
 math:`科目：MATH 1920 Multivariable Calculus for Engineers，Prof. Kelly Delp，教材 Rogawski/Adams/Franzosa 第 4 版。
@@ -979,6 +980,7 @@ const ckReward=n=>R(30+2*Math.min(Math.max(n-1,0),10));
 function BASE_BOSSES(){return{
   "engri-p2":{subj:"engri",title:"ENGRI Prelim 2",due:at(2026,10,26,9,5),where:"Upson Hall",exam:true,stages:[{k:"r",t:"考前过一遍考点",pts:30,due:at(2026,10,26,8,0)}]},
   "engl-a3r":{subj:"engl",title:"Assignment 3 初稿",due:at(2026,10,30),where:"Canvas，周五午夜。那天傍晚有万圣夜，目标周四写完。",submit:true,stages:[]},
+  "math-q3":{subj:"math",title:"MATH Quiz 3",due:at(2026,11,3,9,5),where:"Discussion · 范围 HW 7、HW 8",scope:"HW 7、HW 8 的内容",exam:true,stages:[]},
   "math-p2":{subj:"math",title:"MATH Prelim 2",due:at(2026,11,12,19,30),where:"Statler 185",exam:true,stages:[{k:"sweep",t:"错题清扫：打完所有复活的错题怪",pts:30},{k:"speed",t:"考点速通：每节一道题",pts:40,due:at(2026,11,9)},{k:"mock",t:"做一套模拟卷",pts:40,due:at(2026,11,10)}]},
   "engl-a3f":{subj:"engl",title:"Assignment 3 终稿",due:at(2026,11,13),where:"Canvas，周五午夜",submit:true,stages:[]},
   "chem-p2":{subj:"chem",title:"CHEM Prelim 2",due:at(2026,10,22,19,30),where:"已考，出分后录入成绩",exam:true,stages:[]},
@@ -1035,7 +1037,7 @@ const SHOP_ITEMS=[
 function defaultState(){return{v:2,points:0,xp:0,checkins:[],restDays:[],cards:{makeup:0,rest:0,hint:0,freeze:0},shards:0,combo:0,
   done:{},started:{},skipped:{},chests:{},weekEarly:{},ledger:[],mistakes:[],progress:{math:[],chem:[],engri:[],engl:[]},
   world:{math:[0],chem:[0],engri:[0],engl:[START_WORLD.engl]},
-  nodeNames:{},customRewards:[],customWorlds:[],timer:null,chemExam2:"",calendar:false,battle:{},scores:[],trainLog:{},quizLog:{},tale:{},nums:{},saga:{},fate:{},spend:[],sleep:null,sleepLog:[],todos:[]}}
+  nodeNames:{},customRewards:[],customWorlds:[],timer:null,chemExam2:"",calendar:false,battle:{},scores:[],trainLog:{},quizLog:{},tale:{},nums:{},saga:{},fate:{},spend:[],sleep:null,sleepLog:[],todos:[],hwDraft:{},hwArchive:[]}}
 const SEED_SCORES=[
   {id:"seed-chem-e1",subj:"chem",name:"Exam 1",got:77,max:150,kind:"exam",at:at(2026,9,24,20,0)},
   {id:"seed-engri-p1",subj:"engri",name:"Prelim 1",got:73,max:100,kind:"exam",at:at(2026,9,28,10,0)},
@@ -1045,7 +1047,7 @@ let S=defaultState();S.scores=SEED_SCORES.map(x=>Object.assign({bonus:null},x));
 function mergeState(raw){const x=raw?clone(raw):{};const o=Object.assign(defaultState(),x);
   o.cards=Object.assign(defaultState().cards,x.cards||{});o.progress=Object.assign(defaultState().progress,x.progress||{});o.world=Object.assign(defaultState().world,x.world||{});
   for(const k of["done","started","skipped","chests","weekEarly","nodeNames","battle","trainLog","quizLog","tale","saga","fate"])if(!o[k]||typeof o[k]!=="object"||Array.isArray(o[k]))o[k]={};
-  for(const k of["checkins","restDays","ledger","mistakes","customRewards","customWorlds","scores","spend","sleepLog","todos"])if(!Array.isArray(o[k]))o[k]=[];
+  for(const k of["checkins","restDays","ledger","mistakes","customRewards","customWorlds","scores","spend","sleepLog","todos","hwArchive"])if(!Array.isArray(o[k]))o[k]=[];if(!o.hwDraft||typeof o.hwDraft!=="object"||Array.isArray(o.hwDraft))o.hwDraft={};
   delete o.story;
   if(typeof x.xp!=="number")o.xp=o.ledger.reduce((s,e)=>s+(e.d>0?e.d:0),0);
   if(x.bossDone){for(const k in x.bossDone)o.done["boss:"+k]=x.bossDone[k];delete o.bossDone}
@@ -1650,6 +1652,7 @@ function renderDungeon(){const w=worldOf(CUR);{const b=S.battle[CUR];if(!QUEST[C
     n&&!nodeIsDone(CUR,n)?h("button",{class:"btn sm ok",onclick:()=>completeNode(CUR,n)},"学完了 +"+preview(n.pts||NODE_PTS,n.due||null,0).total):h("span",{class:"small"},"已通关"))}
   $("#modes").replaceChildren(...MODES[CUR].map(([l,t],i)=>h("button",{class:"btn sm"+(i===0?" go":""),onclick:()=>{if(/签到/.test(l)){openDaily(CUR);return}if(CUR!=="engl"){const k=/复习/.test(l)?"review":/作业|Lab/.test(l)?"hw":/签到/.test(l)?"daily":/剧情/.test(l)?"quest":"train";
       if(k!=="quest")startBattle(CUR,k,FOES[k]);else if(!QUEST[CUR]){const ci=curIndex(CUR);const n=MAIN[CUR][ci];if(n&&!n.boss){startNode(CUR,n);return}startBattle(CUR,"train",FOES.train)}}send(t)},disabled:!SAMPLE||!!CTL},l)),
+    h("button",{class:"btn sm",onclick:()=>openHwSheet(CUR),title:"把这次收集的作业题目整理成 PDF"},"整理作业"+(((S.hwDraft||{})[CUR]||[]).length?" "+S.hwDraft[CUR].length:"")),
     CUR!=="engl"?h("button",{class:"btn sm ok",onclick:startQuiz,disabled:!SAMPLE||!!CTL,title:"5 道单选，每天前 3 次有奖励"},"小测验 · 最多 +"+R(40)+(quizzesToday()>=QUIZ_CAP?"（今日奖励已满）":"")):"");
   $("#imgLabel").hidden=!SAMPLE;$("#driveBtn").hidden=!MCP;renderLib();$("#sendBtn").disabled=!SAMPLE||!!CTL;
   renderDuePanel();renderSkills();renderPractice();renderChat();{const last=CHATS[CUR][CHATS[CUR].length-1];const m=last&&last.role==="assistant"&&String(last.content).match(/第\s*(\d+)\s*问/g);$("#input").placeholder=m?"回答"+m[m.length-1].replace(/\s+/g," "):"回答或提问"}renderFocus();startAmbient();drainFx()}
@@ -1818,12 +1821,13 @@ function renderMd(text){const wrap=h("div");const maths=[];const t=String(text).
   if(html==null)html=esc(t).replace(/\n/g,"<br>");wrap.innerHTML=html.replace(/@@M(\d+)@@/g,(_,i)=>esc(maths[+i]));return wrap}
 let MT_T;new MutationObserver(()=>{clearTimeout(MT_T);MT_T=setTimeout(()=>{const els=[...document.querySelectorAll(".mtext:not([data-ts])")];els.forEach(e=>e.dataset.ts=1);if(els.length&&window.MathJax&&MathJax.typesetPromise)MathJax.typesetPromise(els).catch(()=>{})},60)}).observe(document.documentElement,{childList:true,subtree:true});
 function typeset(el){if(window.MathJax&&MathJax.typesetPromise)MathJax.typesetPromise([el]).catch(()=>{})}
-const TAG_RE=/^\[(错题|进度|委托完成|关卡完成|击败|选项|命中|失误|场景|人物|剧情摘要|惊喜)[^\n]*$/gm;let PARSED_CHOICES=null;
+const TAG_RE=/^\[(错题|进度|委托完成|关卡完成|击败|选项|命中|失误|场景|人物|剧情摘要|惊喜|题目)[^\n]*$/gm;let PARSED_CHOICES=null;
 function stripTags(subj,text){const keep=[];let changed=false;
   for(const ln of String(text).split("\n")){const s=ln.trim();let m;
     if((m=s.match(/^\[错题\]\s*(.+)$/))){const[wrong,right]=m[1].split("||").map(x=>x.trim());const nm={id:"m"+uid().slice(0,4),subj,text:wrong.slice(0,160),fix:(right||"").slice(0,200),added:dayKey(),revive:addDays(dayKey(),3),killed:false};S.mistakes.push(nm);changed=true;syncMistake(nm);smEvent("做错一题，进了错题图鉴",subj);continue}
     if((m=s.match(/^\[进度\]\s*(.+)$/))){S.progress[subj].push({t:m[1].slice(0,160),d:dayKey()});changed=true;
       smWrite("memory_store",{content:"【学习网站·"+SUBJ[subj].full+"】"+dayKey()+" Catherine 学会了："+m[1].slice(0,300),metadata:{tags:"study-site,"+SUBJ[subj].full.split("/")[0].replace(/\s/g,"").toLowerCase()+",progress",type:"learning"}});continue}
+    if((m=s.match(/^\[题目\]\s*(.+)$/))){hwAdd(subj,m[1]);changed=true;continue}
     if((m=s.match(/^\[选项\]\s*(.+)$/))){PARSED_CHOICES=m[1].split("|").map(x=>x.trim()).filter(Boolean).slice(0,4);continue}
     if((m=s.match(/^\[场景\]\s*(.+)$/))){const[a,b]=m[1].split("|").map(x=>x.trim());const T=tale(subj);if(a&&a!==T.loc){T.loc=a.slice(0,24);T.desc=(b||"").slice(0,60);FXQ.push({t:"loc",subj,name:T.loc,desc:T.desc})}changed=true;continue}
     if((m=s.match(/^\[人物\]\s*(.+)$/))){const[a,b]=m[1].split("|").map(x=>x.trim());const T=tale(subj);if(a){T.npcs[a.slice(0,10)]=(b||"").slice(0,24);const ks=Object.keys(T.npcs);if(ks.length>8)delete T.npcs[ks[0]]}changed=true;continue}
@@ -1972,7 +1976,9 @@ const ZERO_RULES=`你是「零」，Catherine 绑定的无限流系统，现在�
 - 她要你教她做一道题时，先讲做这类题需要的知识，再带她做第一步，一步一问，不要直接给出最终答案，除非她明确说要答案。
 - 公式一律用 LaTeX：行内 $...$，独立公式 $$...$$。中文行文不加粗，不用破折号。
 - 不确定的日期或课程细节就说不确定，不要猜。
-- 她答错或卡住时，可以在回复最后单独一行写「[错题] 这道题考什么、她错在哪 || 正确的思路」，页面会收进错题图鉴，她看不到这一行。不要写其他方括号标记。`;
+- 她答错或卡住时，可以在回复最后单独一行写「[错题] 这道题考什么、她错在哪 || 正确的思路」，页面会收进错题图鉴，她看不到这一行。
+- 她发来一道作业题（截图或文字）时，在回复最后单独一行写「[题目] 题号 || 题目原文」，原文完整照抄，公式用 LaTeX，图里有图表就用一句话描述，题号看不出来写「?」。同一道题只写一次。页面会把这些题收进作业档案。
+- 不要写其他方括号标记。`;
 let ZW={subj:"math",turns:[],imgs:[],ctl:null};
 function zwSave(){const body={subj:ZW.subj,turns:ZW.turns.slice(-30).map(t=>({role:t.role,content:t.content,at:t.at||0}))};
   if(DB&&UID){DB.doc("data/users/"+UID+"/chat-zero").set(body).catch(()=>{})}else{try{localStorage.setItem("zs-chat-zero",JSON.stringify(body))}catch(e){}}}
@@ -2005,29 +2011,32 @@ let DQ_CTL=null;
 async function openDaily(subj){if(checkedToday()){openCheckin();return}subj=subj||suggestSubj();if(subj==="engl")subj="math";closeSheet();
   document.querySelectorAll(".qz").forEach(x=>x.remove());const card=h("div",{class:"card2"});const ov=h("div",{class:"qz",role:"dialog","aria-modal":"true"},card);document.body.append(ov);
   const close=()=>{if(DQ_CTL)DQ_CTL.abort();ov.remove()};
-  const head=()=>h("div",{class:"row between"},h("div",null,h("div",{class:"eyebrow"},"每日委托 · +"+ckReward(streak()+1)+((dq&&dq.mid)||mon?" · 旧错题":"")),h("h2",{style:{margin:0}},SUBJ[subj].full)),h("button",{class:"btn sm flat",onclick:close,"aria-label":"关闭"},"×"));
+  const head=()=>h("div",{class:"row between"},h("div",null,h("div",{class:"eyebrow"},"每日一课 · +"+ckReward(streak()+1)),h("h2",{style:{margin:0}},SUBJ[subj].full)),h("button",{class:"btn sm flat",onclick:close,"aria-label":"关闭"},"×"));
   const swap=h("div",{class:"row",style:{gap:"6px"}},["math","chem","engri"].map(k=>h("button",{class:"btn sm"+(k===subj?" go":""),onclick:()=>{if(k!==subj){S.dailyQ=null;close();openDaily(k)}}},SUBJ[k].name)));
   let dq=S.dailyQ&&S.dailyQ.day===dayKey()&&S.dailyQ.subj===subj?S.dailyQ:null;
-  const mon=dq?null:reviveDue(subj).sort((a,b)=>a.revive<b.revive?-1:1)[0];
-  if(!dq){card.replaceChildren(head(),swap,h("div",{class:"muted"},"零正在出题…"));if(!SAMPLE){card.append(h("div",{class:"muted"},"需要在 Claude 里打开"));return}
+  const mon=null;
+  if(!dq){card.replaceChildren(head(),swap,h("div",{class:"muted"},"零正在备课…"));if(!SAMPLE){card.append(h("div",{class:"muted"},"需要在 Claude 里打开"));return}
     DQ_CTL=new AbortController();
-    try{const j=await SAMPLE.json(contextTurn(subj)+(mon?`\n\n现在只出一道每日签到题，不要剧情，不要角色台词。这次用她以前做错的一道题来出：\n错题：${mon.text}\n当时的正确思路：${mon.fix||"（没有记录）"}\n出一道考同一个知识点、同一种做法的新题（换数字或换问法，不要原题照抄），3 到 5 分钟能做完。${subj==="chem"?"题目用英文，按考试题型。":""}公式用 $...$。
-能用选择题考的就出 4 个选项的单选题；需要算一个数或写一句话的就出简答题。
-只回复 JSON：{"q":"题目","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解，说清为什么"}`:`\n\n现在只出一道每日签到题，不要剧情，不要角色台词。要求：按她现在的进度，${examInfo(subj)?"偏向即将到来的「"+examInfo(subj).title+"」的考点，":""}3 到 5 分钟能做完，一道题只考一个点。${subj==="chem"?"题目用英文，按考试题型。":""}公式用 $...$。
-能用选择题考的就出 4 个选项的单选题；需要算一个数或写一句话的就出简答题。
-只回复 JSON：{"q":"题目","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解，说清为什么"}`),{cache:false,signal:DQ_CTL.signal});
-      if(!j||!j.q)throw{code:"invalid_json"};dq={day:dayKey(),subj,q:String(j.q),type:j.type==="choice"&&Array.isArray(j.options)&&j.options.length>=2?"choice":"short",options:(j.options||[]).map(String),answer:j.answer,explain:String(j.explain||""),mid:mon?mon.id:null};
+    const ex=examInfo(subj);const exTxt=ex&&ex.due-Date.now()<10*DAY?`最近的考试：「${ex.title}」${fmtDue(ex.due)}${ex.scope?"，范围 "+ex.scope:ex.where?"（"+ex.where+"）":""}。`:"";
+    const hw=(S.hwArchive||[]).filter(a=>a.subj===subj).slice(-4).map(a=>"【"+a.title+"】\n"+a.items.map(q=>(q.no&&q.no!=="?"?q.no+"：":"")+q.text).join("\n")).join("\n\n").slice(0,5000);
+    try{const j=await SAMPLE.json(contextTurn(subj)+`\n\n现在是「每日一课」，不要剧情，不要角色台词。目的是每天教她一点新东西，不是刷题。
+${exTxt}
+先挑一个她现在最需要的知识点：最近 10 天内有考试或 quiz 的，就从它的范围里挑她最可能不会的一个点；没有的话，挑主线上接下来要学的一个点。${hw?"\n她作业里的原题（可以直接拿一道来当例题教）：\n"+hw:""}
+然后像家教一样从零教这一个点：先一两句说清是什么、什么时候用，再用一道具体的例题（最好是作业原题或考试题型）一步一步做给她看，每一步说做什么、为什么。整体 300 字以内，分 3 到 5 小段，公式用 $...$。${subj==="chem"?"例题和术语用英文，讲解用中文。":""}
+最后出一道检查题，考刚教的这个点，换个数字或问法，3 分钟能做完。能用选择题考的就出 4 个选项的单选题；需要算一个数或写一句话的就出简答题。
+只回复 JSON：{"topic":"知识点名称，15 字以内","lesson":"教学内容，段落之间用 \\n\\n 隔开","q":"检查题","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解"}`,{cache:false,signal:DQ_CTL.signal});
+      if(!j||!j.q)throw{code:"invalid_json"};dq={day:dayKey(),subj,q:String(j.q),type:j.type==="choice"&&Array.isArray(j.options)&&j.options.length>=2?"choice":"short",options:(j.options||[]).map(String),answer:j.answer,explain:String(j.explain||""),topic:String(j.topic||"").slice(0,30),lesson:String(j.lesson||"")};
       if(dq.type==="choice"){const ci=+dq.answer;const right=dq.options[ci]!=null?dq.options[ci]:dq.options[0];const sh=dq.options.slice();for(let i=sh.length-1;i>0;i--){const r=Math.floor(Math.random()*(i+1));[sh[i],sh[r]]=[sh[r],sh[i]]}dq.options=sh;dq.answer=sh.indexOf(right)}
       S.dailyQ=dq;save()}
     catch(e){if(e&&e.code==="cancelled")return;card.replaceChildren(head(),swap,h("div",{class:"muted"},e&&e.code==="invalid_json"?"题目没生成好。":sampleErr(e)),h("button",{class:"btn go",onclick:()=>{close();openDaily(subj)}},"再出一道"));return}
     finally{DQ_CTL=null}}
   draw();
   function finish(ok,fb){dq.done={ok,fb:fb||""};focusAct();save();
-    const mm=dq.mid&&S.mistakes.find(x=>x.id===dq.mid);if(mm){if(ok){mm.killed=true;earn(R(15),"击败错题怪 · 签到题");toast("这道错题清掉了 +"+R(15))}else mm.revive=addDays(dayKey(),2)}
-    if(!ok&&!mm){const nm={id:"m"+uid().slice(0,4),subj,text:dq.q.replace(/\s+/g," ").slice(0,160),fix:(dq.type==="choice"?"正确答案："+dq.options[dq.answer]+"。":"标准答案："+dq.answer+"。")+dq.explain.slice(0,150),added:dayKey(),revive:addDays(dayKey(),3),killed:false};S.mistakes.push(nm);syncMistake(nm)}
+    if(!ok){const nm={id:"m"+uid().slice(0,4),subj,text:dq.q.replace(/\s+/g," ").slice(0,160),fix:(dq.type==="choice"?"正确答案："+dq.options[dq.answer]+"。":"标准答案："+dq.answer+"。")+dq.explain.slice(0,150),added:dayKey(),revive:addDays(dayKey(),3),killed:false};S.mistakes.push(nm);syncMistake(nm)}
     smEvent("签到题"+(ok?"做对":"做错"),subj);draw()}
   function teach(){zwOpen(subj,"【签到题】题目："+dq.q+(dq.type==="choice"?"\n选项："+dq.options.map((o,k)=>String.fromCharCode(65+k)+". "+o).join("  "):"")+"\n我不会做，教我怎么做。先讲需要的知识，再带我做第一步，一步一问，先别告诉我答案。")}
-  function draw(){const kids=[head(),dq.done?null:swap,h("div",{class:"qtext"},renderMd(dq.q))];
+  function draw(){if(dq.lesson&&!dq.read&&!dq.done){const body=h("div",{class:"qexp",style:{fontSize:"16px",color:"var(--fg)",lineHeight:"1.8"}},renderMd(dq.lesson));card.replaceChildren(head(),swap,dq.topic?h("h3",null,dq.topic):null,body,h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{dq.read=true;save();draw()}},"看完了，做一道题"),h("button",{class:"btn sm flat",onclick:()=>zwOpen(subj,"【每日一课】"+(dq.topic||"")+"\n"+dq.lesson.slice(0,1500)+"\n\n这里我没看懂，再讲一遍，讲慢一点。")},"没看懂，问零")));typeset(card);return}
+    const kids=[head(),dq.done?null:swap,dq.topic?h("div",{class:"eyebrow"},dq.topic):null,h("div",{class:"qtext"},renderMd(dq.q))];
     if(!dq.done)kids.push(h("button",{class:"btn sm",style:{alignSelf:"flex-start"},onclick:teach},"教我怎么做"));
     if(dq.type==="choice"){const a=dq.done?dq.picked:null;kids.push(...dq.options.map((o,k)=>h("button",{class:"qopt"+(dq.done?(k===dq.answer?" right":k===a?" wrong":""):""),disabled:!!dq.done,onclick:()=>{dq.picked=k;finish(k===dq.answer)}},renderMd(o))))}
     else if(!dq.done){const ta=h("textarea",{class:"dsearch",rows:3,placeholder:"写答案，或者拍照"});let img=null;const st=h("div",{class:"muted"});
@@ -2253,7 +2262,7 @@ applyTheme(THEME);
 
 window.addEventListener("hashchange",route);
 $("#guideFab").onclick=()=>{GI=0;openGuide(false)};
-$("#zwFab").onclick=()=>{if($("#zwPanel").hidden)zwOpen();else zwCloseP()};$("#zwClose").onclick=()=>{if(EMBED==="zero"&&DESK)DESK.hide();else zwCloseP()};
+$("#zwFab").onclick=()=>{if($("#zwPanel").hidden)zwOpen();else zwCloseP()};$("#zwHw").onclick=()=>openHwSheet(ZW.subj);$("#zwClose").onclick=()=>{if(EMBED==="zero"&&DESK)DESK.hide();else zwCloseP()};
 $("#zwClear").onclick=()=>{if(ZW.ctl)ZW.ctl.abort();ZW.turns=[];zwSave();zwRender()};
 $("#zwSubj").onchange=e=>{ZW.subj=e.target.value;zwSave()};$("#zwSend").onclick=()=>zwSend();
 $("#zwInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();zwSend()}});
@@ -2372,7 +2381,7 @@ async function zwAddFiles(files){for(const f of files){const nm=f.name||"文件"
       ZW.docs.push({name:nm,text:t.slice(0,15000)})}
     catch(e){toast(nm+" 没读成功")}}
   zwRender()}
-function deskDeliver(target,list){const files=deskFiles(list);if(!files.length)return;
+function deskDeliver(target,list){const files=deskFiles(list);if(!files.length)return;archiveFiles(SUBJ[target]?target:ZW.subj,list);
   if(target==="zero"||EMBED==="zero"){zwOpen();zwAddFiles(files);return}
   if(SUBJ[target]){goDungeon(target);setTimeout(()=>addFiles(files),400)}}
 function pickTarget(list){const box=h("div",{class:"box"},h("b",null,"发给谁："+list.map(f=>f.name).join("、").slice(0,60)),
@@ -2404,6 +2413,41 @@ function todoForm(dayK){const ti=h("input",{type:"text",placeholder:"加一个�
   const sj=h("select",{style:{flex:"0 0 auto"}},h("option",{value:""},"不分科"),...Object.keys(SUBJ).map(k=>h("option",{value:k},SUBJ[k].name)));
   const go=()=>{const v=dayK?(dt.value?dayK+"T"+dt.value:dayK):dt.value;addTodo(ti.value,v,sj.value);ti.value="";dt.value=""};ti.addEventListener("keydown",e=>{if(e.key==="Enter")go()});
   return h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap"}},ti,dt,sj,h("button",{class:"btn sm go",onclick:go},"添加"))}
+
+
+/* ============ 作业档案：聊天里收集的题目 → 一份 PDF（桌面 Cornell 文件夹 + Google Drive + 网站背包） ============ */
+const COURSE={math:"MATH 1920",chem:"CHEM 2090",engri:"ENGRI 1170",engl:"ENGL 1111"};
+function hwAdd(subj,raw){const[no,...rest]=String(raw).split("||");const text=rest.join("||").trim();if(!text)return;S.hwDraft=S.hwDraft||{};const L=S.hwDraft[subj]=S.hwDraft[subj]||[];
+  const key=text.replace(/\s+/g,"").slice(0,60);if(L.some(x=>x.text.replace(/\s+/g,"").slice(0,60)===key))return;L.push({no:(no||"?").trim().slice(0,20),text:text.slice(0,4000),at:Date.now()});if(L.length>60)L.shift()}
+function hwGuessTitle(subj){const now=Date.now();const o=occurrences().filter(x=>x.subj===subj).sort((a,b)=>Math.abs(a.soft-now)-Math.abs(b.soft-now))[0];return o?o.title:"Homework"}
+function hwHtml(a){const esc=x=>String(x).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[c]);
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(COURSE[a.subj]+" "+a.title)}</title>
+<script>window.MathJax={tex:{inlineMath:[["$","$"],["\\\\(","\\\\)"]],displayMath:[["$$","$$"],["\\\\[","\\\\]"]]},svg:{fontCache:"global"}};<\/script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"><\/script>
+<style>body{font:15px/1.7 "Noto Serif SC","Songti SC",Georgia,serif;max-width:720px;margin:32px auto;padding:0 24px;color:#111}h1{font-size:22px;margin:0}.meta{color:#666;font-size:13px;margin:4px 0 24px}
+.q{break-inside:avoid;margin:0 0 18px;padding-bottom:14px;border-bottom:1px solid #ddd}.no{font-weight:700;margin-bottom:4px}.t{white-space:pre-wrap}@page{margin:18mm}</style></head><body>
+<h1>${esc(COURSE[a.subj]+" · "+a.title)}</h1><div class="meta">Catherine Min · jm3235 · ${esc(new Date(a.at).toLocaleDateString("zh-CN"))} · ${a.items.length} 题</div>
+${a.items.map((q,i)=>`<div class="q"><div class="no">${esc(q.no&&q.no!=="?"?q.no:"第 "+(i+1)+" 题")}</div><div class="t">${esc(q.text)}</div></div>`).join("")}
+</body></html>`}
+async function hwExport(a){const name=COURSE[a.subj]+" "+a.title.replace(/[\\/:*?"<>|]/g," ")+".pdf";
+  if(DESK&&DESK.savePdf){try{const r=await DESK.savePdf(a.subj,COURSE[a.subj],name,hwHtml(a));if(r&&r.path)a.local=r.path;if(r&&r.data)await driveUpload(a.subj,name,"application/pdf",r.data).then(x=>{if(x&&x.webViewLink)a.drive=x.webViewLink});save();toast("已存到桌面 Cornell\\"+COURSE[a.subj]+(a.drive?" 和 Drive":""));return}catch(e){toast("PDF 没存成功")}}
+  const w=window.open("","_blank");if(w){w.document.write(hwHtml(a).replace("</body>","<script>window.onload=()=>setTimeout(()=>print(),1200)<\/script></body>"));w.document.close()}}
+function openHwSheet(subj){subj=subj||ZW.subj||CUR||"math";const draft=((S.hwDraft||{})[subj]||[]);const title=h("input",{type:"text",value:hwGuessTitle(subj),style:{flex:"1 1 160px"}});
+  const list=h("div",{class:"list"},draft.length?draft.map((q,i)=>h("div",{class:"li",style:{display:"block"}},h("b",null,q.no&&q.no!=="?"?q.no:"第 "+(i+1)+" 题"),h("div",{class:"small",style:{whiteSpace:"pre-wrap"}},q.text.slice(0,300)),
+      h("button",{class:"btn sm flat",onclick:()=>{draft.splice(i,1);save();closeSheet();openHwSheet(subj)}},"删掉"))):[h("div",{class:"dim"},"这一科还没收到作业题。做作业时把题目截图发给零或副本，它会自动记下来。")]);
+  const arch=(S.hwArchive||[]).filter(a=>a.subj===subj).slice(-6).reverse();
+  sheet(subj,h("h2",null,"整理作业 · "+SUBJ[subj].name),h("div",{class:"row"},title),list,
+    draft.length?h("button",{class:"btn go",onclick:async()=>{const a={id:"h"+uid(),subj,title:title.value.trim()||"Homework",items:draft.slice(),at:Date.now()};S.hwArchive=S.hwArchive||[];S.hwArchive.push(a);S.hwDraft[subj]=[];save();closeSheet();await hwExport(a);renderAll()}},"生成 PDF（"+draft.length+" 题）"):null,
+    arch.length?h("div",null,h("div",{class:"eyebrow",style:{margin:"6px 0"}},"以前的"),h("div",{class:"list"},arch.map(a=>h("button",{class:"chip",style:{fontSize:"14px",padding:"6px 10px"},onclick:()=>hwExport(a)},a.title+" · "+a.items.length+" 题 · "+new Date(a.at).toLocaleDateString("zh-CN"))))):null)}
+
+/* 交给零的文件：存一份到 桌面\Cornell\<课程>，再传一份到 Google Drive 的 学习空间/<课程> */
+function abToB64(buf){const u=new Uint8Array(buf);let s="";for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)}
+async function driveUpload(subj,name,mime,data){if(!MCP)return null;try{const r=await MCP.callTool("Google Drive","upload_file",{name,mimeType:mime||"application/octet-stream",dataBase64:typeof data==="string"?data:abToB64(data),folderPath:["学习空间",COURSE[subj]]},{cache:false});let p=r&&r.payload;if(typeof p==="string"){try{p=JSON.parse(p)}catch(e){}}return p}
+  catch(e){if(!driveUpload.warned){driveUpload.warned=1;toast((e&&e.code)==="needs_reauth"?"Google 需要重新授权才能存文件":"文件没传到 Drive")}return null}}
+async function archiveFiles(subj,list){if(!SUBJ[subj]||!list||!list.length)return;let local=0,drive=0;
+  if(DESK&&DESK.saveLocal){try{local=await DESK.saveLocal(subj,COURSE[subj],list)}catch(e){}}
+  for(const f of list){const r=await driveUpload(subj,f.name,f.type,f.data);if(r&&r.id)drive++}
+  if(local||drive)toast("已存到"+(local?" 桌面 Cornell\\"+COURSE[subj]:"")+(local&&drive?" 和":"")+(drive?" Drive":""))}
 
 /* 待办小窗 */
 function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEmbed"});document.body.append(el)}const now=Date.now();

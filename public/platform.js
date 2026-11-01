@@ -118,7 +118,20 @@
       el.style.cssText = "font-family:var(--body);font-weight:500;font-size:13px;padding:2px 10px";
       host.appendChild(el);
     }
-    if (st.connected) {
+    var cu = document.getElementById("cmCornell");
+    if (st.connected && !cu) {
+      cu = document.createElement("button"); cu.id = "cmCornell"; cu.className = "pill";
+      cu.style.cssText = el.style.cssText; host.appendChild(cu);
+    }
+    if (cu) {
+      if (st.cornell) { cu.textContent = "Cornell Drive ✓"; cu.title = (st.cornellEmail || "") + "：交给零的文件和作业 PDF 存在这里"; cu.onclick = null; }
+      else { cu.textContent = "连 Cornell Drive"; cu.title = "把文件存到 Cornell 账号的 Drive（学校可能不允许，不行就存个人 Drive）"; cu.onclick = function () { location.href = "/auth/google/start?acct=cornell"; }; }
+    }
+    if (st.connected && st.needsUpgrade) {
+      el.textContent = "Google 需更新授权";
+      el.title = "加了写日历和存文件的权限，点一下重新授权";
+      el.onclick = function () { location.href = "/auth/google/start"; };
+    } else if (st.connected) {
       el.textContent = "Google ✓";
       el.title = (st.email || "已连接") + "（只读）。点一下可以断开。";
       el.onclick = async function () {
