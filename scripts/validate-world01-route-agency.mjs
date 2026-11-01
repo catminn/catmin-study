@@ -105,6 +105,20 @@ export function validateWorld01RouteAgency(world, causal) {
       afterReunion.add(cur);queue.push(...nodes.get(cur).next);
     }
     if(!endings.some(end=>afterReunion.has(end)))return fail('ending_unreachable');
+    // Every post-reunion scene must have a finite path to a terminal.
+    // Optional revisits are valid, but a closed side-loop must not trap players.
+    const canFinish=new Set(endings.filter(end=>afterReunion.has(end)));
+    let growing=true;
+    while(growing){
+      growing=false;
+      for(const scene of afterReunion){
+        if(canFinish.has(scene))continue;
+        if(nodes.get(scene).next.some(next=>canFinish.has(next))){
+          canFinish.add(scene);growing=true;
+        }
+      }
+    }
+    if(canFinish.size!==afterReunion.size)return fail('ending_trap');
     // The committed choice must dominate the routes, reunion and ending.
     const visiting=new Set(),visited=new Set();let reachedFork=false;
     const beforeFork=cur=>{
