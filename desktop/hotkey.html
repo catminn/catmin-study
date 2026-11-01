@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>设置快捷键</title>
+<style>
+  :root{--bg:#fbfaf7;--fg:#1d2030;--dim:#7a7d8c;--line:rgba(29,32,48,.14);--bad:#d33}
+  @media (prefers-color-scheme:dark){:root{--bg:#23263a;--fg:#eceaf4;--dim:#a9a8c4;--line:rgba(255,255,255,.16);--bad:#f07a7a}}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.6 "Microsoft YaHei UI","PingFang SC",system-ui,sans-serif;user-select:none}
+  .w{height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;padding:16px;box-sizing:border-box;-webkit-app-region:drag}
+  .k{min-width:200px;text-align:center;padding:10px 14px;border:1px solid var(--line);border-radius:10px;font-size:18px;font-weight:600;letter-spacing:.02em}
+  .m{color:var(--dim);font-size:12px;min-height:18px;text-align:center}.m.bad{color:var(--bad)}
+  .row{display:flex;gap:8px;-webkit-app-region:no-drag}
+  button{border:1px solid var(--line);background:none;color:inherit;border-radius:8px;padding:4px 14px;font:inherit;cursor:pointer}
+</style></head><body>
+<div class="w">
+  <div class="m">按下新的快捷键组合（至少一个 Ctrl / Alt / Shift）</div>
+  <div class="k" id="k">…</div>
+  <div class="m" id="m"></div>
+  <div class="row"><button id="ok" disabled>保存</button><button id="no">取消</button></div>
+</div>
+<script>
+  let acc = "";
+  const k = document.getElementById("k"), m = document.getElementById("m"), ok = document.getElementById("ok");
+  window.hk.current().then((c) => { k.textContent = c ? c.replace("Control", "Ctrl").replace(/\+/g, " + ") : "…"; });
+  const keyOf = (e) => {
+    const c = e.code;
+    if (/^Key[A-Z]$/.test(c)) return c.slice(3);
+    if (/^Digit\d$/.test(c)) return c.slice(5);
+    if (/^F\d{1,2}$/.test(c)) return c;
+    return { Space: "Space", Backquote: "`", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]", Backslash: "\\", Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/", Enter: "Enter", Tab: "Tab" }[c] || "";
+  };
+  document.addEventListener("keydown", (e) => {
+    e.preventDefault();
+    const mods = [e.ctrlKey && "Control", e.altKey && "Alt", e.shiftKey && "Shift"].filter(Boolean);
+    const key = keyOf(e);
+    if (e.key === "Escape" && !mods.length) { window.hk.close(); return; }
+    k.textContent = [...mods.map((x) => x.replace("Control", "Ctrl")), key || "…"].join(" + ");
+    if (!key) { ok.disabled = true; return; }
+    if (!mods.length && !/^F\d/.test(key)) { m.textContent = "要加上 Ctrl、Alt 或 Shift"; m.className = "m bad"; ok.disabled = true; return; }
+    acc = [...mods, key].join("+"); m.textContent = ""; m.className = "m"; ok.disabled = false;
+  });
+  ok.onclick = async () => { const r = await window.hk.save(acc); if (r === true) window.hk.close(); else { m.textContent = "这个组合被别的软件占用了，换一个"; m.className = "m bad"; } };
+  document.getElementById("no").onclick = () => window.hk.close();
+</script>
+</body></html>

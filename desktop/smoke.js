@@ -25,6 +25,13 @@ module.exports = async (h) => {
     const img = await h.zero.webContents.capturePage(); fs.writeFileSync("/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/desk-zero.png", img.toPNG());
     const ti = await h.todo.webContents.capturePage(); fs.writeFileSync("/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/desk-todo.png", ti.toPNG());
     const bi = await h.bubble.webContents.capturePage(); fs.writeFileSync("/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/desk-bubble.png", bi.toPNG());
+    h.openHotkeyWin(); await wait(1500);
+    const { BrowserWindow } = require("electron");
+    const hw = BrowserWindow.getAllWindows().find((w) => /hotkey\.html/.test(w.webContents.getURL()));
+    if (hw) { hw.webContents.sendInputEvent({ type: "keyDown", keyCode: "K", modifiers: ["control", "alt"] }); await wait(400);
+      log("hotkey win", (await hw.webContents.executeJavaScript("document.body.innerText")).replace(/\n/g, " | "));
+      fs.writeFileSync("/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/hk.png", (await hw.webContents.capturePage()).toPNG()); }
+    else log("hotkey win missing");
   } catch (e) { log("ERROR", e && e.stack || e); }
   app.exit(0);
 };

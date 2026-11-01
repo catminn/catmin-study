@@ -245,8 +245,29 @@ ipcMain.handle("save-pdf", async (e, course, name, html) => {
 });
 
 // 快捷键：首选被别的软件（比如 QQ 的 Ctrl+Alt+Z）占了就换下一个
+// 自己设快捷键：托盘 →「设置快捷键…」，按下组合键保存
+let hkWin = null;
+function openHotkeyWin() {
+  if (hkWin && !hkWin.isDestroyed()) { hkWin.focus(); return; }
+  hkWin = new BrowserWindow({ width: 320, height: 200, resizable: false, minimizable: false, maximizable: false, frame: false, alwaysOnTop: true, skipTaskbar: true, show: false, icon: ICON,
+    webPreferences: { preload: path.join(__dirname, "hotkey-preload.js"), contextIsolation: true, sandbox: false } });
+  globalShortcut.unregisterAll(); // 录入时先松开当前快捷键，免得按下去就触发
+  hkWin.loadFile(path.join(__dirname, "hotkey.html"));
+  hkWin.once("ready-to-show", () => { hkWin.center(); hkWin.show(); hkWin.focus(); });
+  hkWin.on("closed", () => { hkWin = null; registerHotkey(conf.hotkey); });
+}
+ipcMain.handle("hk-current", () => conf.hotkey || hotkey);
+ipcMain.handle("hk-save", (e, acc) => {
+  let ok = false;
+  try { ok = globalShortcut.register(acc, () => {}); if (ok) globalShortcut.unregister(acc); } catch (err) { ok = false; }
+  if (!ok) return false;
+  conf.hotkey = acc; saveConf(); return true;
+});
+ipcMain.on("hk-close", () => { if (hkWin && !hkWin.isDestroyed()) hkWin.close(); });
+
 function registerHotkey(pref) {
-  if (hotkey) { globalShortcut.unregister(hotkey); hotkey = ""; }
+  hotkey = "";
+  globalShortcut.unregisterAll();
   const list = pref ? [pref, ...HOTKEYS.filter((k) => k !== pref)] : HOTKEYS;
   for (const k of list) { try { if (globalShortcut.register(k, onHotkey)) { hotkey = k; break; } } catch (e) {} }
   refreshMenu();
@@ -263,7 +284,7 @@ function menu() {
     { type: "separator" },
     { label: "显示零的小圆", type: "checkbox", checked: conf.bubbleHidden !== true, click: (i) => { conf.bubbleHidden = !i.checked; saveConf(); if (bubble) { if (i.checked) bubble.showInactive(); else bubble.hide(); } } },
     { label: "开机启动", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
-    { label: hotkey ? "快捷键：选中文件按 " + keyName(hotkey) : "快捷键都被占用了", submenu: HOTKEYS.map((k) => ({ label: keyName(k), type: "radio", checked: k === hotkey, click: () => { conf.hotkey = k; saveConf(); registerHotkey(k); if (hotkey !== k) shell.beep(); } })) },
+    { label: hotkey ? "设置快捷键…（现在是 " + keyName(hotkey) + "）" : "设置快捷键…（现在没有）", click: openHotkeyWin },
     { type: "separator" },
     { label: "退出", click: () => { app.isQuitting = true; app.quit(); } },
   ]);
@@ -305,4 +326,4 @@ app.on("window-all-closed", (e) => { /* 常驻托盘，不退出 */ });
 app.on("will-quit", () => globalShortcut.unregisterAll());
 
 // 本地冒烟测试（不打包进安装包）：ZS_TEST=1 electron .
-if (process.env.ZS_TEST) app.whenReady().then(() => require("./smoke.js")({ deliverPaths, get zero() { return zero; }, get todo() { return todo; }, get bubble() { return bubble; }, showZero, toggleTodo }));
+if (process.env.ZS_TEST) app.whenReady().then(() => require("./smoke.js")({ deliverPaths, get zero() { return zero; }, get todo() { return todo; }, get bubble() { return bubble; }, showZero, toggleTodo, openHotkeyWin }));
