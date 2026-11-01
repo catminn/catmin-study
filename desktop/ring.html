@@ -17,10 +17,10 @@
 </style></head><body>
 <svg viewBox="0 0 300 300" id="svg"><g class="ring" id="g"></g></svg>
 <script>
-  // 中间留空（松手取消），外圈六格
+  // 中间留空（松手取消），外圈六格：拖上去的文件要做什么。哪一科自动判断（正在做的作业优先）
   const SEG = [
-    { k: "math", t: "数学", s: "发给零" }, { k: "chem", t: "化学", s: "发给零" }, { k: "engri", t: "机械", s: "发给零" },
-    { k: "engl", t: "英文", s: "发给零" }, { k: "archive", t: "只存档", s: "桌面 + Drive" }, { k: "zero", t: "零", s: "不分科" },
+    { k: "explain", t: "讲这道题", s: "一步一步带" }, { k: "hw", t: "收进作业", s: "做完出 PDF" }, { k: "similar", t: "出类似题", s: "练两道" },
+    { k: "summary", t: "总结讲义", s: "考点 + 公式" }, { k: "archive", t: "只存档", s: "桌面 + Drive" }, { k: "ask", t: "问零", s: "自己说" },
   ];
   const C = 150, R1 = 52, R2 = 142, N = SEG.length, g = document.getElementById("g"), NS = "http://www.w3.org/2000/svg";
   const pt = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];

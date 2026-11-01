@@ -428,12 +428,9 @@ ipcMain.on("ring-drop", (e, target, paths) => {
   if (!target || !paths || !paths.length) return;
   const list = readFiles(paths);
   if (!list.length) return;
-  if (target === "archive") {
-    showZero(); send(ensureZero(), "files", "archive", list); // 零的窗口里选一科，只存档不聊天
-    return;
-  }
-  showZero();
-  send(ensureZero(), "files", target === "zero" ? "zero" : "zero:" + target, list);
+  // 存档不打开零的窗口（科目自动判断，存完弹个通知）；其余动作打开零
+  if (target !== "archive") showZero();
+  send(ensureZero(), "files", "act:" + target, list);
 });
 
 // ---------- 下载自动收纳：盯着“下载”文件夹，课程文件交给零判断是哪门课，再移到 桌面\Cornell\<课程> ----------
