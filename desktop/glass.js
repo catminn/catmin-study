@@ -1,7 +1,6 @@
 // Windows：给窗口加真正的毛玻璃（失去焦点也保持），Windows 11 上让无边框窗口画圆角，
 // 圆形的小圆和转盘用窗口区域裁成圆，毛玻璃只出现在圆里。
 // 毛玻璃用 SetWindowCompositionAttribute(ACCENT_ENABLE_ACRYLICBLURBEHIND)，和 TranslucentTB 等小工具同一个办法。
-const { screen } = require("electron");
 let api;
 function load() {
   if (api !== undefined) return api;
@@ -35,7 +34,7 @@ function applyGlass(win, dark, corner) {
   if (!a || !win || win.isDestroyed()) return false;
   try {
     const hwnd = hwndOf(win);
-    const tint = dark ? 0x46261e1e : 0x1ef8f8f8;
+    const tint = dark ? 0x5a261e1e : 0x30f8f8f8;
     const mem = a.koffi.alloc(a.ACCENT, 1);
     a.koffi.encode(mem, a.ACCENT, { AccentState: 4, AccentFlags: 2, GradientColor: tint >>> 0, AnimationId: 0 });
     const ok = a.setWCA(hwnd, { Attribute: 19, Data: mem, SizeOfData: a.koffi.sizeof(a.ACCENT) });
@@ -44,30 +43,49 @@ function applyGlass(win, dark, corner) {
     return !!ok;
   } catch (e) { return false; }
 }
-// 把窗口裁成圆（或圆环）。参数是窗口里的逻辑坐标：圆心 cx,cy，外半径 r，内半径 r0（0 = 实心圆）
-function roundRegion(win, cx, cy, r, r0) {
-  const a = load();
-  if (!a || !win || win.isDestroyed()) return false;
-  try {
-    const s = screen.getDisplayMatching(win.getBounds()).scaleFactor || 1, P = (v) => Math.round(v * s);
-    const outer = a.ellipse(P(cx - r), P(cy - r), P(cx + r) + 1, P(cy + r) + 1);
-    if (r0 > 0) { const inner = a.ellipse(P(cx - r0), P(cy - r0), P(cx + r0) + 1, P(cy + r0) + 1); a.combine(outer, outer, inner, 4); a.del(inner); }
-    a.setRgn(hwndOf(win), outer, true); // 区域交给系统，不能再 DeleteObject
-    return true;
-  } catch (e) { return false; }
+// 窗口形状：用 Electron 自带的 setShape（矩形拼起来）。Chromium 每次显示、移动窗口都会重设系统区域，
+// 直接调 SetWindowRgn 会被冲掉，setShape 不会。形状外面不画毛玻璃、也点不到。
+function rowsToRects(rows) { // rows: [[y, [[x0,x1],...]], ...] 每行 1px；相同的相邻行合并
+  const out = []; let prev = null;
+  for (const [y, segs] of rows) {
+    const key = JSON.stringify(segs);
+    if (prev && prev.key === key && prev.y1 === y) { prev.y1 = y + 1; continue; }
+    prev = { key, y0: y, y1: y + 1, segs }; out.push(prev);
+  }
+  const rects = [];
+  for (const r of out) for (const [a, b] of r.segs) if (b > a) rects.push({ x: a, y: r.y0, width: b - a, height: r.y1 - r.y0 });
+  return rects;
 }
-// 把窗口裁成多边形（书签形状）。pts 是窗口里的逻辑坐标 [[x,y],...]；传 null 恢复成整个窗口
-function shapeRegion(win, pts, corner) {
-  const a = load();
-  if (!a || !win || win.isDestroyed()) return false;
-  try {
-    const hwnd = hwndOf(win);
-    try { a.dwmSet(hwnd, 33, [pts ? 1 : (corner == null ? 2 : corner)], 4); } catch (e) {}
-    if (!pts) { a.setRgn(hwnd, 0, true); return true; }
-    const s = screen.getDisplayMatching(win.getBounds()).scaleFactor || 1;
-    const flat = []; for (const [x, y] of pts) flat.push(Math.round(x * s), Math.round(y * s));
-    a.setRgn(hwnd, a.poly(flat, pts.length, 2), true);
-    return true;
-  } catch (e) { return false; }
+function circleRects(cx, cy, r, r0) {
+  const rows = [];
+  for (let y = Math.floor(cy - r); y < Math.ceil(cy + r); y++) {
+    const dy = y + 0.5 - cy; if (Math.abs(dy) >= r) continue;
+    const h = Math.sqrt(r * r - dy * dy), a = Math.round(cx - h), b = Math.round(cx + h);
+    if (r0 > 0 && Math.abs(dy) < r0) { const h0 = Math.sqrt(r0 * r0 - dy * dy); rows.push([y, [[a, Math.round(cx - h0)], [Math.round(cx + h0), b]]]); }
+    else rows.push([y, [[a, b]]]);
+  }
+  return rowsToRects(rows);
 }
-module.exports = { applyGlass, roundRegion, shapeRegion };
+// 燕尾书签：W×H，尾巴缺口深 n。edge = top（尾巴朝下）/ left（尾巴朝右）/ right（尾巴朝左）
+function ribbonRects(W, H, n, edge) {
+  const rows = [];
+  if (edge === "left" || edge === "right") {
+    for (let y = 0; y < H; y++) {
+      const k = Math.round(n * (1 - Math.abs(y + 0.5 - H / 2) / (H / 2))); // 这一行缺口有多深
+      rows.push([y, [edge === "left" ? [0, W - k] : [k, W]]]);
+    }
+  } else {
+    for (let y = 0; y < H; y++) {
+      if (y < H - n) { rows.push([y, [[0, W]]]); continue; }
+      const k = Math.round(((y + 0.5 - (H - n)) / n) * (W / 2));
+      rows.push([y, [[0, Math.round(W / 2 - k)], [Math.round(W / 2 + k), W]]]);
+    }
+  }
+  return rowsToRects(rows);
+}
+function setCorner(win, v) { const a = load(); if (!a || !win || win.isDestroyed()) return; try { a.dwmSet(hwndOf(win), 33, [v], 4); } catch (e) {} }
+function shapeWin(win, rects, corner) {
+  if (!win || win.isDestroyed() || !win.setShape) return false;
+  try { win.setShape(rects || []); setCorner(win, rects && rects.length ? 1 : (corner == null ? 2 : corner)); return true; } catch (e) { return false; }
+}
+module.exports = { applyGlass, shapeWin, circleRects, ribbonRects };

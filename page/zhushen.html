@@ -2227,7 +2227,7 @@ function renderView(v){if(v==="now")renderNow();else if(v==="map")renderMap();el
 function renderAll(){renderHud();renderView(curView());if(EMBED==="todo")renderTodoEmbed();if(EMBED==="zero")deskBadge()}
 function softRefresh(){renderHud();const v=curView();if(v==="map"||v==="cal")renderView(v)}
 
-function applyTheme(t){const r=document.documentElement;if(t)r.setAttribute("data-theme",t);else r.removeAttribute("data-theme");
+function applyTheme(t){const r=document.documentElement;if(window.zsDesktop&&/[?&]embed=(todo|zero)/.test(location.search))t="light"; /* 桌面的待办和零只用浅色半透明，背景深它自然变深 */if(t)r.setAttribute("data-theme",t);else r.removeAttribute("data-theme");
   const dark=t?t==="dark":!!(window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);$("#themeBtn").replaceChildren(icon(dark?"sun":"moon"));$("#themeBtn").title=dark?"切换到浅色":"切换到深色"}
 let THEME=null;try{THEME=localStorage.getItem("zs-theme")}catch(e){}
 $("#themeBtn").onclick=()=>{const cur=document.documentElement.getAttribute("data-theme");const dark=cur?cur==="dark":!!(window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);THEME=dark?"light":"dark";try{localStorage.setItem("zs-theme",THEME)}catch(e){}applyTheme(THEME)};
@@ -2343,8 +2343,7 @@ html.embed-root,body.embed-todo{background:transparent!important}
 .td-row .w{cursor:pointer}.td-row .w:hover{text-decoration:underline}.td-due{font:inherit;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:inherit;padding:1px 4px;width:150px}
 .checklist button.today{outline:2px solid var(--early);outline-offset:-2px}
 /* ===== 桌面版：毛玻璃（窗口后面是系统模糊，这里只铺一层很淡的白 + 亮边 + 顶部高光）===== */
-body.embed.glass{--gl-bg:linear-gradient(165deg,rgba(255,255,255,.34),rgba(255,255,255,.12));--gl-line:rgba(255,255,255,.55);--gl-hi:inset 0 1px 0 rgba(255,255,255,.7);--gl-card:rgba(255,255,255,.42);--gl-sep:rgba(29,32,48,.08)}
-@media (prefers-color-scheme:dark){body.embed.glass{--gl-bg:linear-gradient(165deg,rgba(255,255,255,.10),rgba(255,255,255,.03));--gl-line:rgba(255,255,255,.14);--gl-hi:inset 0 1px 0 rgba(255,255,255,.12);--gl-card:rgba(255,255,255,.08);--gl-sep:rgba(255,255,255,.08)}}
+body.embed.glass{--gl-bg:linear-gradient(165deg,rgba(255,255,255,.52),rgba(255,255,255,.32));--gl-line:rgba(255,255,255,.55);--gl-hi:inset 0 1px 0 rgba(255,255,255,.7);--gl-card:rgba(255,255,255,.6);--gl-sep:rgba(29,32,48,.08)}
 body.embed.glass #todoEmbed,body.embed.glass.td-docked #todoEmbed,body.embed.glass.td-collapsed #todoEmbed{background:var(--gl-bg);border:1px solid var(--gl-line);box-shadow:var(--gl-hi);border-radius:8px}
 body.embed.glass .td-row:hover{background:var(--gl-card)}
 body.embed.glass .td-add,body.embed.glass .td-add input{background:transparent}
@@ -2363,8 +2362,7 @@ body.embed-zero.glass .zw-m.a,body.embed-zero.glass .zw-in textarea,body.embed-z
 /* 燕尾书签 */
 .td-tab{display:none;position:fixed;inset:0;pointer-events:none}.td-tab svg{width:100%;height:100%;display:block}
 body.embed{--tab-a:color-mix(in oklab,var(--panel) 92%,transparent);--tab-b:color-mix(in oklab,var(--panel) 80%,transparent);--tab-line:color-mix(in oklab,var(--fg) 16%,transparent);--tab-edge:transparent}
-body.embed.glass{--tab-a:rgba(255,255,255,.42);--tab-b:rgba(255,255,255,.16);--tab-line:rgba(255,255,255,.75);--tab-edge:rgba(20,24,40,.16)}
-@media (prefers-color-scheme:dark){body.embed.glass{--tab-a:rgba(255,255,255,.16);--tab-b:rgba(255,255,255,.05);--tab-line:rgba(255,255,255,.22);--tab-edge:rgba(0,0,0,.35)}}
+body.embed.glass{--tab-a:rgba(255,255,255,.72);--tab-b:rgba(255,255,255,.5);--tab-line:rgba(255,255,255,.75);--tab-edge:rgba(20,24,40,.16)}
 body.td-collapsed #todoEmbed,body.td-docked #todoEmbed,body.embed.glass.td-docked #todoEmbed,body.embed.glass.td-collapsed #todoEmbed,body.td-docked:not(.glass) #todoEmbed{background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0!important;padding:0}
 body.td-collapsed #todoEmbed>*,body.td-docked #todoEmbed>*,body.td-docked #todoEmbed>.td-mini{display:none!important}
 body.td-collapsed #todoEmbed>.td-tab,body.td-docked #todoEmbed>.td-tab{display:block!important}
@@ -2592,7 +2590,7 @@ function planBlock(id,b){const left=b.due-Date.now();if(left>10*DAY||left<0)retu
 function undoDone(key,label){const d=S.done[key];if(!d)return;delete S.done[key];if(d.pts)earn(-d.pts,"撤销 · "+label);save();renderAll()}
 function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEmbed"});document.body.append(el)}const now=Date.now();
   const wk=t=>{const d=new Date(t);const days=Math.round((keyToDate(localKey(d))-keyToDate(localKey(new Date(now))))/DAY);return days<=0?(t<now?"过期":pad(d.getHours())+":"+pad(d.getMinutes())):days===1?"明天":"周"+WD[d.getDay()]};
-  const line=(text,when,soon,done,toggle,onDel,onStart,active,onDue)=>h("div",{class:"td-row"+(done?" done":"")+(soon&&!done?" soon":"")+(active?" active":""),onclick:e=>{if(e.target.closest(".x,.go2"))return;toggle()}},h("span",{class:"ck"}),h("span",{class:"t",title:text},text),when!==null&&onDue?h("span",{class:"w",title:"改截止时间",onclick:e=>{e.stopPropagation();editDue(e.currentTarget,onDue)}},when||"＋时间"):when?h("span",{class:"w"},when):null,onStart&&!done?h("button",{class:"go2",title:active?"正在做":"开始做",onclick:onStart},active?"●":"▶"):null,onDel?h("button",{class:"x","aria-label":"删除",onclick:onDel},"×"):null);
+  const line=(text,when,soon,done,toggle,onDel,onStart,active,onDue)=>h("div",{class:"td-row"+(done?" done":"")+(soon&&!done?" soon":"")+(active?" active":""),onclick:e=>{if(e.target.closest(".x,.go2"))return;toggle()}},h("span",{class:"ck"}),h("span",{class:"t"},text),when!==null&&onDue?h("span",{class:"w","aria-label":"改截止时间",onclick:e=>{e.stopPropagation();editDue(e.currentTarget,onDue)}},when||"＋时间"):when?h("span",{class:"w"},when):null,onStart&&!done?h("button",{class:"go2","aria-label":active?"正在做":"开始做",onclick:onStart},active?"●":"▶"):null,onDel?h("button",{class:"x","aria-label":"删除",onclick:onDel},"×"):null);
   const recent=k=>S.done[k]&&now-S.done[k].at<12*HOUR;const rows=[];
   if(!checkedToday())rows.push(line("签到","",false,false,()=>DESK?DESK.openZero("daily"):openDaily(suggestSubj())));
   const dueOf=o=>o.soft<now&&o.hard>now?o.hard:o.soft;
@@ -2604,7 +2602,7 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
   const ti=h("input",{type:"text",placeholder:"+ 待办"});const dt=h("input",{type:"datetime-local",hidden:true,title:"截止时间（可不填）"});
   const add=()=>{if(!ti.value.trim())return;addTodo(ti.value,dt.value,"");ti.value="";dt.value="";dt.hidden=true};
   ti.addEventListener("focus",()=>{dt.hidden=false});ti.addEventListener("keydown",e=>{if(e.key==="Enter")add();if(e.key==="Escape"){ti.blur();dt.hidden=true}});dt.addEventListener("keydown",e=>{if(e.key==="Enter")add()});
-  const pin=DESK&&DESK.setPin?h("button",{class:"td-pin"+(S_PIN?" on":""),title:S_PIN?"取消置顶":"置顶",onclick:async()=>{S_PIN=!S_PIN;DESK.setPin(S_PIN);renderTodoEmbed()}},S_PIN?"●":"○"):null;
+  const pin=DESK&&DESK.setPin?h("button",{class:"td-pin"+(S_PIN?" on":""),"aria-label":S_PIN?"取消置顶":"置顶",onclick:async()=>{S_PIN=!S_PIN;DESK.setPin(S_PIN);renderTodoEmbed()}},S_PIN?"●":"○"):null;
   let grip="";if(DESK&&DESK.resizeBy){grip=h("div",{class:"td-grip"});let last=null;grip.addEventListener("pointerdown",e=>{last={x:e.screenX,y:e.screenY};grip.setPointerCapture(e.pointerId)});grip.addEventListener("pointermove",e=>{if(!last)return;DESK.resizeBy(e.screenX-last.x,e.screenY-last.y);last={x:e.screenX,y:e.screenY}});grip.addEventListener("pointerup",()=>{last=null})}
   const open=items.filter(i=>!i.done).length+(checkedToday()?0:1);const hot=items.filter(i=>!i.done&&!i.nodue&&i.due-now<24*HOUR).length;
   const mini=h("div",{class:"td-mini"},h("b",null,"待办"),h("span",{class:"n"+(hot?" hot":""),title:hot?hot+" 项 24 小时内要交":""},hot?String(hot):open?String(open):"✓"));

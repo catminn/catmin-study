@@ -4,16 +4,14 @@
 <title>零</title>
 <style>
   :root{--bg:rgba(251,250,247,.92);--fg:#1d2030;--line:rgba(29,32,48,.14);--hi:rgba(255,255,255,.7)}
-  @media (prefers-color-scheme:dark){:root{--bg:rgba(35,38,58,.92);--fg:#eceaf4;--line:rgba(255,255,255,.16);--hi:rgba(255,255,255,.18)}}
   html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden;user-select:none}
   .b{position:absolute;inset:16px;border-radius:50%;background:var(--bg);color:var(--fg);border:1px solid var(--line);
      box-shadow:0 2px 8px rgba(0,0,0,.18);display:grid;place-items:center;cursor:pointer;transition:background .15s,box-shadow .15s}
   .b:hover{box-shadow:0 4px 12px rgba(0,0,0,.22)}
   .b.over{box-shadow:inset 0 0 0 2px rgba(120,130,170,.6)}
   /* 毛玻璃：窗口已经裁成圆，圆里是系统模糊，这里只铺一层很淡的白和高光 */
-  body.glass .b{inset:16px;background:linear-gradient(160deg,rgba(255,255,255,.34),rgba(255,255,255,.08));border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 var(--hi)}
-  body.glass .b:hover{background:linear-gradient(160deg,rgba(255,255,255,.46),rgba(255,255,255,.14))}
-  @media (prefers-color-scheme:dark){body.glass .b{background:linear-gradient(160deg,rgba(255,255,255,.14),rgba(255,255,255,.03));border-color:rgba(255,255,255,.18)}}
+  body.glass .b{inset:16px;background:linear-gradient(160deg,rgba(255,255,255,.62),rgba(255,255,255,.38));border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 var(--hi)}
+  body.glass .b:hover{background:linear-gradient(160deg,rgba(255,255,255,.75),rgba(255,255,255,.5))}
   svg{width:24px;height:24px}
   .dot{position:absolute;top:21px;right:21px;width:9px;height:9px;border-radius:50%;background:#e5484d;box-shadow:0 0 0 1.5px rgba(255,255,255,.85);display:none}
   .dot.on{display:block}

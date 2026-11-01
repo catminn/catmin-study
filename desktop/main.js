@@ -8,8 +8,8 @@ const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const os = require("os");
-const { applyGlass, roundRegion, shapeRegion } = require("./glass");
-const dark = () => nativeTheme.shouldUseDarkColors;
+const { applyGlass, shapeWin, circleRects, ribbonRects } = require("./glass");
+const dark = () => false; // 桌面上的小东西一律浅色半透明（背景深了它自然变深）
 
 const SITE = process.env.ZS_SITE || "https://study.catmin.io/";
 const PART = "persist:xuexi";
@@ -76,7 +76,7 @@ function createBubble() {
 // 小圆：窗口裁成直径 52 的圆，圆里是毛玻璃
 function glassBubble() {
   if (!bubble || bubble.isDestroyed()) return;
-  bubble._glass = applyGlass(bubble, dark(), 1) && roundRegion(bubble, BUB / 2, BUB / 2, 26, 0);
+  shapeWin(bubble, circleRects(BUB / 2, BUB / 2, 26, 0)); bubble._glass = applyGlass(bubble, dark(), 1);
   bubble.webContents.send("glass", !!bubble._glass);
 }
 // 小圆：拖动时限制在屏幕内；松手时离左右边很近就贴过去（整颗球留在屏幕里）
@@ -200,17 +200,12 @@ ipcMain.on("to-main", (e, subj, list) => { const w = openMain("#dungeon"); send(
 const MINI = { width: 22, height: 34 }, DOCK = 34, DOCK_LEN = 22, SNAP = 24; // 收起来是一枚燕尾书签：22 宽、34 长，尾巴朝屏幕里
 // 书签的形状（窗口里的坐标）：贴边一侧是直边，另一头剪出燕尾缺口
 const NOTCH = 7;
-function tabShape(mode, edge) {
-  if (mode === "dock" && edge === "left") return [[0, 0], [DOCK, 0], [DOCK - NOTCH, DOCK_LEN / 2], [DOCK, DOCK_LEN], [0, DOCK_LEN]];
-  if (mode === "dock" && edge === "right") return [[0, 0], [DOCK, 0], [DOCK, DOCK_LEN], [0, DOCK_LEN], [NOTCH, DOCK_LEN / 2]];
-  return [[0, 0], [DOCK_LEN, 0], [DOCK_LEN, DOCK], [DOCK_LEN / 2, DOCK - NOTCH], [0, DOCK]];
-}
 let shapeT = null;
 function applyTabShape() {
   clearTimeout(shapeT);
-  if (!todo || todo.isDestroyed() || !todo._glass) return;
-  if (todoState === "full") shapeRegion(todo, null, 2);
-  else shapeRegion(todo, tabShape(todoState, conf.todoDock && conf.todoDock.edge));
+  if (!todo || todo.isDestroyed()) return;
+  if (todoState === "full") shapeWin(todo, [], 2);
+  else { const e = todoState === "dock" && conf.todoDock ? conf.todoDock.edge : "top", side = e === "left" || e === "right"; shapeWin(todo, ribbonRects(side ? DOCK : DOCK_LEN, side ? DOCK_LEN : DOCK, NOTCH, e)); }
 }
 let todoState = "full";
 const fullSize = () => (conf.todo && conf.todo.width > MINI.width + 20 ? conf.todo : { width: 280, height: 320 });
@@ -434,6 +429,7 @@ function createRing() {
     webPreferences: { preload: path.join(__dirname, "ring-preload.js"), contextIsolation: true, sandbox: false } });
   ring.setAlwaysOnTop(true, "screen-saver");
   ring.loadFile(path.join(__dirname, "ring.html"));
+  shapeWin(ring, circleRects(RING / 2, RING / 2, RING * 142 / 300, 0)); // 只留圆盘：外面不画毛玻璃，中间是“松手取消”
   ring._glass = applyGlass(ring, dark(), 1);
   ring.webContents.once("did-finish-load", () => ring.webContents.send("glass", !!ring._glass));
 }
@@ -442,7 +438,7 @@ function showRing(x, y) {
   if (!ring || ring.isDestroyed() || conf.ringOff || gameHidden) return;
   const p = toDip(x, y);
   ring.setBounds({ x: Math.round(p.x - RING / 2), y: Math.round(p.y - RING / 2), width: RING, height: RING });
-  if (ring._glass) roundRegion(ring, RING / 2, RING / 2, RING * 142 / 300, RING * 52 / 300); // 只在圆环里有毛玻璃
+
   ring.webContents.send("ring-show"); ring.showInactive(); ringShown = true;
 }
 function hideRing(delay) { clearTimeout(ringHideT); ringHideT = setTimeout(() => { if (ring && !ring.isDestroyed()) ring.hide(); ringShown = false; }, delay || 0); }

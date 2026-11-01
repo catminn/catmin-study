@@ -4,7 +4,6 @@
 <title>学习转盘</title>
 <style>
   :root{--bg:rgba(251,250,247,.86);--fg:#1d2030;--line:rgba(29,32,48,.12);--hi:rgba(29,32,48,.10);--acc:#1d2030}
-  @media (prefers-color-scheme:dark){:root{--bg:rgba(35,38,58,.86);--fg:#eceaf4;--line:rgba(255,255,255,.14);--hi:rgba(255,255,255,.12);--acc:#eceaf4}}
   html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden;user-select:none;font:13px/1.2 "Microsoft YaHei UI","PingFang SC",system-ui,sans-serif}
   svg{position:absolute;inset:0;width:100%;height:100%}
   .seg{fill:var(--bg);stroke:var(--line);stroke-width:1;transition:fill .12s}
@@ -12,12 +11,13 @@
   .lbl{fill:var(--fg);font-size:13px;font-weight:600;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
   .sub{fill:var(--fg);opacity:.55;font-size:10px;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
   .hole{fill:transparent}
+  .mid{fill:var(--bg);stroke:var(--line);stroke-width:1}
+  body.glass .mid{fill:rgba(255,255,255,.10);stroke:rgba(255,255,255,.4)}
   .ring{animation:in .14s ease-out}@keyframes in{from{transform:scale(.85);opacity:0}}
   .ring{transform-origin:50% 50%}
   /* 毛玻璃：窗口已裁成圆环，格子只铺很淡的白，分隔线用亮线 */
-  body.glass .seg{fill:rgba(255,255,255,.16);stroke:rgba(255,255,255,.55)}
-  body.glass .seg.on{fill:rgba(255,255,255,.5)}
-  @media (prefers-color-scheme:dark){body.glass .seg{fill:rgba(255,255,255,.05);stroke:rgba(255,255,255,.18)}body.glass .seg.on{fill:rgba(255,255,255,.2)}}
+  body.glass .seg{fill:rgba(255,255,255,.5);stroke:rgba(255,255,255,.75)}
+  body.glass .seg.on{fill:rgba(255,255,255,.82)}
 </style></head><body>
 <svg viewBox="0 0 300 300" id="svg"><g class="ring" id="g"></g></svg>
 <script>
@@ -39,6 +39,9 @@
     const u = document.createElementNS(NS, "text"); u.setAttribute("x", lx); u.setAttribute("y", ly + 10); u.setAttribute("class", "sub"); u.textContent = s.s; g.append(u);
     return p;
   });
+  // 中间：松手取消
+  { const c = document.createElementNS(NS, "circle"); c.setAttribute("cx", C); c.setAttribute("cy", C); c.setAttribute("r", R1 - 6); c.setAttribute("class", "mid"); g.append(c);
+    const t = document.createElementNS(NS, "text"); t.setAttribute("x", C); t.setAttribute("y", C + 1); t.setAttribute("class", "sub"); t.textContent = "松手取消"; g.append(t); }
   function which(e) {
     const r = document.getElementById("svg").getBoundingClientRect(), sc = 300 / r.width;
     const x = (e.clientX - r.left) * sc - C, y = (e.clientY - r.top) * sc - C, d = Math.hypot(x, y);
