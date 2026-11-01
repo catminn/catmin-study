@@ -2520,15 +2520,12 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
   const open=items.filter(i=>!i.done).length+(checkedToday()?0:1);const hot=items.filter(i=>!i.done&&!i.nodue&&i.due-now<24*HOUR).length;
   const mini=h("div",{class:"td-mini"},h("b",null,"待办"),h("span",{class:"n"+(hot?" hot":""),title:hot?hot+" 项 24 小时内要交":""},hot?String(hot):open?String(open):"✓"));
   el.replaceChildren(mini,pin||"",h("div",{class:"td-list"},rows),h("div",{class:"td-add"},ti,dt),grip)}
-/* 桌面版：平时收成小标签（或吸在屏幕边上的书签），鼠标移上去展开 */
-if(EMBED==="todo"&&DESK&&DESK.todoMode){let t=null;const busy=()=>(document.activeElement&&document.activeElement.tagName==="INPUT")||document.querySelector(".scrim,.qz,.pop");
-  const B=document.body;const collapse=()=>{if(busy()||B.matches(":hover"))return;DESK.todoMode("mini")};
+/* 桌面版：平时收成小标签（或吸在屏幕边上的书签），鼠标移上去展开；展开收起由桌面程序根据鼠标位置决定 */
+if(EMBED==="todo"&&DESK&&DESK.todoMode){const B=document.body;
   DESK.onTodoState&&DESK.onTodoState(st=>{B.classList.toggle("td-collapsed",st.mode==="mini");B.classList.toggle("td-docked",st.mode==="dock");for(const e of["left","right","top"])B.classList.toggle("dock-"+e,st.mode==="dock"&&st.edge===e)});
-  document.addEventListener("mouseenter",()=>{clearTimeout(t);if(B.classList.contains("td-collapsed")||B.classList.contains("td-docked"))DESK.todoMode("full")});
-  document.addEventListener("mouseleave",()=>{clearTimeout(t);t=setTimeout(collapse,700)});
-  document.addEventListener("focusout",()=>{clearTimeout(t);t=setTimeout(collapse,700)});
-  if(DESK.isGlass)DESK.isGlass().then(g=>{if(g)B.classList.add("glass")}).catch(()=>{});
-  setTimeout(collapse,1500)}
+  const busy=()=>!!((document.activeElement&&document.activeElement.tagName==="INPUT")||document.querySelector(".scrim,.qz,.pop"));
+  const tell=()=>DESK.todoBusy&&DESK.todoBusy(busy());document.addEventListener("focusin",tell);document.addEventListener("focusout",()=>setTimeout(tell,50));new MutationObserver(tell).observe(B,{childList:true});
+  if(DESK.isGlass)DESK.isGlass().then(g=>{if(g)B.classList.add("glass")}).catch(()=>{})}
 let S_PIN=true;if(DESK&&DESK.getPin)DESK.getPin().then(v=>{S_PIN=!!v;if(EMBED==="todo")renderTodoEmbed()}).catch(()=>{});
 if(EMBED==="todo"){setInterval(()=>{if(!document.hidden)renderTodoEmbed()},60000)}
 /* 桌面小圆的小红点：24 小时内有没交的作业 */

@@ -72,32 +72,45 @@ function createBubble() {
   bubble.loadFile(path.join(__dirname, "bubble.html"));
   bubble.once("ready-to-show", () => { if (conf.bubbleHidden !== true) bubble.showInactive(); });
 }
+// 小圆：拖动时限制在屏幕内；松手时离左右边很近就贴过去（整颗球留在屏幕里）
+function clampToScreen(x, y, w, h) {
+  const d = screen.getDisplayNearestPoint({ x: Math.round(x + w / 2), y: Math.round(y + h / 2) }).workArea, pad = 16; // 小圆窗口四周有 16px 透明边
+  return { x: Math.min(Math.max(x, d.x - pad), d.x + d.width - w + pad), y: Math.min(Math.max(y, d.y - pad), d.y + d.height - h + pad), d };
+}
 ipcMain.on("bubble-move", (e, dx, dy) => {
   if (!bubble) return;
   const [x, y] = bubble.getPosition();
-  bubble.setBounds({ x: Math.round(x + dx), y: Math.round(y + dy), width: BUB, height: BUB });
+  const c = clampToScreen(x + dx, y + dy, BUB, BUB);
+  bubble.setBounds({ x: Math.round(c.x), y: Math.round(c.y), width: BUB, height: BUB });
   if (zero && zero.isVisible()) placeZero();
 });
 ipcMain.on("bubble-moved", () => {
   if (!bubble) return;
-  const b = bubble.getBounds(), d = screen.getDisplayMatching(b).workArea;
-  const cx = b.x + BUB / 2;
-  conf.bubbleDock = cx <= d.x + BUB / 2 + 10 ? "left" : cx >= d.x + d.width - BUB / 2 - 10 ? "right" : null; // 拖到左右边上就藏一半进去
-  if (conf.bubbleDock) bubble.setPosition(bubbleDockX(d, false), b.y);
-  const [x, y] = bubble.getPosition(); conf.bubble = { x, y }; saveConf();
-});
-function bubbleDockX(d, out) {
-  if (conf.bubbleDock === "left") return out ? d.x - 14 : d.x - BUB / 2 - 4;
-  return out ? d.x + d.width - BUB + 14 : d.x + d.width - BUB / 2 + 4;
-}
-ipcMain.on("bubble-hover", (e, on) => {
-  if (!bubble || !conf.bubbleDock) return;
-  const b = bubble.getBounds(), d = screen.getDisplayMatching(b).workArea;
-  bubble.setPosition(bubbleDockX(d, !!on || (zero && zero.isVisible())), b.y);
+  const b = bubble.getBounds(), c = clampToScreen(b.x, b.y, BUB, BUB), d = c.d, pad = 16;
+  let x = c.x;
+  if (x - (d.x - pad) < 40) x = d.x - pad + 4; else if (d.x + d.width - BUB + pad - x < 40) x = d.x + d.width - BUB + pad - 4;
+  animateBounds(bubble, { x: Math.round(x), y: Math.round(c.y), width: BUB, height: BUB }, 120);
+  conf.bubble = { x: Math.round(x), y: Math.round(c.y) }; conf.bubbleDock = null; saveConf();
 });
 ipcMain.on("bubble-click", () => toggleZero());
 ipcMain.on("bubble-menu", () => { menu().popup({ window: bubble }); });
 ipcMain.on("bubble-drop", (e, paths) => deliverPaths(paths));
+
+// 平滑改变窗口位置大小（像拉出展板）
+const anims = new WeakMap();
+function animateBounds(win, to, ms) {
+  if (!win || win.isDestroyed()) return;
+  clearInterval(anims.get(win));
+  const from = win.getBounds(), t0 = Date.now(), ease = (k) => 1 - Math.pow(1 - k, 3);
+  if (!ms) { win.setBounds(to); return; }
+  const id = setInterval(() => {
+    if (win.isDestroyed()) { clearInterval(id); return; }
+    const k = Math.min(1, (Date.now() - t0) / ms), e = ease(k), r = (a, b) => Math.round(a + (b - a) * e);
+    win.setBounds({ x: r(from.x, to.x), y: r(from.y, to.y), width: Math.max(1, r(from.width, to.width)), height: Math.max(1, r(from.height, to.height)) });
+    if (k >= 1) { clearInterval(id); anims.delete(win); }
+  }, 12);
+  anims.set(win, id);
+}
 
 // ---------- 零的聊天框 ----------
 const ZW = 380, ZH = 560;
@@ -116,7 +129,6 @@ function ensureZero() {
   zero = pageWin({ width: ZW, height: ZH, alwaysOnTop: true, resizable: true, minWidth: 320, minHeight: 360 }, SITE + "?embed=zero");
   zero.setAlwaysOnTop(true, "floating");
   zero.on("closed", () => { zero = null; });
-  zero.on("hide", () => { if (bubble && conf.bubbleDock) { const b = bubble.getBounds(); bubble.setPosition(bubbleDockX(screen.getDisplayMatching(b).workArea, false), b.y); } });
   return zero;
 }
 function showZero(cmd) {
@@ -135,6 +147,7 @@ function createTodo(show) {
   // 毛玻璃用 glass.js（失去焦点也保持）；不支持的系统退回页面自己的半透明底色
   const opts = { x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 10, minHeight: 10, resizable: true, transparent: true, alwaysOnTop: conf.todoPinned !== false, backgroundColor: "#00000000" };
   todo = pageWin(opts, SITE + "?embed=todo");
+  todo.on("will-move", () => { todoDragging = true; clearTimeout(todoDragT); todoDragT = setTimeout(() => { todoDragging = false; }, 1500); });
   todo.on("moved", todoMoved);
   todo.on("resized", () => { if (todo && !todo.isDestroyed() && todoState === "full") { conf.todo = todo.getBounds(); saveConf(); } });
   todo.on("closed", () => { todo = null; todoState = "full"; });
@@ -192,46 +205,64 @@ function dockRect(d) {
   if (k.edge === "right") return { x: d.x + d.width - DOCK, y: clampY(k.along), width: DOCK, height: DOCK_LEN };
   return { x: clampX(k.along), y: d.y, width: DOCK_LEN, height: DOCK };
 }
+function todoTarget(mode) {
+  const b = todo.getBounds(), d = screen.getDisplayMatching(b).workArea, f = fullSize();
+  if (mode === "dock") return dockRect(d);
+  if (mode === "mini") {
+    const right = b.x + b.width / 2 > d.x + d.width / 2, bottom = b.y + b.height / 2 > d.y + d.height / 2;
+    return { x: right ? b.x + b.width - MINI.width : b.x, y: bottom ? b.y + b.height - MINI.height : b.y, width: MINI.width, height: MINI.height };
+  }
+  let x, y;
+  if (todoState === "dock" && conf.todoDock) {
+    const k = conf.todoDock, r = dockRect(d);
+    x = k.edge === "left" ? d.x : k.edge === "right" ? d.x + d.width - f.width : r.x + r.width / 2 - f.width / 2;
+    y = k.edge === "top" ? d.y : r.y + r.height / 2 - 40;
+  } else {
+    const right = b.x + b.width / 2 > d.x + d.width / 2, bottom = b.y + b.height / 2 > d.y + d.height / 2;
+    x = right ? b.x + b.width - f.width : b.x; y = bottom ? b.y + b.height - f.height : b.y;
+  }
+  return { x: Math.round(Math.min(Math.max(x, d.x), d.x + d.width - f.width)), y: Math.round(Math.min(Math.max(y, d.y), d.y + d.height - f.height)), width: f.width, height: f.height };
+}
 function setTodoMode(mode) {
   if (!todo || todo.isDestroyed()) return;
-  const b = todo.getBounds(), d = screen.getDisplayMatching(b).workArea, f = fullSize();
-  if (mode === "mini") {
-    if (todoState === "full") { conf.todo = Object.assign({}, b); saveConf(); }
-    if (conf.todoDock) { todo.setBounds(dockRect(d)); todoState = "dock"; }
-    else {
-      const right = b.x + b.width / 2 > d.x + d.width / 2, bottom = b.y + b.height / 2 > d.y + d.height / 2;
-      todo.setBounds({ x: right ? b.x + b.width - MINI.width : b.x, y: bottom ? b.y + b.height - MINI.height : b.y, width: MINI.width, height: MINI.height });
-      todoState = "mini";
-    }
-  } else if (mode === "full" && todoState !== "full") {
-    let x, y;
-    if (todoState === "dock") {
-      const k = conf.todoDock;
-      x = k.edge === "left" ? d.x : k.edge === "right" ? d.x + d.width - f.width : k.along - (f.width - DOCK_LEN) / 2;
-      y = k.edge === "top" ? d.y : k.along - (f.height - DOCK_LEN) / 2;
-    } else {
-      const right = b.x + b.width / 2 > d.x + d.width / 2, bottom = b.y + b.height / 2 > d.y + d.height / 2;
-      x = right ? b.x + b.width - f.width : b.x; y = bottom ? b.y + b.height - f.height : b.y;
-    }
-    x = Math.min(Math.max(Math.round(x), d.x), d.x + d.width - f.width); y = Math.min(Math.max(Math.round(y), d.y), d.y + d.height - f.height);
-    todo.setBounds({ x, y, width: f.width, height: f.height });
-    todoState = "full";
+  if (mode === "mini" && conf.todoDock) mode = "dock";
+  const cur = todoState === "dock" ? "dock" : todoState;
+  if (mode === cur) return;
+  if (cur === "full") { conf.todo = Object.assign({}, todo.getBounds()); saveConf(); }
+  const to = todoTarget(mode);
+  if (mode === "full" && cur === "dock" && conf.todoDock) {
+    // 从书签处展开：先把窗口放到展开位置但只露出书签那么大，再往外拉开
+    const k = conf.todoDock, r = todo.getBounds();
+    const start = k.edge === "top" ? { x: to.x, y: to.y, width: to.width, height: DOCK } : k.edge === "left" ? { x: to.x, y: to.y, width: DOCK, height: to.height } : { x: to.x + to.width - DOCK, y: to.y, width: DOCK, height: to.height };
+    todoState = "full"; tellTodo(); todo.setBounds(start); animateBounds(todo, to, 180);
+    return;
   }
-  tellTodo();
+  todoState = mode; tellTodo();
+  animateBounds(todo, to, mode === "full" ? 140 : 160);
 }
 ipcMain.on("todo-mode", (e, mode) => setTodoMode(mode));
-// 拖动结束：贴近边就吸住，离开边就松开
+// 鼠标位置由主进程盯着：移进来就展开，移出去 0.6 秒后收起（页面里正在输入时不收）
+let todoBusy = false, todoAway = 0;
+ipcMain.on("todo-busy", (e, v) => { todoBusy = !!v; });
+setInterval(() => {
+  if (!todo || todo.isDestroyed() || !todo.isVisible() || todoDragging) return;
+  const p = screen.getCursorScreenPoint(), b = todo.getBounds(), m = todoState === "full" ? 6 : 2;
+  const inside = p.x >= b.x - m && p.x < b.x + b.width + m && p.y >= b.y - m && p.y < b.y + b.height + m;
+  if (inside) { todoAway = 0; if (todoState !== "full") setTodoMode("full"); }
+  else if (todoState === "full" && !todoBusy) { if (++todoAway >= 5) { todoAway = 0; setTodoMode("mini"); } }
+}, 120);
+// 拖动结束：限制在屏幕内；贴近上、左、右边就吸成书签，离开就松开
+let todoDragging = false, todoDragT = null;
 function todoMoved() {
   if (!todo || todo.isDestroyed()) return;
-  const b = todo.getBounds(), d = screen.getDisplayMatching(b).workArea, edge = edgeOf(b);
-  if (edge) {
-    conf.todoDock = { edge, along: edge === "top" ? Math.round(b.x + b.width / 2 - DOCK_LEN / 2) : Math.round(b.y + Math.min(b.height, 120) / 2 - DOCK_LEN / 2) };
-    if (todoState !== "full") { todo.setBounds(dockRect(d)); todoState = "dock"; }
-  } else {
-    conf.todoDock = null;
-    if (todoState === "dock") { todo.setBounds({ x: b.x, y: b.y, width: MINI.width, height: MINI.height }); todoState = "mini"; }
-    if (todoState === "full") conf.todo = b;
-  }
+  todoDragging = false;
+  let b = todo.getBounds();
+  const d = screen.getDisplayMatching(b).workArea;
+  const cx = Math.min(Math.max(b.x, d.x), d.x + d.width - b.width), cy = Math.min(Math.max(b.y, d.y), d.y + d.height - b.height);
+  const edge = edgeOf(b);
+  if (cx !== b.x || cy !== b.y) { todo.setBounds({ x: cx, y: cy, width: b.width, height: b.height }); b = todo.getBounds(); }
+  if (edge) conf.todoDock = { edge, along: edge === "top" ? Math.round(b.x + b.width / 2 - DOCK_LEN / 2) : Math.round(b.y + 20) };
+  else { conf.todoDock = null; if (todoState === "full") conf.todo = b; }
   saveConf(); tellTodo();
 }
 ipcMain.handle("is-glass", (e) => !!(todo && !todo.isDestroyed() && e.sender.id === todo.webContents.id && todo._glass));

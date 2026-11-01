@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("zsDesktop", {
   ready: () => ipcRenderer.send("ready"),
   onTodoState: (cb) => ipcRenderer.on("todo-state", (e, st) => cb(st)),
   isGlass: () => ipcRenderer.invoke("is-glass"),
+  todoBusy: (v) => ipcRenderer.send("todo-busy", !!v),
   todoMode: (m) => ipcRenderer.send("todo-mode", String(m)),
   resizeBy: (dw, dh) => ipcRenderer.send("todo-resize", Number(dw) || 0, Number(dh) || 0),
   setPin: (v) => ipcRenderer.send("set-pin", !!v),
