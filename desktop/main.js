@@ -56,10 +56,10 @@ function pageWin(opts, url) {
 }
 
 // ---------- 零的小圆 ----------
-const BUB = 64;
+const BUB = 84;
 function createBubble() {
   const a = workArea();
-  const pos = conf.bubble && onScreen({ x: conf.bubble.x, y: conf.bubble.y }) ? conf.bubble : { x: a.x + a.width - BUB - 18, y: a.y + a.height - BUB - 18 };
+  const pos = conf.bubble && onScreen({ x: conf.bubble.x, y: conf.bubble.y }) ? conf.bubble : { x: a.x + a.width - BUB - 2, y: a.y + a.height - BUB - 2 };
   bubble = new BrowserWindow({
     x: pos.x, y: pos.y, width: BUB, height: BUB, frame: false, transparent: true, resizable: false, maximizable: false, minimizable: false,
     skipTaskbar: true, alwaysOnTop: true, hasShadow: false, focusable: true, show: false, icon: ICON,
@@ -86,8 +86,8 @@ function placeZero() {
   if (!zero || !bubble) return;
   const [bx, by] = bubble.getPosition();
   const d = screen.getDisplayNearestPoint({ x: bx, y: by }).workArea;
-  let x = bx + BUB - ZW, y = by - ZH - 8;
-  if (y < d.y) y = by + BUB + 8;
+  let x = bx + BUB - 16 - ZW, y = by + 16 - ZH - 6;
+  if (y < d.y) y = by + BUB - 10;
   if (y + ZH > d.y + d.height) y = d.y + d.height - ZH;
   x = Math.min(Math.max(x, d.x), d.x + d.width - ZW);
   zero.setBounds({ x, y, width: ZW, height: ZH });
@@ -288,7 +288,7 @@ app.whenReady().then(() => {
   if (!globalShortcut.register(HOTKEY, onHotkey)) console.log("快捷键被占用：" + HOTKEY);
   const files = filesFromArgv(process.argv);
   if (files.length) deliverPaths(files);
-  screen.on("display-metrics-changed", () => { if (bubble && !onScreen({ x: bubble.getPosition()[0], y: bubble.getPosition()[1] })) { const a = workArea(); bubble.setPosition(a.x + a.width - BUB - 18, a.y + a.height - BUB - 18); } });
+  screen.on("display-metrics-changed", () => { if (bubble && !onScreen({ x: bubble.getPosition()[0], y: bubble.getPosition()[1] })) { const a = workArea(); bubble.setPosition(a.x + a.width - BUB - 2, a.y + a.height - BUB - 2); } });
 });
 
 app.on("window-all-closed", (e) => { /* 常驻托盘，不退出 */ });

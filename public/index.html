@@ -2371,6 +2371,8 @@ html.embed-root,body.embed-todo{background:transparent!important}
 .td-add input,.td-add input[type=text],.td-add input[type=datetime-local]{flex:1;min-width:0;background:transparent;border:0;border-bottom:1px solid color-mix(in oklab,currentColor 25%,transparent);border-radius:0;padding:4px 2px;color:inherit;font-size:14px;outline:none}
 .td-add input[type=datetime-local]{flex:0 0 auto;font-size:12px;opacity:.7}
 .embed .pop,.embed .scrim,.embed .qz,.embed .zw-pick,.embed .toast{-webkit-app-region:no-drag}
+body.embed .scrim,body.embed .qz,body.embed .zw-pick{z-index:70}body.embed .pop{z-index:80}
+#zwDue{padding:6px 12px;font-size:12px;color:var(--late);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 body.embed-todo .toast{font-size:12px;padding:3px 12px;bottom:44px;font-weight:500;opacity:.92}
 .zw-pick{position:fixed;inset:0;z-index:60;background:var(--scrim);display:grid;place-items:center;padding:12px}
 .zw-pick .box{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;width:100%;max-width:340px}
@@ -2477,8 +2479,11 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
 let S_PIN=true;if(DESK&&DESK.getPin)DESK.getPin().then(v=>{S_PIN=!!v;if(EMBED==="todo")renderTodoEmbed()}).catch(()=>{});
 if(EMBED==="todo"){setInterval(()=>{if(!document.hidden)renderTodoEmbed()},60000)}
 /* 桌面小圆的小红点：24 小时内有没交的作业 */
-function deskBadge(){if(!DESK||!DESK.badge||EMBED!=="zero")return;const now=Date.now();
-  const n=occurrences().filter(o=>isOpen(o)&&(o.soft<now&&o.hard>now?o.hard:o.soft)-now<24*HOUR&&(o.soft<now?o.hard:o.soft)>now).length+SIDE.filter(q=>!S.done["cv-"+q.id]&&q.due>now&&q.due-now<24*HOUR).length;DESK.badge(n)}
+function deskBadge(){if(EMBED!=="zero")return;const now=Date.now();const due=o=>o.soft<now&&o.hard>now?o.hard:o.soft;
+  const L=[...occurrences().filter(o=>isOpen(o)&&due(o)>now&&due(o)-now<24*HOUR).map(o=>SUBJ[o.subj].name+" "+o.title),...SIDE.filter(q=>!S.done["cv-"+q.id]&&q.due>now&&q.due-now<24*HOUR).map(q=>q.title)];
+  let el=$("#zwDue");if(!el){const hd=document.querySelector(".zw-head");if(hd){el=h("div",{id:"zwDue"});hd.after(el)}}
+  if(el){el.hidden=!L.length;el.textContent="24 小时内要交："+L.join("、")}
+  if(DESK&&DESK.badge)DESK.badge(L.length)}
 if(EMBED==="zero"&&DESK){setInterval(deskBadge,5*60000)}
 
 /* 多窗口（桌面程序的几个小窗、多个浏览器标签）共用一份云端存档：获得焦点或别的窗口存档后，拉最新的 */

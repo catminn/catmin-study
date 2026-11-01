@@ -6,17 +6,17 @@
   :root{--bg:#fbfaf7;--fg:#1d2030;--line:rgba(29,32,48,.12)}
   @media (prefers-color-scheme:dark){:root{--bg:#23263a;--fg:#eceaf4;--line:rgba(255,255,255,.14)}}
   html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden;user-select:none}
-  .b{position:absolute;inset:8px;border-radius:50%;background:var(--bg);color:var(--fg);border:1px solid var(--line);
-     box-shadow:0 4px 14px rgba(0,0,0,.22);display:grid;place-items:center;cursor:pointer;transition:transform .15s,box-shadow .15s}
-  .b:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.28)}
+  .b{position:absolute;inset:16px;border-radius:50%;background:var(--bg);color:var(--fg);border:1px solid var(--line);
+     box-shadow:0 2px 8px rgba(0,0,0,.18);display:grid;place-items:center;cursor:pointer;transition:transform .15s,box-shadow .15s}
+  .b:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.22)}
   .b.drag{transition:none}
-  .b.over{transform:scale(1.08);box-shadow:0 0 0 3px rgba(120,130,170,.45),0 6px 18px rgba(0,0,0,.28)}
+  .b.over{transform:scale(1.06);box-shadow:0 0 0 3px rgba(120,130,170,.45),0 4px 12px rgba(0,0,0,.22)}
   svg{width:26px;height:26px}
-  .dot{position:absolute;top:9px;right:9px;width:11px;height:11px;border-radius:50%;background:#e5484d;border:2px solid var(--bg);display:none}
+  .dot{position:absolute;top:16px;right:16px;width:11px;height:11px;border-radius:50%;background:#e5484d;border:2px solid var(--bg);display:none}
   .dot.on{display:block}
 </style></head>
 <body>
-<div class="b" id="b" title="零（拖动可移动，右键菜单，文件拖进来交给零）">
+<div class="b" id="b">
   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="36.5 7.5" transform="rotate(-25 12 12)"/><circle cx="15.96" cy="6.23" r="1.5" fill="currentColor"/></svg>
 </div>
 <div class="dot" id="dot"></div>
