@@ -149,6 +149,7 @@ ipcMain.on("hide", (e) => { const w = winOf(e); if (w) w.hide(); if (w === todo)
 ipcMain.on("open-main", (e, hash) => openMain(typeof hash === "string" ? hash : ""));
 ipcMain.on("open-zero", (e, cmd) => showZero(typeof cmd === "string" ? cmd : ""));
 ipcMain.on("to-main", (e, subj, list) => { const w = openMain("#dungeon"); send(w, "files", String(subj), list); });
+ipcMain.on("badge", (e, n) => { if (bubble && !bubble.isDestroyed()) bubble.webContents.send("badge", n); });
 ipcMain.on("saved", (e) => {
   for (const w of [zero, todo, main]) if (w && !w.isDestroyed() && w.webContents.id !== e.sender.id) send(w, "pull");
 });

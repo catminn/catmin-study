@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("zsDesktop", {
   toMain: (subj, list) => ipcRenderer.send("to-main", String(subj), list),
   saved: () => ipcRenderer.send("saved"),
   ready: () => ipcRenderer.send("ready"),
+  badge: (n) => ipcRenderer.send("badge", Number(n) || 0),
   onPull: (cb) => ipcRenderer.on("pull", () => cb()),
   onFiles: (cb) => ipcRenderer.on("files", (e, target, list) => cb(target, list)),
   onCommand: (cb) => ipcRenderer.on("cmd", (e, c) => cb(c)),

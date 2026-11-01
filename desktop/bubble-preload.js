@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld("bubble", {
   moved: () => ipcRenderer.send("bubble-moved"),
   click: () => ipcRenderer.send("bubble-click"),
   menu: () => ipcRenderer.send("bubble-menu"),
+  onBadge: (cb) => ipcRenderer.on("badge", (e, n) => cb(n)),
   drop: (files) => ipcRenderer.send("bubble-drop", Array.from(files).map((f) => webUtils.getPathForFile(f)).filter(Boolean)),
 });
