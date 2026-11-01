@@ -31,6 +31,20 @@ on:
       - 'test/npc-testimony-reference.test.mjs'
       - 'test/npc-dialogue-comparison.test.mjs'
       - 'test/fixtures/dm-beat-flow-synthetic-v1.json'
+      - 'scripts/npc-public-copy-safety.mjs'
+      - 'test/npc-corrupt-state-fail-closed.test.mjs'
+      - 'test/npc-knowledge-ledger-integrity.test.mjs'
+      - 'test/npc-knowledge-copy-gates.test.mjs'
+      - 'test/npc-route-ledger-provenance.test.mjs'
+      - 'test/npc-route-state-integrity.test.mjs'
+      - 'test/npc-player-knowledge-provenance.test.mjs'
+      - 'test/npc-event-id-safety.test.mjs'
+      - 'test/npc-invisible-copy-safety.test.mjs'
+      - 'test/npc-public-copy-safety.test.mjs'
+      - 'test/npc-public-copy-integration.test.mjs'
+      - 'test/npc-director-delimiter.test.mjs'
+      - 'test/npc-policy-portability.test.mjs'
+      - 'test/npc-dialogue-comparison-bridge.test.mjs'
       - '.github/workflows/study-p0-tests.yml'
   push:
     branches:
@@ -65,6 +79,20 @@ on:
       - 'test/npc-testimony-reference.test.mjs'
       - 'test/npc-dialogue-comparison.test.mjs'
       - 'test/fixtures/dm-beat-flow-synthetic-v1.json'
+      - 'scripts/npc-public-copy-safety.mjs'
+      - 'test/npc-corrupt-state-fail-closed.test.mjs'
+      - 'test/npc-knowledge-ledger-integrity.test.mjs'
+      - 'test/npc-knowledge-copy-gates.test.mjs'
+      - 'test/npc-route-ledger-provenance.test.mjs'
+      - 'test/npc-route-state-integrity.test.mjs'
+      - 'test/npc-player-knowledge-provenance.test.mjs'
+      - 'test/npc-event-id-safety.test.mjs'
+      - 'test/npc-invisible-copy-safety.test.mjs'
+      - 'test/npc-public-copy-safety.test.mjs'
+      - 'test/npc-public-copy-integration.test.mjs'
+      - 'test/npc-director-delimiter.test.mjs'
+      - 'test/npc-policy-portability.test.mjs'
+      - 'test/npc-dialogue-comparison-bridge.test.mjs'
       - '.github/workflows/study-p0-tests.yml'
 permissions:
   contents: read
@@ -82,3 +110,5 @@ jobs:
         run: node --test test/world01-causal-authoring.test.mjs test/world01-route-agency.test.mjs test/world01-public-contract.test.mjs
       - name: Test spoiler-free DM pacing, failure-forward, and NPC testimony references
         run: node --test test/dm-beat-flow.test.mjs test/dm-beat-sequence.test.mjs test/scene-learning-flow.test.mjs test/scene-learning-pacing.test.mjs test/dm-failure-forward.test.mjs test/npc-testimony-reference.test.mjs test/npc-dialogue-comparison.test.mjs
+      - name: Test synthetic NPC state integrity, testimony provenance, and public-copy gates
+        run: node --test test/npc-corrupt-state-fail-closed.test.mjs test/npc-knowledge-ledger-integrity.test.mjs test/npc-knowledge-copy-gates.test.mjs test/npc-route-ledger-provenance.test.mjs test/npc-route-state-integrity.test.mjs test/npc-player-knowledge-provenance.test.mjs test/npc-event-id-safety.test.mjs test/npc-invisible-copy-safety.test.mjs test/npc-public-copy-safety.test.mjs test/npc-public-copy-integration.test.mjs test/npc-director-delimiter.test.mjs test/npc-policy-portability.test.mjs test/npc-dialogue-comparison-bridge.test.mjs
