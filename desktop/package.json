@@ -57,7 +57,7 @@
       "provider": "github",
       "owner": "catminn",
       "repo": "catmin-study",
-      "releaseType": "release"
+      "releaseType": "draft"
     },
     "npmRebuild": false
   },
