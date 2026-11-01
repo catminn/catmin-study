@@ -26,6 +26,18 @@ const cases=[
   ['route trace drift',x=>x.causal.routeCommits[0].effect.value='b','public_causal_drift'],
   ['NPC reaction drift',x=>x.causal.npcContinuity.transitions[0].set.relation='open','public_causal_drift'],
   ['projection policy drift',x=>x.causal.publicProjection.exposeInternalIds=true,'public_causal_drift'],
+
+  ['metadata registration order does not matter',x=>{x.world.authoringConstraints.reverse();x.world.acceptance.reverse();},null],
+  ['world warning cannot drift',x=>x.world.warning='unreviewed copy','public_metadata_drift'],
+  ['ownership cannot drift',x=>x.world.ownership.engineering='unreviewed','public_metadata_drift'],
+  ['authoring constraints cannot drift',x=>x.world.authoringConstraints[0]='unreviewed copy','public_metadata_drift'],
+  ['unreviewed world metadata rejected',x=>x.world.hiddenNarration='unreviewed','public_metadata_drift'],
+  ['unreviewed causal metadata rejected',x=>x.causal.hiddenFacts='unreviewed','public_metadata_drift'],
+  ['causal warning cannot drift',x=>x.causal.warning='unreviewed copy','public_metadata_drift'],
+  ['missing non-route acceptance requirement rejected',x=>x.world.acceptance.pop(),'public_acceptance_drift'],
+  ['changed non-route acceptance requirement rejected',x=>x.world.acceptance[2].require='unreviewed copy','public_acceptance_drift'],
+  ['extra non-route acceptance requirement rejected',x=>x.world.acceptance.push({id:'extra',require:'unreviewed copy'}),'public_acceptance_drift'],
+  ['unreviewed acceptance field rejected',x=>x.world.acceptance[2].debug='unreviewed','public_acceptance_drift'],
   ['no input mutation',()=>{},null]
 ];
 for(const [name,mutate,error] of cases)test(name,()=>{
