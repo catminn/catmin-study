@@ -158,6 +158,11 @@ export function validateWorld01RouteAgency(world, causal) {
     }
     if([...branchInteriors[0]].some(node=>branchInteriors[1].has(node)))
       return fail('premature_convergence');
+    // After reunion, revisiting a committed choice or its branch would allow
+    // another route commit to overwrite the preserved consequence ledger.
+    const committedRegion=new Set([fork.id,...branchInteriors[0],...branchInteriors[1]]);
+    if([...afterReunion].some(scene=>committedRegion.has(scene)))
+      return fail('route_reentry');
     const npc=causal.npcContinuity;
     if(!obj(npc)||!Array.isArray(npc.transitions)||npc.transitions.length!==2)
       return fail('npc_invalid');
