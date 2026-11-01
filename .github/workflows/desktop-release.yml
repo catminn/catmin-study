@@ -18,20 +18,14 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      # 先建好草稿 release（带标签），electron-builder 往里传安装包和 latest.yml，最后再正式发布
-      - name: draft release
+      # 打包后用 gh 把安装包、blockmap、latest.yml 传到 v<版本号> 的 release（自动更新读 latest.yml）
+      - run: npx electron-builder --win nsis --x64 --publish never
+      - name: upload release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VER=v$(node -p "require('./package.json').version")
-          echo "VER=$VER" >> $GITHUB_ENV
-          gh release view $VER >/dev/null 2>&1 || gh release create $VER --draft --target $GITHUB_SHA --title "学习空间 $VER" --notes "桌面版 $VER"
-      - run: npx electron-builder --win nsis --x64 --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: publish release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit $VER --draft=false --latest
+          gh release view $VER >/dev/null 2>&1 || gh release create $VER --target $GITHUB_SHA --title "学习空间 $VER" --notes "桌面版 $VER"
+          gh release upload $VER dist/*.exe dist/*.blockmap dist/latest.yml --clobber
+          gh release edit $VER --draft=false --latest
