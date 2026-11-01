@@ -17,7 +17,9 @@ const base=()=>{
     convergence:{scene:'demo.join',preserve:['route_trace','npc_relation','committed_event_ids'],
       routeOutcomes:[{routeTrace:'a',npcRelation:'demo.guarded'},{routeTrace:'b',npcRelation:'demo.open'}]},
     learning:{scenes:['demo.a','demo.b'],requiresPlayerConsent:true,allowsNonAcademicProgress:true,
-      fabricateMeasurements:false,narrationMayCommitEffects:false}};
+      fabricateMeasurements:false,narrationMayCommitEffects:false},
+    publicProjection:{source:'committed_state_only',claimTierWithoutDiscovery:'unverified',
+      exposeInternalIds:false,exposeUncommittedConsequences:false}};
   return {world,causal};
 };
 const cases=[
@@ -67,6 +69,20 @@ const cases=[
  ['route reaction silently changes availability',x=>{x.causal.npcContinuity.transitions[0].set.availability='unavailable';},'npc_invalid'],
  ['route reaction silently changes claim tier',x=>{x.causal.npcContinuity.transitions[0].set.claimTier='unverified';},'npc_invalid'],
  ['route reaction contains unreviewed effect',x=>{x.causal.npcContinuity.transitions[0].extra='demo.hidden';},'npc_invalid'],
+ ['missing public projection',x=>{delete x.causal.publicProjection;},'projection_invalid'],
+ ['internal IDs exposed',x=>{x.causal.publicProjection.exposeInternalIds=true;},'projection_invalid'],
+ ['uncommitted consequences exposed',x=>{x.causal.publicProjection.exposeUncommittedConsequences=true;},'projection_invalid'],
+ ['claim promoted without discovery',x=>{x.causal.publicProjection.claimTierWithoutDiscovery='confirmed';},'projection_invalid'],
+ ['unapproved projection source',x=>{x.causal.publicProjection.source='client_state';},'projection_invalid'],
+ ['projection smuggles an extra field',x=>{x.causal.publicProjection.debugInfo='demo.private';},'projection_invalid'],
+ ['commit smuggles extra effect',x=>{x.causal.routeCommits[0].onEnter='demo.private';},'commit_invalid'],
+ ['cause smuggles extra guard',x=>{x.causal.routeCommits[0].cause.autoAdvance=true;},'commit_invalid'],
+ ['effect smuggles extra state mutation',x=>{x.causal.routeCommits[0].effect.setKnowledge='demo.private';},'commit_invalid'],
+ ['NPC continuity smuggles hidden transition',x=>{x.causal.npcContinuity.forceClaim=true;},'npc_invalid'],
+ ['convergence smuggles extra mutation',x=>{x.causal.convergence.autoUnlock=true;},'convergence_invalid'],
+ ['outcome smuggles hidden claim',x=>{x.causal.convergence.routeOutcomes[0].hiddenClaim='demo.private';},'outcome_invalid'],
+ ['convergence retains unreviewed state',x=>{x.causal.convergence.preserve.push('npc_knowledge');},'memory_erased'],
+ ['learning smuggles forced completion',x=>{x.causal.learning.autoComplete=true;},'learning_route_gap'],
  ['no input mutation',()=>{},null]
 ];
 for(const [name,mutate,code] of cases)test(name,()=>{

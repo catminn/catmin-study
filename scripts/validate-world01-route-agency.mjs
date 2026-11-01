@@ -5,6 +5,7 @@ const id=x=>typeof x==='string'&&/^[a-z][a-z0-9._-]{0,79}$/.test(x);
 const fail=code=>({ok:false,code});
 const unique=xs=>new Set(xs).size===xs.length;
 const equalSet=(a,b)=>a.length===b.length&&unique(a)&&unique(b)&&a.every(x=>b.includes(x));
+const exact=(value,keys)=>obj(value)&&equalSet(Object.keys(value),keys);
 
 export function validateWorld01RouteAgency(world, causal) {
   try {
@@ -22,7 +23,10 @@ export function validateWorld01RouteAgency(world, causal) {
     }
     if([...nodes.values()].some(n=>n.next.some(to=>!nodes.has(to))))return fail('graph_invalid');
     const events=causal.routeCommits;
-    if(events.some(e=>!obj(e)||!id(e.id)||!id(e.from)||!id(e.to)||
+    if(events.some(e=>!exact(e,['id','from','to','cause','effect','repeatPolicy'])||
+       !exact(e.cause,['type','sceneId','requiresCommittedTransition'])||
+       !exact(e.effect,['type','target','value'])||
+       !id(e.id)||!id(e.from)||!id(e.to)||
        !obj(e.cause)||e.cause.type!=='scene_entered'||
        e.cause.sceneId!==e.to||e.cause.requiresCommittedTransition!==true||
        !obj(e.effect)||e.effect.type!=='set_flag'||e.effect.target!=='route_trace'||
@@ -34,7 +38,7 @@ export function validateWorld01RouteAgency(world, causal) {
     const fork=nodes.get(events[0].from);
     if(!fork||!equalSet(fork.next,events.map(e=>e.to)))return fail('choice_mismatch');
     const convergence=causal.convergence;
-    if(!obj(convergence)||!id(convergence.scene)||!nodes.has(convergence.scene)||
+    if(!exact(convergence,['scene','preserve','routeOutcomes'])||!id(convergence.scene)||!nodes.has(convergence.scene)||
        convergence.scene===events[0].from||events.some(e=>e.to===convergence.scene))
       return fail('convergence_invalid');
     // Find the opening from the declared orientation, or a unique graph root.
@@ -112,6 +116,8 @@ export function validateWorld01RouteAgency(world, causal) {
     const npc=causal.npcContinuity;
     if(!obj(npc)||!Array.isArray(npc.transitions)||npc.transitions.length!==2)
       return fail('npc_invalid');
+    if(!exact(npc,['actorRef','initial','transitions','claimPromotion']))
+      return fail('actorRef' in npc&&'initial' in npc?'npc_invalid':'npc_baseline_invalid');
     // An NPC route reaction is meaningful only from a declared, non-authoritative
     // baseline. A relationship transition cannot smuggle knowledge or availability.
     const initial=npc.initial;
@@ -130,7 +136,8 @@ export function validateWorld01RouteAgency(world, causal) {
       relations.push(matching[0].set.relation);
     }
     if(!unique(relations))return fail('npc_consequence_erased');
-    if(!Array.isArray(convergence.routeOutcomes)||convergence.routeOutcomes.length!==2)
+    if(!Array.isArray(convergence.routeOutcomes)||convergence.routeOutcomes.length!==2||
+       convergence.routeOutcomes.some(o=>!exact(o,['routeTrace','npcRelation'])))
       return fail('outcome_invalid');
     for(let i=0;i<2;i++){
       const matched=convergence.routeOutcomes.filter(o=>obj(o)&&
@@ -139,14 +146,23 @@ export function validateWorld01RouteAgency(world, causal) {
     }
     if(!unique(convergence.routeOutcomes.map(o=>o.routeTrace)))return fail('outcome_invalid');
     if(!Array.isArray(convergence.preserve)||
-       !['route_trace','npc_relation','committed_event_ids'].every(k=>convergence.preserve.includes(k)))
+       !equalSet(convergence.preserve,['route_trace','npc_relation','committed_event_ids']))
       return fail('memory_erased');
     const learning=causal.learning;
-    if(!obj(learning)||!Array.isArray(learning.scenes)||
+    if(!exact(learning,['scenes','requiresPlayerConsent','allowsNonAcademicProgress',
+       'fabricateMeasurements','narrationMayCommitEffects'])||!Array.isArray(learning.scenes)||
        !equalSet(learning.scenes,events.map(e=>e.to))||
        learning.requiresPlayerConsent!==true||learning.allowsNonAcademicProgress!==true||
        learning.fabricateMeasurements!==false||learning.narrationMayCommitEffects!==false)
       return fail('learning_route_gap');
+    // Player projection must not expose IDs, uncommitted outcomes or promoted claims.
+    const projection=causal.publicProjection;
+    if(!exact(projection,['source','claimTierWithoutDiscovery','exposeInternalIds',
+       'exposeUncommittedConsequences'])||
+       projection.source!=='committed_state_only'||
+       projection.claimTierWithoutDiscovery!=='unverified'||
+       projection.exposeInternalIds!==false||projection.exposeUncommittedConsequences!==false)
+      return fail('projection_invalid');
     return {ok:true,validatedRoutes:2};
   }catch{return fail('input_invalid');}
 }
