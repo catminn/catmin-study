@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { validateManifest, initialState, validateState, applySyntheticAction } from '../scripts/validate-study-story-isolation.mjs';
+import { validateManifest, initialState, validateState, applySyntheticAction, projectEntrySurface } from '../scripts/validate-study-story-isolation.mjs';
 
 const m = JSON.parse(readFileSync(new URL('./fixtures/study-story-isolation-synthetic-v1.json', import.meta.url), 'utf8'));
 const clone = x => structuredClone(x);
