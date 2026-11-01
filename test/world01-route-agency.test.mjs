@@ -22,6 +22,10 @@ const base=()=>{
       exposeInternalIds:false,exposeUncommittedConsequences:false}};
   return {world,causal};
 };
+const published=()=>[
+ {id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']},
+ {id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']},
+ {id:'pause-resume',require:'cursor remains stable'}];
 const cases=[
  ['two meaningful routes',()=>{},null],
  ['reversed route registration',x=>{x.causal.routeCommits.reverse();x.causal.npcContinuity.transitions.reverse();x.causal.convergence.routeOutcomes.reverse();},null],
@@ -115,6 +119,19 @@ const cases=[
  ['acceptance cannot add unreviewed route metadata',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end'],autoReveal:true},{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']}];},'acceptance_invalid'],
  ['acceptance cannot claim a third route',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']},{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']},{id:'branch-c',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']}];},'acceptance_invalid'],
  ['acceptance cannot contain a non-object case',x=>{x.world.acceptance=[null,{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']},{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']}];},'acceptance_invalid'],
+ ['valid optional authoring metadata',x=>{x.world.warning='No private story here.';x.causal.warning='Synthetic only.';x.world.ownership={narrative:'ChatGPT',engineering:'Claude'};x.world.authoringConstraints=['Player chooses freely','Tutor does not commit'];x.causal.sceneContract='content/contracts/demo.json';},null],
+ ['authoring constraints must be an array',x=>{x.world.authoringConstraints='skip';},'metadata_invalid'],
+ ['authoring constraints cannot contain effects',x=>{x.world.authoringConstraints=[{onEnter:true}];},'metadata_invalid'],
+ ['authoring constraints cannot repeat',x=>{x.world.authoringConstraints=['A','A'];},'metadata_invalid'],
+ ['ownership cannot smuggle extra fields',x=>{x.world.ownership={narrative:'ChatGPT',engineering:'Claude',autoReveal:true};},'metadata_invalid'],
+ ['ownership cannot reverse responsibility',x=>{x.world.ownership={narrative:'Claude',engineering:'ChatGPT'};},'metadata_invalid'],
+ ['warning must be plain text',x=>{x.causal.warning={private:'yes'};},'metadata_invalid'],
+ ['scene contract cannot traverse directories',x=>{x.causal.sceneContract='content/contracts/../secrets.json';},'metadata_invalid'],
+ ['world01 cannot point at a different skeleton',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.causal.sceneContract='content/contracts/other.json';},'metadata_invalid'],
+ ['acceptance descriptive IDs must be unique',x=>{x.world.acceptance=published();x.world.acceptance.push({id:'pause-resume',require:'duplicate'});},'acceptance_invalid'],
+ ['acceptance descriptive entries reject extra effects',x=>{x.world.acceptance=published();x.world.acceptance[2].onEnter='demo.private';},'acceptance_invalid'],
+ ['acceptance descriptive requirements must be text',x=>{x.world.acceptance=published();x.world.acceptance[2].require={autoReveal:true};},'acceptance_invalid'],
+ ['acceptance descriptive requirements cannot be blank',x=>{x.world.acceptance=published();x.world.acceptance[2].require='   ';},'acceptance_invalid'],
  ['no input mutation',()=>{},null]
 ];
 for(const [name,mutate,code] of cases)test(name,()=>{

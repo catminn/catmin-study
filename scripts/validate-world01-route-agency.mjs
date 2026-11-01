@@ -23,6 +23,22 @@ export function validateWorld01RouteAgency(world, causal) {
     if(Object.keys(world).some(k=>!worldKeys.includes(k))||
        Object.keys(causal).some(k=>!causalKeys.includes(k)))
       return fail('input_invalid');
+    // Public authoring metadata is descriptive, not executable authority.
+    const safeText=x=>typeof x==='string'&&x.length>0&&x.length<=240&&x.trim()===x&&
+      ![...x].some(c=>c.charCodeAt(0)<32);
+    if((world.warning!==undefined&&!safeText(world.warning))||
+       (causal.warning!==undefined&&!safeText(causal.warning))||
+       (world.ownership!==undefined&&(!exact(world.ownership,['narrative','engineering'])||
+         world.ownership.narrative!=='ChatGPT'||world.ownership.engineering!=='Claude'))||
+       (world.authoringConstraints!==undefined&&(!Array.isArray(world.authoringConstraints)||
+         world.authoringConstraints.length<1||world.authoringConstraints.length>16||
+         !world.authoringConstraints.every(safeText)||!unique(world.authoringConstraints)))||
+       (causal.sceneContract!==undefined&&
+         (typeof causal.sceneContract!=='string'||
+          !/^content[/]contracts[/][a-z0-9._-]+[.]json$/.test(causal.sceneContract)||
+          (world.packageId==='world01'&&
+           causal.sceneContract!=='content/contracts/world01-opening-skeleton.json'))))
+      return fail('metadata_invalid');
     const nodes=new Map();
     for(const n of world.nodes){
       if(!obj(n)||!id(n.id)||!Array.isArray(n.next)||n.next.length>8||
@@ -186,7 +202,14 @@ export function validateWorld01RouteAgency(world, causal) {
     // unchecked prose that can drift away from the committed route graph.
     if(world.acceptance!==undefined){
       const items=world.acceptance;
-      if(!Array.isArray(items)||items.length>16||items.some(x=>!obj(x)))
+      if(!Array.isArray(items)||items.length>16||
+         items.some(x=>!obj(x)||!id(x.id)||
+           (!exact(x,['id','route'])&&!exact(x,['id','require'])))||
+         !unique(items.map(x=>x.id))||
+         items.some(x=>'require' in x&&
+           (typeof x.require!=='string'||x.require.length<1||
+            x.require.length>240||x.require.trim()!==x.require||
+            [...x.require].some(c=>c.charCodeAt(0)<32))))
         return fail('acceptance_invalid');
       const routes=items.filter(x=>Object.prototype.hasOwnProperty.call(x,'route'));
       if(routes.length!==2||!unique(routes.map(x=>x.id)))
