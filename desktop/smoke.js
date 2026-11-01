@@ -12,7 +12,7 @@ module.exports = async (h) => {
     h.deliverPaths([f]); await wait(2500);
     log("zero visible", h.zero.isVisible(), h.zero.getBounds());
     log("picker", await h.zero.webContents.executeJavaScript('document.querySelector(".zw-pick")?document.querySelector(".zw-pick").innerText.replace(/\\n/g," "):"none"'));
-    await h.zero.webContents.executeJavaScript('[...document.querySelectorAll(".zw-pick .btn")].find(b=>b.textContent==="零").click()');
+    await h.zero.webContents.executeJavaScript('[...document.querySelectorAll(".zw-pick .btn")].find(b=>b.textContent==="发给零").click()');
     await wait(800);
     log("zero docs", await h.zero.webContents.executeJavaScript("JSON.stringify(ZW.docs.map(d=>[d.name,d.text]))"));
     await wait(800);
