@@ -11,7 +11,10 @@ const fail = code => ({ok:false,code}); // Never echo private text or IDs.
 // Keep this conservative: emoji joiners/variation selectors are ignored only for QA comparison.
 const ignorable = /\p{Default_Ignorable_Code_Point}/gu;
 const unsafe = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;
-// Terminal punctuation alone is not a distinct narrative consequence. Keep\n// internal punctuation, which can change meaning, intact.\nconst normalized = text => text.normalize('NFKC').replace(ignorable,'').trim()\n  .replace(/\s+/gu,' ').toLocaleLowerCase('und').replace(/[.!?！？。…]+$/gu,'').trim();
+// Terminal punctuation alone is not a distinct narrative consequence.
+// Keep internal punctuation, which can change meaning, intact.
+const normalized = text => text.normalize('NFKC').replace(ignorable,'').trim()
+  .replace(/\s+/gu,' ').toLocaleLowerCase('und').replace(/[.!?！？。…]+$/gu,'').trim();
 
 export function validateRouteResponseDifferentiation(outline, plan) {
   try {
