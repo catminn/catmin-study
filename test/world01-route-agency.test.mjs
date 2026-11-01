@@ -101,6 +101,20 @@ const cases=[
  ['missing learning metadata on route A',x=>{delete x.world.nodes[2].learning;},'learning_route_gap'],
  ['missing learning metadata on route B',x=>{delete x.world.nodes[3].learning;},'learning_route_gap'],
  ['both routes explicitly offer optional learning',x=>{x.world.nodes[2].learning='math1920.partial-derivative';x.world.nodes[3].learning='math1920.gradient';},null],
+ ['valid published acceptance routes',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']},{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']},{id:'pause-resume',require:'cursor remains stable'}];},null],
+ ['published acceptance routes in reverse order',x=>{x.world.acceptance=[{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']},{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']}];},null],
+ ['acceptance must be an array',x=>{x.world.acceptance={route:'demo.a'};},'acceptance_invalid'],
+ ['acceptance cannot omit one branch',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']}];},'acceptance_invalid'],
+ ['acceptance cannot repeat one branch',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']},{id:'branch-b',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']}];},'acceptance_invalid'],
+ ['acceptance cannot jump over the committed choice',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.a','demo.join','demo.end']},{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']}];},'acceptance_invalid'],
+ ['acceptance cannot skip convergence',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.end']},{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']}];},'acceptance_invalid'],
+ ['acceptance cannot end before terminal',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join']},{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']}];},'acceptance_invalid'],
+ ['acceptance cannot reference unknown scene',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.unknown','demo.end']},{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']}];},'acceptance_invalid'],
+ ['acceptance cannot repeat a scene',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.join','demo.end']},{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']}];},'acceptance_invalid'],
+ ['acceptance cannot duplicate case ids',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']},{id:'branch-a',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']}];},'acceptance_invalid'],
+ ['acceptance cannot add unreviewed route metadata',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end'],autoReveal:true},{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']}];},'acceptance_invalid'],
+ ['acceptance cannot claim a third route',x=>{x.world.acceptance=[{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']},{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']},{id:'branch-c',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']}];},'acceptance_invalid'],
+ ['acceptance cannot contain a non-object case',x=>{x.world.acceptance=[null,{id:'branch-a',route:['demo.entry','demo.choice','demo.a','demo.join','demo.end']},{id:'branch-b',route:['demo.entry','demo.choice','demo.b','demo.join','demo.end']}];},'acceptance_invalid'],
  ['no input mutation',()=>{},null]
 ];
 for(const [name,mutate,code] of cases)test(name,()=>{

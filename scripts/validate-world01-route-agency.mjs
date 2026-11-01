@@ -182,6 +182,33 @@ export function validateWorld01RouteAgency(world, causal) {
        projection.claimTierWithoutDiscovery!=='unverified'||
        projection.exposeInternalIds!==false||projection.exposeUncommittedConsequences!==false)
       return fail('projection_invalid');
+    // Published acceptance paths are executable mechanical examples, not
+    // unchecked prose that can drift away from the committed route graph.
+    if(world.acceptance!==undefined){
+      const items=world.acceptance;
+      if(!Array.isArray(items)||items.length>16||items.some(x=>!obj(x)))
+        return fail('acceptance_invalid');
+      const routes=items.filter(x=>Object.prototype.hasOwnProperty.call(x,'route'));
+      if(routes.length!==2||!unique(routes.map(x=>x.id)))
+        return fail('acceptance_invalid');
+      const covered=[];
+      for(const item of routes){
+        const path=item.route;
+        if(!exact(item,['id','route'])||!id(item.id)||!Array.isArray(path)||
+           path.length<4||path.length>nodes.size||!path.every(x=>id(x)&&nodes.has(x))||
+           !unique(path)||path[0]!==entry||nodes.get(path[path.length-1]).next.length!==0)
+          return fail('acceptance_invalid');
+        const forkAt=path.indexOf(fork.id),joinAt=path.indexOf(convergence.scene);
+        if(forkAt<1||joinAt<=forkAt+1||
+           path.some((x,i)=>i>0&&!nodes.get(path[i-1]).next.includes(x)))
+          return fail('acceptance_invalid');
+        const branch=path[forkAt+1];
+        if(!events.some(e=>e.to===branch)||events.some(e=>e.to!==branch&&path.includes(e.to)))
+          return fail('acceptance_invalid');
+        covered.push(branch);
+      }
+      if(!equalSet(covered,events.map(e=>e.to)))return fail('acceptance_invalid');
+    }
     return {ok:true,validatedRoutes:2};
   }catch{return fail('input_invalid');}
 }
