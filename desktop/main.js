@@ -493,17 +493,28 @@ function undoInbox() {
 
 // ---------- 自动更新：从 GitHub Releases（catminn/catmin-study）后台下载，退出或点托盘时换上 ----------
 let updater = null, updateReady = "";
+let updateState = "", manualCheck = false;
+function note(title, body) { try { new Notification({ title, body, icon: ICON, silent: true }).show(); } catch (e) {} }
+function checkUpdate(manual) {
+  if (!updater) { if (manual) note("学习空间", "这个版本不能自动更新，请重新下载安装包"); return; }
+  manualCheck = !!manual;
+  if (manual) { updateState = "正在检查更新…"; refreshMenu(); }
+  try { updater.checkForUpdates().catch((e) => { if (manual) note("没检查成功", String((e && e.message) || e).slice(0, 120)); updateState = ""; refreshMenu(); }); } catch (e) {}
+}
 function startUpdater() {
   if (!app.isPackaged) return;
   try { ({ autoUpdater: updater } = require("electron-updater")); } catch (e) { updater = null; return; }
   updater.autoDownload = true; updater.autoInstallOnAppQuit = true;
+  updater.on("update-available", (info) => { updateState = "正在下载新版 " + ((info && info.version) || ""); refreshMenu(); note("学习空间有新版本", "正在后台下载 " + ((info && info.version) || "") + "，好了会再提醒你"); });
+  updater.on("update-not-available", () => { if (manualCheck) note("学习空间", "已经是最新版 " + app.getVersion()); updateState = ""; manualCheck = false; refreshMenu(); });
+  updater.on("download-progress", (p) => { updateState = "正在下载新版 " + Math.round((p && p.percent) || 0) + "%"; refreshMenu(); });
   updater.on("update-downloaded", (info) => {
-    updateReady = info && info.version || "新版本"; refreshMenu();
-    try { new Notification({ title: "学习空间有新版本", body: "已下载好 " + updateReady + "，下次启动自动换上。也可以在托盘菜单里马上重启。", icon: ICON, silent: true }).show(); } catch (e) {}
+    updateReady = info && info.version || "新版本"; updateState = ""; refreshMenu();
+    note("新版本下载好了", updateReady + " 已经准备好：点托盘里的「重启并更新」马上换上，或者下次启动自动换上。");
   });
-  updater.on("error", () => {});
-  const check = () => { try { updater.checkForUpdates().catch(() => {}); } catch (e) {} };
-  setTimeout(check, 20000); setInterval(check, 4 * 3600 * 1000);
+  updater.on("error", (e) => { if (manualCheck) note("更新没成功", String((e && e.message) || e).slice(0, 120)); updateState = ""; manualCheck = false; refreshMenu(); });
+  setTimeout(() => checkUpdate(false), 15000); setInterval(() => checkUpdate(false), 3600 * 1000);
+  try { require("electron").powerMonitor.on("resume", () => setTimeout(() => checkUpdate(false), 10000)); } catch (e) {}
 }
 
 // ---------- 托盘 ----------
@@ -526,7 +537,7 @@ function menu() {
     { label: "开机启动", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
     { label: hotkey ? "设置快捷键…（现在是 " + keyName(hotkey) + "）" : "设置快捷键…（现在没有）", click: openHotkeyWin },
     ...(updateReady ? [{ label: "重启并更新到 " + updateReady, click: () => { app.isQuitting = true; updater.quitAndInstall(true, true); } }] : []),
-    { label: "版本 " + app.getVersion(), enabled: false },
+    ...(updateReady ? [] : [{ label: updateState || "检查更新（现在 " + app.getVersion() + "）", enabled: !updateState, click: () => checkUpdate(true) }]),
     { type: "separator" },
     { label: "退出", click: () => { app.isQuitting = true; app.quit(); } },
   ]);
