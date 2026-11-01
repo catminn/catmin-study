@@ -12,7 +12,7 @@ module.exports = async (h) => {
     h.deliverPaths([f]); await wait(2500);
     log("zero visible", h.zero.isVisible(), h.zero.getBounds());
     log("picker", await h.zero.webContents.executeJavaScript('document.querySelector(".zw-pick")?document.querySelector(".zw-pick").innerText.replace(/\\n/g," "):"none"'));
-    await h.zero.webContents.executeJavaScript('[...document.querySelectorAll(".zw-pick .btn")].find(b=>b.textContent==="发给零").click()');
+    await h.zero.webContents.executeJavaScript('[...document.querySelectorAll(".zw-pick .btn")].find(b=>b.textContent==="问零").click()');
     await wait(800);
     log("zero docs", await h.zero.webContents.executeJavaScript("JSON.stringify(ZW.docs.map(d=>[d.name,d.text]))"));
     await wait(800);
@@ -62,6 +62,16 @@ module.exports = async (h) => {
     log("game on: bubble", h.bubble.isVisible(), "todo", h.todo.isVisible());
     await wait(9000);
     log("game off: bubble", h.bubble.isVisible(), "todo", h.todo.isVisible());
+    { const SP = "/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/";
+      h.todo.setBounds({ x: 700, y: 200, width: 280, height: 320 }); h.todo.emit("moved"); await wait(200);
+      h.todo.webContents.send("todo-state", { mode: "full", edge: "" }); await wait(800);
+      fs.writeFileSync(SP + "e-todo.png", (await h.todo.webContents.capturePage()).toPNG());
+      fs.writeFileSync(SP + "e-bubble.png", (await h.bubble.webContents.capturePage()).toPNG());
+      h.showZero(); await wait(1200); await h.zero.webContents.executeJavaScript("document.querySelectorAll('.qz,.scrim,.zw-pick').forEach(x=>x.remove());1"); await wait(200); fs.writeFileSync(SP + "e-zero.png", (await h.zero.webContents.capturePage()).toPNG());
+      h.todo.webContents.send("todo-state", { mode: "dock", edge: "top" }); await wait(300);
+      h.todo.setBounds({ x: 700, y: 0, width: 22, height: 34 }); await wait(500);
+      fs.writeFileSync(SP + "e-tab.png", (await h.todo.webContents.capturePage()).toPNG());
+      log("wall classes", await h.todo.webContents.executeJavaScript("document.body.className"), await h.bubble.webContents.executeJavaScript("document.body.className")); }
   } catch (e) { log("ERROR", e && e.stack || e); }
   app.exit(0);
 };

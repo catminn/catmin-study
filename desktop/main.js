@@ -8,7 +8,18 @@ const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const os = require("os");
-const { applyGlass, shapeWin, circleRects, ribbonRects } = require("./glass");
+const { loadWall, wallMsg, hasWall, wallVer } = require("./wall");
+// 毛玻璃：把窗口背后那块桌面壁纸发给页面，页面自己模糊（见 wall.js）
+const wallThrottle = new WeakMap();
+function sendWall(win, full) {
+  if (!win || win.isDestroyed() || !hasWall()) return;
+  const isBubble = win === bubble;
+  if (!full) { if (wallThrottle.get(win)) return; wallThrottle.set(win, setTimeout(() => { wallThrottle.delete(win); const m = wallMsg(win, false); if (m) (isBubble ? win.webContents.send("wall", m) : send(win, "wall", m)); }, 16)); return; }
+  const m = wallMsg(win, true); if (!m) return;
+  if (isBubble) win.webContents.send("wall", m); else send(win, "wall", m);
+}
+function watchWall(win) { if (!win) return; win.on("move", () => sendWall(win, false)); win.on("resize", () => sendWall(win, false)); }
+function sendWallAll(full) { for (const w of [bubble, todo, zero]) sendWall(w, full); }
 const dark = () => false; // 桌面上的小东西一律浅色半透明（背景深了它自然变深）
 
 const SITE = process.env.ZS_SITE || "https://study.catmin.io/";
@@ -71,14 +82,11 @@ function createBubble() {
   });
   bubble.setAlwaysOnTop(true, "screen-saver");
   bubble.loadFile(path.join(__dirname, "bubble.html"));
-  bubble.once("ready-to-show", () => { glassBubble(); if (conf.bubbleHidden !== true) bubble.showInactive(); });
+  bubble.once("ready-to-show", () => { if (conf.bubbleHidden !== true) bubble.showInactive(); });
+  bubble.webContents.on("did-finish-load", () => sendWall(bubble, true));
+  watchWall(bubble);
 }
 // 小圆：窗口裁成直径 52 的圆，圆里是毛玻璃
-function glassBubble() {
-  if (!bubble || bubble.isDestroyed()) return;
-  shapeWin(bubble, circleRects(BUB / 2, BUB / 2, 26, 0)); bubble._glass = applyGlass(bubble, dark(), 1);
-  bubble.webContents.send("glass", !!bubble._glass);
-}
 // 小圆：拖动时限制在屏幕内；松手时离左右边很近就贴过去（整颗球留在屏幕里）
 function clampToScreen(x, y, w, h) {
   const d = screen.getDisplayNearestPoint({ x: Math.round(x + w / 2), y: Math.round(y + h / 2) }).workArea, pad = 16; // 小圆窗口四周有 16px 透明边
@@ -98,7 +106,6 @@ ipcMain.on("bubble-moved", () => {
   if (x - (d.x - pad) < 40) x = d.x - pad + 4; else if (d.x + d.width - BUB + pad - x < 40) x = d.x + d.width - BUB + pad - 4;
   animateBounds(bubble, { x: Math.round(x), y: Math.round(c.y), width: BUB, height: BUB }, 120);
   conf.bubble = { x: Math.round(x), y: Math.round(c.y) }; conf.bubbleDock = null; saveConf();
-  setTimeout(glassBubble, 140); // 换了显示器缩放也重新裁圆
 });
 ipcMain.on("bubble-click", () => toggleZero());
 ipcMain.on("bubble-menu", () => { menu().popup({ window: bubble }); });
@@ -135,7 +142,7 @@ function placeZero() {
 function ensureZero() {
   if (zero && !zero.isDestroyed()) return zero;
   zero = pageWin({ width: ZW, height: ZH, alwaysOnTop: true, resizable: false, transparent: true, thickFrame: false, backgroundColor: "#00000000" }, SITE + "?embed=zero");
-  zero._glass = applyGlass(zero, dark(), 2);
+  watchWall(zero);
   zero.setAlwaysOnTop(true, "floating");
   zero.on("closed", () => { zero = null; });
   return zero;
@@ -160,8 +167,7 @@ function createTodo(show) {
   todo.on("moved", todoMoved);
   todo.on("resized", () => { if (todo && !todo.isDestroyed() && todoState === "full") { conf.todo = todo.getBounds(); saveConf(); } });
   todo.on("closed", () => { todo = null; todoState = "full"; });
-  todo._glass = applyGlass(todo, nativeTheme.shouldUseDarkColors);
-  nativeTheme.on("updated", () => { for (const w of [todo, zero]) if (w && !w.isDestroyed()) applyGlass(w, dark(), 2); glassBubble(); if (ring && !ring.isDestroyed()) applyGlass(ring, dark(), 1); });
+  watchWall(todo);
   todo.once("ready-to-show", () => { if (show) todo.showInactive(); });
   return todo;
 }
@@ -190,6 +196,7 @@ const winOf = (e) => BrowserWindow.fromWebContents(e.sender);
 ipcMain.on("ready", (e) => {
   const id = e.sender.id; readyWins.add(id);
   const q = queued.get(id); if (q) { queued.delete(id); for (const [ch, ...args] of q) e.sender.send(ch, ...args); }
+  const w = BrowserWindow.fromWebContents(e.sender); if (w && (w === todo || w === zero)) sendWall(w, true);
 });
 ipcMain.on("hide", (e) => { const w = winOf(e); if (w) w.hide(); if (w === todo) { conf.todoShown = false; saveConf(); refreshMenu(); } });
 ipcMain.on("open-main", (e, hash) => openMain(typeof hash === "string" ? hash : ""));
@@ -201,12 +208,7 @@ const MINI = { width: 22, height: 34 }, DOCK = 34, DOCK_LEN = 22, SNAP = 24; // 
 // 书签的形状（窗口里的坐标）：贴边一侧是直边，另一头剪出燕尾缺口
 const NOTCH = 7;
 let shapeT = null;
-function applyTabShape() {
-  clearTimeout(shapeT);
-  if (!todo || todo.isDestroyed()) return;
-  if (todoState === "full") shapeWin(todo, [], 2);
-  else { const e = todoState === "dock" && conf.todoDock ? conf.todoDock.edge : "top", side = e === "left" || e === "right"; shapeWin(todo, ribbonRects(side ? DOCK : DOCK_LEN, side ? DOCK_LEN : DOCK, NOTCH, e)); }
-}
+function applyTabShape() {}
 let todoState = "full";
 const fullSize = () => (conf.todo && conf.todo.width > MINI.width + 20 ? conf.todo : { width: 280, height: 320 });
 function edgeOf(b) {
@@ -286,7 +288,7 @@ function todoMoved() {
   else { conf.todoDock = null; if (todoState === "full") conf.todo = b; }
   saveConf(); tellTodo();
 }
-ipcMain.handle("is-glass", (e) => { const w = BrowserWindow.fromWebContents(e.sender); return !!(w && w._glass); });
+ipcMain.handle("is-glass", () => hasWall());
 ipcMain.on("todo-resize", (e, dw, dh) => { if (!todo || todo.isDestroyed() || todoState !== "full") return; const b = todo.getBounds(); todo.setBounds({ x: b.x, y: b.y, width: Math.max(180, Math.round(b.width + dw)), height: Math.max(120, Math.round(b.height + dh)) }); conf.todo = todo.getBounds(); saveConf(); });
 ipcMain.handle("get-pin", () => conf.todoPinned !== false);
 ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(!!v); refreshMenu(); });
@@ -429,9 +431,7 @@ function createRing() {
     webPreferences: { preload: path.join(__dirname, "ring-preload.js"), contextIsolation: true, sandbox: false } });
   ring.setAlwaysOnTop(true, "screen-saver");
   ring.loadFile(path.join(__dirname, "ring.html"));
-  shapeWin(ring, circleRects(RING / 2, RING / 2, RING * 142 / 300, 0)); // 只留圆盘：外面不画毛玻璃，中间是“松手取消”
-  ring._glass = applyGlass(ring, dark(), 1);
-  ring.webContents.once("did-finish-load", () => ring.webContents.send("glass", !!ring._glass));
+  ring.webContents.once("did-finish-load", () => ring.webContents.send("glass", true)); // 转盘只是半透明（一闪而过，不做模糊）
 }
 function toDip(x, y) { return process.platform === "win32" ? screen.screenToDipPoint({ x, y }) : { x, y }; }
 function showRing(x, y) {
@@ -608,6 +608,9 @@ app.whenReady().then(() => {
   tray.setToolTip("学习空间");
   tray.on("click", () => toggleZero());
   refreshMenu();
+  loadWall().then(() => sendWallAll(true));
+  setInterval(() => { const v = wallVer(); loadWall().then(() => { if (wallVer() !== v) sendWallAll(true); }); }, 5 * 60 * 1000); // 换了壁纸也跟着换
+  screen.on("display-metrics-changed", () => sendWallAll(false));
   createBubble();
   watchLogin();
   ensureZero(); // 先在后台加载，点开就是现成的

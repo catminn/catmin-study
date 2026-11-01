@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("bubble", {
   menu: () => ipcRenderer.send("bubble-menu"),
   hover: (on) => ipcRenderer.send("bubble-hover", !!on),
   onGlass: (cb) => ipcRenderer.on("glass", (e, v) => cb(!!v)),
+  onWall: (cb) => ipcRenderer.on("wall", (e, m) => cb(m)),
   onBadge: (cb) => ipcRenderer.on("badge", (e, n) => cb(n)),
   drop: (files) => ipcRenderer.send("bubble-drop", Array.from(files).map((f) => webUtils.getPathForFile(f)).filter(Boolean)),
 });
