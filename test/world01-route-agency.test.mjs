@@ -145,7 +145,10 @@ const cases=[
  ['world01 identity requires schema version',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.causal.sceneContract='content/contracts/world01-opening-skeleton.json';},'metadata_invalid'],
  ['world01 identity requires scene contract pointer',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.world.schemaVersion='story-structure-0.1';},'metadata_invalid'],
  ['world01 identity rejects mismatched schema version',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.world.schemaVersion='story-structure-0.2';x.causal.sceneContract='content/contracts/world01-opening-skeleton.json';},'metadata_invalid'],
- ['world01 identity accepts matching schema and pointer',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.world.schemaVersion='story-structure-0.1';x.causal.sceneContract='content/contracts/world01-opening-skeleton.json';},null],
+ ['world01 identity accepts matching schema and pointer',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.world.schemaVersion='story-structure-0.1';x.causal.sceneContract='content/contracts/world01-opening-skeleton.json';x.world.acceptance=published();},null],
+ ['world01 must not silently omit published acceptance',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.world.schemaVersion='story-structure-0.1';x.causal.sceneContract='content/contracts/world01-opening-skeleton.json';},'acceptance_invalid'],
+ ['world01 rejects explicit empty acceptance',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.world.schemaVersion='story-structure-0.1';x.causal.sceneContract='content/contracts/world01-opening-skeleton.json';x.world.acceptance=[];},'acceptance_invalid'],
+ ['world01 rejects descriptive-only acceptance',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.world.schemaVersion='story-structure-0.1';x.causal.sceneContract='content/contracts/world01-opening-skeleton.json';x.world.acceptance=[{id:'pause-resume',require:'no mutation'}];},'acceptance_invalid'],
  ['no input mutation',()=>{},null]
 ];
 for(const [name,mutate,code] of cases)test(name,()=>{

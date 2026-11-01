@@ -219,6 +219,10 @@ export function validateWorld01RouteAgency(world, causal) {
       return fail('projection_invalid');
     // Published acceptance paths are executable mechanical examples, not
     // unchecked prose that can drift away from the committed route graph.
+    // The formal first world must not silently drop its published acceptance
+    // routes; tiny synthetic demo fixtures may still omit acceptance.
+    if(world.packageId==='world01'&&world.acceptance===undefined)
+      return fail('acceptance_invalid');
     if(world.acceptance!==undefined){
       const items=world.acceptance;
       if(!Array.isArray(items)||items.length>16||
