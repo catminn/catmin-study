@@ -114,12 +114,10 @@ function createTodo(show) {
   if (todo && !todo.isDestroyed()) { if (show) todo.showInactive(); return todo; }
   const a = workArea();
   const b = conf.todo && onScreen(conf.todo) ? conf.todo : { x: a.x + a.width - 280 - 24, y: a.y + 40, width: 280, height: 320 };
-  const glass = process.platform === "win32" && Number((os.release().split(".")[2]) || 0) >= 22000; // Windows 11：系统毛玻璃 + 圆角
-  const opts = { x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 200, minHeight: 140, resizable: true, alwaysOnTop: conf.todoPinned !== false, backgroundColor: "#00000000" };
-  if (glass) { opts.transparent = false; opts.backgroundMaterial = "acrylic"; opts.roundedCorners = true; }
-  else opts.transparent = true;
-  todo = pageWin(opts, SITE + "?embed=todo" + (glass ? "&glass=1" : ""));
-  const remember = () => { if (todo && !todo.isDestroyed()) { conf.todo = todo.getBounds(); saveConf(); } };
+  // 系统毛玻璃在窗口没有焦点时会变成灰色实底，所以用透明窗口 + 页面自己的半透明底色
+  const opts = { x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 100, minHeight: 30, resizable: true, transparent: true, alwaysOnTop: conf.todoPinned !== false, backgroundColor: "#00000000" };
+  todo = pageWin(opts, SITE + "?embed=todo");
+  const remember = () => { if (!todo || todo.isDestroyed()) return; const b = todo.getBounds(); if (todoMini) { const f = conf.todo || {}; conf.todo = { x: b.x, y: b.y, width: f.width || 280, height: f.height || 320 }; } else conf.todo = b; saveConf(); };
   todo.on("moved", remember); todo.on("resized", remember);
   todo.on("closed", () => { todo = null; });
   todo.once("ready-to-show", () => { if (show) todo.showInactive(); });
@@ -155,6 +153,26 @@ ipcMain.on("hide", (e) => { const w = winOf(e); if (w) w.hide(); if (w === todo)
 ipcMain.on("open-main", (e, hash) => openMain(typeof hash === "string" ? hash : ""));
 ipcMain.on("open-zero", (e, cmd) => showZero(typeof cmd === "string" ? cmd : ""));
 ipcMain.on("to-main", (e, subj, list) => { const w = openMain("#dungeon"); send(w, "files", String(subj), list); });
+// 待办收起成小标签：鼠标移上去展开成完整列表，移开收回
+const MINI = { width: 108, height: 32 };
+let todoMini = false;
+ipcMain.on("todo-mode", (e, mode) => {
+  if (!todo || todo.isDestroyed()) return;
+  const b = todo.getBounds(), d = screen.getDisplayMatching(b).workArea;
+  const full = conf.todo && conf.todo.width > MINI.width + 20 ? conf.todo : { width: 280, height: 320 };
+  const right = b.x + b.width / 2 > d.x + d.width / 2; // 靠右的话以右上角为准展开，免得伸出屏幕
+  const bottom = b.y + b.height / 2 > d.y + d.height / 2;
+  if (mode === "mini" && !todoMini) {
+    if (!todoMini) conf.todo = Object.assign({}, b); saveConf(); todoMini = true;
+    todo.setBounds({ x: right ? b.x + b.width - MINI.width : b.x, y: bottom ? b.y + b.height - MINI.height : b.y, width: MINI.width, height: MINI.height });
+  } else if (mode === "full" && todoMini) {
+    todoMini = false;
+    let x = right ? b.x + b.width - full.width : b.x, y = bottom ? b.y + b.height - full.height : b.y;
+    x = Math.min(Math.max(x, d.x), d.x + d.width - full.width); y = Math.min(Math.max(y, d.y), d.y + d.height - full.height);
+    todo.setBounds({ x, y, width: full.width, height: full.height });
+  }
+});
+ipcMain.on("todo-resize", (e, dw, dh) => { if (!todo || todo.isDestroyed()) return; const b = todo.getBounds(); todo.setBounds({ x: b.x, y: b.y, width: Math.max(180, Math.round(b.width + dw)), height: Math.max(120, Math.round(b.height + dh)) }); conf.todo = todo.getBounds(); saveConf(); });
 ipcMain.handle("get-pin", () => conf.todoPinned !== false);
 ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(!!v); refreshMenu(); });
 ipcMain.on("badge", (e, n) => { if (bubble && !bubble.isDestroyed()) bubble.webContents.send("badge", n); });
@@ -273,6 +291,47 @@ function registerHotkey(pref) {
   refreshMenu();
 }
 
+// ---------- 学习转盘：按住 Ctrl 拖文件，鼠标处弹出转盘，拖到哪一格就交给谁 ----------
+let ring = null, hook = null, ringDown = null, ringShown = false, ringHideT = null;
+const RING = 300;
+function createRing() {
+  ring = new BrowserWindow({ width: RING, height: RING, frame: false, transparent: true, resizable: false, movable: false, focusable: false,
+    skipTaskbar: true, alwaysOnTop: true, hasShadow: false, show: false,
+    webPreferences: { preload: path.join(__dirname, "ring-preload.js"), contextIsolation: true, sandbox: false } });
+  ring.setAlwaysOnTop(true, "screen-saver");
+  ring.loadFile(path.join(__dirname, "ring.html"));
+}
+function toDip(x, y) { return process.platform === "win32" ? screen.screenToDipPoint({ x, y }) : { x, y }; }
+function showRing(x, y) {
+  if (!ring || ring.isDestroyed() || conf.ringOff) return;
+  const p = toDip(x, y);
+  ring.setBounds({ x: Math.round(p.x - RING / 2), y: Math.round(p.y - RING / 2), width: RING, height: RING });
+  ring.webContents.send("ring-show"); ring.showInactive(); ringShown = true;
+}
+function hideRing(delay) { clearTimeout(ringHideT); ringHideT = setTimeout(() => { if (ring && !ring.isDestroyed()) ring.hide(); ringShown = false; }, delay || 0); }
+function startRingHook() {
+  try { ({ uIOhook: hook } = require("uiohook-napi")); } catch (e) { hook = null; return; }
+  hook.on("mousedown", (e) => { ringDown = (e.button === 1 && e.ctrlKey) ? { x: e.x, y: e.y } : null; });
+  hook.on("mousemove", (e) => {
+    if (!ringDown || ringShown) return;
+    if (Math.hypot(e.x - ringDown.x, e.y - ringDown.y) > 14) showRing(ringDown.x, ringDown.y);
+  });
+  hook.on("mouseup", () => { ringDown = null; if (ringShown) hideRing(350); });
+  try { hook.start(); } catch (e) { hook = null; }
+}
+ipcMain.on("ring-drop", (e, target, paths) => {
+  hideRing(0);
+  if (!target || !paths || !paths.length) return;
+  const list = readFiles(paths);
+  if (!list.length) return;
+  if (target === "archive") {
+    showZero(); send(ensureZero(), "files", "archive", list); // 零的窗口里选一科，只存档不聊天
+    return;
+  }
+  showZero();
+  send(ensureZero(), "files", target === "zero" ? "zero" : "zero:" + target, list);
+});
+
 // ---------- 托盘 ----------
 function menu() {
   return Menu.buildFromTemplate([
@@ -283,6 +342,7 @@ function menu() {
     { label: "打开学习空间", click: () => openMain() },
     { type: "separator" },
     { label: "显示零的小圆", type: "checkbox", checked: conf.bubbleHidden !== true, click: (i) => { conf.bubbleHidden = !i.checked; saveConf(); if (bubble) { if (i.checked) bubble.showInactive(); else bubble.hide(); } } },
+    { label: "学习转盘（按住 Ctrl 拖文件）", type: "checkbox", checked: !conf.ringOff, click: (i) => { conf.ringOff = !i.checked; saveConf(); } },
     { label: "开机启动", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
     { label: hotkey ? "设置快捷键…（现在是 " + keyName(hotkey) + "）" : "设置快捷键…（现在没有）", click: openHotkeyWin },
     { type: "separator" },
@@ -317,13 +377,15 @@ app.whenReady().then(() => {
   ensureZero(); // 先在后台加载，点开就是现成的
   createTodo(conf.todoShown !== false);
   registerHotkey(conf.hotkey);
+  createRing();
+  startRingHook();
   const files = filesFromArgv(process.argv);
   if (files.length) deliverPaths(files);
   screen.on("display-metrics-changed", () => { if (bubble && !onScreen({ x: bubble.getPosition()[0], y: bubble.getPosition()[1] })) { const a = workArea(); bubble.setPosition(a.x + a.width - BUB - 2, a.y + a.height - BUB - 2); } });
 });
 
 app.on("window-all-closed", (e) => { /* 常驻托盘，不退出 */ });
-app.on("will-quit", () => globalShortcut.unregisterAll());
+app.on("will-quit", () => { globalShortcut.unregisterAll(); try { if (hook) hook.stop(); } catch (e) {} });
 
 // 本地冒烟测试（不打包进安装包）：ZS_TEST=1 electron .
 if (process.env.ZS_TEST) app.whenReady().then(() => require("./smoke.js")({ deliverPaths, get zero() { return zero; }, get todo() { return todo; }, get bubble() { return bubble; }, showZero, toggleTodo, openHotkeyWin }));

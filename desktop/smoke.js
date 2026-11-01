@@ -25,6 +25,16 @@ module.exports = async (h) => {
     const img = await h.zero.webContents.capturePage(); fs.writeFileSync("/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/desk-zero.png", img.toPNG());
     const ti = await h.todo.webContents.capturePage(); fs.writeFileSync("/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/desk-todo.png", ti.toPNG());
     const bi = await h.bubble.webContents.capturePage(); fs.writeFileSync("/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/desk-bubble.png", bi.toPNG());
+    const { BrowserWindow: BW } = require("electron");
+    const rw = BW.getAllWindows().find((w) => /ring\.html/.test(w.webContents.getURL()));
+    if (rw) { rw.setBounds({ x: 300, y: 300, width: 300, height: 300 }); rw.webContents.send("ring-show"); rw.showInactive(); await wait(500);
+      fs.writeFileSync("/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/ring.png", (await rw.webContents.capturePage()).toPNG()); rw.hide(); log("ring ok"); } else log("ring missing");
+    await h.zero.webContents.executeJavaScript('deskDeliver("zero:chem",[{name:"lab.txt",type:"text/plain",data:new TextEncoder().encode("abc").buffer}]);ZW.subj');
+    log("zero subj", await h.zero.webContents.executeJavaScript("ZW.subj"));
+    await wait(1500); log("todo collapsed", JSON.stringify(h.todo.getBounds()), await h.todo.webContents.executeJavaScript('document.body.classList.contains("td-collapsed")+" "+document.querySelector(".td-mini").innerText'));
+    fs.writeFileSync("/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/mini.png", (await h.todo.webContents.capturePage()).toPNG());
+    h.todo.webContents.sendInputEvent({ type: "mouseEnter", x: 20, y: 10 }); h.todo.webContents.sendInputEvent({ type: "mouseMove", x: 20, y: 10 }); await wait(600);
+    log("todo expanded", JSON.stringify(h.todo.getBounds()));
     h.openHotkeyWin(); await wait(1500);
     const { BrowserWindow } = require("electron");
     const hw = BrowserWindow.getAllWindows().find((w) => /hotkey\.html/.test(w.webContents.getURL()));

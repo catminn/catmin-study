@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>学习转盘</title>
+<style>
+  :root{--bg:rgba(251,250,247,.86);--fg:#1d2030;--line:rgba(29,32,48,.12);--hi:rgba(29,32,48,.10);--acc:#1d2030}
+  @media (prefers-color-scheme:dark){:root{--bg:rgba(35,38,58,.86);--fg:#eceaf4;--line:rgba(255,255,255,.14);--hi:rgba(255,255,255,.12);--acc:#eceaf4}}
+  html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden;user-select:none;font:13px/1.2 "Microsoft YaHei UI","PingFang SC",system-ui,sans-serif}
+  svg{position:absolute;inset:0;width:100%;height:100%}
+  .seg{fill:var(--bg);stroke:var(--line);stroke-width:1;transition:fill .12s}
+  .seg.on{fill:var(--hi)}
+  .lbl{fill:var(--fg);font-size:13px;font-weight:600;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
+  .sub{fill:var(--fg);opacity:.55;font-size:10px;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
+  .hole{fill:transparent}
+  .ring{animation:in .14s ease-out}@keyframes in{from{transform:scale(.85);opacity:0}}
+  .ring{transform-origin:50% 50%}
+</style></head><body>
+<svg viewBox="0 0 300 300" id="svg"><g class="ring" id="g"></g></svg>
+<script>
+  // 中间留空（松手取消），外圈六格
+  const SEG = [
+    { k: "math", t: "数学", s: "发给零" }, { k: "chem", t: "化学", s: "发给零" }, { k: "engri", t: "机械", s: "发给零" },
+    { k: "engl", t: "英文", s: "发给零" }, { k: "archive", t: "只存档", s: "桌面 + Drive" }, { k: "zero", t: "零", s: "不分科" },
+  ];
+  const C = 150, R1 = 52, R2 = 142, N = SEG.length, g = document.getElementById("g"), NS = "http://www.w3.org/2000/svg";
+  const pt = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];
+  const els = SEG.map((s, i) => {
+    const a0 = -Math.PI / 2 + (i - 0.5) * 2 * Math.PI / N + 0.012, a1 = -Math.PI / 2 + (i + 0.5) * 2 * Math.PI / N - 0.012;
+    const [x0, y0] = pt(R2, a0), [x1, y1] = pt(R2, a1), [x2, y2] = pt(R1, a1), [x3, y3] = pt(R1, a0);
+    const p = document.createElementNS(NS, "path");
+    p.setAttribute("d", `M${x0} ${y0} A${R2} ${R2} 0 0 1 ${x1} ${y1} L${x2} ${y2} A${R1} ${R1} 0 0 0 ${x3} ${y3}Z`);
+    p.setAttribute("class", "seg"); g.append(p);
+    const am = -Math.PI / 2 + i * 2 * Math.PI / N, [lx, ly] = pt((R1 + R2) / 2, am);
+    const t = document.createElementNS(NS, "text"); t.setAttribute("x", lx); t.setAttribute("y", ly - 7); t.setAttribute("class", "lbl"); t.textContent = s.t; g.append(t);
+    const u = document.createElementNS(NS, "text"); u.setAttribute("x", lx); u.setAttribute("y", ly + 10); u.setAttribute("class", "sub"); u.textContent = s.s; g.append(u);
+    return p;
+  });
+  function which(e) {
+    const r = document.getElementById("svg").getBoundingClientRect(), sc = 300 / r.width;
+    const x = (e.clientX - r.left) * sc - C, y = (e.clientY - r.top) * sc - C, d = Math.hypot(x, y);
+    if (d < R1 || d > R2 + 8) return -1;
+    let a = Math.atan2(y, x) + Math.PI / 2 + Math.PI / N; a = ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    return Math.floor(a / (2 * Math.PI / N));
+  }
+  let cur = -1;
+  const mark = (i) => { if (i === cur) return; cur = i; els.forEach((p, j) => p.classList.toggle("on", j === i)); };
+  document.addEventListener("dragover", (e) => { e.preventDefault(); mark(which(e)); });
+  document.addEventListener("dragleave", () => mark(-1));
+  document.addEventListener("drop", (e) => { e.preventDefault(); const i = which(e); window.ring.drop(i >= 0 ? SEG[i].k : "", e.dataTransfer.files); });
+  window.ring.onShow(() => { mark(-1); g.style.animation = "none"; void g.offsetWidth; g.style.animation = ""; });
+</script>
+</body></html>
