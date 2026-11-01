@@ -112,11 +112,21 @@ export function validateWorld01RouteAgency(world, causal) {
     const npc=causal.npcContinuity;
     if(!obj(npc)||!Array.isArray(npc.transitions)||npc.transitions.length!==2)
       return fail('npc_invalid');
+    // An NPC route reaction is meaningful only from a declared, non-authoritative
+    // baseline. A relationship transition cannot smuggle knowledge or availability.
+    const initial=npc.initial;
+    if(!id(npc.actorRef)||!obj(initial)||
+       !equalSet(Object.keys(initial),['location','availability','relation','claimTier'])||
+       initial.location!==fork.id||initial.availability!=='available'||
+       initial.relation!=='neutral'||initial.claimTier!=='unverified'||
+       npc.claimPromotion!=='only_authorized_fact_discovery')
+      return fail('npc_baseline_invalid');
     const relations=[];
     for(const e of events){
       const matching=npc.transitions.filter(t=>obj(t)&&t.onCommitted===e.id);
-      if(matching.length!==1||!obj(matching[0].set)||!id(matching[0].set.relation)||
-         matching[0].set.claimTier==='confirmed')return fail('npc_invalid');
+      if(matching.length!==1||!equalSet(Object.keys(matching[0]),['onCommitted','set'])||
+         !obj(matching[0].set)||!equalSet(Object.keys(matching[0].set),['relation'])||
+         !id(matching[0].set.relation))return fail('npc_invalid');
       relations.push(matching[0].set.relation);
     }
     if(!unique(relations))return fail('npc_consequence_erased');

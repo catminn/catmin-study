@@ -11,7 +11,7 @@ const base=()=>{
     effect:{type:'set_flag',target:'route_trace',value:s},repeatPolicy:'once_per_world'});
   const causal={schema:'world01-causal-authoring-v1',scope:'synthetic-mechanics-only',worldId:'demo-world',
     routeCommits:[commit('a'),commit('b')],
-    npcContinuity:{transitions:[
+    npcContinuity:{actorRef:'demo.actor',initial:{location:'demo.choice',availability:'available',relation:'neutral',claimTier:'unverified'},claimPromotion:'only_authorized_fact_discovery',transitions:[
       {onCommitted:'demo.event-a',set:{relation:'demo.guarded'}},
       {onCommitted:'demo.event-b',set:{relation:'demo.open'}}]},
     convergence:{scene:'demo.join',preserve:['route_trace','npc_relation','committed_event_ids'],
@@ -56,6 +56,17 @@ const cases=[
  ['optional routes overlap at an intermediate scene',x=>{x.world.nodes[2].next=['demo.join','demo.shared'];x.world.nodes[3].next=['demo.join','demo.shared'];x.world.nodes.push({id:'demo.shared',next:['demo.join']});},'premature_convergence'],
  ['independent detours preserve distinct branch interiors',x=>{x.world.nodes[2].next=['demo.a-detour'];x.world.nodes[3].next=['demo.b-detour'];x.world.nodes.push({id:'demo.a-detour',next:['demo.join']},{id:'demo.b-detour',next:['demo.join']});},null],
  ['shared scene after declared reunion is legal',x=>{x.world.nodes[4].next=['demo.post'];x.world.nodes.push({id:'demo.post',next:['demo.end']});},null],
+ ['missing NPC actor reference',x=>{delete x.causal.npcContinuity.actorRef;},'npc_baseline_invalid'],
+ ['missing NPC baseline',x=>{delete x.causal.npcContinuity.initial;},'npc_baseline_invalid'],
+ ['NPC starts in wrong scene',x=>{x.causal.npcContinuity.initial.location='demo.end';},'npc_baseline_invalid'],
+ ['NPC unavailable at opening choice',x=>{x.causal.npcContinuity.initial.availability='unavailable';},'npc_baseline_invalid'],
+ ['NPC starts with route relationship',x=>{x.causal.npcContinuity.initial.relation='demo.guarded';},'npc_baseline_invalid'],
+ ['NPC starts with confirmed claim',x=>{x.causal.npcContinuity.initial.claimTier='confirmed';},'npc_baseline_invalid'],
+ ['unreviewed claim promotion policy',x=>{x.causal.npcContinuity.claimPromotion='narrator_may_confirm';},'npc_baseline_invalid'],
+ ['NPC baseline contains unreviewed knowledge',x=>{x.causal.npcContinuity.initial.knowledge=['demo.private'];},'npc_baseline_invalid'],
+ ['route reaction silently changes availability',x=>{x.causal.npcContinuity.transitions[0].set.availability='unavailable';},'npc_invalid'],
+ ['route reaction silently changes claim tier',x=>{x.causal.npcContinuity.transitions[0].set.claimTier='unverified';},'npc_invalid'],
+ ['route reaction contains unreviewed effect',x=>{x.causal.npcContinuity.transitions[0].extra='demo.hidden';},'npc_invalid'],
  ['no input mutation',()=>{},null]
 ];
 for(const [name,mutate,code] of cases)test(name,()=>{
