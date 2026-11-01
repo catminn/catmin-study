@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>主神空间</title>
+<title>学习空间</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <script src="/platform.js"></script>
 <meta name="robots" content="noindex">
@@ -1592,17 +1592,17 @@ const SMQ=[];let smBusy=false;
 function smWrite(tool,input,onOk,onErr){if(!MCP||S.sharedMem===false){onErr&&onErr();return false}SMQ.push([tool,input,onOk,onErr]);smPump();return true}
 function plainTex(t){return String(t).replace(/\$+/g,"").replace(/\\(d?frac)\{([^{}]*)\}\{([^{}]*)\}/g,"($2)/($3)").replace(/\\(mathbf|mathrm|text|vec)\{([^{}]*)\}/g,"$2").replace(/\\langle/g,"⟨").replace(/\\rangle/g,"⟩").replace(/\\,|\\ /g," ").replace(/\\([a-zA-Z]+)/g,"$1").replace(/\s+/g," ").trim()}
 function syncMistake(m,force){if(!m||(m.sm&&!force))return false;m.smBusy=1;
-  return smWrite("mistake_note_add",{error_pattern:plainTex(m.text).slice(0,300),context_signature:SUBJ[m.subj].full+" · 学习网站 主神空间 · "+(m.added||dayKey()),incorrect_action:"做错："+plainTex(m.text).slice(0,280),correct_action:(m.fix?plainTex(m.fix):"复习时再确认正确做法").slice(0,300)},
+  return smWrite("mistake_note_add",{error_pattern:plainTex(m.text).slice(0,300),context_signature:SUBJ[m.subj].full+" · 学习空间 · "+(m.added||dayKey()),incorrect_action:"做错："+plainTex(m.text).slice(0,280),correct_action:(m.fix?plainTex(m.fix):"复习时再确认正确做法").slice(0,300)},
     ()=>{m.sm=dayKey();delete m.smBusy;save();if(curView()==="bag")renderBag()},()=>{delete m.smBusy;if(curView()==="bag")renderBag()})}
 let SMF=false;const smTag=k=>SUBJ[k].full.split("/")[0].replace(/\s/g,"").toLowerCase();
 async function smFlush(manual,only){if(SMF||!MCP||S.sharedMem===false)return -1;SMF=true;let n=0;S.smSeen=S.smSeen||{};
   try{const ev=(S.smLog||[]).filter(e=>e.at>(S.smEvAt||0)&&(!only||!e.s||e.s===only));
     if(ev.length&&(manual||ev.length>=3)){const lastEv=Math.max(...ev.map(e=>e.at));
       const fmt=t=>{const d=new Date(t);return (d.getMonth()+1)+"/"+d.getDate()+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")};
-      if(smWrite("memory_store",{content:"【学习网站·动态】Catherine 在学习网站「主神空间」上的记录：\n"+ev.map(e=>fmt(e.at)+" "+(e.s&&SUBJ[e.s]?SUBJ[e.s].name+" · ":"")+e.t).join("\n"),metadata:{tags:"study-site,activity",type:"activity"}},()=>{S.smEvAt=Math.max(S.smEvAt||0,lastEv);S.smLast=Date.now();save();if(curView()==="bag")renderBag()}))n++}
+      if(smWrite("memory_store",{content:"【学习网站·动态】Catherine 在学习网站「学习空间」上的记录：\n"+ev.map(e=>fmt(e.at)+" "+(e.s&&SUBJ[e.s]?SUBJ[e.s].name+" · ":"")+e.t).join("\n"),metadata:{tags:"study-site,activity",type:"activity"}},()=>{S.smEvAt=Math.max(S.smEvAt||0,lastEv);S.smLast=Date.now();save();if(curView()==="bag")renderBag()}))n++}
     if(SAMPLE)for(const k of only?[only]:Object.keys(SUBJ)){const seen=S.smSeen[k]||0;const nt=CHATS[k].filter(t=>t.at&&t.at>seen&&!t.quiz);if(nt.length<(manual?1:4))continue;
       const convo=nt.map(t=>(t.role==="user"?"Catherine：":"网站：")+String(t.content).slice(0,1500)).join("\n\n").slice(-20000);const last=Math.max(...nt.map(t=>t.at));
-      let r=null;try{r=await SAMPLE.json(`下面是 Catherine 在学习网站「主神空间」上 ${SUBJ[k].full} 的一段学习对话。网站把学习包装成无限流剧情，请忽略剧情，只提取以后对她有用的学习信息，写给她的其他 AI 助手看。\n\n${convo}\n\n只回复 JSON：{"summary":"三到六句中文：这次学了或做了什么，她掌握了什么，卡在哪里，还有什么没解决，下次从哪接着学。具体到知识点、题号、作业名，不写剧情。","worth":true}，如果这段对话里没有任何学习内容，worth 写 false。`,{cache:false})}catch(e){continue}
+      let r=null;try{r=await SAMPLE.json(`下面是 Catherine 在学习网站「学习空间」上 ${SUBJ[k].full} 的一段学习对话。网站把学习包装成无限流剧情，请忽略剧情，只提取以后对她有用的学习信息，写给她的其他 AI 助手看。\n\n${convo}\n\n只回复 JSON：{"summary":"三到六句中文：这次学了或做了什么，她掌握了什么，卡在哪里，还有什么没解决，下次从哪接着学。具体到知识点、题号、作业名，不写剧情。","worth":true}，如果这段对话里没有任何学习内容，worth 写 false。`,{cache:false})}catch(e){continue}
       if(r&&r.worth!==false&&r.summary){if(smWrite("memory_store",{content:"【学习网站·"+SUBJ[k].full+"】"+new Date().toLocaleDateString("sv-SE")+" 学习记录："+String(r.summary).slice(0,1200),metadata:{tags:"study-site,"+smTag(k)+",session",type:"learning"}},()=>{S.smSeen[k]=Math.max(S.smSeen[k]||0,last);S.smLast=Date.now();save();if(curView()==="bag")renderBag()}))n++}
       else{S.smSeen[k]=last;save()}}}
   finally{SMF=false}return n}
@@ -2245,7 +2245,7 @@ function cloudFlushAll(){for(const k of Object.keys(CLOUD.pending)){clearTimeout
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")cloudFlushAll()});
 function cloudStatus(st,e){CLOUD.state=st;CLOUD.at=Date.now();const el=document.getElementById("cloudBar");if(!el||CLOUD.conflict)return;
   if(st==="err"){el.hidden=false;el.className="cloudbar err";el.textContent="云端存档没同步上（"+((e&&(e.code||e.message))||"错误")+"），进度已存在本地，稍后自动重试。"}else{el.hidden=true}}
-function whoName(w){return{artifact:"主神空间",site:"网站",claude:"Claude",chatgpt:"ChatGPT"}[w]||w||"别处"}
+function whoName(w){return{artifact:"学习空间 artifact",site:"网站",claude:"Claude",chatgpt:"ChatGPT"}[w]||w||"别处"}
 function cloudConflict(key,cur){CLOUD.conflict={key,cur};const el=document.getElementById("cloudBar");if(!el)return;
   const when=cur.updated_at?new Date(cur.updated_at*1000).toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):"";
   el.hidden=false;el.className="cloudbar warn";el.innerHTML="";

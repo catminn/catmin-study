@@ -66,7 +66,7 @@ export function startAuth(env: SiteEnv, url: URL): Promise<Response> | Response 
 function page(msg: string, ok: boolean) {
   return new Response(
     `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Google 连接</title>
-<body style="font:16px/1.7 system-ui;max-width:480px;margin:15vh auto;padding:0 20px"><h2>${ok ? "已连接" : "没连上"}</h2><p>${msg}</p><p><a href="/">回到主神空间</a></p>${ok ? '<script>setTimeout(function(){location.href="/"},1500)</script>' : ""}`,
+<body style="font:16px/1.7 system-ui;max-width:480px;margin:15vh auto;padding:0 20px"><h2>${ok ? "已连接" : "没连上"}</h2><p>${msg}</p><p><a href="/">回到学习空间</a></p>${ok ? '<script>setTimeout(function(){location.href="/"},1500)</script>' : ""}`,
     { status: ok ? 200 : 400, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } },
   );
 }
@@ -78,7 +78,7 @@ export async function finishAuth(env: SiteEnv, url: URL): Promise<Response> {
   if (e) return page("Google 返回：" + esc(e), false);
   const state = url.searchParams.get("state") || "";
   const code = url.searchParams.get("code") || "";
-  if (!/^[0-9a-f]{48}$/.test(state) || !(await env.OAUTH_KV.get("google:state:" + state))) return page("授权已过期，请回主神空间再点一次「连接 Google」。", false);
+  if (!/^[0-9a-f]{48}$/.test(state) || !(await env.OAUTH_KV.get("google:state:" + state))) return page("授权已过期，请回学习空间再点一次「连接 Google」。", false);
   await env.OAUTH_KV.delete("google:state:" + state);
   const r = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
