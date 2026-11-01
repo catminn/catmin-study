@@ -1027,7 +1027,6 @@ const CNY_TIERS=[["6",6],["15",15],["30",30],["60",60],["100",100],["180",180],[
 const SHOP_ITEMS=[
   {id:"makeup",name:"补签卡",price:35,ic:"ticket",desc:"补上漏掉的一天签到"},
   {id:"rest",name:"休息券",price:65,ic:"ticket",desc:"当天不断签，游戏免费"},
-  {id:"freeze",name:"冻结卡",price:15,ic:"ice",desc:"错题怪复活时，推迟 3 天再打"}
 ];
 
 /* ============ state ============ */
@@ -1427,7 +1426,7 @@ function openSideQuestSheet(q){const key="cv-"+q.id;const d=S.done[key];
     !d?h("button",{class:"btn go",onclick:()=>{closeSheet();const pts=award(SIDE_PTS,q.due,0,"支线 · "+q.title);S.done[key]={at:Date.now(),pts};save();renderAll()}},"完成，领奖励"):null)}
 function openMonsterSheet(m){sheet(m.subj,h("div",{class:"row"},h("span",{class:"kind boss"},icon("skull"),"错题怪 · "+SUBJ[m.subj].name)),h("h2",null,"复活的错题"),h("div",{class:"mtext"},renderMd(m.text)),
   h("div",{class:"reward"},h("div",{class:"eyebrow"},"击败奖励"),h("div",{class:"big"},"+15 积分")),
-  h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();fightMistake(m)}},"去打"),S.cards.freeze>0?h("button",{class:"btn",onclick:()=>{S.cards.freeze--;m.revive=addDays(dayKey(),3);save();closeSheet();renderAll();toast("冻住了，3 天后再来")}},"用冻结卡（"+S.cards.freeze+"）"):null))}
+  h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();fightMistake(m)}},"去打"),null))}
 function openPublicSheet(){const list=SIDE.filter(q=>!q.subj);sheet(null,h("h2",null,"公共支线"),
   list.length?h("div",{class:"list"},list.map(q=>{const d=S.done["cv-"+q.id];return h("div",{class:"li"},h("div",{class:"t"},h("div",null,h("span",{class:"tag"},q.course),q.title),h("div",{class:"dim small"},fmtDue(q.due)+" · "+fmtLeft(q.due-Date.now()))),
     d?h("span",{class:"dim small"},"+"+d.pts):h("button",{class:"btn sm go",onclick:()=>openSideQuestSheet(q)},"+"+preview(SIDE_PTS,q.due,0).total))})):h("div",{class:"dim"},"暂无"))}
@@ -1975,22 +1974,26 @@ let DQ_CTL=null;
 async function openDaily(subj){if(checkedToday()){openCheckin();return}subj=subj||suggestSubj();if(subj==="engl")subj="math";closeSheet();
   document.querySelectorAll(".qz").forEach(x=>x.remove());const card=h("div",{class:"card2"});const ov=h("div",{class:"qz",role:"dialog","aria-modal":"true"},card);document.body.append(ov);
   const close=()=>{if(DQ_CTL)DQ_CTL.abort();ov.remove()};
-  const head=()=>h("div",{class:"row between"},h("div",null,h("div",{class:"eyebrow"},"每日委托 · +"+ckReward(streak()+1)),h("h2",{style:{margin:0}},SUBJ[subj].full)),h("button",{class:"btn sm flat",onclick:close,"aria-label":"关闭"},"×"));
+  const head=()=>h("div",{class:"row between"},h("div",null,h("div",{class:"eyebrow"},"每日委托 · +"+ckReward(streak()+1)+((dq&&dq.mid)||mon?" · 旧错题":"")),h("h2",{style:{margin:0}},SUBJ[subj].full)),h("button",{class:"btn sm flat",onclick:close,"aria-label":"关闭"},"×"));
   const swap=h("div",{class:"row",style:{gap:"6px"}},["math","chem","engri"].map(k=>h("button",{class:"btn sm"+(k===subj?" go":""),onclick:()=>{if(k!==subj){S.dailyQ=null;close();openDaily(k)}}},SUBJ[k].name)));
   let dq=S.dailyQ&&S.dailyQ.day===dayKey()&&S.dailyQ.subj===subj?S.dailyQ:null;
+  const mon=dq?null:reviveDue(subj).sort((a,b)=>a.revive<b.revive?-1:1)[0];
   if(!dq){card.replaceChildren(head(),swap,h("div",{class:"muted"},"零正在出题…"));if(!SAMPLE){card.append(h("div",{class:"muted"},"需要在 Claude 里打开"));return}
     DQ_CTL=new AbortController();
-    try{const j=await SAMPLE.json(contextTurn(subj)+`\n\n现在只出一道每日签到题，不要剧情，不要角色台词。要求：按她现在的进度，${examInfo(subj)?"偏向即将到来的「"+examInfo(subj).title+"」的考点，":""}3 到 5 分钟能做完，一道题只考一个点。${subj==="chem"?"题目用英文，按考试题型。":""}公式用 $...$。
+    try{const j=await SAMPLE.json(contextTurn(subj)+(mon?`\n\n现在只出一道每日签到题，不要剧情，不要角色台词。这次用她以前做错的一道题来出：\n错题：${mon.text}\n当时的正确思路：${mon.fix||"（没有记录）"}\n出一道考同一个知识点、同一种做法的新题（换数字或换问法，不要原题照抄），3 到 5 分钟能做完。${subj==="chem"?"题目用英文，按考试题型。":""}公式用 $...$。
 能用选择题考的就出 4 个选项的单选题；需要算一个数或写一句话的就出简答题。
-只回复 JSON：{"q":"题目","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解，说清为什么"}`,{cache:false,signal:DQ_CTL.signal});
-      if(!j||!j.q)throw{code:"invalid_json"};dq={day:dayKey(),subj,q:String(j.q),type:j.type==="choice"&&Array.isArray(j.options)&&j.options.length>=2?"choice":"short",options:(j.options||[]).map(String),answer:j.answer,explain:String(j.explain||"")};
+只回复 JSON：{"q":"题目","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解，说清为什么"}`:`\n\n现在只出一道每日签到题，不要剧情，不要角色台词。要求：按她现在的进度，${examInfo(subj)?"偏向即将到来的「"+examInfo(subj).title+"」的考点，":""}3 到 5 分钟能做完，一道题只考一个点。${subj==="chem"?"题目用英文，按考试题型。":""}公式用 $...$。
+能用选择题考的就出 4 个选项的单选题；需要算一个数或写一句话的就出简答题。
+只回复 JSON：{"q":"题目","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解，说清为什么"}`),{cache:false,signal:DQ_CTL.signal});
+      if(!j||!j.q)throw{code:"invalid_json"};dq={day:dayKey(),subj,q:String(j.q),type:j.type==="choice"&&Array.isArray(j.options)&&j.options.length>=2?"choice":"short",options:(j.options||[]).map(String),answer:j.answer,explain:String(j.explain||""),mid:mon?mon.id:null};
       if(dq.type==="choice"){const ci=+dq.answer;const right=dq.options[ci]!=null?dq.options[ci]:dq.options[0];const sh=dq.options.slice();for(let i=sh.length-1;i>0;i--){const r=Math.floor(Math.random()*(i+1));[sh[i],sh[r]]=[sh[r],sh[i]]}dq.options=sh;dq.answer=sh.indexOf(right)}
       S.dailyQ=dq;save()}
     catch(e){if(e&&e.code==="cancelled")return;card.replaceChildren(head(),swap,h("div",{class:"muted"},e&&e.code==="invalid_json"?"题目没生成好。":sampleErr(e)),h("button",{class:"btn go",onclick:()=>{close();openDaily(subj)}},"再出一道"));return}
     finally{DQ_CTL=null}}
   draw();
   function finish(ok,fb){dq.done={ok,fb:fb||""};focusAct();save();
-    if(!ok){const nm={id:"m"+uid().slice(0,4),subj,text:dq.q.replace(/\s+/g," ").slice(0,160),fix:(dq.type==="choice"?"正确答案："+dq.options[dq.answer]+"。":"标准答案："+dq.answer+"。")+dq.explain.slice(0,150),added:dayKey(),revive:addDays(dayKey(),3),killed:false};S.mistakes.push(nm);syncMistake(nm)}
+    const mm=dq.mid&&S.mistakes.find(x=>x.id===dq.mid);if(mm){if(ok){mm.killed=true;earn(R(15),"击败错题怪 · 签到题");toast("这道错题清掉了 +"+R(15))}else mm.revive=addDays(dayKey(),2)}
+    if(!ok&&!mm){const nm={id:"m"+uid().slice(0,4),subj,text:dq.q.replace(/\s+/g," ").slice(0,160),fix:(dq.type==="choice"?"正确答案："+dq.options[dq.answer]+"。":"标准答案："+dq.answer+"。")+dq.explain.slice(0,150),added:dayKey(),revive:addDays(dayKey(),3),killed:false};S.mistakes.push(nm);syncMistake(nm)}
     smEvent("签到题"+(ok?"做对":"做错"),subj);draw()}
   function teach(){zwOpen(subj,"【签到题】题目："+dq.q+(dq.type==="choice"?"\n选项："+dq.options.map((o,k)=>String.fromCharCode(65+k)+". "+o).join("  "):"")+"\n我不会做，教我怎么做。先讲需要的知识，再带我做第一步，一步一问，先别告诉我答案。")}
   function draw(){const kids=[head(),dq.done?null:swap,h("div",{class:"qtext"},renderMd(dq.q))];
@@ -2105,7 +2108,7 @@ function renderShop(){renderSpend();$("#shopReal").replaceChildren(...SHOP_REAL.
 function renderTimer(){const c=$("#timerCard");if(!S.timer){c.hidden=true;return}c.hidden=false;const left=S.timer.end-Date.now();$("#tLabel").textContent=S.timer.label;c.classList.toggle("over",left<=0);
   if(left<=0){$("#tLeft").textContent="时间到";$("#tStop").textContent="收起"}else{$("#tLeft").textContent=pad(Math.floor(left/MIN))+":"+pad(Math.floor(left%MIN/1e3));$("#tStop").textContent="提前结束"}}
 function renderBag(){renderSyncRow();renderArchive();$("#scoreList").replaceChildren(scoresBlock());$("#bagSum").textContent="积分 "+fp(S.points)+" · 时间碎片 "+S.shards+"/3";
-  const inv=[["makeup","补签卡","ticket",""],["rest","休息券","ticket",""],["freeze","冻结卡","ice",""]];
+  const inv=[["makeup","补签卡","ticket",""],["rest","休息券","ticket",""]];
   $("#bagItems").replaceChildren(...inv.map(([k,n,ic,d])=>h("div",{class:"item"},h("div",{class:"row between"},h("div",{class:"ic"},icon(ic)),h("span",{class:"price"},"×"+S.cards[k])),h("h3",null,n),h("p",null,d))));
   const ml=$("#mistakeList");ml.replaceChildren();const ms=S.mistakes.slice().reverse();if(!ms.length)ml.append(h("div",{class:"dim"},"暂无"));
   for(const m of ms)ml.append(h("div",{class:"li"},h("div",{class:"t"},h("div",{class:"mtext"},h("span",{class:"tag"},SUBJ[m.subj].name),renderMd(m.text)),h("div",{class:"dim small"},(m.killed?"已击败":"复活日 "+m.revive)+" · "+(m.sm?"已存进共享记忆":m.smBusy?"上传中…":"未上传"))),m.killed?null:h("div",{class:"row",style:{flex:"none",gap:"6px"}},h("button",{class:"btn sm",style:{whiteSpace:"nowrap"},title:"上传到共享记忆",onclick:()=>{if(!syncMistake(m,true))toast("共享记忆没连上");renderBag()}},m.sm?"再传":"上传"),h("button",{class:"btn sm",style:{whiteSpace:"nowrap",flex:"none"},onclick:()=>fightMistake(m)},"现在打"))));
