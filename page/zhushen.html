@@ -2322,7 +2322,7 @@ body.embed-zero .zw-panel{width:100vw!important;height:100vh!important;border-ra
 .embed .zw-head,.embed .td-head{-webkit-app-region:drag;user-select:none}
 .embed .zw-head button,.embed .zw-head select,.embed .td-head button{-webkit-app-region:no-drag}
 #todoEmbed{position:fixed;inset:0;display:flex;flex-direction:column;background:color-mix(in oklab,var(--panel) 80%,transparent);border:1px solid color-mix(in oklab,var(--fg) 10%,transparent);border-radius:12px;color:var(--fg);-webkit-app-region:drag;padding:10px 12px;font-size:14px;overflow:hidden}
-body.embed.glass #todoEmbed{background:color-mix(in oklab,var(--panel) 28%,transparent);border-radius:0}
+body.embed.glass #todoEmbed{background:color-mix(in oklab,var(--panel) 30%,transparent);border-color:transparent;border-radius:8px}
 html.embed-root,body.embed-todo{background:transparent!important}
 .td-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1px}
 .td-row{display:flex;align-items:center;gap:9px;padding:4px 4px;border-radius:7px;line-height:1.4;-webkit-app-region:no-drag;cursor:pointer;transition:opacity .2s}
@@ -2340,6 +2340,10 @@ html.embed-root,body.embed-todo{background:transparent!important}
 .td-mini b{font-weight:600}.td-mini .n{font-size:12px;opacity:.6}.td-mini .n.hot{color:var(--late);opacity:1}
 body.td-collapsed #todoEmbed{padding:0;border-radius:16px}
 body.td-collapsed #todoEmbed>*:not(.td-mini){display:none!important}body.td-collapsed .td-mini{display:flex}
+body.td-docked #todoEmbed{padding:0;border:0;background:color-mix(in oklab,var(--fg) 55%,transparent)}
+body.td-docked #todoEmbed>*{display:none!important}
+body.dock-left #todoEmbed{border-radius:0 8px 8px 0}body.dock-right #todoEmbed{border-radius:8px 0 0 8px}body.dock-top #todoEmbed{border-radius:0 0 8px 8px}
+body.glass.td-docked #todoEmbed{background:color-mix(in oklab,var(--fg) 45%,transparent)}
 .td-grip{position:absolute;right:2px;bottom:2px;width:14px;height:14px;cursor:nwse-resize;-webkit-app-region:no-drag;opacity:0;background:linear-gradient(135deg,transparent 55%,currentColor 55%,currentColor 62%,transparent 62%,transparent 75%,currentColor 75%,currentColor 82%,transparent 82%)}#todoEmbed:hover .td-grip{opacity:.35}.td-pin:hover{opacity:.9!important}
 .td-add{display:flex;gap:6px;-webkit-app-region:no-drag;margin-top:4px}
 .td-add input,.td-add input[type=text],.td-add input[type=datetime-local]{flex:1;min-width:0;background:transparent;border:0;border-bottom:1px solid color-mix(in oklab,currentColor 25%,transparent);border-radius:0;padding:4px 2px;color:inherit;font-size:14px;outline:none}
@@ -2458,12 +2462,14 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
   const open=items.filter(i=>!i.done).length+(checkedToday()?0:1);const hot=items.filter(i=>!i.done&&!i.nodue&&i.due-now<24*HOUR).length;
   const mini=h("div",{class:"td-mini"},h("b",null,"待办"),h("span",{class:"n"+(hot?" hot":""),title:hot?hot+" 项 24 小时内要交":""},hot?String(hot):open?String(open):"✓"));
   el.replaceChildren(mini,pin||"",h("div",{class:"td-list"},rows),h("div",{class:"td-add"},ti,dt),grip)}
-/* 桌面版：平时收成小标签，鼠标移上去展开 */
+/* 桌面版：平时收成小标签（或吸在屏幕边上的书签），鼠标移上去展开 */
 if(EMBED==="todo"&&DESK&&DESK.todoMode){let t=null;const busy=()=>(document.activeElement&&document.activeElement.tagName==="INPUT")||document.querySelector(".scrim,.qz,.pop");
-  const collapse=()=>{if(busy()||document.body.matches(":hover"))return;document.body.classList.add("td-collapsed");DESK.todoMode("mini")};
-  document.addEventListener("mouseenter",()=>{clearTimeout(t);if(document.body.classList.contains("td-collapsed")){DESK.todoMode("full");document.body.classList.remove("td-collapsed")}});
+  const B=document.body;const collapse=()=>{if(busy()||B.matches(":hover"))return;DESK.todoMode("mini")};
+  DESK.onTodoState&&DESK.onTodoState(st=>{B.classList.toggle("td-collapsed",st.mode==="mini");B.classList.toggle("td-docked",st.mode==="dock");for(const e of["left","right","top"])B.classList.toggle("dock-"+e,st.mode==="dock"&&st.edge===e)});
+  document.addEventListener("mouseenter",()=>{clearTimeout(t);if(B.classList.contains("td-collapsed")||B.classList.contains("td-docked"))DESK.todoMode("full")});
   document.addEventListener("mouseleave",()=>{clearTimeout(t);t=setTimeout(collapse,700)});
   document.addEventListener("focusout",()=>{clearTimeout(t);t=setTimeout(collapse,700)});
+  if(DESK.isGlass)DESK.isGlass().then(g=>{if(g)B.classList.add("glass")}).catch(()=>{});
   setTimeout(collapse,1500)}
 let S_PIN=true;if(DESK&&DESK.getPin)DESK.getPin().then(v=>{S_PIN=!!v;if(EMBED==="todo")renderTodoEmbed()}).catch(()=>{});
 if(EMBED==="todo"){setInterval(()=>{if(!document.hidden)renderTodoEmbed()},60000)}

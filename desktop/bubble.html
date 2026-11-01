@@ -38,6 +38,8 @@
     if (!down) return; down = null; b.classList.remove("drag");
     if (moved) window.bubble.moved(); else window.bubble.click();
   });
+  document.addEventListener("mouseenter", () => window.bubble.hover(true));
+  document.addEventListener("mouseleave", () => { if (!down) window.bubble.hover(false); });
   b.addEventListener("contextmenu", (e) => { e.preventDefault(); window.bubble.menu(); });
   document.addEventListener("dragover", (e) => { e.preventDefault(); b.classList.add("over"); });
   document.addEventListener("dragleave", () => b.classList.remove("over"));

@@ -8,6 +8,7 @@ const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const os = require("os");
+const { applyGlass } = require("./glass");
 
 const SITE = process.env.ZS_SITE || "https://study.catmin.io/";
 const PART = "persist:xuexi";
@@ -77,7 +78,23 @@ ipcMain.on("bubble-move", (e, dx, dy) => {
   bubble.setBounds({ x: Math.round(x + dx), y: Math.round(y + dy), width: BUB, height: BUB });
   if (zero && zero.isVisible()) placeZero();
 });
-ipcMain.on("bubble-moved", () => { if (!bubble) return; const [x, y] = bubble.getPosition(); conf.bubble = { x, y }; saveConf(); });
+ipcMain.on("bubble-moved", () => {
+  if (!bubble) return;
+  const b = bubble.getBounds(), d = screen.getDisplayMatching(b).workArea;
+  const cx = b.x + BUB / 2;
+  conf.bubbleDock = cx <= d.x + BUB / 2 + 10 ? "left" : cx >= d.x + d.width - BUB / 2 - 10 ? "right" : null; // 拖到左右边上就藏一半进去
+  if (conf.bubbleDock) bubble.setPosition(bubbleDockX(d, false), b.y);
+  const [x, y] = bubble.getPosition(); conf.bubble = { x, y }; saveConf();
+});
+function bubbleDockX(d, out) {
+  if (conf.bubbleDock === "left") return out ? d.x - 14 : d.x - BUB / 2 - 4;
+  return out ? d.x + d.width - BUB + 14 : d.x + d.width - BUB / 2 + 4;
+}
+ipcMain.on("bubble-hover", (e, on) => {
+  if (!bubble || !conf.bubbleDock) return;
+  const b = bubble.getBounds(), d = screen.getDisplayMatching(b).workArea;
+  bubble.setPosition(bubbleDockX(d, !!on || (zero && zero.isVisible())), b.y);
+});
 ipcMain.on("bubble-click", () => toggleZero());
 ipcMain.on("bubble-menu", () => { menu().popup({ window: bubble }); });
 ipcMain.on("bubble-drop", (e, paths) => deliverPaths(paths));
@@ -99,6 +116,7 @@ function ensureZero() {
   zero = pageWin({ width: ZW, height: ZH, alwaysOnTop: true, resizable: true, minWidth: 320, minHeight: 360 }, SITE + "?embed=zero");
   zero.setAlwaysOnTop(true, "floating");
   zero.on("closed", () => { zero = null; });
+  zero.on("hide", () => { if (bubble && conf.bubbleDock) { const b = bubble.getBounds(); bubble.setPosition(bubbleDockX(screen.getDisplayMatching(b).workArea, false), b.y); } });
   return zero;
 }
 function showZero(cmd) {
@@ -114,12 +132,14 @@ function createTodo(show) {
   if (todo && !todo.isDestroyed()) { if (show) todo.showInactive(); return todo; }
   const a = workArea();
   const b = conf.todo && onScreen(conf.todo) ? conf.todo : { x: a.x + a.width - 280 - 24, y: a.y + 40, width: 280, height: 320 };
-  // 系统毛玻璃在窗口没有焦点时会变成灰色实底，所以用透明窗口 + 页面自己的半透明底色
-  const opts = { x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 100, minHeight: 30, resizable: true, transparent: true, alwaysOnTop: conf.todoPinned !== false, backgroundColor: "#00000000" };
+  // 毛玻璃用 glass.js（失去焦点也保持）；不支持的系统退回页面自己的半透明底色
+  const opts = { x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 10, minHeight: 10, resizable: true, transparent: true, alwaysOnTop: conf.todoPinned !== false, backgroundColor: "#00000000" };
   todo = pageWin(opts, SITE + "?embed=todo");
-  const remember = () => { if (!todo || todo.isDestroyed()) return; const b = todo.getBounds(); if (todoMini) { const f = conf.todo || {}; conf.todo = { x: b.x, y: b.y, width: f.width || 280, height: f.height || 320 }; } else conf.todo = b; saveConf(); };
-  todo.on("moved", remember); todo.on("resized", remember);
-  todo.on("closed", () => { todo = null; });
+  todo.on("moved", todoMoved);
+  todo.on("resized", () => { if (todo && !todo.isDestroyed() && todoState === "full") { conf.todo = todo.getBounds(); saveConf(); } });
+  todo.on("closed", () => { todo = null; todoState = "full"; });
+  todo._glass = applyGlass(todo, nativeTheme.shouldUseDarkColors);
+  nativeTheme.on("updated", () => { if (todo && !todo.isDestroyed()) applyGlass(todo, nativeTheme.shouldUseDarkColors); });
   todo.once("ready-to-show", () => { if (show) todo.showInactive(); });
   return todo;
 }
@@ -153,26 +173,69 @@ ipcMain.on("hide", (e) => { const w = winOf(e); if (w) w.hide(); if (w === todo)
 ipcMain.on("open-main", (e, hash) => openMain(typeof hash === "string" ? hash : ""));
 ipcMain.on("open-zero", (e, cmd) => showZero(typeof cmd === "string" ? cmd : ""));
 ipcMain.on("to-main", (e, subj, list) => { const w = openMain("#dungeon"); send(w, "files", String(subj), list); });
-// 待办收起成小标签：鼠标移上去展开成完整列表，移开收回
-const MINI = { width: 108, height: 32 };
-let todoMini = false;
-ipcMain.on("todo-mode", (e, mode) => {
+// 待办三种状态：full 展开的列表；mini 小标签；dock 吸在屏幕边上的书签（像 360 加速球那样藏进屏幕边）
+// 拖到离屏幕上边、左边或右边 24px 以内就吸住；鼠标移上去从边上滑出列表，移开缩回去
+const MINI = { width: 108, height: 32 }, DOCK = 14, DOCK_LEN = 64, SNAP = 24;
+let todoState = "full";
+const fullSize = () => (conf.todo && conf.todo.width > MINI.width + 20 ? conf.todo : { width: 280, height: 320 });
+function edgeOf(b) {
+  const d = screen.getDisplayMatching(b).workArea;
+  if (b.x <= d.x + SNAP) return "left";
+  if (b.x + b.width >= d.x + d.width - SNAP) return "right";
+  if (b.y <= d.y + SNAP) return "top";
+  return null;
+}
+function tellTodo() { if (todo && !todo.isDestroyed()) send(todo, "todo-state", { mode: todoState, edge: conf.todoDock ? conf.todoDock.edge : "" }); }
+function dockRect(d) {
+  const k = conf.todoDock, clampY = (y) => Math.min(Math.max(y, d.y), d.y + d.height - DOCK_LEN), clampX = (x) => Math.min(Math.max(x, d.x), d.x + d.width - DOCK_LEN);
+  if (k.edge === "left") return { x: d.x, y: clampY(k.along), width: DOCK, height: DOCK_LEN };
+  if (k.edge === "right") return { x: d.x + d.width - DOCK, y: clampY(k.along), width: DOCK, height: DOCK_LEN };
+  return { x: clampX(k.along), y: d.y, width: DOCK_LEN, height: DOCK };
+}
+function setTodoMode(mode) {
   if (!todo || todo.isDestroyed()) return;
-  const b = todo.getBounds(), d = screen.getDisplayMatching(b).workArea;
-  const full = conf.todo && conf.todo.width > MINI.width + 20 ? conf.todo : { width: 280, height: 320 };
-  const right = b.x + b.width / 2 > d.x + d.width / 2; // 靠右的话以右上角为准展开，免得伸出屏幕
-  const bottom = b.y + b.height / 2 > d.y + d.height / 2;
-  if (mode === "mini" && !todoMini) {
-    if (!todoMini) conf.todo = Object.assign({}, b); saveConf(); todoMini = true;
-    todo.setBounds({ x: right ? b.x + b.width - MINI.width : b.x, y: bottom ? b.y + b.height - MINI.height : b.y, width: MINI.width, height: MINI.height });
-  } else if (mode === "full" && todoMini) {
-    todoMini = false;
-    let x = right ? b.x + b.width - full.width : b.x, y = bottom ? b.y + b.height - full.height : b.y;
-    x = Math.min(Math.max(x, d.x), d.x + d.width - full.width); y = Math.min(Math.max(y, d.y), d.y + d.height - full.height);
-    todo.setBounds({ x, y, width: full.width, height: full.height });
+  const b = todo.getBounds(), d = screen.getDisplayMatching(b).workArea, f = fullSize();
+  if (mode === "mini") {
+    if (todoState === "full") { conf.todo = Object.assign({}, b); saveConf(); }
+    if (conf.todoDock) { todo.setBounds(dockRect(d)); todoState = "dock"; }
+    else {
+      const right = b.x + b.width / 2 > d.x + d.width / 2, bottom = b.y + b.height / 2 > d.y + d.height / 2;
+      todo.setBounds({ x: right ? b.x + b.width - MINI.width : b.x, y: bottom ? b.y + b.height - MINI.height : b.y, width: MINI.width, height: MINI.height });
+      todoState = "mini";
+    }
+  } else if (mode === "full" && todoState !== "full") {
+    let x, y;
+    if (todoState === "dock") {
+      const k = conf.todoDock;
+      x = k.edge === "left" ? d.x : k.edge === "right" ? d.x + d.width - f.width : k.along - (f.width - DOCK_LEN) / 2;
+      y = k.edge === "top" ? d.y : k.along - (f.height - DOCK_LEN) / 2;
+    } else {
+      const right = b.x + b.width / 2 > d.x + d.width / 2, bottom = b.y + b.height / 2 > d.y + d.height / 2;
+      x = right ? b.x + b.width - f.width : b.x; y = bottom ? b.y + b.height - f.height : b.y;
+    }
+    x = Math.min(Math.max(Math.round(x), d.x), d.x + d.width - f.width); y = Math.min(Math.max(Math.round(y), d.y), d.y + d.height - f.height);
+    todo.setBounds({ x, y, width: f.width, height: f.height });
+    todoState = "full";
   }
-});
-ipcMain.on("todo-resize", (e, dw, dh) => { if (!todo || todo.isDestroyed()) return; const b = todo.getBounds(); todo.setBounds({ x: b.x, y: b.y, width: Math.max(180, Math.round(b.width + dw)), height: Math.max(120, Math.round(b.height + dh)) }); conf.todo = todo.getBounds(); saveConf(); });
+  tellTodo();
+}
+ipcMain.on("todo-mode", (e, mode) => setTodoMode(mode));
+// 拖动结束：贴近边就吸住，离开边就松开
+function todoMoved() {
+  if (!todo || todo.isDestroyed()) return;
+  const b = todo.getBounds(), d = screen.getDisplayMatching(b).workArea, edge = edgeOf(b);
+  if (edge) {
+    conf.todoDock = { edge, along: edge === "top" ? Math.round(b.x + b.width / 2 - DOCK_LEN / 2) : Math.round(b.y + Math.min(b.height, 120) / 2 - DOCK_LEN / 2) };
+    if (todoState !== "full") { todo.setBounds(dockRect(d)); todoState = "dock"; }
+  } else {
+    conf.todoDock = null;
+    if (todoState === "dock") { todo.setBounds({ x: b.x, y: b.y, width: MINI.width, height: MINI.height }); todoState = "mini"; }
+    if (todoState === "full") conf.todo = b;
+  }
+  saveConf(); tellTodo();
+}
+ipcMain.handle("is-glass", (e) => !!(todo && !todo.isDestroyed() && e.sender.id === todo.webContents.id && todo._glass));
+ipcMain.on("todo-resize", (e, dw, dh) => { if (!todo || todo.isDestroyed() || todoState !== "full") return; const b = todo.getBounds(); todo.setBounds({ x: b.x, y: b.y, width: Math.max(180, Math.round(b.width + dw)), height: Math.max(120, Math.round(b.height + dh)) }); conf.todo = todo.getBounds(); saveConf(); });
 ipcMain.handle("get-pin", () => conf.todoPinned !== false);
 ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(!!v); refreshMenu(); });
 ipcMain.on("badge", (e, n) => { if (bubble && !bubble.isDestroyed()) bubble.webContents.send("badge", n); });

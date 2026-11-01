@@ -35,6 +35,10 @@ module.exports = async (h) => {
     fs.writeFileSync("/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/mini.png", (await h.todo.webContents.capturePage()).toPNG());
     h.todo.webContents.sendInputEvent({ type: "mouseEnter", x: 20, y: 10 }); h.todo.webContents.sendInputEvent({ type: "mouseMove", x: 20, y: 10 }); await wait(600);
     log("todo expanded", JSON.stringify(h.todo.getBounds()));
+    h.todo.setBounds({ x: 0, y: 300, width: 280, height: 320 }); h.todo.emit("moved"); await h.todo.webContents.executeJavaScript('window.zsDesktop.todoMode("mini")'); await wait(500);
+    log("docked", JSON.stringify(h.todo.getBounds()), await h.todo.webContents.executeJavaScript("document.body.className"));
+    h.todo.webContents.sendInputEvent({ type: "mouseEnter", x: 5, y: 20 }); h.todo.webContents.sendInputEvent({ type: "mouseMove", x: 5, y: 20 }); await wait(600);
+    log("from dock", JSON.stringify(h.todo.getBounds()), await h.todo.webContents.executeJavaScript("document.body.className"));
     h.openHotkeyWin(); await wait(1500);
     const { BrowserWindow } = require("electron");
     const hw = BrowserWindow.getAllWindows().find((w) => /hotkey\.html/.test(w.webContents.getURL()));
