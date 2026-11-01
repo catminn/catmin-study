@@ -27,6 +27,10 @@ test('blank copy fails closed',()=>{const p=plan();p.responses[0].copy=' \n ';re
 test('identical sibling replies cannot masquerade as consequences',()=>{const p=plan();p.responses[1].copy=p.responses[0].copy;reject(outline(),p,'response_indistinct');});
 test('case and whitespace variations do not create a distinct response',()=>{const p=plan();p.responses[1].copy='  THE   ROUTE IS ACKNOWLEDGED.\n';reject(outline(),p,'response_indistinct');});
 test('unicode compatibility variants do not create a distinct response',()=>{const p=plan();p.responses[0].copy='Ａ route';p.responses[1].copy='A route';reject(outline(),p,'response_indistinct');});
+test('terminal punctuation alone cannot distinguish sibling consequences',()=>{const p=plan();p.responses[1].copy='The route is acknowledged!';reject(outline(),p,'response_indistinct');});
+test('unicode terminal punctuation variants cannot distinguish consequences',()=>{const p=plan();p.responses[0].copy='We can proceed。';p.responses[1].copy='We can proceed？';reject(outline(),p,'response_indistinct');});
+test('a substantive wording difference remains distinct despite punctuation',()=>{const p=plan();p.responses[0].copy='The route is acknowledged.';p.responses[1].copy='The route is not acknowledged!';assert.equal(check(outline(),p).ok,true);});
+test('internal punctuation is preserved in conservative comparison',()=>{const p=plan();p.responses[0].copy='Wait, go.';p.responses[1].copy='Wait go!';assert.equal(check(outline(),p).ok,true);});
 test('unknown hidden gate field is rejected',()=>{const p=plan();p.responses[0].requiresSecret=true;reject(outline(),p,'response_invalid');});
 test('invalid underlying consequence outline fails',()=>{const o=outline();o.nodes[3].acknowledges=[];reject(o,plan(),'outline_invalid');});
 test('linear graph is not silently counted as differentiated branching',()=>{const o={start:'demo-a',nodes:[beat('demo-a',[edge('demo-b')]),beat('demo-b',[],[],true)]};reject(o,{schema:'route-response-differentiation-v1',responses:[]},'no_branch_choices');});
