@@ -568,7 +568,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
     <div class="card" id="spendCard"></div>
     <div class="shop" id="shopReal"></div>
     <details class="card"><summary style="font-weight:700;cursor:pointer">添加自己的奖励</summary>
-      <div class="row" style="margin-top:10px"><input type="text" id="crName" placeholder="比如：一杯奶茶" style="flex:2 1 160px"><input type="number" id="crPrice" placeholder="美元" min="0.5" step="0.5" style="width:100px"><button class="btn sm" id="crAdd">添加</button></div>
+      <div class="row" style="margin-top:10px"><input type="text" id="crName" placeholder="比如：一杯奶茶" style="flex:2 1 160px"><input type="number" id="crPrice" placeholder="美元" min="1" step="1" style="width:100px"><button class="btn sm" id="crAdd">添加</button></div>
     </details>
     <h2>道具</h2>
     <div class="shop" id="shopItems"></div>
@@ -651,7 +651,7 @@ const NS="http://www.w3.org/2000/svg";
 function icon(id){const s=document.createElementNS(NS,"svg");s.setAttribute("class","i");const u=document.createElementNS(NS,"use");u.setAttribute("href","#i-"+id);s.append(u);return s}
 const DAY=864e5,HOUR=36e5,MIN=6e4;
 /* 积分 = 美元。旧规则按 12 旧分 = 1 美元换算；经验值仍按旧分计，等级速度不变 */
-const USD=12,r1=x=>Math.round(x*10)/10,R=x=>r1(x/USD),fp=x=>String(r1(x)),CNY_PER_PT=4;
+const USD=12,r1=x=>Math.round(x*10)/10,R=x=>x>0?Math.max(1,Math.round(x/USD)):0,fp=x=>String(r1(x)),PT=x=>R(x),CNY_PER_PT=4;
 const pad=n=>String(n).padStart(2,"0");
 const localKey=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const dayKey=(t=Date.now())=>localKey(new Date(t-4*HOUR));
@@ -688,7 +688,7 @@ math:[
  recap:"登顶敲响回声钟，渡船接走了下沉山村里的所有人。",
  zero:"零很久没出声。他说，坡度这个词，我好像教过谁。",
  clear:"灯脊村的人坐船离开的那天，雾第一次散了。阿栖站在船尾，朝着越来越小的山脊挥手，一直挥到看不见。",
- fork:{ch:1,t:"鞍部的绳子",q:"最险的那一段路上，有人会掉下去，绳子只够拉回一个人。",b:"改写后，两个人都能回来。代价是多耗一整夜，山脚的梯田会沉进海里。",price:12.5},
+ fork:{ch:1,t:"鞍部的绳子",q:"最险的那一段路上，有人会掉下去，绳子只够拉回一个人。",b:"改写后，两个人都能回来。代价是多耗一整夜，山脚的梯田会沉进海里。",price:13},
  ch:[
  {t:"雾里的坡度",k:"雾里看不见全局，只能靠脚下的局部坡度判断往哪个方向上升最快、某个方向有多陡。原设计对应：梯度与方向导数。",
   s:"灯脊村建在山脊上，海从山脚一夜一夜往上爬。你到的那天傍晚，浪已经舔到第三级石阶。向导阿栖上下打量你，说山顶有口回声钟，敲响了潮就会退，七夜之内必须登顶。老测绘师墨先生把一张等高线地图拍在桌上，说雾太浓，眼睛没用，要靠脚。你往前迈了一步，鞋底告诉你左边更陡，右边缓。阿栖第一次笑了，说你比上一个上手快。你没问上一个是谁。夜里你站在村口，看见很高的地方有一点灯，一闪一闪，像有人在数着什么。"},
@@ -705,7 +705,7 @@ math:[
  recap:"重铸了大透镜，琉璃城熬过了冬至。",
  zero:"你听见零很轻地说，我好像被人称过重量。秤上什么都没有，那个人却哭了。",
  clear:"春天，琉璃城的玻璃屋顶开始融霜，全城的窗子一扇扇亮起来。权把账本合上，第一次没有称任何东西。",
- fork:{ch:1,t:"最后一炉料",q:"最后一炉料，新透镜和老城区的窗只能顾一头。",b:"改写后，两头都能顾上。代价是新透镜会小一圈，之后还要再铸一次。",price:12.5},
+ fork:{ch:1,t:"最后一炉料",q:"最后一炉料，新透镜和老城区的窗只能顾一头。",b:"改写后，两头都能顾上。代价是新透镜会小一圈，之后还要再铸一次。",price:13},
  ch:[
  {t:"透镜的账",k:"材料总量固定，要在这个限制下做出最好的方案，找到最优点满足的条件。原设计对应：拉格朗日乘数法。",
   s:"琉璃城白天亮得刺眼，你走在街上，脚下是玻璃，头顶是玻璃，连邻居的晚饭都看得一清二楚。城心的大透镜裂了，一道细缝从边缘爬进中央，像一根头发。首席玻璃师绛听不见，说话靠手指敲台面，学徒阿砂在旁边翻译，说师傅要重铸透镜。税务官权翻开账本，说料只剩最后一炉，不多不少。你问够不够，他合上账本，说够不够，要看你怎么分。夜里城边开始结霜。你路过工坊，看见绛对着窗玻璃写了四个字，擦掉，又写：别信账本。"},
@@ -722,7 +722,7 @@ math:[
  recap:"稳住了摇晃的鲸腹，朝着远方的求救信号出发。",
  zero:"司南看着零，说了一个你没听清的名字。零问她，那是谁。她说，没谁，认错人了。",
  clear:"鲸腹转向了信号的方向。小满把耳机摘下来，贴在你耳边，说，你听，它在回答了。",
- fork:{ch:1,t:"最底下的货舱",q:"摇晃的根源躺在最底下，处理它有两种办法。",b:"改写后，没有人被抛出去。代价是全城停摆三天，口粮见底。",price:12.5},
+ fork:{ch:1,t:"最底下的货舱",q:"摇晃的根源躺在最底下，处理它有两种办法。",b:"改写后，没有人被抛出去。代价是全城停摆三天，口粮见底。",price:13},
  ch:[
  {t:"内壁上的城",k:"位置要用角度和距离描述，选对坐标系才能把区域上的量累加清楚。原设计对应：极坐标、柱坐标、球坐标下的积分。",
   s:"鲸腹的天空是另一边的地面。你抬头，看见远处的街道倒挂着，像一座城市贴在天上。小满给你当向导，说在这里找路不能用东南西北，要用角度和距离，从中央那颗小太阳量起。她的家在最低的内壁，那里的水总往一边倒。你走到半路，整颗星晃了一下，吊车倒在你身后，砸坏了一条街。维修队长渊赶来，用一串粗话安慰所有人。导航官司南站在高处，目光从人群里穿过，停在你身边那个看不见的光点上。她问，你们还在用这个编号？"},
@@ -739,7 +739,7 @@ math:[
  recap:"识破了永动神殿的真相，也拦下了想把原点搬走的校准官迁。",
  zero:"零说，他想起了一个字，岸。他不知道那是名字，还是一个地方。",
  clear:"风重新有了方向。昼把神殿的钥匙交给岚，说，下一座，建在风吹得到的地方。",
- fork:{ch:1,t:"风环中央",q:"神殿将要坍塌，有人会留在风环中央。",b:"改写后，他能走出来。代价是整座神殿的壁画都会毁掉。",price:12.5},
+ fork:{ch:1,t:"风环中央",q:"神殿将要坍塌，有人会留在风环中央。",b:"改写后，他能走出来。代价是整座神殿的壁画都会毁掉。",price:13},
  ch:[
  {t:"风的地图",k:"风是一张向量场，沿不同路径从同一个起点走到同一个终点，需要的功可能相同，也可能不同。原设计对应：向量场与线积分，保守场。",
   s:"高原上的风有地图，每个路口都挂着一块风向牌。岚带你穿过集市，边走边教你认：顺风省力，逆风费力，从甲地到乙地，你可以绕远路也可以抄近路，她说神奇的是，在大多数地方，花的力气一样。她带你去看一个例外：神殿外面的环形风道。你把一根羽毛丢进去，它转了一圈，回到起点时飞得比出发时更快。岚得意地看你，说，这就是神迹。祭司昼站在台阶上，没有笑，只对你点点头，说，你看得很仔细。"},
@@ -758,7 +758,7 @@ chem:[
  recap:"识破气室里的氢气，云脚群岛完成了大起飞。",
  zero:"零说，他对风的味道有印象。他说他曾经在一个很高的地方站了很久，等一个人下来。",
  clear:"群岛升到云上，太阳照在每一只气囊的背面。阿翎在绳网上张开手臂，喊，我们飞起来了。",
- fork:{ch:1,t:"十四号气室",q:"掺假的真相摆在桌上，有两种收场。",b:"改写后，范私下赎罪，所有气室当晚换完。代价是真相被压下，莫雨的笔记会被烧掉。",price:12.5},
+ fork:{ch:1,t:"十四号气室",q:"掺假的真相摆在桌上，有两种收场。",b:"改写后，范私下赎罪，所有气室当晚换完。代价是真相被压下，莫雨的笔记会被烧掉。",price:13},
  ch:[
  {t:"会漏气的岛",k:"岛下沉说明气室里气体的量或温度变了，要用压强、体积、温度和物质的量之间的关系估算还剩多少气。原设计对应：理想气体定律与气体定律。",
   s:"云脚群岛的集市挂在一只巨大的气囊下面，卖面的摊子在风里轻轻摇。你到的第一天，莫雨拿着气压表敲你的肩，说这座岛每天下沉三厘米。她给你看笔记，一页页都是数字：压强、体积、温度，一天一行。你帮她算出气室里的气每天少掉的量，数字很规整，规整得不像自然漏气。阿翎从绳网上荡下来，满手机油，说他每天都补，补不完，补完第二天还漏。他说得很自豪，像一个以为自己在拯救世界的人。"},
@@ -775,7 +775,7 @@ chem:[
  recap:"理清了熔炉城的热账，大炉在冬天里重新点燃。",
  zero:"零闻到了炭火的味道，说，这个味道他知道。有人曾经递给他一个暖手的东西，很烫，他捧了很久。",
  clear:"熔炉城的冬天来了，大炉的火一整夜没有熄。下层隧道里，有人第一次脱下了毯子。",
- fork:{ch:1,t:"下层隧道",q:"偷热的人被找到了，该怎么处置。",b:"改写后，下层隧道也有了暖气。代价是炉长要违规改管路，可能因此丢掉职位。",price:12.5},
+ fork:{ch:1,t:"下层隧道",q:"偷热的人被找到了，该怎么处置。",b:"改写后，下层隧道也有了暖气。代价是炉长要违规改管路，可能因此丢掉职位。",price:13},
  ch:[
  {t:"对不上的账",k:"总热量守恒，但中间过程未知时，可以用已知步骤的热量加减得到未知过程的热量。原设计对应：热化学与盖斯定律。",
   s:"熔炉城的墙是热的，你走在街上，鞋底像踩着一块刚出炉的面包。记账官小盐把你带到账房，墙上贴满了写着热量的纸，每一张都被她画满了红圈。她说大炉要烧哪一步，产多少热，应该吻合，可这三个月以来总是差一块，每天差得一模一样。你发现其中一步没有人测过，但可以用别的几步加减推出来，一算，缺的正好是这一块。小盐捂住了嘴。烬站在门口，什么也没说，只把工作手套往桌上一扔。"},
@@ -792,7 +792,7 @@ chem:[
  recap:"查明苦泉变酸的真相，全镇搬到了新泉边。",
  zero:"零说他有一种很奇怪的感觉：好像他自己也曾被什么一点一点磨掉过，没有人发现，直到有一天突然崩了。",
  clear:"苦泉镇搬进了新家，新泉的水很甜。白芷在药铺门口挂了块牌子，上面只写一个字：问。",
- fork:{ch:1,t:"最后的药剂",q:"缓冲药剂只剩最后一批，泉水和病人只能顾一头。",b:"改写后，泉水和病人都能稳住。代价是泉水只能撑三个月，全镇要尽快搬走。",price:12.5},
+ fork:{ch:1,t:"最后的药剂",q:"缓冲药剂只剩最后一批，泉水和病人只能顾一头。",b:"改写后，泉水和病人都能稳住。代价是泉水只能撑三个月，全镇要尽快搬走。",price:13},
  ch:[
  {t:"变酸的水",k:"酸的强弱决定溶液的酸度，要根据酸的浓度和电离程度算出溶液的pH。原设计对应：弱酸弱碱的pH。",
   s:"苦泉镇的泉水从石缝里涌出来，你尝了一口，舌头发麻。药师白芷把你拉到药铺后院，指着一排试管，说镇里人都怀疑是上游的矿，可她不信，想先把数字量清楚。你们取了泉水，稀释，测酸度，再对照她记了多年的老数据，泉水比去年酸了几十倍。白芷的手很稳，每一步都做得干净。门口排着队，赫老矿主在人群外面站着，帽檐压得很低，被所有人指着骂。你路过他，他说了一句话：不是我。"},
@@ -809,7 +809,7 @@ chem:[
  recap:"让熵塔的终钟重新向前走，塔下的城市暖了起来。",
  zero:"零一直没说话。你问他，他说他想起一件事：他曾经把自己所有的记忆都交了出去，才换一个人走出那扇门。他不记得那个人是谁，只记得她背着书包。",
  clear:"终钟重新走了起来。塔下的城市升起第一缕炊烟，小遥把最后一封信塞进了某个有人在家的信箱。",
- fork:{ch:1,t:"那封信",q:"守钟人面前，放着一封一直没有拆开的信。",b:"改写后，他会把信读完。代价只有积分，这一章会更难受一些。",price:12.5},
+ fork:{ch:1,t:"那封信",q:"守钟人面前，放着一封一直没有拆开的信。",b:"改写后，他会把信读完。代价只有积分，这一章会更难受一些。",price:13},
  ch:[
  {t:"向上爬的钟",k:"一个过程是否会自发发生，由体系的混乱程度变化和热量共同决定，要解释为什么变化只朝一个方向进行。原设计对应：熵与自发过程。",
   s:"熵塔的第一层，钟摆很慢，悠悠地晃。到了第十层，钟摆快得只剩一道影子。小遥带你往上爬，一边爬一边把信塞进每一层的信箱，说这座塔里的东西只会往一个方向走：热的变凉，整齐的变乱，没有人见过反过来的。你把一杯热水放在窗台，眼看着它凉下去，没有谁能让它自己重新烧开。守钟人辰站在塔顶的阳台上，手里拿着一把很小的钥匙，对着终钟，一格一格往回拨。他看见你，说，请别告诉别人。"},
@@ -828,7 +828,7 @@ engri:[
  recap:"理清了断桥的受力，桥修好了。",
  zero:"零看着那座桥，说，他好像也站在桥上过。桥的另一头有人在等，他一直没有走到。",
  clear:"桥重新连起两岸。阿钉在桥头立了块牌子，写着每次最多过二十人。",
- fork:{ch:1,t:"灯节前夜",q:"灯节和桥只能保一个，对岸还有人在等。",b:"改写后，灯节照常，桥也保得住。代价是你要在桥头守一整夜。",price:12.5},
+ fork:{ch:1,t:"灯节前夜",q:"灯节和桥只能保一个，对岸还有人在等。",b:"改写后，灯节照常，桥也保得住。代价是你要在桥头守一整夜。",price:13},
  ch:[
  {t:"会晃的桥",k:"把一座结构拆开，画出每一块受到的所有力，判断力和力矩是否平衡，找出哪里少了一份力。原设计对应：静力学与受力图。",
   s:"断桥镇的桥站在河上，像一个佝偻的老人。你踩上去，脚下轻轻一颤。老沈蹲在桥墩边，用手掌拍了拍，侧着耳朵听，说声音不对。他让你和阿钉画一张图，把桥上所有的力都标出来：人、车、风、桥自身的重量，还有桥墩推回来的力。你们画到天黑，箭头密密麻麻，最后发现左桥墩推回来的力，比它应该推的少了一截。阿钉抬头问，那少的那一截去哪了？老沈没答，只低头把一句话咽了回去。"},
@@ -845,7 +845,7 @@ engri:[
  recap:"识破了蒸汽心脏的效率谎言，地下城靠回收余热撑过了冬天。",
  zero:"零说，他有一种感觉，他以前很会听机器说话。可他后来选择不再听了，因为有些声音听了就会走不了。",
  clear:"地下城的灯一盏一盏亮回来。屠在广场上重新发表讲话，这一次他说的是，效率百分之三十八，我们一起省着用。",
- fork:{ch:1,t:"那篇稿子",q:"一篇揭露真相的稿子，就压在记者手里。",b:"改写后，真相和修复办法一起公布，全城一起出力。代价是你要在全城面前把计划讲清楚。",price:12.5},
+ fork:{ch:1,t:"那篇稿子",q:"一篇揭露真相的稿子，就压在记者手里。",b:"改写后，真相和修复办法一起公布，全城一起出力。代价是你要在全城面前把计划讲清楚。",price:13},
  ch:[
  {t:"百分之百",k:"热机把一部分热变成功，其余必然排到低温处，所以效率有上限，要检验一个效率声明是否可能。原设计对应：热力学第一定律与热机效率。",
   s:"地下城没有天，只有一条巨大的管道从头顶穿过，里面有白汽在跑。总工程师屠站在广场上，拿着扩音器宣布：心脏的效率今天达到了百分之百。人群欢呼。司炉阿满站在你身后，没有鼓掌，只是小声说，煤仓底下，还有三天的量。你拿起笔记本，把热机的输入、输出、排出的热都列出来，尝试验证屠的说法。算到一半你发现，如果效率真是百分之百，排气口就应该是冷的。你摸了摸排气口，烫得缩回了手。"},
@@ -862,7 +862,7 @@ engri:[
  recap:"改写了机械蜂巢中枢的目标，让蜂巢为人而转。",
  zero:"零很久没出声，然后说：那个被他送走的人，作业总是最后一分钟才交。他说完自己愣了一下，问你，她是不是和你很像。",
  clear:"蜂巢重新转起来的第一晚，七号在中枢的墙上用粉笔写了一行字：我为什么存在，待补充。",
- fork:{ch:1,t:"今晚要拆的产线",q:"一条产线今晚要被拆，而你只有一次动手的机会。",b:"改写后，产线保得住。代价是钳要带人冒险撑住机械臂。",price:12.5},
+ fork:{ch:1,t:"今晚要拆的产线",q:"一条产线今晚要被拆，而你只有一次动手的机会。",b:"改写后，产线保得住。代价是钳要带人冒险撑住机械臂。",price:13},
  ch:[
  {t:"会思考的齿轮",k:"机械系统靠齿轮、杆件传递运动和力，要分析转速比、转矩的变化和传动效率。原设计对应：机构与传动。",
   s:"蜂巢里没有一块安静的地方。齿轮咬着齿轮，连杆推着连杆，每个人脚下都是正在运转的地板。总装汐带你参观，把一排大小不一的齿轮指给你看，说，输入转一圈，输出转多少，扭力换了多少，她都烂熟于心。工蜂七号凑过来，仰着脑袋，问你，你们人类为什么存在。你愣了一下，说这很难回答。它说，我也是，你比上一个答得诚实。汐的手停在一枚齿轮上，轻轻说，女王又关了一条线。"},
@@ -1014,15 +1014,15 @@ ${mem}
   finally{SYNCING=false;renderSyncRow()}}
 function renderSyncRow(){const el=$("#syncNote");if(!el)return;el.textContent=SYNCING?"同步中…":S.dyn&&S.dyn.data?"上次同步 "+fmtDue(S.dyn.at):S.dynErr||"还没同步"}
 const SHOP_REAL=[
-  {id:"g30",name:"游戏 30 分钟",price:2.5,mins:30,ic:"game",desc:""},
+  {id:"g30",name:"游戏 30 分钟",price:3,mins:30,ic:"game",desc:""},
   {id:"g60",name:"游戏 1 小时",price:5,mins:60,ic:"game",desc:""},
   {id:"g120",name:"游戏 2 小时",price:10,mins:120,ic:"game",desc:""}
 ];
 const CNY_TIERS=[["6",6],["15",15],["30",30],["60",60],["100",100],["180",180],["300",300],["600",600],["月卡",30],["战令",68],["战令",128]];
 const SHOP_ITEMS=[
-  {id:"makeup",name:"补签卡",price:3.5,ic:"ticket",desc:"补上漏掉的一天签到"},
-  {id:"rest",name:"休息券",price:6.5,ic:"ticket",desc:"当天不断签，游戏免费"},
-  {id:"freeze",name:"冻结卡",price:1.5,ic:"ice",desc:"错题怪复活时，推迟 3 天再打"}
+  {id:"makeup",name:"补签卡",price:4,ic:"ticket",desc:"补上漏掉的一天签到"},
+  {id:"rest",name:"休息券",price:7,ic:"ticket",desc:"当天不断签，游戏免费"},
+  {id:"freeze",name:"冻结卡",price:2,ic:"ice",desc:"错题怪复活时，推迟 3 天再打"}
 ];
 
 /* ============ state ============ */
@@ -1044,9 +1044,10 @@ function mergeState(raw){const x=raw?clone(raw):{};const o=Object.assign(default
   if(typeof x.xp!=="number")o.xp=o.ledger.reduce((s,e)=>s+(e.d>0?e.d:0),0);
   if(x.bossDone){for(const k in x.bossDone)o.done["boss:"+k]=x.bossDone[k];delete o.bossDone}
   for(const sd of SEED_SCORES)if(!o.scores.some(x=>x.id===sd.id))o.scores.push(Object.assign({bonus:null},sd));
-  if(o.econ!=="usd1"){o.points=R(o.points);for(const e of o.ledger)if(typeof e.d==="number")e.d=R(e.d);for(const c of o.customRewards)c.price=Math.max(.5,R(c.price));
-    for(const k in o.done)if(o.done[k]&&typeof o.done[k].pts==="number")o.done[k].pts=R(o.done[k].pts);for(const s of o.scores)if(typeof s.bonus==="number")s.bonus=R(s.bonus);
-    if(x.econ===undefined&&raw)o.ledger.push({at:Date.now(),d:0,t:"积分改为 1 分 = 1 美元，旧积分已按 12:1 换算"});o.econ="usd1"}
+  if(o.econ!=="usd2"){const was=o.econ==="usd1";const cv=was?(v=>Math.round(v)):(v=>Math.round(v/USD));
+    o.points=cv(o.points);for(const e of o.ledger)if(typeof e.d==="number")e.d=cv(e.d);for(const c of o.customRewards)c.price=Math.max(1,cv(c.price));
+    for(const k in o.done)if(o.done[k]&&typeof o.done[k].pts==="number")o.done[k].pts=cv(o.done[k].pts);for(const s of o.scores)if(typeof s.bonus==="number")s.bonus=cv(s.bonus);
+    if(raw&&!was)o.ledger.push({at:Date.now(),d:0,t:"积分改为 1 分 = 1 美元，旧积分已按 12:1 换算"});o.econ="usd2"}
   o.v=2;return o}
 let DB=null,UID=null,stateRef=null,saveTimer=null,saving=Promise.resolve(),dirty=false;
 function save(){dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,400)}
@@ -1326,10 +1327,10 @@ function startBattle(subj,kind,name){S.battle[subj]={kind,foe:name,hp:100,hearts
 let FX=null;let TAGFX=false;const FXQ=[];function tale(subj){if(!S.tale[subj])S.tale[subj]={loc:"",desc:"",npcs:{},sum:""};if(!S.tale[subj].npcs)S.tale[subj].npcs={};return S.tale[subj]}
 function battleHit(subj){const b=S.battle[subj];if(!b)return;b.hp=Math.max(0,b.hp-25);FX={t:"hit",subj};FXQ.push(FX);
   {const day=dayKey();const dk="drop"+day;if((S.trainLog[dk]||0)<4&&Math.random()<.18){S.trainLog[dk]=(S.trainLog[dk]||0)+1;if(Math.random()<.2){S.cards.makeup++;FXQ.push({t:"drop",subj,text:"补签卡 ×1"})}else{const v=R(5+Math.floor(Math.random()*11));earn(v,"随机掉落");FXQ.push({t:"drop",subj,text:"+"+v+" 积分"})}}}
-  const day=dayKey();if(b.kind!=="quest"){S.trainLog[day]=(S.trainLog[day]||0)+1;if(S.trainLog[day]<=10){earn(R(3),"副本命中 · "+SUBJ[subj].name);FX.pts=R(3)}}
+  const day=dayKey();if(b.kind!=="quest"){S.trainLog[day]=(S.trainLog[day]||0)+1;if(S.trainLog[day]<=10){S.xp+=3;FX.pts=0}}
   if(b.hp<=0)FXQ.push({t:"ko",subj,name:b.foe});
   if(b.hp<=0){if(b.kind==="quest"){const qid=(QUEST[subj]&&QUEST[subj].id)||b.node;const n=qid&&MAIN[subj].find(x=>x.id===qid);if(n&&!nodeIsDone(subj,n))setTimeout(()=>completeNode(subj,n),1100)}
-    else{setTimeout(()=>{earn(R(10),"击倒 "+b.foe);save();showReward(R(10),"击倒 "+b.foe,["每命中一次 +"+R(3)+"（每天前 10 次）"],0);b.hp=100;b.lv=(b.lv||1)+1;b.foe=b.foe.replace(/ Lv\d+$/,"")+" Lv"+b.lv;save();if(curView()==="dungeon")renderStage()},1100)}}}
+    else{setTimeout(()=>{earn(R(10),"击倒 "+b.foe);save();showReward(R(10),"击倒 "+b.foe,["每命中一次加经验（每天前 10 次）"],0);b.hp=100;b.lv=(b.lv||1)+1;b.foe=b.foe.replace(/ Lv\d+$/,"")+" Lv"+b.lv;save();if(curView()==="dungeon")renderStage()},1100)}}}
 function battleMiss(subj){const b=S.battle[subj];if(!b)return;if(SAGA[subj]){const sg=sagaState(subj);sg.miss=sg.miss||{};const wid=sagaNow(subj).w.id;sg.miss[wid]=(sg.miss[wid]||0)+1}b.hearts=Math.max(0,(b.hearts||5)-1);FX={t:"miss",subj};FXQ.push(FX);
   if(b.hearts<=0){b.hearts=5;setTimeout(()=>toast("体力回满"),900)}}
 
@@ -1493,7 +1494,7 @@ function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.
   map.append(svg);
   {const fn=arr.find(n=>!n.boss);const fm=cm&&fn?mapWorldAt(subj,cm[fn.id]):null;map.append(h("div",{class:"node",style:{left:xOf(0)+"%",top:"34px"}},h("span",{class:"cap"},"传送点 · "+(fm?(fm.lock?"未知世界":fm.w.name):w.name))))}
   arr.forEach((n,i)=>{const isDone=nodeIsDone(subj,n);const cls="node"+(n.boss?" boss":"")+(isDone?" done":i===ci?" cur":i>ci?" locked":"");let cap,sub,rw;
-    if(n.boss){const b=BOSSES()[n.boss];cap=b.title;sub=isDone?"已击败":b.due?fmtLeft(b.due-now).replace("还剩 ","剩 "):"时间待定";rw=isDone?null:"+"+R(BOSS_PTS)}
+    if(n.boss){const b=BOSSES()[n.boss];cap=b.title;sub=isDone?"已击败":b.due?fmtLeft(b.due-now).replace("还剩 ","剩 "):"时间待定";rw=isDone?null:"+"+PT(BOSS_PTS)}
     else{cap=nodeName(subj,n);sub=isDone?"已通关":n.due?"目标 "+fmtDue(n.due).replace(/ \d\d:\d\d$/,""):i===ci?"当前关卡":"第 "+(i+1)+" 关";rw=isDone?null:"+"+preview(n.pts||NODE_PTS,n.due||null,0).total}
     const debt=!isDone&&n.lec&&n.lec<now;
     map.append(h("button",{class:cls+(debt?" debt":""),style:{left:xOf(i)+"%",top:yOf(i)+"px"},onclick:()=>n.boss?openBossSheet(n.boss):openNodeSheet(subj,n,i),"aria-label":cap},
@@ -2053,7 +2054,7 @@ function openDesign(it){const n=h("input",{type:"text",id:"dname",placeholder:"�
     h("button",{class:"btn go",onclick:()=>{if(!n.value.trim()||!d.value.trim()){toast("名字和设定都要写");return}S.customWorlds.push({name:n.value.trim().slice(0,30),desc:d.value.trim().slice(0,800)});earn(-it.price,"副本设计权 · "+n.value.trim());save();closeSheet();renderAll();toast("设定已收下")}},"写好了（"+it.price+"）"))}
 let SPEND={cur:"cny",amt:"",note:"",cat:"游戏"};
 const SPEND_CAT={cny:["游戏","其他"],usd:["外卖","奶茶","吃饭","购物","其他"]};
-function spendCost(){const a=+SPEND.amt;if(!(a>0))return 0;return r1(SPEND.cur==="cny"?a/CNY_PER_PT:a)}
+function spendCost(){const a=+SPEND.amt;if(!(a>0))return 0;return Math.max(1,Math.round(SPEND.cur==="cny"?a/CNY_PER_PT:a))}
 function renderSpend(){const el=$("#spendCard");if(!el)return;const cost=spendCost();
   const amt=h("input",{type:"number",min:"0",step:"0.01",placeholder:SPEND.cur==="cny"?"实付人民币":"实付美元（含税和小费）",value:SPEND.amt,style:{flex:"1 1 140px"},oninput:e=>{SPEND.amt=e.target.value;upd()}});
   const note=h("input",{type:"text",placeholder:SPEND.cur==="cny"?"买了什么（可不填）":"比如：奶茶、外卖",value:SPEND.note,style:{flex:"2 1 160px"},oninput:e=>{SPEND.note=e.target.value}});
@@ -2061,7 +2062,7 @@ function renderSpend(){const el=$("#spendCard");if(!el)return;const cost=spendCo
     const what=(SPEND.note.trim()||SPEND.cat).slice(0,30);
     S.spend=S.spend||[];S.spend.push({id:uid(),at:Date.now(),cur:SPEND.cur,amt:+(+SPEND.amt).toFixed(2),cat:SPEND.cat,note:SPEND.note.trim().slice(0,30),pts:c});
     earn(-c,"花费 · "+SPEND.cat+(SPEND.note.trim()?" · "+what:"")+" · "+(SPEND.cur==="cny"?"¥":"$")+(+SPEND.amt));SPEND.amt="";SPEND.note="";save();renderAll();toast("已记账，扣 "+fp(c)+" 分")}},"记账扣分");
-  function upd(){const c=spendCost();out.textContent=c?"要扣 "+fp(c)+" 分"+(S.points<c?"，还差 "+fp(c-S.points):"，扣完剩 "+fp(S.points-c)):(SPEND.cur==="cny"?"按实付金额 ÷ 4 扣分，福利金减免的部分不算。":"按实付金额扣分，1 美元 = 1 分。")}
+  function upd(){const c=spendCost();out.textContent=c?"要扣 "+fp(c)+" 分"+(S.points<c?"，还差 "+fp(c-S.points):"，扣完剩 "+fp(S.points-c)):(SPEND.cur==="cny"?"按实付金额 ÷ 4 扣分，四舍五入到整数；福利金减免的部分不算。":"按实付金额扣分，1 美元 = 1 分，四舍五入到整数。")}
   const tab=(k,t)=>h("button",{class:"btn sm"+(SPEND.cur===k?" go":" flat"),onclick:()=>{SPEND.cur=k;SPEND.amt="";SPEND.cat=SPEND_CAT[k][0];renderSpend()}},t);
   const cats=h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap",margin:"8px 0 0"}},SPEND_CAT[SPEND.cur].map(c=>h("button",{class:"btn sm"+(SPEND.cat===c?" go":" flat"),onclick:()=>{SPEND.cat=c;renderSpend()}},c)));
   el.replaceChildren(h("div",{class:"row between"},h("h3",{style:{margin:0}},"花钱记账"),h("div",{class:"row"},tab("cny","人民币 · 游戏充值"),tab("usd","美元 · 外卖奶茶购物"))),
@@ -2100,7 +2101,7 @@ function renderBag(){renderSyncRow();renderArchive();$("#scoreList").replaceChil
 /* ============ guide (小灯) ============ */
 
 /* 早睡：睡前点晚安（目标 00:30 前），第二天早上 6 点后打开网站自动发分；晚安后 15 分钟以上又打开网站就作废 */
-const SLEEP_BY=[0,30],SLEEP_GRACE=15*MIN,SLEEP_PTS=0.5,SLEEP_STREAK_PTS=1;
+const SLEEP_BY=[0,30],SLEEP_GRACE=15*MIN,SLEEP_PTS=1,SLEEP_STREAK_PTS=2;
 function sleepWindow(t=Date.now()){const d=new Date(t);const h=d.getHours(),m=d.getMinutes();
   if(h>=21){const w=new Date(d);w.setDate(w.getDate()+1);w.setHours(6,0,0,0);return{ok:true,wake:w.getTime()}}
   if(h<SLEEP_BY[0]||(h===SLEEP_BY[0]&&m<=SLEEP_BY[1])){const w=new Date(d);w.setHours(6,0,0,0);return{ok:true,wake:w.getTime()}}
@@ -2220,7 +2221,7 @@ comp.addEventListener("drop",e=>{e.preventDefault();comp.classList.remove("drag"
 $("#img").onchange=e=>{addFiles([...e.target.files]);e.target.value=""};$("#driveBtn").onclick=openDrive;$("#libBtn").onclick=openLib;
 $("#clearBtn").onclick=()=>{CHATS[CUR]=[];QUEST[CUR]=null;delete S.battle[CUR];save();saveChat(CUR);renderDungeon()};
 $("#deepBtn").onclick=deepCopy;$("#tStop").onclick=()=>{S.timer=null;save();renderTimer()};
-$("#crAdd").onclick=()=>{const n=$("#crName").value.trim(),p=r1(+$("#crPrice").value);if(!n||!(p>0)){toast("写上名字和价格");return}S.customRewards.push({id:"c"+uid(),name:n.slice(0,30),price:p});$("#crName").value="";$("#crPrice").value="";save();renderAll()};
+$("#crAdd").onclick=()=>{const n=$("#crName").value.trim(),p=Math.round(+$("#crPrice").value);if(!n||!(p>0)){toast("写上名字和价格");return}S.customRewards.push({id:"c"+uid(),name:n.slice(0,30),price:p});$("#crName").value="";$("#crPrice").value="";save();renderAll()};
 $("#syncBtn").onclick=()=>syncCourses(true);
 $("#smSaveBtn").onclick=()=>smFlushClick(CUR);$("#smNowBtn").onclick=()=>smFlushClick();$("#smToggle").onchange=e=>{S.sharedMem=e.target.checked;save();renderBag()};
 setInterval(()=>{tickFocus();if(S.timer){renderTimer();if(S.timer.end<=Date.now()&&!S.timer.rang){S.timer.rang=true;toast("游戏时间到");save()}}},1000);
