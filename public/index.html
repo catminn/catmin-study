@@ -2580,7 +2580,9 @@ setInterval(()=>{if(S.cur)renderTaskBar()},30000);
 const ACTS={hw:"作业",review:"复习资料",material:"课程资料",notes:"老师笔记",ask:"问零"};
 const ACT_TAG={material:"课程资料",notes:"老师笔记",archive:""};
 async function guessSubj(f){if(S.cur)return S.cur.subj;const hay=f.name+"\n"+(await fileText(f)).slice(0,3000);const c=Object.keys(COURSE_RE).find(k=>COURSE_RE[k].test(hay));if(c)return c;
-  const k=hwKey(hay);if(k){const hit=["math","chem","engri","engl"].filter(s=>hwCands(s).some(x=>hwKey(x.title)===k));if(hit.length===1)return hit[0]}return ZW.subj||"math"}
+  const k=hwKey(hay);if(k){const hit=["math","chem","engri","engl"].filter(s=>hwCands(s).some(x=>hwKey(x.title)===k));if(hit.length===1)return hit[0]}return null}
+/* 认不出是哪门课：打开零的窗口问一句 */
+async function askSubj(files){zwOpen(ZW.subj);const v=await zwChoose((files.length>1?files.length+" 个文件":"「"+files[0].name+"」")+"是哪门课的？",Object.keys(SUBJ).map(k=>({t:SUBJ[k].name,v:k,go:k===ZW.subj})));return v||ZW.subj||"math"}
 /* 作业文件认是哪一份：正在做的那份 > 文件名/内容里的编号（HW 9、PS 9、Lab 9…）对上的那份 > 问她 */
 function hwCands(subj){const now=Date.now(),out=[];
   for(const o of occurrences())if(o.subj===subj&&!S.done[o.key]&&o.soft>now-3*DAY)out.push({kind:"occ",key:o.key,subj,title:SUBJ[subj].name+" "+o.title,due:o.soft<now&&o.hard>now?o.hard:o.soft});
@@ -2595,10 +2597,11 @@ function zwChoose(label,opts){return new Promise(res=>{const log=$("#zwLog");if(
   const box=h("div",{class:"zw-choose"},h("div",{class:"q"},label),h("div",{class:"row"},...opts.map(o=>h("button",{class:"btn sm"+(o.go?" go":""),onclick:()=>{box.remove();res(o.v)}},o.t))));
   log.append(box);log.scrollTop=log.scrollHeight})}
 async function doAct(act,list){const files=deskFiles(list);if(!files.length)return;
-  const hay=files.map(f=>f.name).join("\n")+"\n"+(await fileText(files[0])).slice(0,3000);const subj=await guessSubj(files[0]);
+  const hay=files.map(f=>f.name).join("\n")+"\n"+(await fileText(files[0])).slice(0,3000);let subj=await guessSubj(files[0]);
+  let popped=false;if(!subj){if(act in ACT_TAG&&DESK&&DESK.openZero&&EMBED==="zero"){DESK.openZero("");popped=true}subj=await askSubj(files)}
   archiveFiles(subj,list);
   if(act!=="ask"&&act!=="hw")for(const f of files){const t=await fileText(f);if(t&&t.replace(/\s/g,"").length>=40)addDoc(subj,{name:f.name,src:ACTS[act]||"桌面",text:t},true)}
-  if(act in ACT_TAG){const m=(files.length>1?files.length+" 个文件":files[0].name)+" 已存到 "+COURSE[subj]+"、Drive 和资料架"+(ACT_TAG[act]?"（"+ACT_TAG[act]+"）":"");toast(m);if(DESK&&!document.hasFocus()){try{new Notification("学习空间",{body:m,silent:true})}catch(e){}}return}
+  if(act in ACT_TAG){const m=(files.length>1?files.length+" 个文件":files[0].name)+" 已存到 "+COURSE[subj]+"、Drive 和资料架"+(ACT_TAG[act]?"（"+ACT_TAG[act]+"）":"");toast(m);if(DESK&&!document.hasFocus()){try{new Notification("学习空间",{body:m,silent:true})}catch(e){}}if(popped&&DESK.hide)setTimeout(()=>DESK.hide(),1600);return}
   ZW.subj=subj;zwOpen(subj);await zwAddFiles(files);
   if(act==="hw"){let hw=hwGuess(subj,hay);
     if(!hw){const cs=hwCands(subj);if(cs.length){const v=await zwChoose("这是哪份作业？",[...cs.map((c,i)=>({t:c.title.replace(/^(数学|化学|机械|英文)\s*/,""),v:c,go:i===0})),{t:"都不是",v:"none"}]);hw=v&&v!=="none"?v:null}}
