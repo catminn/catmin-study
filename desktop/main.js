@@ -3,7 +3,7 @@
 // - 置顶待办小窗（?embed=todo），半透明
 // - 文件交给零：右键「发送到 → 学习空间」、选中文件按 Ctrl+Alt+Z、拖到小圆上
 // - 托盘菜单；开机自启
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeImage, session, shell, nativeTheme } = require("electron");
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeImage, session, shell, nativeTheme, Notification } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
@@ -404,6 +404,52 @@ ipcMain.on("ring-drop", (e, target, paths) => {
   send(ensureZero(), "files", target === "zero" ? "zero" : "zero:" + target, list);
 });
 
+// ---------- 下载自动收纳：盯着“下载”文件夹，课程文件交给零判断是哪门课，再移到 桌面\Cornell\<课程> ----------
+const INBOX_EXT = /\.(pdf|docx?|pptx?|xlsx?|txt|md|png|jpe?g|heic|zip)$/i;
+let inboxWatcher = null, lastInbox = null;
+const inboxTimers = new Map();
+function startInbox() {
+  if (inboxWatcher || conf.inboxOff) return;
+  const dir = app.getPath("downloads");
+  try {
+    inboxWatcher = fs.watch(dir, (ev, name) => {
+      if (!name || !INBOX_EXT.test(name) || /\.(crdownload|part|tmp|download)$/i.test(name)) return;
+      const p = path.join(dir, name);
+      clearTimeout(inboxTimers.get(p));
+      inboxTimers.set(p, setTimeout(() => settleInbox(p, -1), 2500));
+    });
+  } catch (e) { inboxWatcher = null; }
+}
+function stopInbox() { if (inboxWatcher) { try { inboxWatcher.close(); } catch (e) {} inboxWatcher = null; } }
+function settleInbox(p, lastSize) {
+  inboxTimers.delete(p);
+  let st; try { st = fs.statSync(p); } catch (e) { return; }
+  if (!st.isFile() || st.size === 0 || st.size > MAX_FILE) return;
+  if (Date.now() - st.birthtimeMs > 10 * 60 * 1000 && Date.now() - st.mtimeMs > 10 * 60 * 1000) return; // 只管新下载的
+  if (st.size !== lastSize) { inboxTimers.set(p, setTimeout(() => settleInbox(p, st.size), 1500)); return; } // 还在写
+  const list = readFiles([p]); if (!list.length) return;
+  list[0].src = p;
+  send(ensureZero(), "files", "inbox", list);
+}
+ipcMain.handle("inbox-place", (e, src, course, name) => {
+  try {
+    if (!src || !fs.existsSync(src)) return "";
+    const dir = courseDir(course), size = fs.statSync(src).size;
+    let dest = freeName(dir, name || path.basename(src), size);
+    if (!dest) { fs.unlinkSync(src); dest = path.join(dir, name || path.basename(src)); } // 课程文件夹里已经有同一个文件
+    else { try { fs.renameSync(src, dest); } catch (err) { fs.copyFileSync(src, dest); fs.unlinkSync(src); } }
+    lastInbox = { from: src, to: dest };
+    try { new Notification({ title: "已收纳到 " + course, body: path.basename(dest), icon: ICON, silent: true }).show(); } catch (err) {}
+    refreshMenu();
+    return dest;
+  } catch (err) { return ""; }
+});
+function undoInbox() {
+  if (!lastInbox) return;
+  try { if (fs.existsSync(lastInbox.to) && !fs.existsSync(lastInbox.from)) fs.renameSync(lastInbox.to, lastInbox.from); } catch (e) {}
+  lastInbox = null; refreshMenu();
+}
+
 // ---------- 托盘 ----------
 function menu() {
   return Menu.buildFromTemplate([
@@ -419,6 +465,8 @@ function menu() {
       { type: "separator" },
       ...Object.entries(RING_MODS).map(([k, t]) => ({ label: "按住 " + t, type: "radio", checked: (conf.ringMod || "shift") === k, click: () => { conf.ringMod = k; saveConf(); refreshMenu(); } })),
     ] },
+    { label: "自动收纳下载的课程文件", type: "checkbox", checked: !conf.inboxOff, click: (i) => { conf.inboxOff = !i.checked; saveConf(); if (i.checked) startInbox(); else stopInbox(); } },
+    { label: lastInbox ? "撤销上次收纳（" + path.basename(lastInbox.to).slice(0, 24) + "）" : "撤销上次收纳", enabled: !!lastInbox, click: undoInbox },
     { label: "开机启动", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
     { label: hotkey ? "设置快捷键…（现在是 " + keyName(hotkey) + "）" : "设置快捷键…（现在没有）", click: openHotkeyWin },
     { type: "separator" },
@@ -455,6 +503,7 @@ app.whenReady().then(() => {
   registerHotkey(conf.hotkey);
   createRing();
   startRingHook();
+  startInbox();
   const files = filesFromArgv(process.argv);
   if (files.length) deliverPaths(files);
   screen.on("display-metrics-changed", () => { if (bubble && !onScreen({ x: bubble.getPosition()[0], y: bubble.getPosition()[1] })) { const a = workArea(); bubble.setPosition(a.x + a.width - BUB - 2, a.y + a.height - BUB - 2); } });

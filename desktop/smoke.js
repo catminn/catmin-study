@@ -39,6 +39,11 @@ module.exports = async (h) => {
     log("docked", JSON.stringify(h.todo.getBounds()), await h.todo.webContents.executeJavaScript("document.body.className"));
     h.todo.webContents.sendInputEvent({ type: "mouseEnter", x: 5, y: 20 }); h.todo.webContents.sendInputEvent({ type: "mouseMove", x: 5, y: 20 }); await wait(600);
     log("from dock", JSON.stringify(h.todo.getBounds()), await h.todo.webContents.executeJavaScript("document.body.className"));
+    const dl = app.getPath("downloads"); fs.mkdirSync(dl, { recursive: true });
+    fs.writeFileSync(path.join(dl, "Lecture 23 notes.txt"), "CHEM 2090 Lecture 23: Le Chatelier's principle and equilibrium shifts. " + "x".repeat(80));
+    fs.writeFileSync(path.join(dl, "game-setup.zip"), "zipzip");
+    await wait(7000);
+    log("inbox", JSON.stringify(fs.readdirSync(path.join(app.getPath("desktop"), "Cornell"), { recursive: true })), "| downloads:", JSON.stringify(fs.readdirSync(dl)));
     h.openHotkeyWin(); await wait(1500);
     const { BrowserWindow } = require("electron");
     const hw = BrowserWindow.getAllWindows().find((w) => /hotkey\.html/.test(w.webContents.getURL()));

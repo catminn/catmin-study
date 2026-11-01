@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("zsDesktop", {
   setPin: (v) => ipcRenderer.send("set-pin", !!v),
   getPin: () => ipcRenderer.invoke("get-pin"),
   badge: (n) => ipcRenderer.send("badge", Number(n) || 0),
+  inboxPlace: (src, course, name) => ipcRenderer.invoke("inbox-place", String(src), String(course), String(name || "")),
   saveLocal: (subj, course, list) => ipcRenderer.invoke("save-local", String(course), list),
   savePdf: (subj, course, name, html) => ipcRenderer.invoke("save-pdf", String(course), String(name), String(html)),
   onPull: (cb) => ipcRenderer.on("pull", () => cb()),

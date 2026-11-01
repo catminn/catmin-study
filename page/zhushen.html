@@ -2371,6 +2371,7 @@ async function zwAddFiles(files){for(const f of files){const nm=f.name||"文件"
 function pickArchive(list){const wrap=h("div",{class:"zw-pick"},h("div",{class:"box"},h("b",null,"存到哪一科："+list.map(f=>f.name).join("、").slice(0,60)),
     h("div",{class:"row"},...Object.keys(SUBJ).map(k=>h("button",{class:"btn",onclick:()=>{wrap.remove();archiveFiles(k,list);if(DESK)setTimeout(()=>DESK.hide(),1500)}},SUBJ[k].name))),h("button",{class:"btn flat sm",onclick:()=>{wrap.remove();if(DESK)DESK.hide()}},"算了")));document.body.append(wrap)}
 function deskDeliver(target,list){const files=deskFiles(list);if(!files.length)return;
+  if(target==="inbox"){for(const it of list)inboxFile(it);return}
   if(target==="archive"){pickArchive(list);return}
   {const m=/^zero:(\w+)$/.exec(target);if(m&&SUBJ[m[1]]){ZW.subj=m[1];zwRender();target="zero"}}
   archiveFiles(SUBJ[target]?target:ZW.subj,list);
@@ -2440,6 +2441,32 @@ async function archiveFiles(subj,list){if(!SUBJ[subj]||!list||!list.length)retur
   if(DESK&&DESK.saveLocal){try{local=await DESK.saveLocal(subj,COURSE[subj],list)}catch(e){}}
   for(const f of list){const r=await driveUpload(subj,f.name,f.type,f.data);if(r&&r.id)drive++}
   if(local||drive)toast("已存到"+(local?" 桌面 Cornell\\"+COURSE[subj]:"")+(local&&drive?" 和":"")+(drive?" Drive":""))}
+
+
+/* 下载自动收纳：桌面程序发现“下载”里多了文件，交给这里判断是哪门课，再让桌面程序移到 Cornell\<课程>、传 Drive、进资料架 */
+async function fileText(f){const nm=f.name||"";const ext=(nm.split(".").pop()||"").toLowerCase();
+  try{if(ext==="pdf"||f.type==="application/pdf"){const doc=await pdfDoc(f);return await pdfText(doc)}
+    if(ext==="docx"){await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");return(await window.mammoth.extractRawText({arrayBuffer:await f.arrayBuffer()})).value}
+    if(/^(txt|md|csv|tex)$/.test(ext))return await f.text()}catch(e){}return""}
+const COURSE_RE={math:/\bMATH\s*-?\s*1920\b/i,chem:/\bCHEM\s*-?\s*209[01]\b/i,engri:/\bENGRI\s*-?\s*1170\b/i,engl:/\bENGL\s*-?\s*1111\b/i};
+async function inboxFile(item){const f=deskFiles([item])[0];if(!f||!DESK||!DESK.inboxPlace)return;
+  const text=await fileText(f);const hay=f.name+"\n"+text.slice(0,4000);
+  let subj=Object.keys(COURSE_RE).find(k=>COURSE_RE[k].test(hay))||null;
+  if(!subj&&SAMPLE){try{const topics=k=>(MAIN[k]||[]).filter(n=>!n.boss).slice(0,8).map(n=>nodeName(k,n)).join("、");
+      const j=await SAMPLE.json(`Catherine 刚从网上下载了一个文件，判断它属于她这学期哪门课。课程：
+math = MATH 1920 多元微积分（${topics("math")}）
+chem = CHEM 2090/2091 普通化学和实验（${topics("chem")}）
+engri = ENGRI 1170 机械工程导论
+engl = ENGL 1111 Modern Fantasy Media（奇幻作品、写作研讨课）
+文件名：${f.name}
+${text?"开头的内容：\n"+text.slice(0,1800):"（读不出文字，只能看文件名）"}
+明显属于其中一门课才回答，拿不准、或者看起来和学习无关（安装包、随手存的图片、表格模板等）就写 null。只回复 JSON：{"subj":"math|chem|engri|engl|null"}`,{cache:false});
+      if(j&&SUBJ[j.subj])subj=j.subj}catch(e){}}
+  if(!subj)return;
+  const dest=await DESK.inboxPlace(item.src,COURSE[subj],f.name);if(!dest)return;
+  if(text&&text.replace(/\s/g,"").length>=40)addDoc(subj,{name:f.name,src:"下载收纳",text},true);
+  smEvent("收纳了 "+f.name,subj);save();
+  driveUpload(subj,f.name,f.type,item.data)}
 
 /* 待办小窗 */
 function undoDone(key,label){const d=S.done[key];if(!d)return;delete S.done[key];if(d.pts)earn(-d.pts,"撤销 · "+label);save();renderAll()}
