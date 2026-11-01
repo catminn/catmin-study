@@ -1,7 +1,9 @@
 // Spoiler-free author QA helper. Never render or persist the comparison key.
 // Conservative equivalence: invisible formatting or terminal punctuation alone is not a narrative difference.
 // Keep internal punctuation: it can change meaning. Match route-response author QA semantics.
-const ignorable = /[\u00ad\u034f\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\ufe00-\ufe0f\u{e0100}-\u{e01ef}]/gu;
+// Use the same Unicode-wide rule as route-response author QA; a partial list
+// misses Hangul fillers and Khmer inherent-vowel signs that render invisibly.
+const ignorable = /\p{Default_Ignorable_Code_Point}/gu;
 
 export function npcDialogueComparisonKey(text) {
   if (typeof text !== 'string') return null;
