@@ -54,6 +54,7 @@
   document.addEventListener("dragleave", () => mark(-1));
   document.addEventListener("drop", (e) => { e.preventDefault(); const i = which(e); window.ring.drop(i >= 0 ? SEG[i].k : "", e.dataTransfer.files); });
   window.ring.onGlass && window.ring.onGlass((v) => document.body.classList.toggle("glass", v));
+  window.ring.onHl && window.ring.onHl((k) => { const i = SEG.findIndex((s) => s.k === k); if (i === cur) return; cur = i; els.forEach((p, j) => p.classList.toggle("on", j === i)); });
   window.ring.onShow(() => { mark(-1); g.style.animation = "none"; void g.offsetWidth; g.style.animation = ""; });
 </script>
 </body></html>

@@ -329,7 +329,7 @@ function readFiles(paths) {
       if (st.size > MAX_FILE) continue;
       const buf = fs.readFileSync(p);
       const ext = path.extname(p).slice(1).toLowerCase();
-      out.push({ name: path.basename(p), type: MIME[ext] || "", data: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) });
+      out.push({ name: path.basename(p), type: MIME[ext] || "", src: p, data: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) });
     } catch (e) {}
   }
   return out;
@@ -379,8 +379,22 @@ function freeName(dir, name, size) {
 }
 ipcMain.handle("save-local", (e, course, list) => {
   const dir = courseDir(course); let n = 0;
+  const dl = app.getPath("downloads").toLowerCase() + path.sep, lc = (x) => path.resolve(x).toLowerCase();
   for (const f of (list || []).slice(0, 6)) {
-    try { const buf = Buffer.from(f.data); const p = freeName(dir, f.name, buf.length); if (p) fs.writeFileSync(p, buf); n++; } catch (err) {}
+    try {
+      const buf = Buffer.from(f.data);
+      if (f.src && fs.existsSync(f.src)) {
+        // 本来就在 Cornell\<课程> 里：不再复制一份（Drive 照传）
+        if (lc(path.dirname(f.src)) === lc(dir)) { n++; continue; }
+        // 从“下载”里拖来的：直接搬进课程文件夹（下载里不留）
+        if (lc(f.src).startsWith(dl)) {
+          const p = freeName(dir, f.name, buf.length);
+          if (p) { try { fs.renameSync(f.src, p); } catch (err) { fs.copyFileSync(f.src, p); fs.unlinkSync(f.src); } }
+          n++; continue;
+        }
+      }
+      const p = freeName(dir, f.name, buf.length); if (p) fs.writeFileSync(p, buf); n++;
+    } catch (err) {}
   }
   return n;
 });
@@ -444,7 +458,9 @@ function showRing(x, y) {
   const p = toDip(x, y);
   ring.setBounds({ x: Math.round(p.x - RING / 2), y: Math.round(p.y - RING / 2), width: RING, height: RING });
 
-  ringHoverKey = ""; ring.webContents.send("ring-show"); ring.showInactive(); ringShown = true;
+  ringHoverKey = ""; ringCenter = { x: p.x, y: p.y };
+  ringSel = process.platform === "win32" ? explorerSelection() : Promise.resolve([]); // 趁资源管理器还在前台，先把选中的文件记下来
+  ring.webContents.send("ring-show"); ring.showInactive(); ringShown = true;
 }
 function hideRing(delay) { clearTimeout(ringHideT); ringHideT = setTimeout(() => { if (ring && !ring.isDestroyed()) ring.hide(); ringShown = false; }, delay || 0); }
 // 转盘按键：默认 Shift（Ctrl 留给 Filee）。按住它拖文件就出转盘
@@ -460,24 +476,36 @@ function startRingHook() {
   try { ({ uIOhook: hook } = require("uiohook-napi")); } catch (e) { hook = null; return; }
   hook.on("mousedown", (e) => { ringDown = (e.button === 1 && ringMod(e)) ? { x: e.x, y: e.y } : null; });
   hook.on("mousemove", (e) => {
-    if (!ringDown || ringShown) return;
+    if (ringShown) { const k = ringSector(e.x, e.y); if (k !== ringHoverKey) { ringHoverKey = k; if (ring && !ring.isDestroyed()) ring.webContents.send("ring-hl", k); } return; }
+    if (!ringDown) return;
     if (Math.hypot(e.x - ringDown.x, e.y - ringDown.y) > 14) showRing(ringDown.x, ringDown.y);
   });
-  hook.on("mouseup", () => {
+  hook.on("mouseup", (e) => {
     ringDown = null;
     if (!ringShown) return;
-    hideRing(350);
-    // 保险：有时候 Windows 不把文件“放下”给转盘。松手后 0.5 秒还没收到，就按鼠标停在哪一格，去资源管理器里拿选中的文件
-    const k = ringHoverKey, t0 = Date.now();
-    if (k && process.platform === "win32") setTimeout(async () => {
-      if (ringDropAt >= t0) return;
-      const paths = await explorerSelection();
+    // 松手在哪一格由鼠标位置算（不靠 Windows 的拖放，那个在你电脑上收不到）；文件是开始拖时资源管理器里选中的那些
+    const k = ringSector(e.x, e.y) || ringHoverKey, t0 = Date.now(), sel = ringSel;
+    hideRing(120);
+    if (!k) return;
+    setTimeout(async () => {
+      if (ringDropAt >= t0) return; // 页面已经收到真正的拖放
+      const paths = sel ? await sel : [];
       if (paths.length && ringDropAt < t0) handleRingDrop(k, paths);
-    }, 500);
+      else if (!paths.length) note("没拿到文件", "转盘目前只支持从文件夹窗口（资源管理器）里拖文件。从桌面拖的话，先打开 桌面 文件夹再拖。");
+    }, 250);
   });
   try { hook.start(); } catch (e) { hook = null; }
 }
-let ringHoverKey = "", ringDropAt = 0;
+let ringHoverKey = "", ringDropAt = 0, ringSel = null, ringCenter = null;
+// 和 ring.html 一样的五格：从正上方顺时针
+const RING_KEYS = ["hw", "review", "material", "notes", "ask"];
+function ringSector(px, py) {
+  if (!ringCenter) return "";
+  const p = toDip(px, py), x = p.x - ringCenter.x, y = p.y - ringCenter.y, d = Math.hypot(x, y), s = RING / 300, N = RING_KEYS.length;
+  if (d < 52 * s || d > 150 * s) return "";
+  let a = Math.atan2(y, x) + Math.PI / 2 + Math.PI / N; a = ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  return RING_KEYS[Math.floor(a / (2 * Math.PI / N))] || "";
+}
 ipcMain.on("ring-hover", (e, k) => { ringHoverKey = String(k || ""); });
 ipcMain.on("ring-drop", (e, target, paths) => {
   hideRing(0); ringDropAt = Date.now();

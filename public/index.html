@@ -448,6 +448,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 .zw-m.a{align-self:flex-start;background:var(--panel2);border-radius:4px 14px 14px 14px}
 .zw-m.u{align-self:flex-end;background:var(--fg);color:var(--panel);border-radius:14px 4px 14px 14px;white-space:pre-wrap}
 .zw-m p{margin:.35em 0}.zw-m p:first-child{margin-top:0}.zw-m p:last-child{margin-bottom:0}.zw-m mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%}
+.zw-choose{align-self:stretch;display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:12px;background:var(--gl-card,var(--panel2))}.zw-choose .q{font-size:13px;color:var(--dim)}.zw-choose .row{display:flex;flex-wrap:wrap;gap:6px}
 .zw-hint{align-self:center;font-size:13px;color:var(--dim);text-align:center;padding:20px 8px}
 .zw-in{display:flex;gap:6px;align-items:flex-end;padding:8px;border-top:1px solid var(--line)}
 .zw-in textarea{flex:1;min-width:0;resize:none;max-height:120px;background:var(--panel2);color:var(--fg);border:0;border-radius:12px;padding:8px 10px;font-size:15px;line-height:1.5}
@@ -2547,7 +2548,7 @@ ${text?"开头的内容：\n"+text.slice(0,1800):"（读不出文字，只能看
 function curItem(){const c=S.cur;if(!c)return null;if(c.kind==="occ")return occurrences().find(o=>o.key===c.key)||null;if(c.kind==="cv")return SIDE.find(q=>"cv-"+q.id===c.key)||null;return(S.todos||[]).find(t=>t.id===c.key)||null}
 function curMinutes(){const c=S.cur;if(!c)return 0;return Math.round(((c.spent||0)+(c.start?Date.now()-c.start:0))/MIN)}
 function zwSay(text){ZW.turns.push({role:"assistant",content:text,at:Date.now()});zwSave();zwRender()}
-function beginTask(kind,key,subj,title){
+function beginTask(kind,key,subj,title,quiet){
   if(kind==="occ"&&!S.started[key]){S.started[key]=Date.now();const o=occurrences().find(x=>x.key===key);if(o&&(o.soft-Date.now())/HOUR>=48){S.cards.makeup++;S.ledger.push({at:Date.now(),d:0,t:"开荒奖励 · "+title+" · 补签卡 +1"});toast("开荒奖励：补签卡 +1")}}
   if(S.cur&&S.cur.key!==key)pauseTask(true);
   const old=S.cur&&S.cur.key===key?S.cur:null;
@@ -2555,7 +2556,7 @@ function beginTask(kind,key,subj,title){
   if(S.pausedTasks)delete S.pausedTasks[key];save();
   ZW.subj=S.cur.subj;
   if(DESK&&EMBED!=="zero"){DESK.openZero("#task");return}
-  zwOpen(S.cur.subj);zwSay("开始做「"+title+"」。把第一题截图发给我（拖到小圆上、按快捷键，或者直接贴进来都行）。");renderAll()}
+  zwOpen(S.cur.subj);if(!quiet)zwSay("开始做「"+title+"」。把第一题截图发给我（拖到小圆上、按快捷键，或者直接贴进来都行）。");renderAll()}
 function pauseTask(silent){const c=S.cur;if(!c)return;S.pausedTasks=S.pausedTasks||{};S.pausedTasks[c.key]=(c.spent||0)+(Date.now()-c.start);S.cur=null;save();if(!silent){zwSay("先放下「"+c.title+"」，已经做了 "+Math.round(S.pausedTasks[c.key]/MIN)+" 分钟，下次接着算。");renderAll()}}
 async function finishTask(){const c=S.cur;if(!c)return;const min=curMinutes();const it=curItem();
   S.timeLog=S.timeLog||[];S.timeLog.push({kind:c.kind==="occ"&&it&&it.r?it.r.id:c.kind,subj:c.subj,title:c.title,min,at:Date.now()});S.timeLog=S.timeLog.slice(-120);
@@ -2578,13 +2579,35 @@ setInterval(()=>{if(S.cur)renderTaskBar()},30000);
 /* 文件交给零：转盘、快捷键、拖到小圆都是这几种。文件一般是整份的：作业清单、复习资料/模拟卷、课程资料、老师笔记 */
 const ACTS={hw:"作业",review:"复习资料",material:"课程资料",notes:"老师笔记",ask:"问零"};
 const ACT_TAG={material:"课程资料",notes:"老师笔记",archive:""};
-async function guessSubj(f){if(S.cur)return S.cur.subj;const hay=f.name+"\n"+(await fileText(f)).slice(0,3000);return Object.keys(COURSE_RE).find(k=>COURSE_RE[k].test(hay))||ZW.subj||"math"}
-async function doAct(act,list){const files=deskFiles(list);if(!files.length)return;const subj=await guessSubj(files[0]);
+async function guessSubj(f){if(S.cur)return S.cur.subj;const hay=f.name+"\n"+(await fileText(f)).slice(0,3000);const c=Object.keys(COURSE_RE).find(k=>COURSE_RE[k].test(hay));if(c)return c;
+  const k=hwKey(hay);if(k){const hit=["math","chem","engri","engl"].filter(s=>hwCands(s).some(x=>hwKey(x.title)===k));if(hit.length===1)return hit[0]}return ZW.subj||"math"}
+/* 作业文件认是哪一份：正在做的那份 > 文件名/内容里的编号（HW 9、PS 9、Lab 9…）对上的那份 > 问她 */
+function hwCands(subj){const now=Date.now(),out=[];
+  for(const o of occurrences())if(o.subj===subj&&!S.done[o.key]&&o.soft>now-3*DAY)out.push({kind:"occ",key:o.key,subj,title:SUBJ[subj].name+" "+o.title,due:o.soft<now&&o.hard>now?o.hard:o.soft});
+  for(const q of SIDE)if(q.subj===subj&&!S.done["cv-"+q.id]&&q.due>now-3*DAY)out.push({kind:"cv",key:"cv-"+q.id,subj,title:q.title,due:q.due});
+  for(const t of S.todos||[])if(!t.done&&(!t.subj||t.subj===subj))out.push({kind:"todo",key:t.id,subj:t.subj||subj,title:t.t,due:t.due||now+30*DAY});
+  return out.sort((a,b)=>a.due-b.due).slice(0,6)}
+const HW_NUM=/\b(hw|homework|ps|problem\s*set|pset|lab|discussion|disc|quiz|作业)\s*#?\s*0*(\d{1,2})\b/i;
+function hwKey(t){const m=HW_NUM.exec(String(t||""));if(!m)return null;let k=m[1].toLowerCase().replace(/\s+/g,"");if(k==="homework"||k==="作业")k="hw";if(k==="problemset"||k==="pset")k="ps";if(k==="disc")k="discussion";return k+m[2]}
+function hwGuess(subj,hay){if(S.cur&&S.cur.subj===subj)return hwCands(subj).find(c=>c.key===S.cur.key)||{kind:S.cur.kind,key:S.cur.key,subj,title:S.cur.title};
+  const k=hwKey(hay);if(!k)return null;const hits=hwCands(subj).filter(c=>hwKey(c.title)===k);return hits.length===1?hits[0]:null}
+function zwChoose(label,opts){return new Promise(res=>{const log=$("#zwLog");if(!log){res(null);return}
+  const box=h("div",{class:"zw-choose"},h("div",{class:"q"},label),h("div",{class:"row"},...opts.map(o=>h("button",{class:"btn sm"+(o.go?" go":""),onclick:()=>{box.remove();res(o.v)}},o.t))));
+  log.append(box);log.scrollTop=log.scrollHeight})}
+async function doAct(act,list){const files=deskFiles(list);if(!files.length)return;
+  const hay=files.map(f=>f.name).join("\n")+"\n"+(await fileText(files[0])).slice(0,3000);const subj=await guessSubj(files[0]);
   archiveFiles(subj,list);
-  if(act in ACT_TAG){const m=(files.length>1?files.length+" 个文件":files[0].name)+" 已存到 "+COURSE[subj]+(ACT_TAG[act]?"（"+ACT_TAG[act]+"）":"");toast(m);if(DESK&&!document.hasFocus()){try{new Notification("学习空间",{body:m,silent:true})}catch(e){}}return}
+  if(act!=="ask"&&act!=="hw")for(const f of files){const t=await fileText(f);if(t&&t.replace(/\s/g,"").length>=40)addDoc(subj,{name:f.name,src:ACTS[act]||"桌面",text:t},true)}
+  if(act in ACT_TAG){const m=(files.length>1?files.length+" 个文件":files[0].name)+" 已存到 "+COURSE[subj]+"、Drive 和资料架"+(ACT_TAG[act]?"（"+ACT_TAG[act]+"）":"");toast(m);if(DESK&&!document.hasFocus()){try{new Notification("学习空间",{body:m,silent:true})}catch(e){}}return}
   ZW.subj=subj;zwOpen(subj);await zwAddFiles(files);
-  const msg={hw:(S.cur?"这是「"+S.cur.title+"」的作业清单。":"这是一份作业清单。")+"把里面每一道题在回复最后各写一行 [题目]（只给了教材题号的，按题号写出原题内容；找不到原题就写题号和要求）。正文只说：一共几道、哪天截止、按我的速度大概要多久、建议从哪道开始。先不要讲题。",
-    review:"这是复习资料 / 模拟卷。按考点整理：每个考点一句话，后面列出对应的题号；标出最可能考的 3 个；最后问我想先练哪一个。先不要讲题。"}[act];
+  if(act==="hw"){let hw=hwGuess(subj,hay);
+    if(!hw){const cs=hwCands(subj);if(cs.length){const v=await zwChoose("这是哪份作业？",[...cs.map((c,i)=>({t:c.title.replace(/^(数学|化学|机械|英文)\s*/,""),v:c,go:i===0})),{t:"都不是",v:"none"}]);hw=v&&v!=="none"?v:null}}
+    if(hw){S.hwFiles=S.hwFiles||{};S.hwFiles[hw.key]=[...new Set([...(S.hwFiles[hw.key]||[]),...files.map(f=>f.name)])].slice(-8);save()}
+    const name=hw?"「"+hw.title+"」":"";
+    if(SAMPLE)await zwSend("这是"+(name||"一份作业")+"的作业清单。把里面每一道题在回复最后各写一行 [题目]（只给了教材题号的，按题号写出原题内容；找不到原题就写题号和要求）。正文只说：一共几道、哪天截止、按我的速度大概要多久、建议从哪道开始。先不要讲题。");
+    if(hw&&!(S.cur&&S.cur.key===hw.key)){const go=await zwChoose("现在开始做"+name+"吗？",[{t:"开始做",v:1,go:true},{t:"先不",v:0}]);if(go)beginTask(hw.kind,hw.key,hw.subj,hw.title,true)}
+    return}
+  const msg={review:"这是复习资料 / 模拟卷。按考点整理：每个考点一句话，后面列出对应的题号；标出最可能考的 3 个；最后问我想先练哪一个。先不要讲题。"}[act];
   if(msg&&SAMPLE)zwSend(msg);else setTimeout(()=>$("#zwInput")&&$("#zwInput").focus(),50)}
 function pickTarget(list){const box=h("div",{class:"box"},h("b",null,(S.cur?"正在做 "+S.cur.title+" · ":"")+list.map(f=>f.name).join("、").slice(0,50)),
     h("div",{class:"row"},...Object.keys(ACTS).map(k=>h("button",{class:"btn"+(k==="hw"?" go":""),onclick:()=>{wrap.remove();doAct(k,list)}},ACTS[k]))),
