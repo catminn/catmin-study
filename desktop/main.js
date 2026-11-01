@@ -8,7 +8,7 @@ const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const os = require("os");
-const { applyGlass, roundRegion } = require("./glass");
+const { applyGlass, roundRegion, shapeRegion } = require("./glass");
 const dark = () => nativeTheme.shouldUseDarkColors;
 
 const SITE = process.env.ZS_SITE || "https://study.catmin.io/";
@@ -197,7 +197,21 @@ ipcMain.on("open-zero", (e, cmd) => showZero(typeof cmd === "string" ? cmd : "")
 ipcMain.on("to-main", (e, subj, list) => { const w = openMain("#dungeon"); send(w, "files", String(subj), list); });
 // 待办三种状态：full 展开的列表；mini 小标签；dock 吸在屏幕边上的书签（像 360 加速球那样藏进屏幕边）
 // 拖到离屏幕上边、左边或右边 24px 以内就吸住；鼠标移上去从边上滑出列表，移开缩回去
-const MINI = { width: 96, height: 30 }, DOCK = 24, DOCK_LEN = 84, SNAP = 24; // 书签：贴边那一侧 24 宽、84 长，上面写“待办 N”
+const MINI = { width: 22, height: 34 }, DOCK = 34, DOCK_LEN = 22, SNAP = 24; // 收起来是一枚燕尾书签：22 宽、34 长，尾巴朝屏幕里
+// 书签的形状（窗口里的坐标）：贴边一侧是直边，另一头剪出燕尾缺口
+const NOTCH = 7;
+function tabShape(mode, edge) {
+  if (mode === "dock" && edge === "left") return [[0, 0], [DOCK, 0], [DOCK - NOTCH, DOCK_LEN / 2], [DOCK, DOCK_LEN], [0, DOCK_LEN]];
+  if (mode === "dock" && edge === "right") return [[0, 0], [DOCK, 0], [DOCK, DOCK_LEN], [0, DOCK_LEN], [NOTCH, DOCK_LEN / 2]];
+  return [[0, 0], [DOCK_LEN, 0], [DOCK_LEN, DOCK], [DOCK_LEN / 2, DOCK - NOTCH], [0, DOCK]];
+}
+let shapeT = null;
+function applyTabShape() {
+  clearTimeout(shapeT);
+  if (!todo || todo.isDestroyed() || !todo._glass) return;
+  if (todoState === "full") shapeRegion(todo, null, 2);
+  else shapeRegion(todo, tabShape(todoState, conf.todoDock && conf.todoDock.edge));
+}
 let todoState = "full";
 const fullSize = () => (conf.todo && conf.todo.width > MINI.width + 20 ? conf.todo : { width: 280, height: 320 });
 function edgeOf(b) {
@@ -243,12 +257,14 @@ function setTodoMode(mode) {
     // 从书签处展开：先把窗口放到展开位置但只露出书签那么大，再往外拉开
     const k = conf.todoDock, r = todo.getBounds();
     const start = k.edge === "top" ? { x: to.x, y: to.y, width: to.width, height: DOCK } : k.edge === "left" ? { x: to.x, y: to.y, width: DOCK, height: to.height } : { x: to.x + to.width - DOCK, y: to.y, width: DOCK, height: to.height };
-    todoState = "full"; tellTodo(); todo.setResizable(true); todo.setBounds(start); animateBounds(todo, to, 180);
+    todoState = "full"; tellTodo(); applyTabShape(); todo.setResizable(true); todo.setBounds(start); animateBounds(todo, to, 180);
     return;
   }
   todoState = mode; tellTodo();
   if (mode !== "full") todo.setResizable(false); else todo.setResizable(true);
+  if (mode === "full") applyTabShape();
   animateBounds(todo, to, mode === "full" ? 140 : 160);
+  if (mode !== "full") shapeT = setTimeout(applyTabShape, 190); // 缩到位以后再裁成书签形状
 }
 ipcMain.on("todo-mode", (e, mode) => setTodoMode(mode));
 // 鼠标位置由主进程盯着：移进来就展开，移出去 0.6 秒后收起（页面里正在输入时不收）

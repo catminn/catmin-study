@@ -20,6 +20,7 @@ function load() {
       combine: gdi.func("int __stdcall CombineRgn(intptr_t dst, intptr_t a, intptr_t b, int mode)"),
       del: gdi.func("bool __stdcall DeleteObject(intptr_t obj)"),
       setRgn: user32.func("int __stdcall SetWindowRgn(intptr_t hwnd, intptr_t rgn, bool redraw)"),
+      poly: gdi.func("intptr_t __stdcall CreatePolygonRgn(_In_ int *pts, int n, int mode)"),
     };
   } catch (e) { api = null; }
   return api;
@@ -55,4 +56,18 @@ function roundRegion(win, cx, cy, r, r0) {
     return true;
   } catch (e) { return false; }
 }
-module.exports = { applyGlass, roundRegion };
+// 把窗口裁成多边形（书签形状）。pts 是窗口里的逻辑坐标 [[x,y],...]；传 null 恢复成整个窗口
+function shapeRegion(win, pts, corner) {
+  const a = load();
+  if (!a || !win || win.isDestroyed()) return false;
+  try {
+    const hwnd = hwndOf(win);
+    try { a.dwmSet(hwnd, 33, [pts ? 1 : (corner == null ? 2 : corner)], 4); } catch (e) {}
+    if (!pts) { a.setRgn(hwnd, 0, true); return true; }
+    const s = screen.getDisplayMatching(win.getBounds()).scaleFactor || 1;
+    const flat = []; for (const [x, y] of pts) flat.push(Math.round(x * s), Math.round(y * s));
+    a.setRgn(hwnd, a.poly(flat, pts.length, 2), true);
+    return true;
+  } catch (e) { return false; }
+}
+module.exports = { applyGlass, roundRegion, shapeRegion };

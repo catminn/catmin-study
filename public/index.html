@@ -2391,6 +2391,14 @@ body.embed-zero.glass .zw-panel{background:var(--gl-bg);border:1px solid var(--g
 body.embed-zero.glass .zw-head,body.embed-zero.glass .zw-in,body.embed-zero.glass #zwTask{border-color:var(--gl-sep);background:transparent}
 body.embed-zero.glass .zw-in textarea,body.embed-zero.glass .zw-in textarea:focus{outline:none;border:0;box-shadow:inset 0 0 0 1px var(--gl-line)}
 body.embed-zero.glass .zw-m.a,body.embed-zero.glass .zw-in textarea,body.embed-zero.glass .zw-t select,body.embed-zero.glass .zw-head .zface{background:var(--gl-card)}
+/* 燕尾书签 */
+.td-tab{display:none;position:fixed;inset:0;pointer-events:none}.td-tab svg{width:100%;height:100%;display:block}
+body.embed{--tab-a:color-mix(in oklab,var(--panel) 92%,transparent);--tab-b:color-mix(in oklab,var(--panel) 80%,transparent);--tab-line:color-mix(in oklab,var(--fg) 16%,transparent);--tab-edge:transparent}
+body.embed.glass{--tab-a:rgba(255,255,255,.42);--tab-b:rgba(255,255,255,.16);--tab-line:rgba(255,255,255,.75);--tab-edge:rgba(20,24,40,.16)}
+@media (prefers-color-scheme:dark){body.embed.glass{--tab-a:rgba(255,255,255,.16);--tab-b:rgba(255,255,255,.05);--tab-line:rgba(255,255,255,.22);--tab-edge:rgba(0,0,0,.35)}}
+body.td-collapsed #todoEmbed,body.td-docked #todoEmbed,body.embed.glass.td-docked #todoEmbed,body.embed.glass.td-collapsed #todoEmbed,body.td-docked:not(.glass) #todoEmbed{background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0!important;padding:0}
+body.td-collapsed #todoEmbed>*,body.td-docked #todoEmbed>*,body.td-docked #todoEmbed>.td-mini{display:none!important}
+body.td-collapsed #todoEmbed>.td-tab,body.td-docked #todoEmbed>.td-tab{display:block!important}
 .td-pin{position:absolute;top:4px;right:6px;border:0;background:none;color:inherit;opacity:0;font-size:10px;cursor:pointer;-webkit-app-region:no-drag;z-index:2}
 #todoEmbed:hover .td-pin{opacity:.45}
 .td-mini{display:none;align-items:center;gap:6px;height:100%;padding:0 12px;font-size:13px;white-space:nowrap}
@@ -2631,10 +2639,17 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
   let grip="";if(DESK&&DESK.resizeBy){grip=h("div",{class:"td-grip"});let last=null;grip.addEventListener("pointerdown",e=>{last={x:e.screenX,y:e.screenY};grip.setPointerCapture(e.pointerId)});grip.addEventListener("pointermove",e=>{if(!last)return;DESK.resizeBy(e.screenX-last.x,e.screenY-last.y);last={x:e.screenX,y:e.screenY}});grip.addEventListener("pointerup",()=>{last=null})}
   const open=items.filter(i=>!i.done).length+(checkedToday()?0:1);const hot=items.filter(i=>!i.done&&!i.nodue&&i.due-now<24*HOUR).length;
   const mini=h("div",{class:"td-mini"},h("b",null,"待办"),h("span",{class:"n"+(hot?" hot":""),title:hot?hot+" 项 24 小时内要交":""},hot?String(hot):open?String(open):"✓"));
-  el.replaceChildren(mini,pin||"",h("div",{class:"td-list"},rows),h("div",{class:"td-add"},ti,dt),grip)}
+  TD_HOT=hot;const tab=h("div",{class:"td-tab"});tab.innerHTML=tabSvg();
+  el.replaceChildren(mini,tab,pin||"",h("div",{class:"td-list"},rows),h("div",{class:"td-add"},ti,dt),grip)}
+/* 收起来的样子：一枚燕尾书签，不写字。贴上边时尾巴朝下，贴左右时尾巴朝屏幕里；有 24 小时内要交的，书签上有一个小红点 */
+let TD_HOT=0,TD_EDGE="top";
+function tabSvg(){const n=7,side=TD_EDGE==="left"||TD_EDGE==="right",W=side?34:22,H=side?22:34;
+  const pts=TD_EDGE==="left"?[[0,0],[W,0],[W-n,H/2],[W,H],[0,H]]:TD_EDGE==="right"?[[0,0],[W,0],[W,H],[0,H],[n,H/2]]:[[0,0],[W,0],[W,H],[W/2,H-n],[0,H]];
+  const d="M"+pts.map(p=>p.join(" ")).join("L")+"Z";const dot=TD_HOT?(TD_EDGE==="left"?[W-16,H/2]:TD_EDGE==="right"?[16,H/2]:[W/2,H-16]):null;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs><linearGradient id="tdg" x1="0" y1="0" x2="${side?1:0}" y2="${side?0:1}"><stop offset="0" stop-color="var(--tab-a)"/><stop offset="1" stop-color="var(--tab-b)"/></linearGradient></defs><path d="${d}" fill="url(#tdg)" stroke="var(--tab-edge)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="var(--tab-line)" stroke-width="1" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>${dot?`<circle cx="${dot[0]}" cy="${dot[1]}" r="2.3" fill="#e5484d"/>`:""}</svg>`}
 /* 桌面版：平时收成小标签（或吸在屏幕边上的书签），鼠标移上去展开；展开收起由桌面程序根据鼠标位置决定 */
 if(EMBED==="todo"&&DESK&&DESK.todoMode){const B=document.body;
-  DESK.onTodoState&&DESK.onTodoState(st=>{B.classList.toggle("td-collapsed",st.mode==="mini");B.classList.toggle("td-docked",st.mode==="dock");for(const e of["left","right","top"])B.classList.toggle("dock-"+e,st.mode==="dock"&&st.edge===e)});
+  DESK.onTodoState&&DESK.onTodoState(st=>{const e=st.mode==="dock"?st.edge:"top";if(e!==TD_EDGE){TD_EDGE=e;const t=document.querySelector(".td-tab");if(t)t.innerHTML=tabSvg()}B.classList.toggle("td-collapsed",st.mode==="mini");B.classList.toggle("td-docked",st.mode==="dock");for(const e of["left","right","top"])B.classList.toggle("dock-"+e,st.mode==="dock"&&st.edge===e)});
   // 输入框里打了字、或者有弹窗时才算“正在用”，空着的输入框不拦着收起
   const busy=()=>!!((document.activeElement&&document.activeElement.tagName==="INPUT"&&document.activeElement.value.trim())||document.querySelector(".scrim,.qz,.pop"));
   const tell=()=>DESK.todoBusy&&DESK.todoBusy(busy());["focusin","input","keyup"].forEach(ev=>document.addEventListener(ev,tell));document.addEventListener("focusout",()=>setTimeout(tell,50));new MutationObserver(tell).observe(B,{childList:true});
