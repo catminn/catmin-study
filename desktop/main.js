@@ -1,0 +1,254 @@
+// 学习空间桌面版
+// - 右下角零的小圆（可拖动）；点开是零的聊天框（study.catmin.io/?embed=zero）
+// - 置顶待办小窗（?embed=todo），半透明
+// - 文件交给零：右键「发送到 → 学习空间」、选中文件按 Ctrl+Alt+Z、拖到小圆上
+// - 托盘菜单；开机自启
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeImage, session, shell, nativeTheme } = require("electron");
+const path = require("path");
+const fs = require("fs");
+const { execFile } = require("child_process");
+
+const SITE = process.env.ZS_SITE || "https://study.catmin.io/";
+const PART = "persist:xuexi";
+const HOTKEY = "Control+Alt+Z";
+const MAX_FILE = 25 * 1024 * 1024;
+
+if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
+app.setAppUserModelId("io.catmin.study");
+
+// ---------- 设置（窗口位置、开关） ----------
+const CONF = path.join(app.getPath("userData"), "desktop.json");
+let conf = {};
+try { conf = JSON.parse(fs.readFileSync(CONF, "utf8")); } catch (e) { conf = {}; }
+let confTimer = null;
+function saveConf() { clearTimeout(confTimer); confTimer = setTimeout(() => { try { fs.writeFileSync(CONF, JSON.stringify(conf)); } catch (e) {} }, 300); }
+
+let bubble = null, zero = null, todo = null, main = null, tray = null;
+const readyWins = new Set();
+const queued = new Map(); // webContents.id -> [[channel, ...args]]
+
+function send(win, channel, ...args) {
+  if (!win || win.isDestroyed()) return;
+  const id = win.webContents.id;
+  if (readyWins.has(id)) win.webContents.send(channel, ...args);
+  else { if (!queued.has(id)) queued.set(id, []); queued.get(id).push([channel, ...args]); }
+}
+
+function workArea() { return screen.getPrimaryDisplay().workArea; }
+function onScreen(b) {
+  return screen.getAllDisplays().some((d) => { const a = d.workArea; return b.x + 20 > a.x && b.y + 20 > a.y && b.x < a.x + a.width - 20 && b.y < a.y + a.height - 20; });
+}
+
+const ICON = path.join(__dirname, "assets", "icon.png");
+const TRAY_ICON = path.join(__dirname, "assets", "tray.png");
+
+function pageWin(opts, url) {
+  const w = new BrowserWindow(Object.assign({
+    show: false, frame: false, skipTaskbar: true, icon: ICON,
+    webPreferences: { partition: PART, preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: false, spellcheck: false },
+  }, opts));
+  w.webContents.on("did-start-loading", () => readyWins.delete(w.webContents.id));
+  w.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: "deny" }; });
+  w.webContents.on("will-navigate", (e, url) => { if (!url.startsWith(SITE) && !url.startsWith("https://accounts.google.com")) { e.preventDefault(); shell.openExternal(url); } });
+  w.loadURL(url);
+  return w;
+}
+
+// ---------- 零的小圆 ----------
+const BUB = 64;
+function createBubble() {
+  const a = workArea();
+  const pos = conf.bubble && onScreen({ x: conf.bubble.x, y: conf.bubble.y }) ? conf.bubble : { x: a.x + a.width - BUB - 18, y: a.y + a.height - BUB - 18 };
+  bubble = new BrowserWindow({
+    x: pos.x, y: pos.y, width: BUB, height: BUB, frame: false, transparent: true, resizable: false, maximizable: false, minimizable: false,
+    skipTaskbar: true, alwaysOnTop: true, hasShadow: false, focusable: true, show: false, icon: ICON,
+    webPreferences: { preload: path.join(__dirname, "bubble-preload.js"), contextIsolation: true, sandbox: false },
+  });
+  bubble.setAlwaysOnTop(true, "screen-saver");
+  bubble.loadFile(path.join(__dirname, "bubble.html"));
+  bubble.once("ready-to-show", () => { if (conf.bubbleHidden !== true) bubble.showInactive(); });
+}
+ipcMain.on("bubble-move", (e, dx, dy) => {
+  if (!bubble) return;
+  const [x, y] = bubble.getPosition();
+  bubble.setBounds({ x: Math.round(x + dx), y: Math.round(y + dy), width: BUB, height: BUB });
+  if (zero && zero.isVisible()) placeZero();
+});
+ipcMain.on("bubble-moved", () => { if (!bubble) return; const [x, y] = bubble.getPosition(); conf.bubble = { x, y }; saveConf(); });
+ipcMain.on("bubble-click", () => toggleZero());
+ipcMain.on("bubble-menu", () => { menu().popup({ window: bubble }); });
+ipcMain.on("bubble-drop", (e, paths) => deliverPaths(paths));
+
+// ---------- 零的聊天框 ----------
+const ZW = 380, ZH = 560;
+function placeZero() {
+  if (!zero || !bubble) return;
+  const [bx, by] = bubble.getPosition();
+  const d = screen.getDisplayNearestPoint({ x: bx, y: by }).workArea;
+  let x = bx + BUB - ZW, y = by - ZH - 8;
+  if (y < d.y) y = by + BUB + 8;
+  if (y + ZH > d.y + d.height) y = d.y + d.height - ZH;
+  x = Math.min(Math.max(x, d.x), d.x + d.width - ZW);
+  zero.setBounds({ x, y, width: ZW, height: ZH });
+}
+function ensureZero() {
+  if (zero && !zero.isDestroyed()) return zero;
+  zero = pageWin({ width: ZW, height: ZH, alwaysOnTop: true, resizable: true, minWidth: 320, minHeight: 360 }, SITE + "?embed=zero");
+  zero.setAlwaysOnTop(true, "floating");
+  zero.on("closed", () => { zero = null; });
+  return zero;
+}
+function showZero(cmd) {
+  const w = ensureZero();
+  placeZero();
+  const go = () => { w.show(); w.focus(); if (cmd) send(w, "cmd", cmd); };
+  if (w.webContents.isLoading()) w.once("ready-to-show", go); else go();
+}
+function toggleZero() { if (zero && zero.isVisible()) zero.hide(); else showZero(); }
+
+// ---------- 待办小窗 ----------
+function createTodo(show) {
+  if (todo && !todo.isDestroyed()) { if (show) todo.showInactive(); return todo; }
+  const a = workArea();
+  const b = conf.todo && onScreen(conf.todo) ? conf.todo : { x: a.x + a.width - 280 - 24, y: a.y + 40, width: 280, height: 320 };
+  const opts = { x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 200, minHeight: 140, transparent: true, resizable: true, alwaysOnTop: conf.todoPinned !== false, backgroundColor: "#00000000" };
+  todo = pageWin(opts, SITE + "?embed=todo");
+  const remember = () => { if (todo && !todo.isDestroyed()) { conf.todo = todo.getBounds(); saveConf(); } };
+  todo.on("moved", remember); todo.on("resized", remember);
+  todo.on("closed", () => { todo = null; });
+  todo.once("ready-to-show", () => { if (show) todo.showInactive(); });
+  return todo;
+}
+function toggleTodo() {
+  if (todo && !todo.isDestroyed() && todo.isVisible()) { todo.hide(); conf.todoShown = false; }
+  else { createTodo(true); if (todo.isVisible()) todo.showInactive(); conf.todoShown = true; }
+  saveConf(); refreshMenu();
+}
+
+// ---------- 完整网站 ----------
+function openMain(hash) {
+  if (!main || main.isDestroyed()) {
+    main = pageWin({ width: 1200, height: 820, frame: true, skipTaskbar: false, autoHideMenuBar: true, title: "学习空间" }, SITE + (hash || ""));
+    main.on("closed", () => { main = null; });
+    main.once("ready-to-show", () => main.show());
+  } else {
+    if (hash) send(main, "cmd", hash);
+    if (main.isMinimized()) main.restore();
+    main.show(); main.focus();
+  }
+  return main;
+}
+
+// ---------- 页面发来的指令 ----------
+const winOf = (e) => BrowserWindow.fromWebContents(e.sender);
+ipcMain.on("ready", (e) => {
+  const id = e.sender.id; readyWins.add(id);
+  const q = queued.get(id); if (q) { queued.delete(id); for (const [ch, ...args] of q) e.sender.send(ch, ...args); }
+});
+ipcMain.on("hide", (e) => { const w = winOf(e); if (w) w.hide(); if (w === todo) { conf.todoShown = false; saveConf(); refreshMenu(); } });
+ipcMain.on("open-main", (e, hash) => openMain(typeof hash === "string" ? hash : ""));
+ipcMain.on("open-zero", (e, cmd) => showZero(typeof cmd === "string" ? cmd : ""));
+ipcMain.on("to-main", (e, subj, list) => { const w = openMain("#dungeon"); send(w, "files", String(subj), list); });
+ipcMain.on("saved", (e) => {
+  for (const w of [zero, todo, main]) if (w && !w.isDestroyed() && w.webContents.id !== e.sender.id) send(w, "pull");
+});
+
+// ---------- 文件 ----------
+const MIME = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp", heic: "image/heic",
+  txt: "text/plain", md: "text/markdown", csv: "text/csv", json: "application/json", tex: "text/plain", py: "text/plain", js: "text/plain", ts: "text/plain", c: "text/plain", cpp: "text/plain", java: "text/plain", m: "text/plain",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+function readFiles(paths) {
+  const out = [];
+  for (const p of paths.slice(0, 6)) {
+    try {
+      const st = fs.statSync(p);
+      if (!st.isFile()) continue;
+      if (st.size > MAX_FILE) continue;
+      const buf = fs.readFileSync(p);
+      const ext = path.extname(p).slice(1).toLowerCase();
+      out.push({ name: path.basename(p), type: MIME[ext] || "", data: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) });
+    } catch (e) {}
+  }
+  return out;
+}
+function deliverPaths(paths) {
+  const list = readFiles((paths || []).filter((p) => typeof p === "string"));
+  if (!list.length) { showZero(); return; }
+  const w = ensureZero();
+  showZero();
+  send(w, "files", "ask", list);
+}
+function filesFromArgv(argv) {
+  return argv.slice(1).filter((a) => a && !a.startsWith("-") && !/\.exe$/i.test(a) && fs.existsSync(a));
+}
+
+// Ctrl+Alt+Z：读资源管理器当前选中的文件
+function explorerSelection() {
+  return new Promise((resolve) => {
+    let script = path.join(__dirname, "selected.ps1");
+    if (script.includes("app.asar")) script = script.replace("app.asar", "app.asar.unpacked");
+    execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script], { windowsHide: true, timeout: 6000, encoding: "utf8" }, (err, stdout) => {
+      if (err) return resolve([]);
+      resolve(String(stdout || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean));
+    });
+  });
+}
+async function onHotkey() {
+  const paths = process.platform === "win32" ? await explorerSelection() : [];
+  if (paths.length) deliverPaths(paths); else toggleZero();
+}
+
+// ---------- 托盘 ----------
+function menu() {
+  return Menu.buildFromTemplate([
+    { label: "问零", click: () => showZero() },
+    { label: "签到", click: () => showZero("daily") },
+    { label: "待办", type: "checkbox", checked: !!(todo && !todo.isDestroyed() && todo.isVisible()), click: toggleTodo },
+    { label: "待办置顶", type: "checkbox", checked: conf.todoPinned !== false, click: (i) => { conf.todoPinned = i.checked; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(i.checked); } },
+    { label: "打开学习空间", click: () => openMain() },
+    { type: "separator" },
+    { label: "显示零的小圆", type: "checkbox", checked: conf.bubbleHidden !== true, click: (i) => { conf.bubbleHidden = !i.checked; saveConf(); if (bubble) { if (i.checked) bubble.showInactive(); else bubble.hide(); } } },
+    { label: "开机启动", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
+    { label: "快捷键：选中文件后按 Ctrl+Alt+Z", enabled: false },
+    { type: "separator" },
+    { label: "退出", click: () => { app.isQuitting = true; app.quit(); } },
+  ]);
+}
+function refreshMenu() { if (tray) tray.setContextMenu(menu()); }
+
+// ---------- 登录后刷新其他窗口 ----------
+function watchLogin() {
+  let t = null;
+  session.fromPartition(PART).cookies.on("changed", (e, cookie, cause, removed) => {
+    if (removed || !/catmin\.io$/.test(cookie.domain.replace(/^\./, ""))) return;
+    clearTimeout(t);
+    t = setTimeout(() => { for (const w of [zero, todo]) if (w && !w.isDestroyed()) w.webContents.reload(); }, 1500);
+  });
+}
+
+app.on("second-instance", (e, argv) => {
+  const files = filesFromArgv(argv);
+  if (files.length) deliverPaths(files); else showZero();
+});
+
+app.whenReady().then(() => {
+  if (!conf.setupDone) { app.setLoginItemSettings({ openAtLogin: true }); conf.setupDone = true; conf.todoShown = true; saveConf(); }
+  tray = new Tray(nativeImage.createFromPath(TRAY_ICON));
+  tray.setToolTip("学习空间");
+  tray.on("click", () => toggleZero());
+  refreshMenu();
+  createBubble();
+  watchLogin();
+  ensureZero(); // 先在后台加载，点开就是现成的
+  createTodo(conf.todoShown !== false);
+  if (!globalShortcut.register(HOTKEY, onHotkey)) console.log("快捷键被占用：" + HOTKEY);
+  const files = filesFromArgv(process.argv);
+  if (files.length) deliverPaths(files);
+  screen.on("display-metrics-changed", () => { if (bubble && !onScreen({ x: bubble.getPosition()[0], y: bubble.getPosition()[1] })) { const a = workArea(); bubble.setPosition(a.x + a.width - BUB - 18, a.y + a.height - BUB - 18); } });
+});
+
+app.on("window-all-closed", (e) => { /* 常驻托盘，不退出 */ });
+app.on("will-quit", () => globalShortcut.unregisterAll());
+
+// 本地冒烟测试（不打包进安装包）：ZS_TEST=1 electron .
+if (process.env.ZS_TEST) app.whenReady().then(() => require("./smoke.js")({ deliverPaths, get zero() { return zero; }, get todo() { return todo; }, get bubble() { return bubble; }, showZero, toggleTodo }));

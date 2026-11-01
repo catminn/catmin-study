@@ -1,0 +1,50 @@
+{
+  "name": "xuexi-kongjian",
+  "productName": "学习空间",
+  "version": "0.1.0",
+  "description": "学习空间桌面版：零的小圆、置顶待办、把文件丢给零",
+  "main": "main.js",
+  "author": "Catherine Min",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "io.catmin.study",
+    "productName": "学习空间",
+    "artifactName": "xuexi-kongjian-setup-${version}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "bubble.html",
+      "bubble-preload.js",
+      "selected.ps1",
+      "assets/**"
+    ],
+    "asarUnpack": [
+      "selected.ps1"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "学习空间",
+      "include": "build/installer.nsh",
+      "runAfterFinish": true
+    },
+    "publish": null
+  }
+}

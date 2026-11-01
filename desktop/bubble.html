@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>零</title>
+<style>
+  :root{--bg:#fbfaf7;--fg:#1d2030;--line:rgba(29,32,48,.12)}
+  @media (prefers-color-scheme:dark){:root{--bg:#23263a;--fg:#eceaf4;--line:rgba(255,255,255,.14)}}
+  html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden;user-select:none}
+  .b{position:absolute;inset:8px;border-radius:50%;background:var(--bg);color:var(--fg);border:1px solid var(--line);
+     box-shadow:0 4px 14px rgba(0,0,0,.22);display:grid;place-items:center;cursor:pointer;transition:transform .15s,box-shadow .15s}
+  .b:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.28)}
+  .b.drag{transition:none}
+  .b.over{transform:scale(1.08);box-shadow:0 0 0 3px rgba(120,130,170,.45),0 6px 18px rgba(0,0,0,.28)}
+  svg{width:26px;height:26px}
+</style></head>
+<body>
+<div class="b" id="b" title="零（拖动可移动，右键菜单，文件拖进来交给零）">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="11" cy="12.5" rx="5" ry="7" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="18.6" cy="5.4" r="1.4" fill="currentColor"/></svg>
+</div>
+<script>
+  const b = document.getElementById("b");
+  let down = null, moved = false, last = null;
+  b.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    down = { x: e.screenX, y: e.screenY }; last = { x: e.screenX, y: e.screenY }; moved = false;
+    b.setPointerCapture(e.pointerId); b.classList.add("drag");
+  });
+  b.addEventListener("pointermove", (e) => {
+    if (!down) return;
+    if (!moved && Math.hypot(e.screenX - down.x, e.screenY - down.y) > 4) moved = true;
+    if (moved) { window.bubble.move(e.screenX - last.x, e.screenY - last.y); last = { x: e.screenX, y: e.screenY }; }
+  });
+  b.addEventListener("pointerup", (e) => {
+    if (!down) return; down = null; b.classList.remove("drag");
+    if (moved) window.bubble.moved(); else window.bubble.click();
+  });
+  b.addEventListener("contextmenu", (e) => { e.preventDefault(); window.bubble.menu(); });
+  document.addEventListener("dragover", (e) => { e.preventDefault(); b.classList.add("over"); });
+  document.addEventListener("dragleave", () => b.classList.remove("over"));
+  document.addEventListener("drop", (e) => { e.preventDefault(); b.classList.remove("over"); if (e.dataTransfer.files.length) window.bubble.drop(e.dataTransfer.files); });
+</script>
+</body></html>

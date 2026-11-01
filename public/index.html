@@ -2325,7 +2325,7 @@ body.embed-zero .zw-fab{display:none}
 body.embed-zero .zw-panel{width:100vw!important;height:100vh!important;border-radius:0;border:0}
 .embed .zw-head,.embed .td-head{-webkit-app-region:drag;user-select:none}
 .embed .zw-head button,.embed .zw-head select,.embed .td-head button{-webkit-app-region:no-drag}
-#todoEmbed{position:fixed;inset:0;display:flex;flex-direction:column;background:transparent;color:var(--fg);-webkit-app-region:drag;padding:10px 12px;font-size:14px}
+#todoEmbed{position:fixed;inset:0;display:flex;flex-direction:column;background:color-mix(in oklab,var(--panel) 72%,transparent);border-radius:12px;color:var(--fg);-webkit-app-region:drag;padding:10px 12px;font-size:14px}
 body.embed-todo,body.embed-todo html{background:transparent!important}
 .td-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
 .td-row{display:flex;align-items:center;gap:8px;padding:3px 2px;line-height:1.4;-webkit-app-region:no-drag;cursor:default}
@@ -2353,7 +2353,7 @@ async function zwAddFiles(files){for(const f of files){const nm=f.name||"文件"
       else{toast(nm+"：这种格式读不了，可以导出成 PDF 再传");continue}
       ZW.docs.push({name:nm,text:t.slice(0,15000)})}
     catch(e){toast(nm+" 没读成功")}}
-  zwRender();if(ZW.docs.length)toast("附件会随下一条消息发给零")}
+  zwRender()}
 function deskDeliver(target,list){const files=deskFiles(list);if(!files.length)return;
   if(target==="zero"||EMBED==="zero"){zwOpen();zwAddFiles(files);return}
   if(SUBJ[target]){goDungeon(target);setTimeout(()=>addFiles(files),400)}}

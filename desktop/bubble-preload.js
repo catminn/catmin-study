@@ -1,0 +1,9 @@
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
+
+contextBridge.exposeInMainWorld("bubble", {
+  move: (dx, dy) => ipcRenderer.send("bubble-move", dx, dy),
+  moved: () => ipcRenderer.send("bubble-moved"),
+  click: () => ipcRenderer.send("bubble-click"),
+  menu: () => ipcRenderer.send("bubble-menu"),
+  drop: (files) => ipcRenderer.send("bubble-drop", Array.from(files).map((f) => webUtils.getPathForFile(f)).filter(Boolean)),
+});
