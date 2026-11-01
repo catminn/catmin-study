@@ -2610,6 +2610,8 @@ if(EMBED==="todo"&&DESK&&DESK.todoMode){const B=document.body;
   DESK.onTodoState&&DESK.onTodoState(st=>{if(st.mode!=="full"&&document.activeElement&&document.activeElement.tagName==="INPUT")document.activeElement.blur()});
   if(DESK.isGlass)DESK.isGlass().then(g=>{if(g)B.classList.add("glass")}).catch(()=>{})}
 if(DESK&&EMBED==="zero"&&DESK.isGlass)DESK.isGlass().then(g=>{if(g)document.body.classList.add("glass")}).catch(()=>{});
+/* 游戏时间在计时：桌面上的小圆、待办、零先藏起来，时间到再出来 */
+if(DESK&&EMBED==="todo"&&DESK.gameMode){let gm=null;const gtick=()=>{const on=!!(S.timer&&S.timer.end>Date.now());if(on!==gm){gm=on;DESK.gameMode(on,on?S.timer.end:0)}};setInterval(gtick,3000);setTimeout(gtick,1500);setInterval(()=>{if(!document.hasFocus())pullState()},60e3)}
 let S_PIN=true;if(DESK&&DESK.getPin)DESK.getPin().then(v=>{S_PIN=!!v;if(EMBED==="todo")renderTodoEmbed()}).catch(()=>{});
 if(EMBED==="todo"){setInterval(()=>{if(!document.hidden)renderTodoEmbed()},60000)}
 /* 桌面小圆的小红点：24 小时内有没交的作业 */

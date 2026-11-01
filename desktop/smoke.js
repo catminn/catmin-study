@@ -57,6 +57,11 @@ module.exports = async (h) => {
       log("hotkey win", (await hw.webContents.executeJavaScript("document.body.innerText")).replace(/\n/g, " | "));
       fs.writeFileSync("/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/hk.png", (await hw.webContents.capturePage()).toPNG()); }
     else log("hotkey win missing");
+    h.bubble.showInactive(); h.todo.showInactive(); await wait(300);
+    await h.todo.webContents.executeJavaScript('S.timer={label:"测试",end:Date.now()+8000};1'); await wait(4000);
+    log("game on: bubble", h.bubble.isVisible(), "todo", h.todo.isVisible());
+    await wait(9000);
+    log("game off: bubble", h.bubble.isVisible(), "todo", h.todo.isVisible());
   } catch (e) { log("ERROR", e && e.stack || e); }
   app.exit(0);
 };

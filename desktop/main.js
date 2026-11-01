@@ -279,6 +279,20 @@ ipcMain.handle("is-glass", (e) => { const w = BrowserWindow.fromWebContents(e.se
 ipcMain.on("todo-resize", (e, dw, dh) => { if (!todo || todo.isDestroyed() || todoState !== "full") return; const b = todo.getBounds(); todo.setBounds({ x: b.x, y: b.y, width: Math.max(180, Math.round(b.width + dw)), height: Math.max(120, Math.round(b.height + dh)) }); conf.todo = todo.getBounds(); saveConf(); });
 ipcMain.handle("get-pin", () => conf.todoPinned !== false);
 ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(!!v); refreshMenu(); });
+// 游戏计时开始：把小圆、待办、零藏起来（记住原来哪些开着），计时结束再放回来
+let gameHidden = null;
+ipcMain.on("game-mode", (e, on, end) => {
+  if (on && !gameHidden) {
+    gameHidden = [bubble, todo, zero].filter((w) => w && !w.isDestroyed() && w.isVisible());
+    for (const w of gameHidden) w.hide();
+    hideRing(0);
+  } else if (!on && gameHidden) {
+    for (const w of gameHidden) if (w && !w.isDestroyed() && w !== zero) w.showInactive();
+    gameHidden = null;
+    note("游戏时间到了", "小圆和待办回来了。");
+  }
+  refreshMenu();
+});
 ipcMain.on("badge", (e, n) => { if (bubble && !bubble.isDestroyed()) bubble.webContents.send("badge", n); });
 ipcMain.on("saved", (e) => {
   for (const w of [zero, todo, main]) if (w && !w.isDestroyed() && w.webContents.id !== e.sender.id) send(w, "pull");
@@ -409,7 +423,7 @@ function createRing() {
 }
 function toDip(x, y) { return process.platform === "win32" ? screen.screenToDipPoint({ x, y }) : { x, y }; }
 function showRing(x, y) {
-  if (!ring || ring.isDestroyed() || conf.ringOff) return;
+  if (!ring || ring.isDestroyed() || conf.ringOff || gameHidden) return;
   const p = toDip(x, y);
   ring.setBounds({ x: Math.round(p.x - RING / 2), y: Math.round(p.y - RING / 2), width: RING, height: RING });
   if (ring._glass) roundRegion(ring, RING / 2, RING / 2, RING * 142 / 300, RING * 52 / 300); // 只在圆环里有毛玻璃
