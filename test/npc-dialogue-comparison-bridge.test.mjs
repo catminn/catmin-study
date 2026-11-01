@@ -57,10 +57,18 @@ indistinct('ZWJ emoji differences are conservatively treated as equivalent', p =
   p.publicCopies['demo-guarded'].text = '👩‍🔬';
   p.publicCopies['demo-open'].text = '👩🔬';
 });
+indistinct('terminal punctuation cannot fake a route-specific NPC reply', p => {
+  p.publicCopies['demo-guarded'].text = 'Wait.';
+  p.publicCopies['demo-open'].text = 'Wait!';
+});
+indistinct('Unicode terminal punctuation cannot fake NPC route consequences', p => {
+  p.publicCopies['demo-guarded'].text = 'We can proceed。';
+  p.publicCopies['demo-open'].text = 'We can proceed？';
+});
 for (const [name, a, b] of [
   ['different words', 'Proceed.', 'Stop.'],
   ['negated meaning', 'You may proceed.', 'You may not proceed.'],
-  ['punctuation difference', 'Wait.', 'Wait!']
+  ['internal punctuation difference', 'Wait, go.', 'Wait go!']
 ]) test(`${name} remains lexically distinct`, () => {
   const r = run(p => {p.publicCopies['demo-guarded'].text = a; p.publicCopies['demo-open'].text = b;});
   assert.deepEqual(r, {ok:true,codes:[],errorCount:0});
