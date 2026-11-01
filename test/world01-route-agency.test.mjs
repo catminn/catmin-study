@@ -139,6 +139,13 @@ const cases=[
  ['post-reunion endless cycle without ending',x=>{x.world.nodes[5].next=['demo.join'];},'ending_unreachable'],
  ['post-reunion self-loop is not a terminal',x=>{x.world.nodes[5].next=['demo.end'];},'ending_unreachable'],
  ['reunion itself may be the terminal',x=>{x.world.nodes.pop();x.world.nodes[4].next=[];},null],
+ ['supported schema version on synthetic world',x=>{x.world.schemaVersion='story-structure-0.1';},null],
+ ['unsupported schema version fails closed',x=>{x.world.schemaVersion='story-structure-0.2';},'metadata_invalid'],
+ ['non-string schema version fails closed',x=>{x.world.schemaVersion=1;},'metadata_invalid'],
+ ['world01 identity requires schema version',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.causal.sceneContract='content/contracts/world01-opening-skeleton.json';},'metadata_invalid'],
+ ['world01 identity requires scene contract pointer',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.world.schemaVersion='story-structure-0.1';},'metadata_invalid'],
+ ['world01 identity rejects mismatched schema version',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.world.schemaVersion='story-structure-0.2';x.causal.sceneContract='content/contracts/world01-opening-skeleton.json';},'metadata_invalid'],
+ ['world01 identity accepts matching schema and pointer',x=>{x.world.packageId='world01';x.causal.worldId='world01';x.world.schemaVersion='story-structure-0.1';x.causal.sceneContract='content/contracts/world01-opening-skeleton.json';},null],
  ['no input mutation',()=>{},null]
 ];
 for(const [name,mutate,code] of cases)test(name,()=>{

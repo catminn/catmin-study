@@ -26,7 +26,11 @@ export function validateWorld01RouteAgency(world, causal) {
     // Public authoring metadata is descriptive, not executable authority.
     const safeText=x=>typeof x==='string'&&x.length>0&&x.length<=240&&x.trim()===x&&
       ![...x].some(c=>c.charCodeAt(0)<32);
-    if((world.warning!==undefined&&!safeText(world.warning))||
+    if((world.schemaVersion!==undefined&&world.schemaVersion!=='story-structure-0.1')||
+       (world.packageId==='world01'&&world.schemaVersion!=='story-structure-0.1')||
+       (world.packageId==='world01'&&causal.sceneContract!==
+         'content/contracts/world01-opening-skeleton.json')||
+       (world.warning!==undefined&&!safeText(world.warning))||
        (causal.warning!==undefined&&!safeText(causal.warning))||
        (world.ownership!==undefined&&(!exact(world.ownership,['narrative','engineering'])||
          world.ownership.narrative!=='ChatGPT'||world.ownership.engineering!=='Claude'))||
