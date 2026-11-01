@@ -2463,6 +2463,8 @@ route();
   if(S.sagaTag!=="s1"){for(const k of["math","chem","engri"]){CHATS[k]=[];saveChat(k);QUEST[k]=null}S.battle={};S.tale={};S.saga={};S.fate={};S.sagaTag="s1"}
   if(fresh||!S.clean2){for(const o of occurrences())if(o.soft<Date.now()&&!S.done[o.key])S.skipped[o.key]=Date.now();S.clean2=1}
   if(!S.fixC1){S.fixC1=1;for(const e of S.scores)if(e.subj==="chem"&&e.got===64.5&&e.max===150&&!e.grade){e.grade="C";if(e.bonus!=null){const b=scoreBonus(e);const d=b.total-e.bonus;e.bonus=b.total;if(d)earn(d,"成绩更正 · 化学 "+e.name+" 按 curve 是 C")}}}
+  if(!S.fixC2){S.fixC2=1;const fixOne=(e,got,grade,why)=>{e.got=got;e.grade=grade;if(e.bonus!=null){const b=scoreBonus(e);const d=b.total-e.bonus;e.bonus=b.total;if(d)earn(d,"成绩更正 · 化学 "+e.name+" "+why)}};
+    for(const e of S.scores)if(e.subj==="chem"){if(e.got===77&&e.max===150)fixOne(e,77,"C","按 curve 是 C");else if(e.max===150&&(e.got===64.5||/prelim\s*2|exam\s*2/i.test(e.name)))fixOne(e,68.5,"C","regrade 后 68.5，C")}}
   applyDyn();sleepCheck();save();S.mistakes.forEach(m=>delete m.smBusy);if(S.focus)S.focus=null;if(S.focusLive){S.focusLive=null;setTimeout(()=>toast("上次专注时网页关掉了，那一轮作废"),1500)}if(!EMBED){setTimeout(()=>smFlush(false),9000);setTimeout(()=>syncAllMistakes(false),6000)}zwLoad();if(EMBED==="zero")zwOpen();if(EMBED==="todo")renderTodoEmbed();Promise.all(Object.keys(SUBJ).map(loadLib)).then(()=>{if(curView()==="dungeon")renderLib()});if(S.calendar)connectCalendar(false);route();if(!EMBED)setTimeout(()=>syncCourses(false),4000);cloudBoot();
 
 })();
