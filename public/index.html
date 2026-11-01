@@ -2392,12 +2392,16 @@ body.embed-zero.glass .zw-in textarea,body.embed-zero.glass .zw-in textarea:focu
 body.embed-zero.glass .zw-m.a,body.embed-zero.glass .zw-in textarea,body.embed-zero.glass .zw-t select,body.embed-zero.glass .zw-head .zface{background:var(--gl-card)}
 /* 燕尾书签 */
 .td-tab{display:none;position:fixed;inset:0;pointer-events:none}.td-tab svg{width:100%;height:100%;display:block}
-body.embed{--tab-a:color-mix(in oklab,var(--panel) 92%,transparent);--tab-b:color-mix(in oklab,var(--panel) 80%,transparent);--tab-line:color-mix(in oklab,var(--fg) 16%,transparent);--tab-edge:transparent}
+body.embed{--tab-a:rgba(255,255,255,.62);--tab-b:rgba(255,255,255,.42);--tab-line:color-mix(in oklab,var(--fg) 16%,transparent);--tab-edge:transparent}
 body.embed.glass{--tab-a:rgba(255,255,255,.5);--tab-b:rgba(255,255,255,.28);--tab-line:rgba(255,255,255,.75);--tab-edge:rgba(20,24,40,.16)}
 body.td-collapsed #todoEmbed,body.td-docked #todoEmbed,body.embed.glass.td-docked #todoEmbed,body.embed.glass.td-collapsed #todoEmbed,body.td-docked:not(.glass) #todoEmbed{background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0!important;padding:0}
 body.td-collapsed #todoEmbed>*,body.td-docked #todoEmbed>*,body.td-docked #todoEmbed>.td-mini{display:none!important}
 body.td-collapsed #todoEmbed>.td-tab,body.td-docked #todoEmbed>.td-tab{display:block!important}
 /* 磨砂玻璃：背后是那一块桌面壁纸（桌面程序发来），模糊后垫在窗口底下 */
+/* 没有系统模糊时（Windows 透明效果关着）：普通半透明，底下有什么透出什么 */
+body.embed-todo:not(.glass) #todoEmbed{background:rgba(255,255,255,.74);border:1px solid rgba(255,255,255,.85);box-shadow:inset 0 1px 0 #fff}
+body.embed-zero:not(.glass){background:transparent!important}
+body.embed-zero:not(.glass) .zw-panel{background:rgba(255,255,255,.82);border:1px solid rgba(255,255,255,.9);border-radius:8px!important}
 #fg{display:none;position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0;border-radius:8px}
 #fg i{position:absolute;inset:-40px;background-repeat:no-repeat;background-color:#a0a0a0;filter:blur(22px) saturate(1.3)}
 body.embed.wall #fg{display:block}

@@ -88,4 +88,9 @@ function shapeWin(win, rects, corner) {
   if (!win || win.isDestroyed() || !win.setShape) return false;
   try { win.setShape(rects || []); setCorner(win, rects && rects.length ? 1 : (corner == null ? 2 : corner)); return true; } catch (e) { return false; }
 }
-module.exports = { applyGlass, shapeWin, circleRects, ribbonRects };
+function clearGlass(win) {
+  const a = load();
+  if (!a || !win || win.isDestroyed()) return;
+  try { const mem = a.koffi.alloc(a.ACCENT, 1); a.koffi.encode(mem, a.ACCENT, { AccentState: 0, AccentFlags: 0, GradientColor: 0, AnimationId: 0 }); a.setWCA(hwndOf(win), { Attribute: 19, Data: mem, SizeOfData: a.koffi.sizeof(a.ACCENT) }); } catch (e) {}
+}
+module.exports = { applyGlass, clearGlass, shapeWin, circleRects, ribbonRects };

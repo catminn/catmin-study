@@ -8,18 +8,24 @@ const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const os = require("os");
-const { loadWall, wallMsg, hasWall, wallVer } = require("./wall");
-// 毛玻璃：把窗口背后那块桌面壁纸发给页面，页面自己模糊（见 wall.js）
-const wallThrottle = new WeakMap();
-function sendWall(win, full) {
-  if (!win || win.isDestroyed() || !hasWall()) return;
-  const isBubble = win === bubble;
-  if (!full) { if (wallThrottle.get(win)) return; wallThrottle.set(win, setTimeout(() => { wallThrottle.delete(win); const m = wallMsg(win, false); if (m) (isBubble ? win.webContents.send("wall", m) : send(win, "wall", m)); }, 16)); return; }
-  const m = wallMsg(win, true); if (!m) return;
-  if (isBubble) win.webContents.send("wall", m); else send(win, "wall", m);
+const { applyGlass, clearGlass } = require("./glass");
+// 毛玻璃：用 Windows 自己的模糊，底下有什么就透出什么（需要 Windows 设置里“透明效果”开着）。
+// 只给方形的待办（展开时）和零的窗口用；小圆、书签、转盘是自己画的半透明形状，不加系统模糊（否则会多出一个方框）。
+let transOn = null;
+function readTransparency() {
+  return new Promise((resolve) => {
+    if (process.platform !== "win32") return resolve(false);
+    execFile("reg", ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "/v", "EnableTransparency"], { windowsHide: true, timeout: 4000 }, (err, out) => {
+      if (err) return resolve(true);
+      const m = /EnableTransparency\s+REG_DWORD\s+0x(\d+)/.exec(String(out)); resolve(!m || m[1] !== "0");
+    });
+  });
 }
-function watchWall(win) { if (!win) return; win.on("move", () => sendWall(win, false)); win.on("resize", () => sendWall(win, false)); }
-function sendWallAll(full) { for (const w of [bubble, todo, zero]) sendWall(w, full); }
+function glassFor(win, on) {
+  if (!win || win.isDestroyed()) return;
+  if (on && transOn) win._glass = applyGlass(win, false, 2); else { clearGlass(win); win._glass = false; }
+}
+const sendWall = () => {}, watchWall = () => {}, sendWallAll = () => {};
 const dark = () => false; // 桌面上的小东西一律浅色半透明（背景深了它自然变深）
 
 const SITE = process.env.ZS_SITE || "https://study.catmin.io/";
@@ -142,7 +148,7 @@ function placeZero() {
 function ensureZero() {
   if (zero && !zero.isDestroyed()) return zero;
   zero = pageWin({ width: ZW, height: ZH, alwaysOnTop: true, resizable: false, transparent: true, thickFrame: false, backgroundColor: "#00000000" }, SITE + "?embed=zero");
-  watchWall(zero);
+  glassFor(zero, true);
   zero.setAlwaysOnTop(true, "floating");
   zero.on("closed", () => { zero = null; });
   return zero;
@@ -167,7 +173,7 @@ function createTodo(show) {
   todo.on("moved", todoMoved);
   todo.on("resized", () => { if (todo && !todo.isDestroyed() && todoState === "full") { conf.todo = todo.getBounds(); saveConf(); } });
   todo.on("closed", () => { todo = null; todoState = "full"; });
-  watchWall(todo);
+  glassFor(todo, todoState === "full");
   todo.once("ready-to-show", () => { if (show) todo.showInactive(); });
   return todo;
 }
@@ -196,7 +202,6 @@ const winOf = (e) => BrowserWindow.fromWebContents(e.sender);
 ipcMain.on("ready", (e) => {
   const id = e.sender.id; readyWins.add(id);
   const q = queued.get(id); if (q) { queued.delete(id); for (const [ch, ...args] of q) e.sender.send(ch, ...args); }
-  const w = BrowserWindow.fromWebContents(e.sender); if (w && (w === todo || w === zero)) sendWall(w, true);
 });
 ipcMain.on("hide", (e) => { const w = winOf(e); if (w) w.hide(); if (w === todo) { conf.todoShown = false; saveConf(); refreshMenu(); } });
 ipcMain.on("open-main", (e, hash) => openMain(typeof hash === "string" ? hash : ""));
@@ -254,12 +259,12 @@ function setTodoMode(mode) {
     // 从书签处展开：先把窗口放到展开位置但只露出书签那么大，再往外拉开
     const k = conf.todoDock, r = todo.getBounds();
     const start = k.edge === "top" ? { x: to.x, y: to.y, width: to.width, height: DOCK } : k.edge === "left" ? { x: to.x, y: to.y, width: DOCK, height: to.height } : { x: to.x + to.width - DOCK, y: to.y, width: DOCK, height: to.height };
-    todoState = "full"; tellTodo(); applyTabShape(); todo.setResizable(true); todo.setBounds(start); animateBounds(todo, to, 180);
+    todoState = "full"; tellTodo(); glassFor(todo, true); todo.setResizable(true); todo.setBounds(start); animateBounds(todo, to, 180);
     return;
   }
   todoState = mode; tellTodo();
   if (mode !== "full") todo.setResizable(false); else todo.setResizable(true);
-  if (mode === "full") applyTabShape();
+  glassFor(todo, mode === "full"); // 收起来时去掉系统模糊，不然书签外面会有一块方形
   animateBounds(todo, to, mode === "full" ? 140 : 160);
   if (mode !== "full") shapeT = setTimeout(applyTabShape, 190); // 缩到位以后再裁成书签形状
 }
@@ -288,7 +293,7 @@ function todoMoved() {
   else { conf.todoDock = null; if (todoState === "full") conf.todo = b; }
   saveConf(); tellTodo();
 }
-ipcMain.handle("is-glass", () => hasWall());
+ipcMain.handle("is-glass", (e) => { const w = BrowserWindow.fromWebContents(e.sender); return !!(w && w._glass); });
 ipcMain.on("todo-resize", (e, dw, dh) => { if (!todo || todo.isDestroyed() || todoState !== "full") return; const b = todo.getBounds(); todo.setBounds({ x: b.x, y: b.y, width: Math.max(180, Math.round(b.width + dw)), height: Math.max(120, Math.round(b.height + dh)) }); conf.todo = todo.getBounds(); saveConf(); });
 ipcMain.handle("get-pin", () => conf.todoPinned !== false);
 ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(!!v); refreshMenu(); });
@@ -602,15 +607,15 @@ app.on("second-instance", (e, argv) => {
   if (files.length) deliverPaths(files); else showZero();
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  transOn = await readTransparency();
+  if (!transOn && !conf.transWarned) { conf.transWarned = true; saveConf(); setTimeout(() => note("毛玻璃需要打开 Windows 的“透明效果”", "设置 → 个性化 → 颜色 → 透明效果。打开后退出学习空间再打开。现在先用普通半透明。"), 4000); }
+  setInterval(async () => { const t = await readTransparency(); if (t !== transOn) { transOn = t; glassFor(zero, true); glassFor(todo, todoState === "full"); } }, 10 * 60 * 1000);
   if (!conf.setupDone) { app.setLoginItemSettings({ openAtLogin: true }); conf.setupDone = true; conf.todoShown = true; saveConf(); }
   tray = new Tray(nativeImage.createFromPath(TRAY_ICON));
   tray.setToolTip("学习空间");
   tray.on("click", () => toggleZero());
   refreshMenu();
-  loadWall().then(() => sendWallAll(true));
-  setInterval(() => { const v = wallVer(); loadWall().then(() => { if (wallVer() !== v) sendWallAll(true); }); }, 5 * 60 * 1000); // 换了壁纸也跟着换
-  screen.on("display-metrics-changed", () => sendWallAll(false));
   createBubble();
   watchLogin();
   ensureZero(); // 先在后台加载，点开就是现成的
