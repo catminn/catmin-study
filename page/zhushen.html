@@ -1018,18 +1018,18 @@ const SHOP_REAL=[
   {id:"g60",name:"游戏 1 小时",price:5,mins:60,ic:"game",desc:""},
   {id:"g120",name:"游戏 2 小时",price:10,mins:120,ic:"game",desc:""}
 ];
-const CNY_TIERS=[["6",6],["15",15],["30",30],["60",60],["100",100],["180",180],["300",300],["600",600],["1200",1200],["月卡",30],["战令",68],["战令",128]];
+const CNY_TIERS=[["6",6],["15",15],["30",30],["60",60],["100",100],["180",180],["300",300],["600",600],["月卡",30],["战令",68],["战令",128]];
 const SHOP_ITEMS=[
-  {id:"makeup",name:"补签卡",price:3.5,ic:"ticket",desc:""},
+  {id:"makeup",name:"补签卡",price:3.5,ic:"ticket",desc:"补上漏掉的一天签到"},
   {id:"rest",name:"休息券",price:6.5,ic:"ticket",desc:"当天不断签，游戏免费"},
-  {id:"freeze",name:"冻结卡",price:1.5,ic:"ice",desc:""}
+  {id:"freeze",name:"冻结卡",price:1.5,ic:"ice",desc:"错题怪复活时，推迟 3 天再打"}
 ];
 
 /* ============ state ============ */
 function defaultState(){return{v:2,points:0,xp:0,checkins:[],restDays:[],cards:{makeup:0,rest:0,hint:0,freeze:0},shards:0,combo:0,
   done:{},started:{},skipped:{},chests:{},weekEarly:{},ledger:[],mistakes:[],progress:{math:[],chem:[],engri:[],engl:[]},
   world:{math:[0],chem:[0],engri:[0],engl:[START_WORLD.engl]},
-  nodeNames:{},customRewards:[],customWorlds:[],timer:null,chemExam2:"",calendar:false,battle:{},scores:[],trainLog:{},quizLog:{},tale:{},nums:{},saga:{},fate:{}}}
+  nodeNames:{},customRewards:[],customWorlds:[],timer:null,chemExam2:"",calendar:false,battle:{},scores:[],trainLog:{},quizLog:{},tale:{},nums:{},saga:{},fate:{},spend:[],sleep:null,sleepLog:[]}}
 const SEED_SCORES=[
   {id:"seed-chem-e1",subj:"chem",name:"Exam 1",got:77,max:150,kind:"exam",at:at(2026,9,24,20,0)},
   {id:"seed-engri-p1",subj:"engri",name:"Prelim 1",got:73,max:100,kind:"exam",at:at(2026,9,28,10,0)},
@@ -1039,7 +1039,7 @@ let S=defaultState();S.scores=SEED_SCORES.map(x=>Object.assign({bonus:null},x));
 function mergeState(raw){const x=raw?clone(raw):{};const o=Object.assign(defaultState(),x);
   o.cards=Object.assign(defaultState().cards,x.cards||{});o.progress=Object.assign(defaultState().progress,x.progress||{});o.world=Object.assign(defaultState().world,x.world||{});
   for(const k of["done","started","skipped","chests","weekEarly","nodeNames","battle","trainLog","quizLog","tale","saga","fate"])if(!o[k]||typeof o[k]!=="object"||Array.isArray(o[k]))o[k]={};
-  for(const k of["checkins","restDays","ledger","mistakes","customRewards","customWorlds","scores"])if(!Array.isArray(o[k]))o[k]=[];
+  for(const k of["checkins","restDays","ledger","mistakes","customRewards","customWorlds","scores","spend","sleepLog"])if(!Array.isArray(o[k]))o[k]=[];
   delete o.story;
   if(typeof x.xp!=="number")o.xp=o.ledger.reduce((s,e)=>s+(e.d>0?e.d:0),0);
   if(x.bossDone){for(const k in x.bossDone)o.done["boss:"+k]=x.bossDone[k];delete o.bossDone}
@@ -2051,18 +2051,32 @@ function openWorldPicker(it){const sel=h("select",{id:"wsub"},Object.keys(SUBJ).
 function openDesign(it){const n=h("input",{type:"text",id:"dname",placeholder:"世界名"});const d=h("textarea",{class:"plain",id:"ddesc",placeholder:"规则、氛围、怪物、结局，写多少都行",style:{minHeight:"120px"}});
   sheet(null,h("h2",null,"副本设计权"),n,d,
     h("button",{class:"btn go",onclick:()=>{if(!n.value.trim()||!d.value.trim()){toast("名字和设定都要写");return}S.customWorlds.push({name:n.value.trim().slice(0,30),desc:d.value.trim().slice(0,800)});earn(-it.price,"副本设计权 · "+n.value.trim());save();closeSheet();renderAll();toast("设定已收下")}},"写好了（"+it.price+"）"))}
-let SPEND={cur:"cny",amt:"",note:""};
+let SPEND={cur:"cny",amt:"",note:"",cat:"游戏"};
+const SPEND_CAT={cny:["游戏","其他"],usd:["外卖","奶茶","吃饭","购物","其他"]};
 function spendCost(){const a=+SPEND.amt;if(!(a>0))return 0;return r1(SPEND.cur==="cny"?a/CNY_PER_PT:a)}
 function renderSpend(){const el=$("#spendCard");if(!el)return;const cost=spendCost();
   const amt=h("input",{type:"number",min:"0",step:"0.01",placeholder:SPEND.cur==="cny"?"实付人民币":"实付美元（含税和小费）",value:SPEND.amt,style:{flex:"1 1 140px"},oninput:e=>{SPEND.amt=e.target.value;upd()}});
   const note=h("input",{type:"text",placeholder:SPEND.cur==="cny"?"买了什么（可不填）":"比如：奶茶、外卖",value:SPEND.note,style:{flex:"2 1 160px"},oninput:e=>{SPEND.note=e.target.value}});
   const out=h("div",{class:"small"});const go=h("button",{class:"btn sm go",onclick:()=>{const c=spendCost();if(!c){toast("先填实付金额");return}if(S.points<c){toast("积分不够，还差 "+fp(c-S.points));return}
-    const what=(SPEND.note.trim()||(SPEND.cur==="cny"?"游戏充值":"现实消费")).slice(0,30);earn(-c,"花费 · "+what+" · "+(SPEND.cur==="cny"?"¥":"$")+(+SPEND.amt));SPEND.amt="";SPEND.note="";save();renderAll();toast("已扣 "+fp(c)+" 分")}},"记账扣分");
+    const what=(SPEND.note.trim()||SPEND.cat).slice(0,30);
+    S.spend=S.spend||[];S.spend.push({id:uid(),at:Date.now(),cur:SPEND.cur,amt:+(+SPEND.amt).toFixed(2),cat:SPEND.cat,note:SPEND.note.trim().slice(0,30),pts:c});
+    earn(-c,"花费 · "+SPEND.cat+(SPEND.note.trim()?" · "+what:"")+" · "+(SPEND.cur==="cny"?"¥":"$")+(+SPEND.amt));SPEND.amt="";SPEND.note="";save();renderAll();toast("已记账，扣 "+fp(c)+" 分")}},"记账扣分");
   function upd(){const c=spendCost();out.textContent=c?"要扣 "+fp(c)+" 分"+(S.points<c?"，还差 "+fp(c-S.points):"，扣完剩 "+fp(S.points-c)):(SPEND.cur==="cny"?"按实付金额 ÷ 4 扣分，福利金减免的部分不算。":"按实付金额扣分，1 美元 = 1 分。")}
-  const tab=(k,t)=>h("button",{class:"btn sm"+(SPEND.cur===k?" go":" flat"),onclick:()=>{SPEND.cur=k;SPEND.amt="";renderSpend()}},t);
+  const tab=(k,t)=>h("button",{class:"btn sm"+(SPEND.cur===k?" go":" flat"),onclick:()=>{SPEND.cur=k;SPEND.amt="";SPEND.cat=SPEND_CAT[k][0];renderSpend()}},t);
+  const cats=h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap",margin:"8px 0 0"}},SPEND_CAT[SPEND.cur].map(c=>h("button",{class:"btn sm"+(SPEND.cat===c?" go":" flat"),onclick:()=>{SPEND.cat=c;renderSpend()}},c)));
   el.replaceChildren(h("div",{class:"row between"},h("h3",{style:{margin:0}},"花钱记账"),h("div",{class:"row"},tab("cny","人民币 · 游戏充值"),tab("usd","美元 · 外卖奶茶购物"))),
-    SPEND.cur==="cny"?h("div",{class:"row",style:{flexWrap:"wrap",gap:"6px",margin:"8px 0"}},CNY_TIERS.map(([t,v])=>h("button",{class:"btn sm flat",onclick:()=>{SPEND.amt=String(v);if(!/^\d+$/.test(t))SPEND.note=t+" ¥"+v;renderSpend()}},/^\d+$/.test(t)?"¥"+t:t+" ¥"+v))):null,
-    h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap"}},amt,note,go),out);upd()}
+    cats,SPEND.cur==="cny"?h("div",{class:"row",style:{flexWrap:"wrap",gap:"6px",margin:"8px 0"}},CNY_TIERS.map(([t,v])=>h("button",{class:"btn sm flat",onclick:()=>{SPEND.amt=String(v);if(!/^\d+$/.test(t))SPEND.note=t+" ¥"+v;renderSpend()}},/^\d+$/.test(t)?"¥"+t:t+" ¥"+v))):h("div",{style:{height:"8px"}}),
+    h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap"}},amt,note,go),out,spendBook());upd()}
+function spendBook(){const L=(S.spend||[]).slice().sort((a,b)=>b.at-a.at);if(!L.length)return h("div",{class:"dim small",style:{marginTop:"8px"}},"记过的账会列在这里，按月汇总。");
+  const mk=t=>{const d=new Date(t);return d.getFullYear()+"-"+pad(d.getMonth()+1)};const months=[...new Set(L.map(x=>mk(x.at)))];const sel=SPEND.month&&months.includes(SPEND.month)?SPEND.month:months[0];
+  const rows=L.filter(x=>mk(x.at)===sel);const sum=c=>r1(rows.filter(x=>x.cur===c).reduce((s,x)=>s+x.amt,0)*10)/10;
+  const byCat={};for(const x of rows){const k=(x.cur==="cny"?"¥":"$")+" "+x.cat;byCat[k]=r1(((byCat[k]||0)+x.amt)*10)/10}
+  const del=x=>{if(!confirm("删掉这笔账？扣的 "+fp(x.pts)+" 分会退回。"))return;S.spend=S.spend.filter(y=>y.id!==x.id);earn(x.pts,"退回 · 删除记账 "+x.cat);save();renderAll()};
+  return h("details",{class:"spendbook",style:{marginTop:"10px"},open:SPEND.open||null,ontoggle:e=>{SPEND.open=e.target.open}},h("summary",{style:{fontWeight:700,cursor:"pointer"}},"账本 · "+sel.slice(5)+" 月：¥"+sum("cny")+" · $"+sum("usd")),
+    months.length>1?h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap",margin:"8px 0"}},months.map(m=>h("button",{class:"btn sm"+(m===sel?" go":" flat"),onclick:()=>{SPEND.month=m;SPEND.open=true;renderSpend()}},m.slice(0,4)+"/"+m.slice(5)))):null,
+    h("div",{class:"small dim",style:{margin:"6px 0"}},Object.entries(byCat).map(([k,v])=>k+" "+v).join(" · ")),
+    h("div",{class:"log"},rows.map(x=>{const d=new Date(x.at);return h("div",null,h("span",{class:"num dim"},(d.getMonth()+1)+"/"+d.getDate()),h("span",null,x.cat+(x.note?" · "+x.note:"")+" · "+(x.cur==="cny"?"¥":"$")+x.amt),
+      h("span",{class:"num minus"},"-"+fp(x.pts),h("button",{class:"btn sm flat",style:{marginLeft:"6px",padding:"0 6px"},onclick:()=>del(x),"aria-label":"删除"},"×")))})))}
 function renderShop(){renderSpend();$("#shopReal").replaceChildren(...SHOP_REAL.map(i=>itemCard(i,true)),...S.customRewards.map(i=>itemCard(Object.assign({custom:true,ic:"gift",desc:"自定义奖励"},i),true)));
   $("#shopItems").replaceChildren(...SHOP_ITEMS.map(i=>itemCard(i,false)));$("#shopStory").replaceChildren(...storyShopCards());renderTimer()}
 function renderTimer(){const c=$("#timerCard");if(!S.timer){c.hidden=true;return}c.hidden=false;const left=S.timer.end-Date.now();$("#tLabel").textContent=S.timer.label;c.classList.toggle("over",left<=0);
@@ -2085,7 +2099,24 @@ function renderBag(){renderSyncRow();renderArchive();$("#scoreList").replaceChil
 
 /* ============ guide (小灯) ============ */
 
+/* 早睡：睡前点晚安（目标 00:30 前），第二天早上 6 点后打开网站自动发分；晚安后 15 分钟以上又打开网站就作废 */
+const SLEEP_BY=[0,30],SLEEP_GRACE=15*MIN,SLEEP_PTS=0.5,SLEEP_STREAK_PTS=1;
+function sleepWindow(t=Date.now()){const d=new Date(t);const h=d.getHours(),m=d.getMinutes();
+  if(h>=21){const w=new Date(d);w.setDate(w.getDate()+1);w.setHours(6,0,0,0);return{ok:true,wake:w.getTime()}}
+  if(h<SLEEP_BY[0]||(h===SLEEP_BY[0]&&m<=SLEEP_BY[1])){const w=new Date(d);w.setHours(6,0,0,0);return{ok:true,wake:w.getTime()}}
+  return{ok:false}}
+function sleepStreak(){const set=new Set(S.sleepLog||[]);let n=0;let k=addDays(dayKey(),-1);while(set.has(k)){n++;k=addDays(k,-1)}return n}
+function goodnight(){if(S.sleep)return;const w=sleepWindow();if(!w.ok){toast("要在 00:30 前点才算");return}
+  S.sleep={at:Date.now(),wake:w.wake,day:dayKey()};S.ledger.push({at:Date.now(),d:0,t:"晚安"});save();
+  fxBanner("晚安","明早打开网站领早睡奖励","#8b9cf0");renderAll()}
+function sleepCheck(){const s=S.sleep;if(!s)return;const now=Date.now();
+  if(now<s.wake){if(now-s.at>SLEEP_GRACE){S.sleep=null;S.ledger.push({at:now,d:0,t:"晚安后又打开了网站，这次早睡不算"});save();setTimeout(()=>toast("晚安后又打开了网站，这次早睡不算"),1200);renderAll()}return}
+  S.sleep=null;S.sleepLog=S.sleepLog||[];if(!S.sleepLog.includes(s.day))S.sleepLog.push(s.day);S.sleepLog=S.sleepLog.slice(-60);
+  const n=sleepStreak()+1;const pts=n>=3?SLEEP_STREAK_PTS:SLEEP_PTS;const before=levelOf(S.xp).L;earn(pts,"早睡");save();
+  setTimeout(()=>showReward(pts,"早睡",["连续早睡 "+n+" 天"+(n>=3?"，奖励翻倍":"，连续 3 天起每晚 +"+SLEEP_STREAK_PTS)],levelOf(S.xp).L>before?levelOf(S.xp).L:0),900)}
 function nextSteps(){const out=[];const now=Date.now();
+  {const w=sleepWindow(now);if(w.ok&&!S.sleep){const late=new Date(now).getHours()<21||new Date(now).getHours()>=23&&new Date(now).getMinutes()>=30;
+    out.push({ic:"moon",title:"晚安",meta:"00:30 前点 · 明早 +"+(sleepStreak()>=2?SLEEP_STREAK_PTS:SLEEP_PTS),btn:"晚安",label:"晚安打卡",say:"准备睡了就点晚安。之后别再打开网站，明早打开自动领早睡奖励。",go:goodnight,sleep:late?0.5:8})}}
   if(!checkedToday()){const sg=suggestSubj();out.push({subj:sg,ic:"flame",title:"签到题",meta:SUBJ[sg].name+" · 3 分钟 · +"+ckReward(streak()+1),label:"做一道签到题",say:"今天还没签到。做一道"+SUBJ[sg].name+"小题，大约 3 分钟，+"+ckReward(streak()+1)+" 分。",go:()=>openDaily(sg)})}
   const urgent=occurrences().filter(o=>isOpen(o)&&o.soft>now-HOUR&&o.soft-now<40*HOUR);
   for(const o of urgent.slice(0,2))out.push({subj:o.subj,ic:"scroll",title:o.title,meta:SUBJ[o.subj].name+" · "+fmtLeft(o.soft-now)+" · +"+preview(o.r.base,o.soft,o.r.grace||0).total,label:SUBJ[o.subj].name+" "+o.title,say:SUBJ[o.subj].name+"的「"+o.title+"」"+fmtLeft(o.soft-now).replace("还剩","还剩")+"。先做第一步：把第一题发进来。",go:()=>{startBattle(o.subj,"hw",FOES.hw);goDungeon(o.subj,taskPrompt(o))}});
@@ -2097,7 +2128,7 @@ function nextSteps(){const out=[];const now=Date.now();
     out.push({subj:k,ic:"crown",title:"备考 · "+b.title,meta:"还有 "+d+" 天 · 从最没把握的地方开始",label:"备考 "+b.title,review:true,days:d,go:()=>{startBattle(k,"review",FOES.review);goDungeon(k,helpMode(k,/考前复习/))}})}
   out.push({ic:"game",title:"今天的都做完了",meta:"有 "+fp(S.points)+" 分",btn:"去商店",label:"去商店兑换游戏时间",say:"今天该做的都做完了。现在有 "+fp(S.points)+" 分，可以去换游戏时间。",go:()=>{location.hash="#shop"},rest:true});
   // order: check-in, urgent, debt main, monsters, main, quiz, rest
-  const pri=x=>x.label==="做一道签到题"?0:urgent.some(o=>x.label.endsWith(o.title))?1:x.review?(x.days<=7?1.5:3.5):x.pri===1?2:x.label==="打一只错题怪"?3:x.rest?9:x.label.includes("小测验")?5:4;
+  const pri=x=>x.sleep?x.sleep:x.label==="做一道签到题"?0:urgent.some(o=>x.label.endsWith(o.title))?1:x.review?(x.days<=7?1.5:3.5):x.pri===1?2:x.label==="打一只错题怪"?3:x.rest?9:x.label.includes("小测验")?5:4;
   return out.sort((a,b)=>pri(a)-pri(b)||(b.subj?subjWeight(b.subj):0)-(a.subj?subjWeight(a.subj):0))}
 let GI=0;const QUIZ_TOPIC={};
 function openGuide(fromReward){const steps=nextSteps();if(GI>=steps.length)GI=0;const st=steps[GI];
@@ -2133,6 +2164,7 @@ function tickFocus(){const f=FOCUS;if(!f)return;const now=Date.now();
   if(now>=f.end){focusDone();return}
   if(!CTL&&now-f.last>FOCUS_IDLE){focusFail("6 分钟没有动静");return}
   if(CTL)f.last=now;if(curView()==="dungeon")renderFocus()}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")sleepCheck()});
 document.addEventListener("visibilitychange",()=>{if(!FOCUS)return;if(document.visibilityState==="hidden"){clearTimeout(FOCUS_HIDE);FOCUS_HIDE=setTimeout(()=>{if(document.visibilityState==="hidden")focusFail("切走了网页")},FOCUS_AWAY)}else clearTimeout(FOCUS_HIDE)});
 window.addEventListener("pagehide",()=>{if(FOCUS){S.focusLive={start:FOCUS.start,min:FOCUS.min};save()}});
 
@@ -2258,7 +2290,7 @@ route();
   if(S.chatReset!=="c1"){for(const k in SUBJ){CHATS[k]=[];saveChat(k);QUEST[k]=null}S.battle={};S.tale={};S.skills={};S.qn={};S.chatReset="c1"}
   if(S.sagaTag!=="s1"){for(const k of["math","chem","engri"]){CHATS[k]=[];saveChat(k);QUEST[k]=null}S.battle={};S.tale={};S.saga={};S.fate={};S.sagaTag="s1"}
   if(fresh||!S.clean2){for(const o of occurrences())if(o.soft<Date.now()&&!S.done[o.key])S.skipped[o.key]=Date.now();S.clean2=1}
-  applyDyn();save();S.mistakes.forEach(m=>delete m.smBusy);if(S.focus)S.focus=null;if(S.focusLive){S.focusLive=null;setTimeout(()=>toast("上次专注时网页关掉了，那一轮作废"),1500)}setTimeout(()=>smFlush(false),9000);setTimeout(()=>syncAllMistakes(false),6000);zwLoad();Promise.all(Object.keys(SUBJ).map(loadLib)).then(()=>{if(curView()==="dungeon")renderLib()});if(S.calendar)connectCalendar(false);route();setTimeout(()=>syncCourses(false),4000);cloudBoot();
+  applyDyn();sleepCheck();save();S.mistakes.forEach(m=>delete m.smBusy);if(S.focus)S.focus=null;if(S.focusLive){S.focusLive=null;setTimeout(()=>toast("上次专注时网页关掉了，那一轮作废"),1500)}setTimeout(()=>smFlush(false),9000);setTimeout(()=>syncAllMistakes(false),6000);zwLoad();Promise.all(Object.keys(SUBJ).map(loadLib)).then(()=>{if(curView()==="dungeon")renderLib()});if(S.calendar)connectCalendar(false);route();setTimeout(()=>syncCourses(false),4000);cloudBoot();
 
 })();
 </script>
