@@ -11,7 +11,9 @@ const os = require("os");
 
 const SITE = process.env.ZS_SITE || "https://study.catmin.io/";
 const PART = "persist:xuexi";
-const HOTKEY = "Control+Alt+Z";
+const HOTKEYS = ["Control+Alt+Z", "Control+Alt+Q", "Alt+Shift+Z", "Control+Shift+Space"];
+const keyName = (k) => k.replace("Control", "Ctrl").replace(/\+/g, " + ");
+let hotkey = "";
 const MAX_FILE = 25 * 1024 * 1024;
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
@@ -242,6 +244,14 @@ ipcMain.handle("save-pdf", async (e, course, name, html) => {
   } finally { w.destroy(); }
 });
 
+// 快捷键：首选被别的软件（比如 QQ 的 Ctrl+Alt+Z）占了就换下一个
+function registerHotkey(pref) {
+  if (hotkey) { globalShortcut.unregister(hotkey); hotkey = ""; }
+  const list = pref ? [pref, ...HOTKEYS.filter((k) => k !== pref)] : HOTKEYS;
+  for (const k of list) { try { if (globalShortcut.register(k, onHotkey)) { hotkey = k; break; } } catch (e) {} }
+  refreshMenu();
+}
+
 // ---------- 托盘 ----------
 function menu() {
   return Menu.buildFromTemplate([
@@ -253,7 +263,7 @@ function menu() {
     { type: "separator" },
     { label: "显示零的小圆", type: "checkbox", checked: conf.bubbleHidden !== true, click: (i) => { conf.bubbleHidden = !i.checked; saveConf(); if (bubble) { if (i.checked) bubble.showInactive(); else bubble.hide(); } } },
     { label: "开机启动", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
-    { label: "快捷键：选中文件后按 Ctrl+Alt+Z", enabled: false },
+    { label: hotkey ? "快捷键：选中文件按 " + keyName(hotkey) : "快捷键都被占用了", submenu: HOTKEYS.map((k) => ({ label: keyName(k), type: "radio", checked: k === hotkey, click: () => { conf.hotkey = k; saveConf(); registerHotkey(k); if (hotkey !== k) shell.beep(); } })) },
     { type: "separator" },
     { label: "退出", click: () => { app.isQuitting = true; app.quit(); } },
   ]);
@@ -285,7 +295,7 @@ app.whenReady().then(() => {
   watchLogin();
   ensureZero(); // 先在后台加载，点开就是现成的
   createTodo(conf.todoShown !== false);
-  if (!globalShortcut.register(HOTKEY, onHotkey)) console.log("快捷键被占用：" + HOTKEY);
+  registerHotkey(conf.hotkey);
   const files = filesFromArgv(process.argv);
   if (files.length) deliverPaths(files);
   screen.on("display-metrics-changed", () => { if (bubble && !onScreen({ x: bubble.getPosition()[0], y: bubble.getPosition()[1] })) { const a = workArea(); bubble.setPosition(a.x + a.width - BUB - 2, a.y + a.height - BUB - 2); } });
