@@ -57,6 +57,14 @@ indistinct('ZWJ emoji differences are conservatively treated as equivalent', p =
   p.publicCopies['demo-guarded'].text = '👩‍🔬';
   p.publicCopies['demo-open'].text = '👩🔬';
 });
+indistinct('Hangul filler cannot fake a route-specific NPC response', p => {
+  p.publicCopies['demo-guarded'].text = 'Reply';
+  p.publicCopies['demo-open'].text = 'Reply\u3164';
+});
+indistinct('Khmer inherent-vowel sign cannot fake a route-specific NPC response', p => {
+  p.publicCopies['demo-guarded'].text = 'Reply';
+  p.publicCopies['demo-open'].text = 'Reply\u17b4';
+});
 indistinct('terminal punctuation cannot fake a route-specific NPC reply', p => {
   p.publicCopies['demo-guarded'].text = 'Wait.';
   p.publicCopies['demo-open'].text = 'Wait!';
