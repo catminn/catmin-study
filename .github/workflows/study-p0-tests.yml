@@ -10,6 +10,13 @@ on:
       - 'scripts/validate-story-bundle.mjs'
       - 'test/validate-story-bundle.test.mjs'
       - 'content/contracts/world01-opening-skeleton.json'
+      - 'scripts/validate-world01-route-agency.mjs'
+      - 'scripts/check-world01-public-contract.mjs'
+      - 'test/world01-route-agency.test.mjs'
+      - 'test/world01-public-contract.test.mjs'
+      - 'test/world01-causal-authoring.test.mjs'
+      - 'test/fixtures/world01-causal-authoring-v1.json'
+      - 'content/contracts/world01-route-agency-v1.md'
       - '.github/workflows/study-p0-tests.yml'
   push:
     branches:
@@ -23,6 +30,13 @@ on:
       - 'scripts/validate-story-bundle.mjs'
       - 'test/validate-story-bundle.test.mjs'
       - 'content/contracts/world01-opening-skeleton.json'
+      - 'scripts/validate-world01-route-agency.mjs'
+      - 'scripts/check-world01-public-contract.mjs'
+      - 'test/world01-route-agency.test.mjs'
+      - 'test/world01-public-contract.test.mjs'
+      - 'test/world01-causal-authoring.test.mjs'
+      - 'test/fixtures/world01-causal-authoring-v1.json'
+      - 'content/contracts/world01-route-agency-v1.md'
       - '.github/workflows/study-p0-tests.yml'
 permissions:
   contents: read
@@ -36,3 +50,5 @@ jobs:
           node-version: '22'
       - name: Test isolated backup and learning event core
         run: node --test test/study-core.test.mjs test/audit-legacy-save.test.mjs test/world01-structure.test.mjs test/validate-story-bundle.test.mjs
+      - name: Test first-world public authoring contracts (synthetic only)
+        run: node --test test/world01-causal-authoring.test.mjs test/world01-route-agency.test.mjs test/world01-public-contract.test.mjs
