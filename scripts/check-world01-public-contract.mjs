@@ -44,6 +44,47 @@ const canonicalProjection = {
   source:'committed_state_only',claimTierWithoutDiscovery:'unverified',
   exposeInternalIds:false,exposeUncommittedConsequences:false
 };
+
+/* Exact public authoring metadata is part of this published snapshot: a
+ * mechanical green result must not silently accept unreviewed prose or fields. */
+const canonicalWorldKeys=["schemaVersion","packageId","visibility","warning","ownership","nodes","authoringConstraints","acceptance"];
+const canonicalCausalKeys=["schema","scope","warning","worldId","sceneContract","routeCommits","npcContinuity","convergence","learning","publicProjection"];
+const canonicalWorldWarning="No plot, NPC identities, hidden truths, or player-facing scene text are included.";
+const canonicalOwnership={"narrative":"ChatGPT","engineering":"Claude"};
+const canonicalAuthoringConstraints=[
+  "Every player-facing option has an in-world reason independent of curriculum.",
+  "All nodes accept ASK without advancing world state.",
+  "A player may attempt world action without accepting a lesson.",
+  "Academic correctness is not randomized; fictional outcomes follow server action resolution.",
+  "World consequences remain hidden until a committed action reveals them.",
+  "No event or NPC secret is carried in client-visible metadata.",
+  "Optional teaching pauses and resumes at the same narrative cursor.",
+  "Both route branches preserve their distinct factual traces after convergence."
+];
+const canonicalCausalWarning="No story, NPC identity, hidden facts, solutions, or player-facing dialogue are included.";
+const canonicalRequirements=[
+  {
+    "id": "refuse-lesson",
+    "require": "progress remains possible without forced quiz"
+  },
+  {
+    "id": "pause-resume",
+    "require": "no world mutation during tutoring and original scene cursor restored"
+  },
+  {
+    "id": "invalid-academic-reason",
+    "require": "no bonus while world action remains separately adjudicable"
+  },
+  {
+    "id": "failed-action",
+    "require": "learning evidence retained; consequence comes from server"
+  },
+  {
+    "id": "branch-memory",
+    "require": "post-convergence facts can differ without revealing hidden events"
+  }
+];
+
 const object = x => x !== null && typeof x === 'object' && !Array.isArray(x);
 const same = (a,b) => {
   if(Array.isArray(a)||Array.isArray(b))return Array.isArray(a)&&Array.isArray(b)&&
@@ -69,6 +110,13 @@ export function checkWorld01PublicContract(world,causal) {
       causal.worldId!=='world01'||
       causal.sceneContract!=='content/contracts/world01-opening-skeleton.json')
       return fail('public_identity_drift');
+    if(!sameUnordered(Object.keys(world),canonicalWorldKeys)||
+      !sameUnordered(Object.keys(causal),canonicalCausalKeys)||
+      !same(world.warning,canonicalWorldWarning)||
+      !same(world.ownership,canonicalOwnership)||
+      !sameUnordered(world.authoringConstraints,canonicalAuthoringConstraints)||
+      !same(causal.warning,canonicalCausalWarning))
+      return fail('public_metadata_drift');
     if(!Array.isArray(world.nodes)||world.nodes.length!==canonicalScenes.length||
       new Set(world.nodes.map(n=>n?.id)).size!==world.nodes.length||
       !canonicalScenes.every(([id,role,next,learning,worldMutation])=>{
@@ -82,6 +130,10 @@ export function checkWorld01PublicContract(world,causal) {
         const route=routes.find(x=>x.id===id);
         return route&&same(route,{id,route:path});
       }))return fail('public_acceptance_drift');
+    const requirements=world.acceptance.filter(x=>object(x)&&Object.hasOwn(x,'require'));
+    if(world.acceptance.length!==2+canonicalRequirements.length||
+      !sameIds(requirements,canonicalRequirements,'id'))
+      return fail('public_acceptance_drift');
     if(!sameIds(causal.routeCommits,canonicalCommits,'id')||
       !object(causal.npcContinuity)||
       !same(causal.npcContinuity.actorRef,canonicalNpc.actorRef)||
