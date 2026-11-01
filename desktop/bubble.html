@@ -57,9 +57,11 @@
   });
   b.addEventListener("pointermove", (e) => {
     if (!down) return;
+    if (!(e.buttons & 1)) { down = null; b.classList.remove("drag"); return; } // 松开没收到时不要跟着鼠标跑
     if (!moved && Math.hypot(e.screenX - down.x, e.screenY - down.y) > 4) moved = true;
     if (moved) { window.bubble.move(e.screenX - last.x, e.screenY - last.y); last = { x: e.screenX, y: e.screenY }; }
   });
+  b.addEventListener("lostpointercapture", () => { if (down && !moved) { down = null; b.classList.remove("drag"); } });
   b.addEventListener("pointerup", (e) => {
     if (!down) return; down = null; b.classList.remove("drag");
     if (moved) window.bubble.moved(); else window.bubble.click();

@@ -8,7 +8,7 @@ const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const os = require("os");
-const { applyGlass, clearGlass } = require("./glass");
+const { applyGlass, clearGlass, keepActive } = require("./glass");
 // 毛玻璃：用 Windows 自己的模糊，底下有什么就透出什么（需要 Windows 设置里“透明效果”开着）。
 // 只给方形的待办（展开时）和零的窗口用；小圆、书签、转盘是自己画的半透明形状，不加系统模糊（否则会多出一个方框）。
 let transOn = null;
@@ -21,9 +21,32 @@ function readTransparency() {
     });
   });
 }
+// 玻璃效果有几种做法，不同电脑上哪种能用不一样，托盘里可以切换：
+//   blur     系统模糊（ACCENT_ENABLE_BLURBEHIND），Win10/11 都有，默认
+//   acrylic  系统亚克力（ACCENT_ENABLE_ACRYLICBLURBEHIND）
+//   material Windows 11 的亚克力材质（backgroundMaterial），窗口不透明，失去焦点时用“保持激活”的办法留住效果
+//   clear    不模糊，只是半透明
+const GLASS_MODES = { blur: "模糊", acrylic: "亚克力", material: "Windows 11 材质", clear: "只半透明" };
+const glassMode = () => (GLASS_MODES[conf.glassMode] ? conf.glassMode : "blur");
+function glassOpts() {
+  if (glassMode() === "material" && process.platform === "win32") return { transparent: false, backgroundColor: "#00000000", backgroundMaterial: "acrylic" };
+  return { transparent: true, backgroundColor: "#00000000" };
+}
 function glassFor(win, on) {
   if (!win || win.isDestroyed()) return;
-  if (on && transOn) win._glass = applyGlass(win, false, 2); else { clearGlass(win); win._glass = false; }
+  const m = glassMode();
+  if (!on || !transOn || m === "clear") { win._glass = false; return; }
+  if (m === "material") { win._glass = true; keepActive(win); win.on("blur", () => setTimeout(() => keepActive(win), 30)); return; }
+  win._glass = applyGlass(win, false, 2, m === "acrylic" ? 4 : 3);
+}
+function setGlassMode(k) {
+  conf.glassMode = k; saveConf(); refreshMenu();
+  // 换做法要重建窗口（material 需要不透明窗口）
+  const showTodo = conf.todoShown !== false, zeroWasOpen = zero && !zero.isDestroyed() && zero.isVisible();
+  if (todo && !todo.isDestroyed()) todo.destroy(); todo = null; todoState = "full";
+  if (tab && !tab.isDestroyed()) tab.hide();
+  if (zero && !zero.isDestroyed()) zero.destroy(); zero = null;
+  createTodo(showTodo); ensureZero(); if (zeroWasOpen) showZero();
 }
 const sendWall = () => {}, watchWall = () => {}, sendWallAll = () => {};
 const dark = () => false; // 桌面上的小东西一律浅色半透明（背景深了它自然变深）
@@ -147,7 +170,7 @@ function placeZero() {
 }
 function ensureZero() {
   if (zero && !zero.isDestroyed()) return zero;
-  zero = pageWin({ width: ZW, height: ZH, alwaysOnTop: true, resizable: false, transparent: true, thickFrame: false, backgroundColor: "#00000000" }, SITE + "?embed=zero");
+  zero = pageWin(Object.assign({ width: ZW, height: ZH, alwaysOnTop: true, resizable: false, thickFrame: false }, glassOpts()), SITE + "?embed=zero");
   glassFor(zero, true);
   zero.setAlwaysOnTop(true, "floating");
   zero.on("closed", () => { zero = null; });
@@ -167,19 +190,20 @@ function createTodo(show) {
   const a = workArea();
   const b = conf.todo && onScreen(conf.todo) ? conf.todo : { x: a.x + a.width - 280 - 24, y: a.y + 40, width: 280, height: 320 };
   // 毛玻璃用 glass.js（失去焦点也保持）；不支持的系统退回页面自己的半透明底色
-  const opts = { x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 10, minHeight: 10, resizable: true, transparent: true, thickFrame: false, hasShadow: false, alwaysOnTop: conf.todoPinned !== false, backgroundColor: "#00000000" };
+  const opts = Object.assign({ x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 160, minHeight: 120, resizable: true, thickFrame: false, hasShadow: false, alwaysOnTop: conf.todoPinned !== false }, glassOpts());
   todo = pageWin(opts, SITE + "?embed=todo");
   todo.on("will-move", () => { todoDragging = true; clearTimeout(todoDragT); todoDragT = setTimeout(() => { todoDragging = false; }, 1500); });
   todo.on("moved", todoMoved);
   todo.on("resized", () => { if (todo && !todo.isDestroyed() && todoState === "full") { conf.todo = todo.getBounds(); saveConf(); } });
   todo.on("closed", () => { todo = null; todoState = "full"; });
-  glassFor(todo, todoState === "full");
+  glassFor(todo, true);
   todo.once("ready-to-show", () => { if (show) todo.showInactive(); });
   return todo;
 }
 function toggleTodo() {
-  if (todo && !todo.isDestroyed() && todo.isVisible()) { todo.hide(); conf.todoShown = false; }
-  else { createTodo(true); if (todo.isVisible()) todo.showInactive(); conf.todoShown = true; }
+  const shown = (todo && !todo.isDestroyed() && todo.isVisible()) || (tab && !tab.isDestroyed() && tab.isVisible());
+  if (shown) { if (todo && !todo.isDestroyed()) todo.hide(); if (tab && !tab.isDestroyed()) tab.hide(); conf.todoShown = false; }
+  else { todoState = "full"; createTodo(true); todo.setOpacity(1); if (todo.isVisible()) todo.showInactive(); conf.todoShown = true; }
   saveConf(); refreshMenu();
 }
 
@@ -203,19 +227,15 @@ ipcMain.on("ready", (e) => {
   const id = e.sender.id; readyWins.add(id);
   const q = queued.get(id); if (q) { queued.delete(id); for (const [ch, ...args] of q) e.sender.send(ch, ...args); }
 });
-ipcMain.on("hide", (e) => { const w = winOf(e); if (w) w.hide(); if (w === todo) { conf.todoShown = false; saveConf(); refreshMenu(); } });
+ipcMain.on("hide", (e) => { const w = winOf(e); if (w) w.hide(); if (w === todo) { if (tab && !tab.isDestroyed()) tab.hide(); conf.todoShown = false; saveConf(); refreshMenu(); } });
 ipcMain.on("open-main", (e, hash) => openMain(typeof hash === "string" ? hash : ""));
 ipcMain.on("open-zero", (e, cmd) => showZero(typeof cmd === "string" ? cmd : ""));
 ipcMain.on("to-main", (e, subj, list) => { const w = openMain("#dungeon"); send(w, "files", String(subj), list); });
-// 待办三种状态：full 展开的列表；mini 小标签；dock 吸在屏幕边上的书签（像 360 加速球那样藏进屏幕边）
-// 拖到离屏幕上边、左边或右边 24px 以内就吸住；鼠标移上去从边上滑出列表，移开缩回去
-const MINI = { width: 22, height: 34 }, DOCK = 34, DOCK_LEN = 22, SNAP = 24; // 收起来是一枚燕尾书签：22 宽、34 长，尾巴朝屏幕里
-// 书签的形状（窗口里的坐标）：贴边一侧是直边，另一头剪出燕尾缺口
-const NOTCH = 7;
-let shapeT = null;
-function applyTabShape() {}
-let todoState = "full";
-const fullSize = () => (conf.todo && conf.todo.width > MINI.width + 20 ? conf.todo : { width: 280, height: 320 });
+// 待办两种样子：full 展开的列表（todo 窗口）；收起来是一枚燕尾书签（单独的 tab 小窗口，不加任何系统效果）。
+// 贴着上、左、右边收起就是贴边书签，不贴边就是原地一枚小书签；鼠标移上去展开，移开 0.6 秒收起。
+const MINI = { width: 22, height: 34 }, DOCK = 34, DOCK_LEN = 22, SNAP = 24;
+let todoState = "full", tab = null, todoHot = 0;
+const fullSize = () => (conf.todo && conf.todo.width > 120 ? conf.todo : { width: 280, height: 320 });
 function edgeOf(b) {
   const d = screen.getDisplayMatching(b).workArea;
   if (b.x <= d.x + SNAP) return "left";
@@ -223,63 +243,74 @@ function edgeOf(b) {
   if (b.y <= d.y + SNAP) return "top";
   return null;
 }
-function tellTodo() { if (todo && !todo.isDestroyed()) send(todo, "todo-state", { mode: todoState, edge: conf.todoDock ? conf.todoDock.edge : "" }); }
+function tellTodo() { if (todo && !todo.isDestroyed()) send(todo, "todo-state", { mode: "full", edge: "" }); }
 function dockRect(d) {
   const k = conf.todoDock, clampY = (y) => Math.min(Math.max(y, d.y), d.y + d.height - DOCK_LEN), clampX = (x) => Math.min(Math.max(x, d.x), d.x + d.width - DOCK_LEN);
   if (k.edge === "left") return { x: d.x, y: clampY(k.along), width: DOCK, height: DOCK_LEN };
   if (k.edge === "right") return { x: d.x + d.width - DOCK, y: clampY(k.along), width: DOCK, height: DOCK_LEN };
   return { x: clampX(k.along), y: d.y, width: DOCK_LEN, height: DOCK };
 }
-function todoTarget(mode) {
-  const b = todo.getBounds(), d = screen.getDisplayMatching(b).workArea, f = fullSize();
-  if (mode === "dock") return dockRect(d);
-  if (mode === "mini") {
-    const right = b.x + b.width / 2 > d.x + d.width / 2, bottom = b.y + b.height / 2 > d.y + d.height / 2;
-    return { x: right ? b.x + b.width - MINI.width : b.x, y: bottom ? b.y + b.height - MINI.height : b.y, width: MINI.width, height: MINI.height };
-  }
-  let x, y;
-  if (todoState === "dock" && conf.todoDock) {
-    const k = conf.todoDock, r = dockRect(d);
-    x = k.edge === "left" ? d.x : k.edge === "right" ? d.x + d.width - f.width : r.x + r.width / 2 - f.width / 2;
-    y = k.edge === "top" ? d.y : r.y + r.height / 2 - 40;
-  } else {
-    const right = b.x + b.width / 2 > d.x + d.width / 2, bottom = b.y + b.height / 2 > d.y + d.height / 2;
-    x = right ? b.x + b.width - f.width : b.x; y = bottom ? b.y + b.height - f.height : b.y;
-  }
+function ensureTab() {
+  if (tab && !tab.isDestroyed()) return tab;
+  tab = new BrowserWindow({ width: MINI.width, height: MINI.height, frame: false, transparent: true, resizable: false, movable: false, focusable: false, thickFrame: false,
+    skipTaskbar: true, alwaysOnTop: true, hasShadow: false, show: false, minWidth: 10, minHeight: 10,
+    webPreferences: { preload: path.join(__dirname, "tab-preload.js"), contextIsolation: true, sandbox: false } });
+  tab.setAlwaysOnTop(true, "floating");
+  tab.loadFile(path.join(__dirname, "tab.html"));
+  tab.on("closed", () => { tab = null; });
+  return tab;
+}
+function tabRect() {
+  const f = conf.todo || fullSize(), d = screen.getDisplayMatching(f).workArea;
+  if (conf.todoDock) return dockRect(d);
+  const right = f.x + f.width / 2 > d.x + d.width / 2;
+  return { x: right ? f.x + f.width - MINI.width - 14 : f.x + 14, y: f.y, width: MINI.width, height: MINI.height };
+}
+function tabSend() { if (tab && !tab.isDestroyed()) tab.webContents.send("tab", { edge: conf.todoDock ? conf.todoDock.edge : "top", hot: todoHot }); }
+function fullRect() {
+  const f = fullSize(), d = screen.getDisplayMatching(conf.todo || f).workArea;
+  let x = f.x, y = f.y;
+  if (conf.todoDock) { const k = conf.todoDock, r = dockRect(d); x = k.edge === "left" ? d.x : k.edge === "right" ? d.x + d.width - f.width : r.x + r.width / 2 - f.width / 2; y = k.edge === "top" ? d.y : r.y + r.height / 2 - 40; }
+  if (x == null || y == null) { x = d.x + d.width - f.width - 24; y = d.y + 40; }
   return { x: Math.round(Math.min(Math.max(x, d.x), d.x + d.width - f.width)), y: Math.round(Math.min(Math.max(y, d.y), d.y + d.height - f.height)), width: f.width, height: f.height };
+}
+function fade(win, from, to, ms, done) {
+  if (!win || win.isDestroyed()) return;
+  clearInterval(win._fade); const t0 = Date.now(); win.setOpacity(from);
+  win._fade = setInterval(() => { if (win.isDestroyed()) return clearInterval(win._fade); const k = Math.min(1, (Date.now() - t0) / ms); win.setOpacity(from + (to - from) * k); if (k >= 1) { clearInterval(win._fade); if (done) done(); } }, 15);
 }
 function setTodoMode(mode) {
   if (!todo || todo.isDestroyed()) return;
-  if (mode === "mini" && conf.todoDock) mode = "dock";
-  const cur = todoState === "dock" ? "dock" : todoState;
-  if (mode === cur) return;
-  if (cur === "full") { conf.todo = Object.assign({}, todo.getBounds()); saveConf(); }
-  const to = todoTarget(mode);
-  if (mode === "full" && cur === "dock" && conf.todoDock) {
-    // 从书签处展开：先把窗口放到展开位置但只露出书签那么大，再往外拉开
-    const k = conf.todoDock, r = todo.getBounds();
-    const start = k.edge === "top" ? { x: to.x, y: to.y, width: to.width, height: DOCK } : k.edge === "left" ? { x: to.x, y: to.y, width: DOCK, height: to.height } : { x: to.x + to.width - DOCK, y: to.y, width: DOCK, height: to.height };
-    todoState = "full"; tellTodo(); glassFor(todo, true); todo.setResizable(true); todo.setBounds(start); animateBounds(todo, to, 180);
-    return;
+  if (mode === "dock") mode = "mini";
+  if (mode === todoState) return;
+  if (mode === "mini") {
+    conf.todo = Object.assign({}, todo.getBounds()); saveConf();
+    todoState = "mini";
+    const t = ensureTab(); t.setBounds(tabRect()); tabSend();
+    fade(todo, 1, 0, 120, () => { if (todoState === "mini" && todo && !todo.isDestroyed()) todo.hide(); });
+    if (t.webContents.isLoading()) t.once("ready-to-show", () => { if (todoState === "mini") t.showInactive(); }); else t.showInactive();
+  } else {
+    todoState = "full"; tellTodo();
+    todo.setBounds(fullRect()); todo.setOpacity(0); todo.showInactive(); fade(todo, 0, 1, 140);
+    if (tab && !tab.isDestroyed()) tab.hide();
   }
-  todoState = mode; tellTodo();
-  if (mode !== "full") todo.setResizable(false); else todo.setResizable(true);
-  glassFor(todo, mode === "full"); // 收起来时去掉系统模糊，不然书签外面会有一块方形
-  animateBounds(todo, to, mode === "full" ? 140 : 160);
-  if (mode !== "full") shapeT = setTimeout(applyTabShape, 190); // 缩到位以后再裁成书签形状
 }
 ipcMain.on("todo-mode", (e, mode) => setTodoMode(mode));
-// 鼠标位置由主进程盯着：移进来就展开，移出去 0.6 秒后收起（页面里正在输入时不收）
+ipcMain.on("tab-click", () => setTodoMode("full"));
+// 鼠标位置由主进程盯着：移到书签上就展开，移出列表 0.6 秒后收起（页面里正在输入时不收）
 let todoBusy = false, todoAway = 0;
 ipcMain.on("todo-busy", (e, v) => { todoBusy = !!v; });
+function inRect(p, b, m) { return p.x >= b.x - m && p.x < b.x + b.width + m && p.y >= b.y - m && p.y < b.y + b.height + m; }
 setInterval(() => {
-  if (!todo || todo.isDestroyed() || !todo.isVisible() || todoDragging) return;
-  const p = screen.getCursorScreenPoint(), b = todo.getBounds(), m = todoState === "full" ? 6 : 2;
-  const inside = p.x >= b.x - m && p.x < b.x + b.width + m && p.y >= b.y - m && p.y < b.y + b.height + m;
-  if (inside) { todoAway = 0; if (todoState !== "full") setTodoMode("full"); }
-  else if (todoState === "full" && !todoBusy) { if (++todoAway >= 5) { todoAway = 0; setTodoMode("mini"); } }
+  if (!todo || todo.isDestroyed() || todoDragging || gameHidden || conf.todoShown === false) return;
+  const p = screen.getCursorScreenPoint();
+  if (todoState === "full") {
+    if (!todo.isVisible()) return;
+    if (inRect(p, todo.getBounds(), 6)) todoAway = 0;
+    else if (!todoBusy && ++todoAway >= 5) { todoAway = 0; setTodoMode("mini"); }
+  } else if (tab && !tab.isDestroyed() && tab.isVisible() && inRect(p, tab.getBounds(), 3)) { todoAway = 0; setTodoMode("full"); }
 }, 120);
-// 拖动结束：限制在屏幕内；贴近上、左、右边就吸成书签，离开就松开
+// 拖动结束：限制在屏幕内；贴近上、左、右边就记成贴边书签，离开就松开
 let todoDragging = false, todoDragT = null;
 function todoMoved() {
   if (!todo || todo.isDestroyed()) return;
@@ -287,11 +318,11 @@ function todoMoved() {
   let b = todo.getBounds();
   const d = screen.getDisplayMatching(b).workArea;
   const cx = Math.min(Math.max(b.x, d.x), d.x + d.width - b.width), cy = Math.min(Math.max(b.y, d.y), d.y + d.height - b.height);
-  const edge = edgeOf(b);
   if (cx !== b.x || cy !== b.y) { todo.setBounds({ x: cx, y: cy, width: b.width, height: b.height }); b = todo.getBounds(); }
+  const edge = edgeOf(b);
   if (edge) conf.todoDock = { edge, along: edge === "top" ? Math.round(b.x + b.width / 2 - DOCK_LEN / 2) : Math.round(b.y + 20) };
-  else { conf.todoDock = null; if (todoState === "full") conf.todo = b; }
-  saveConf(); tellTodo();
+  else conf.todoDock = null;
+  conf.todo = b; saveConf();
 }
 ipcMain.handle("is-glass", (e) => { const w = BrowserWindow.fromWebContents(e.sender); return !!(w && w._glass); });
 ipcMain.on("todo-resize", (e, dw, dh) => { if (!todo || todo.isDestroyed() || todoState !== "full") return; const b = todo.getBounds(); todo.setBounds({ x: b.x, y: b.y, width: Math.max(180, Math.round(b.width + dw)), height: Math.max(120, Math.round(b.height + dh)) }); conf.todo = todo.getBounds(); saveConf(); });
@@ -301,7 +332,7 @@ ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); if (todo &&
 let gameHidden = null;
 ipcMain.on("game-mode", (e, on, end) => {
   if (on && !gameHidden) {
-    gameHidden = [bubble, todo, zero].filter((w) => w && !w.isDestroyed() && w.isVisible());
+    gameHidden = [bubble, todo, zero, tab].filter((w) => w && !w.isDestroyed() && w.isVisible());
     for (const w of gameHidden) w.hide();
     hideRing(0);
   } else if (!on && gameHidden) {
@@ -311,7 +342,7 @@ ipcMain.on("game-mode", (e, on, end) => {
   }
   refreshMenu();
 });
-ipcMain.on("badge", (e, n) => { if (bubble && !bubble.isDestroyed()) bubble.webContents.send("badge", n); });
+ipcMain.on("badge", (e, n) => { if (bubble && !bubble.isDestroyed()) bubble.webContents.send("badge", n); todoHot = Number(n) || 0; tabSend(); });
 ipcMain.on("saved", (e) => {
   for (const w of [zero, todo, main]) if (w && !w.isDestroyed() && w.webContents.id !== e.sender.id) send(w, "pull");
 });
@@ -599,8 +630,9 @@ function menu() {
   return Menu.buildFromTemplate([
     { label: "问零", click: () => showZero() },
     { label: "签到", click: () => showZero("daily") },
-    { label: "待办", type: "checkbox", checked: !!(todo && !todo.isDestroyed() && todo.isVisible()), click: toggleTodo },
+    { label: "待办", type: "checkbox", checked: conf.todoShown !== false, click: toggleTodo },
     { label: "待办置顶", type: "checkbox", checked: conf.todoPinned !== false, click: (i) => { conf.todoPinned = i.checked; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(i.checked); } },
+    { label: "玻璃效果：" + GLASS_MODES[glassMode()], submenu: Object.entries(GLASS_MODES).map(([k, t]) => ({ label: t, type: "radio", checked: glassMode() === k, click: () => setGlassMode(k) })) },
     { label: "打开学习空间", click: () => openMain() },
     { type: "separator" },
     { label: "显示零的小圆", type: "checkbox", checked: conf.bubbleHidden !== true, click: (i) => { conf.bubbleHidden = !i.checked; saveConf(); if (bubble) { if (i.checked) bubble.showInactive(); else bubble.hide(); } } },

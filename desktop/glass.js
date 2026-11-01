@@ -20,6 +20,7 @@ function load() {
       del: gdi.func("bool __stdcall DeleteObject(intptr_t obj)"),
       setRgn: user32.func("int __stdcall SetWindowRgn(intptr_t hwnd, intptr_t rgn, bool redraw)"),
       poly: gdi.func("intptr_t __stdcall CreatePolygonRgn(_In_ int *pts, int n, int mode)"),
+      post: user32.func("bool __stdcall PostMessageW(intptr_t hwnd, uint32_t msg, uintptr_t w, intptr_t l)"),
     };
   } catch (e) { api = null; }
   return api;
@@ -29,14 +30,14 @@ function hwndOf(win) {
   return b.length >= 8 ? Number(b.readBigUInt64LE(0)) : b.readUInt32LE(0);
 }
 // tint 是 0xAABBGGRR。颜色很淡，主要靠模糊，才看得出是玻璃而不是白板
-function applyGlass(win, dark, corner) {
+function applyGlass(win, dark, corner, state) {
   const a = load();
   if (!a || !win || win.isDestroyed()) return false;
   try {
     const hwnd = hwndOf(win);
     const tint = dark ? 0x5a261e1e : 0x30f8f8f8;
     const mem = a.koffi.alloc(a.ACCENT, 1);
-    a.koffi.encode(mem, a.ACCENT, { AccentState: 4, AccentFlags: 2, GradientColor: tint >>> 0, AnimationId: 0 });
+    a.koffi.encode(mem, a.ACCENT, { AccentState: state || 3, AccentFlags: 2, GradientColor: tint >>> 0, AnimationId: 0 });
     const ok = a.setWCA(hwnd, { Attribute: 19, Data: mem, SizeOfData: a.koffi.sizeof(a.ACCENT) });
     // DWMWA_WINDOW_CORNER_PREFERENCE：2 圆角，3 小圆角，1 不要圆角（圆形窗口用区域裁）
     try { a.dwmSet(hwnd, 33, [corner == null ? 2 : corner], 4); } catch (e) {}
@@ -93,4 +94,6 @@ function clearGlass(win) {
   if (!a || !win || win.isDestroyed()) return;
   try { const mem = a.koffi.alloc(a.ACCENT, 1); a.koffi.encode(mem, a.ACCENT, { AccentState: 0, AccentFlags: 0, GradientColor: 0, AnimationId: 0 }); a.setWCA(hwndOf(win), { Attribute: 19, Data: mem, SizeOfData: a.koffi.sizeof(a.ACCENT) }); } catch (e) {}
 }
-module.exports = { applyGlass, clearGlass, shapeWin, circleRects, ribbonRects };
+// Windows 11 材质在窗口失去焦点时会变成纯色；告诉窗口“你还是激活的样子”（WM_NCACTIVATE=TRUE），材质就留着
+function keepActive(win) { const a = load(); if (!a || !win || win.isDestroyed()) return; try { a.post(hwndOf(win), 0x86, 1, 0); } catch (e) {} }
+module.exports = { keepActive, applyGlass, clearGlass, shapeWin, circleRects, ribbonRects };
