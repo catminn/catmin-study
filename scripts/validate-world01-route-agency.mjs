@@ -91,6 +91,16 @@ export function validateWorld01RouteAgency(world, causal) {
       reachable.add(cur);pending.push(...nodes.get(cur).next);
     }
     if(reachable.size!==nodes.size)return fail('graph_unreachable');
+    // A declared reunion must still have a finite completion route. Optional
+    // post-reunion revisits are allowed, but an endless-only world is not.
+    const endings=[...nodes.values()].filter(n=>n.next.length===0).map(n=>n.id);
+    const afterReunion=new Set(),queue=[convergence.scene];
+    while(queue.length){
+      const cur=queue.pop();
+      if(afterReunion.has(cur))continue;
+      afterReunion.add(cur);queue.push(...nodes.get(cur).next);
+    }
+    if(!endings.some(end=>afterReunion.has(end)))return fail('ending_unreachable');
     // The committed choice must dominate the routes, reunion and ending.
     const visiting=new Set(),visited=new Set();let reachedFork=false;
     const beforeFork=cur=>{

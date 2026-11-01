@@ -132,6 +132,9 @@ const cases=[
  ['acceptance descriptive entries reject extra effects',x=>{x.world.acceptance=published();x.world.acceptance[2].onEnter='demo.private';},'acceptance_invalid'],
  ['acceptance descriptive requirements must be text',x=>{x.world.acceptance=published();x.world.acceptance[2].require={autoReveal:true};},'acceptance_invalid'],
  ['acceptance descriptive requirements cannot be blank',x=>{x.world.acceptance=published();x.world.acceptance[2].require='   ';},'acceptance_invalid'],
+ ['post-reunion endless cycle without ending',x=>{x.world.nodes[5].next=['demo.join'];},'ending_unreachable'],
+ ['post-reunion self-loop is not a terminal',x=>{x.world.nodes[5].next=['demo.end'];},'ending_unreachable'],
+ ['reunion itself may be the terminal',x=>{x.world.nodes.pop();x.world.nodes[4].next=[];},null],
  ['no input mutation',()=>{},null]
 ];
 for(const [name,mutate,code] of cases)test(name,()=>{
