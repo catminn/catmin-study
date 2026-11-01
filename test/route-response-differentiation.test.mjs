@@ -43,3 +43,26 @@ test('distinct branch choices may reuse copy across separate choice groups',()=>
   const p=plan();p.responses.push(response('demo-third-impact','The route is acknowledged.'),response('demo-fourth-impact','Another outcome.'));
   assert.deepEqual(check(o,p),{ok:true,branchCount:2,copyCount:4});
 });
+
+test('director-only expansion delimiters cannot enter approved route copy',()=>{
+  for(const copy of ['A line ⟦DG:pre:demo⟧', 'A line ⟦', 'A line ⟧']){
+    const p=plan();p.responses[0].copy=copy;
+    reject(outline(),p,'response_invalid');
+  }
+});
+test('malformed UTF-16 high and low surrogates fail closed',()=>{
+  for(const copy of ['A line \ud800', 'A line \udc00', 'A line \ud800x']){
+    const p=plan();p.responses[0].copy=copy;
+    reject(outline(),p,'response_invalid');
+  }
+});
+test('well-formed non-BMP Unicode in route copy remains valid',()=>{
+  const p=plan();p.responses[0].copy='A response 👩‍🔬.';
+  assert.equal(check(outline(),p).ok,true);
+});
+test('unsafe route copy diagnostics never expose its contents',()=>{
+  const p=plan();p.responses[0].copy='private-marker ⟦DG:pre:demo⟧';
+  const result=check(outline(),p);
+  assert.deepEqual(result,{ok:false,code:'response_invalid'});
+  assert.equal(JSON.stringify(result).includes('private-marker'),false);
+});
