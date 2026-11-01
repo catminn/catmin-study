@@ -371,6 +371,7 @@ async function dbHandler(req: Request, env: SiteEnv, url: URL) {
       return err("bad_request", "不是 JSON");
     }
     const t = Date.now() / 1000;
+    if (key === "state") await dailyBackup(env, t);
     await env.DB.prepare(
       `INSERT INTO study_state (key,value,version,updated_at,updated_by) VALUES (?,?,1,?,'site')
        ON CONFLICT(key) DO UPDATE SET value=excluded.value, version=study_state.version+1, updated_at=excluded.updated_at, updated_by='site'`,
@@ -380,6 +381,24 @@ async function dbHandler(req: Request, env: SiteEnv, url: URL) {
     return json({ ok: true });
   }
   return err("bad_request", "只支持 GET / PUT", 405);
+}
+
+// 每天第一次保存存档前，把旧存档复制一份到 bak.state.YYYY-MM-DD（美东日期），保留 14 天
+async function dailyBackup(env: SiteEnv, t: number) {
+  const day = new Date(t * 1000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const bk = "bak.state." + day;
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO study_state (key,value,version,updated_at,updated_by)
+     SELECT ?, value, 1, ?, 'backup' FROM study_state WHERE key='state'`,
+  )
+    .bind(bk, t)
+    .run();
+  const old = new Date((t - 14 * 86400) * 1000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  await env.DB.prepare("DELETE FROM study_state WHERE key LIKE 'bak.state.%' AND key < ?").bind("bak.state." + old).run();
+}
+async function backupsHandler(env: SiteEnv) {
+  const r = await env.DB.prepare("SELECT key, updated_at, length(value) AS size FROM study_state WHERE key LIKE 'bak.state.%' ORDER BY key DESC").all<{ key: string; updated_at: number; size: number }>();
+  return json({ backups: r.results });
 }
 
 // ---------- 全量导出（只读备份） ----------
@@ -481,6 +500,7 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/ai/status") return aiStatus(env);
     if (p === "/api/db") return dbHandler(req, env, url);
     if (p === "/api/export" && req.method === "GET") return exportHandler(env);
+    if (p === "/api/backups" && req.method === "GET") return backupsHandler(env);
     if (p === "/api/events" && req.method === "POST") return asJson(await postEvent(env, await req.json().catch(() => null)));
     if (p === "/api/events" && req.method === "GET") return asJson(await listEvents(env, url));
     if (p === "/api/rewards" && req.method === "POST") return asJson(await postReward(env, await req.json().catch(() => null)));

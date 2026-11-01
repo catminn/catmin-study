@@ -592,6 +592,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
       <div class="list">
         <div class="li"><div class="t"><b>课程信息</b><div class="dim small" id="syncNote"></div></div><button class="btn sm" id="syncBtn">立即同步</button></div>
         <div class="li"><div class="t"><label for="smToggle"><b>连接共享记忆</b></label><div class="dim small" id="smNote"></div><div class="dim small" id="smInfo"></div></div><button class="btn sm" id="smNowBtn" style="white-space:nowrap">现在同步</button><input type="checkbox" id="smToggle" style="width:22px;height:22px"></div>
+        <div class="li" id="bakRow" hidden><div class="t"><b>存档备份</b><div class="dim small">每天自动留一份，保留 14 天。点错、数据乱了可以退回去</div></div><button class="btn sm" id="bakBtn">看备份</button></div>
         <div class="li"><div class="t"><b>考试临近时多推这门课</b><div class="dim small" id="biasNote"></div></div><div class="seg" id="biasSeg" style="flex:none"><button data-v="0">少</button><button data-v="1">中</button><button data-v="2">多</button></div></div></div>
     </div>
     <div class="card"><h2 style="margin-bottom:10px">积分流水</h2><div class="log" id="ledger"></div></div>
@@ -1097,7 +1098,7 @@ function useMakeup(k){if(S.checkins.includes(k)||S.cards.makeup<1)return;S.cards
 /* ============ weekly side quests ============ */
 const NUM_DEF={"engl-disc":{a:"2026-10-26",n:18,lead:"engl-disc"},"chem-ps":{a:"2026-10-28",n:8,lead:"chem-ps"},"chem-lab":{a:"2026-10-25",n:8,lead:"chem-lab3"},"engri-hw":{a:"2026-10-25",n:7,lead:"engri-hw"}};
 function rawOcc(k){const out=[];const d=keyToDate(k);for(const r of WEEKLY){if(r.dates?!(k in r.dates):!r.dow.includes(d.getDay()))continue;
-  const fin=r.dates&&k==="2026-11-24"?at(2026,11,24):at(d.getFullYear(),d.getMonth()+1,d.getDate());const plusDays=(t,n)=>{const d=new Date(t);d.setDate(d.getDate()+n);return d.getTime()};const soft=r.target?plusDays(fin,r.target):fin;const hard=r.grace?plusDays(soft,r.grace):soft;
+  const fin=r.dates&&k==="2026-11-24"?at(2026,11,24):at(d.getFullYear(),d.getMonth()+1,d.getDate());const plusDays=(t,n)=>{const d=new Date(t);d.setDate(d.getDate()+n);return d.getTime()};let soft=r.target?plusDays(fin,r.target):fin;let hard=r.grace?plusDays(soft,r.grace):soft;const fx=(S.dueFix||{})[r.id+"@"+k];if(fx){hard=fx+(hard-soft);soft=fx}
   out.push({key:r.id+"@"+k,day:k,r,subj:r.subj,soft,hard,week:weekKey(fin)})}return out}
 const NUMC=new Map();
 function seqNum(grp,k){const def=Object.assign({},NUM_DEF[grp],(S.nums||{})[grp]||{});const ck=grp+k+JSON.stringify(def)+Object.keys(S.skipped).length;if(NUMC.has(ck))return NUMC.get(ck);
@@ -1420,6 +1421,7 @@ function openBossSheet(id){const b=BOSSES()[id];const fin=S.done["boss:"+id+":fi
     fin?doneBox("已击败 +"+fin.pts):(b.submit&&b.due?rewardBox(BOSS_PTS,b.due,0):h("div",{class:"reward"},h("div",{class:"eyebrow"},"击败奖励"),h("div",{class:"big"},"+"+R(BOSS_PTS)+" 积分"),null)),
     b.stages.length?h("div",null,h("div",{class:"eyebrow",style:{marginBottom:"6px"}},"考前复习任务"),h("div",{class:"checklist"},b.stages.map(s=>{const d=S.done["boss:"+id+":"+s.k];
       return h("button",{class:d?"done":"",disabled:!!d,onclick:()=>doStage(id,s)},h("span",null,(d?"✓ ":"")+s.t+(s.due&&!d?"（目标 "+fmtDue(s.due)+"）":"")),h("span",{class:"rw"},"+"+(d?d.pts:preview(s.pts,s.due||null,0).total)))}))):null,
+    b.exam&&!fin?planBlock(id,b):null,
     h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();goDungeon(b.subj,b.exam?helpMode(b.subj,/考前复习/):MODES.engl[1][1])}},b.exam?"进副本考前复习":"进副本推进论文"),
       !fin&&canFinish?h("button",{class:"btn ok",onclick:()=>finishBoss(id)},b.submit?"交了，领奖励":"考完了，领奖励"):null,
       fin&&b.exam&&!S.scores.some(e=>e.boss===id)?h("button",{class:"btn go",onclick:()=>openScoreSheet({subj:b.subj,name:b.title.replace(/^(MATH|CHEM|ENGRI) /,""),boss:id,max:id==="math-p2"?70:id==="engri-p2"?100:(id==="chem-e3"||id==="chem-p2")?150:""})},"出分了？录入成绩领奖励"):null),
@@ -1979,7 +1981,7 @@ async function zwSend(text){text=(text||$("#zwInput").value).trim();if(!text||!S
   finally{ZW.ctl=null;ZW.turns=ZW.turns.slice(-30);zwSave();zwRender();if($("#zwPanel").hidden)$("#zwFab").classList.add("ping")}}
 /* ---- 每日签到题（独立弹窗） ---- */
 let DQ_CTL=null;
-async function openDaily(subj){if(checkedToday()){openCheckin();return}subj=subj||suggestSubj();if(subj==="engl")subj="math";closeSheet();
+async function openDaily(subj){if(checkedToday()){openCheckin();return}subj=subj||(planToday()||{b:{}}).b.subj||suggestSubj();if(subj==="engl")subj="math";closeSheet();
   document.querySelectorAll(".qz").forEach(x=>x.remove());const card=h("div",{class:"card2"});const ov=h("div",{class:"qz",role:"dialog","aria-modal":"true"},card);document.body.append(ov);
   const close=()=>{if(DQ_CTL)DQ_CTL.abort();ov.remove()};
   const head=()=>h("div",{class:"row between"},h("div",null,h("div",{class:"eyebrow"},"每日一课 · +"+ckReward(streak()+1)),h("h2",{style:{margin:0}},SUBJ[subj].full)),h("button",{class:"btn sm flat",onclick:close,"aria-label":"关闭"},"×"));
@@ -1992,7 +1994,7 @@ async function openDaily(subj){if(checkedToday()){openCheckin();return}subj=subj
     const hw=(S.hwArchive||[]).filter(a=>a.subj===subj).slice(-4).map(a=>"【"+a.title+"】\n"+a.items.map(q=>(q.no&&q.no!=="?"?q.no+"：":"")+q.text).join("\n")).join("\n\n").slice(0,5000);
     try{const j=await SAMPLE.json(contextTurn(subj)+`\n\n现在是「每日一课」，不要剧情，不要角色台词。目的是每天教她一点新东西，不是刷题。
 ${exTxt}
-先挑一个她现在最需要的知识点：最近 10 天内有考试或 quiz 的，就从它的范围里挑她最可能不会的一个点；没有的话，挑主线上接下来要学的一个点。${hw?"\n她作业里的原题（可以直接拿一道来当例题教）：\n"+hw:""}
+${(()=>{const pt=planToday(subj);return pt?"今天考前计划里的知识点是「"+pt.it.topic+"」（"+pt.it.task+"），就教这个。\n":""})()}先挑一个她现在最需要的知识点：最近 10 天内有考试或 quiz 的，就从它的范围里挑她最可能不会的一个点；没有的话，挑主线上接下来要学的一个点。${hw?"\n她作业里的原题（可以直接拿一道来当例题教）：\n"+hw:""}
 然后像家教一样从零教这一个点：先一两句说清是什么、什么时候用，再用一道具体的例题（最好是作业原题或考试题型）一步一步做给她看，每一步说做什么、为什么。整体 300 字以内，分 3 到 5 小段，公式用 $...$。${subj==="chem"?"例题和术语用英文，讲解用中文。":""}
 最后出一道检查题，考刚教的这个点，换个数字或问法，3 分钟能做完。能用选择题考的就出 4 个选项的单选题；需要算一个数或写一句话的就出简答题。
 只回复 JSON：{"topic":"知识点名称，15 字以内","lesson":"教学内容，段落之间用 \\n\\n 隔开","q":"检查题","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解"}`,{cache:false,signal:DQ_CTL.signal});
@@ -2259,6 +2261,7 @@ $("#clearBtn").onclick=()=>{CHATS[CUR]=[];QUEST[CUR]=null;delete S.battle[CUR];s
 $("#deepBtn").onclick=deepCopy;$("#tStop").onclick=()=>{S.timer=null;save();renderTimer()};
 $("#crAdd").onclick=()=>{const n=$("#crName").value.trim(),p=Math.round(+$("#crPrice").value*PER_USD);if(!n||!(p>0)){toast("写上名字和价格");return}S.customRewards.push({id:"c"+uid(),name:n.slice(0,30),price:p});$("#crName").value="";$("#crPrice").value="";save();renderAll()};
 $("#syncBtn").onclick=()=>syncCourses(true);
+if(window.__SITE){$("#bakRow").hidden=false;$("#bakBtn").onclick=openBackups}
 $("#smSaveBtn").onclick=()=>smFlushClick(CUR);$("#smNowBtn").onclick=()=>smFlushClick();$("#smToggle").onchange=e=>{S.sharedMem=e.target.checked;save();renderBag()};
 setInterval(()=>{tickFocus();if(S.timer){renderTimer();if(S.timer.end<=Date.now()&&!S.timer.rang){S.timer.rang=true;toast("游戏时间到");save()}}},1000);
 setInterval(()=>{if(document.querySelector(".scrim,.pop"))return;softRefresh()},60e3);
@@ -2337,6 +2340,8 @@ html.embed-root,body.embed-todo{background:transparent!important}
 .td-row .w{font-size:12px;opacity:.55;flex:none}.td-row.soon .w{opacity:1;color:var(--late)}
 .td-row .x{opacity:0;border:0;background:none;color:inherit;cursor:pointer;padding:0 2px}.td-row:hover .x{opacity:.5}
 .td-row .go2{border:0;background:none;color:inherit;opacity:0;cursor:pointer;font-size:10px;padding:0 3px}.td-row:hover .go2{opacity:.6}.td-row .go2:hover{opacity:1}.td-row.active .go2{opacity:1;color:var(--early)}.td-row.active .t{font-weight:600}
+.td-row .w{cursor:pointer}.td-row .w:hover{text-decoration:underline}.td-due{font:inherit;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:inherit;padding:1px 4px;width:150px}
+.checklist button.today{outline:2px solid var(--early);outline-offset:-2px}
 .td-pin{position:absolute;top:4px;right:6px;border:0;background:none;color:inherit;opacity:0;font-size:10px;cursor:pointer;-webkit-app-region:no-drag;z-index:2}
 #todoEmbed:hover .td-pin{opacity:.45}
 .td-mini{display:none;align-items:center;gap:6px;height:100%;padding:0 12px;font-size:13px;white-space:nowrap}
@@ -2519,18 +2524,56 @@ function pickTarget(list){const box=h("div",{class:"box"},h("b",null,(S.cur?"正
     h("div",{class:"row"},...Object.keys(ACTS).map(k=>h("button",{class:"btn"+(k===(S.cur?"hw":"explain")?" go":""),onclick:()=>{wrap.remove();doAct(k,list)}},ACTS[k]))),
     h("button",{class:"btn flat sm",onclick:()=>wrap.remove()},"算了"));const wrap=h("div",{class:"zw-pick"},box);document.body.append(wrap)}
 
+/* 每日存档备份（网站版）：/api/backups 列出，选一天退回 */
+async function openBackups(){let list=[];try{list=(await (await fetch("/api/backups",{credentials:"include"})).json()).backups||[]}catch(e){}
+  const box=h("div",{class:"list"});
+  if(!list.length)box.append(h("div",{class:"dim small"},"还没有备份（明天第一次保存时会留第一份）"));
+  for(const b of list){const day=b.key.replace("bak.state.","");box.append(h("div",{class:"li"},h("div",{class:"t"},h("b",null,day),h("div",{class:"dim small"},"这一天开始时的存档")),
+    h("button",{class:"btn sm",onclick:async e=>{const btn=e.target;if(btn.dataset.ok!=="1"){btn.dataset.ok="1";btn.textContent="确定退回？";return}
+      try{const o=await (await fetch("/api/db?key="+encodeURIComponent(b.key),{credentials:"include"})).json();if(!o.exists)throw 0;const cur=clone(S);S=mergeState(o.value);S.undoRestore=null;save();applyDyn();renderAll();closeSheet();
+        localStorage.setItem("zs-before-restore",JSON.stringify(cur));toast("已退回到 "+day+" 的存档")}catch(err){toast("没退回去，稍后再试")}}},"退回")))}
+  sheet(null,h("h2",null,"存档备份"),box)}
+/* 截止时间可以改：点待办右边的时间 */
+function setDueFix(key,v){S.dueFix=S.dueFix||{};if(v)S.dueFix[key]=v;else delete S.dueFix[key];NUMC.clear();save();renderAll();toast(v?"截止改到 "+new Date(v).toLocaleString("zh-CN",{month:"numeric",day:"numeric",weekday:"short",hour:"2-digit",minute:"2-digit"}):"截止时间恢复原样")}
+function setTodoDue(t,v){t.due=v||null;t.allDay=false;save();renderAll();refreshDaySheet();
+  if(v){if(t.ev)gcalCall("update_event",Object.assign({eventId:t.ev},todoEvArgs(t)));else gcalCall("create_event",todoEvArgs(t)).then(p=>{if(p&&p.id){t.ev=p.id;save()}})}else if(t.ev){gcalCall("delete_event",{eventId:t.ev});t.ev=null;save()}}
+function editDue(el,set){const inp=h("input",{type:"datetime-local",class:"td-due"});const d=new Date(Date.now()+DAY);d.setHours(23,59,0,0);
+  inp.value=localKey(d)+"T23:59";el.replaceWith(inp);inp.focus();try{inp.showPicker&&inp.showPicker()}catch(e){}
+  let doneE=false;const fin=ok=>{if(doneE)return;doneE=true;if(ok&&inp.value){const t=Date.parse(inp.value);if(!isNaN(t)){set(t);return}}renderAll()};
+  inp.addEventListener("change",()=>fin(true));inp.addEventListener("keydown",e=>{if(e.key==="Escape")fin(false);if(e.key==="Enter")fin(true)});inp.addEventListener("blur",()=>setTimeout(()=>fin(false),150));
+  if(DESK&&DESK.todoBusy)DESK.todoBusy(true)}
+/* 考前计划：考试前 10 天内，零按范围排一份每天一个点的计划；每日一课按计划教，做完一项 +5 */
+const PLAN_PTS=5;
+function planToday(subj){const k=dayKey();for(const id in (S.examPlan||{})){const p=S.examPlan[id];const b=BOSSES()[id];if(!b||b.due<Date.now()||(subj&&b.subj!==subj))continue;const it=p.days.find(d=>d.day===k);if(it)return{id,b,it}}return null}
+async function makePlan(id,b,btn){if(!SAMPLE){toast("需要在 Claude 里打开");return}btn.disabled=true;btn.textContent="零在排计划…";
+  const days=[];for(let k=dayKey();keyToDate(k).getTime()<b.due-12*HOUR&&days.length<10;k=addDays(k,1))days.push(k);
+  if(!days.length){toast("离考试太近了，直接进副本复习");btn.disabled=false;return}
+  const mis=(S.mistakes||[]).filter(m=>m.subj===b.subj&&!m.fixed).slice(-12).map(m=>"- "+String(m.text).slice(0,120)).join("\n");
+  try{const j=await SAMPLE.json(contextTurn(b.subj)+`\n\n给「${b.title}」（${fmtDue(b.due)}${b.scope?"，范围 "+b.scope:b.where?"，"+b.where:""}）排考前计划，不要剧情。
+可用的日子：${days.join("、")}（每天一项）。她做得慢，每天的量控制在 1 小时左右。
+排法：前面的日子每天一个知识点（先教会再做 2–3 道题），按考试分量和她的薄弱处排序；倒数第二天做一套模拟卷；最后一天只过错题和公式。${mis?"\n她没解决的错题：\n"+mis:""}
+只回 JSON：{"days":[{"day":"YYYY-MM-DD","topic":"知识点（短）","task":"今天具体做什么（一句话）"}]}`,{cache:false});
+    const list=(j&&j.days||[]).filter(d=>d&&days.includes(d.day)&&d.topic).map(d=>({day:d.day,topic:String(d.topic).slice(0,40),task:String(d.task||"").slice(0,120)}));
+    if(!list.length)throw 0;S.examPlan=S.examPlan||{};S.examPlan[id]={at:Date.now(),days:list};save();openBossSheet(id)}
+  catch(e){toast("计划没排出来，再试一次");btn.disabled=false;btn.textContent="排考前计划"}}
+function planBlock(id,b){const left=b.due-Date.now();if(left>10*DAY||left<0)return null;const p=(S.examPlan||{})[id];
+  if(!p)return h("div",{class:"row"},h("button",{class:"btn",onclick:e=>makePlan(id,b,e.currentTarget)},"排考前计划"),h("span",{class:"dim small"},"每天一个点，每日一课跟着教"));
+  return h("div",null,h("div",{class:"row between",style:{marginBottom:"6px"}},h("div",{class:"eyebrow"},"考前计划"),h("button",{class:"btn sm flat",onclick:()=>{delete S.examPlan[id];save();openBossSheet(id)}},"重排")),
+    h("div",{class:"checklist"},p.days.map(d=>{const k="plan:"+id+":"+d.day;const dn=S.done[k];const today=d.day===dayKey();
+      return h("button",{class:(dn?"done":"")+(today?" today":""),disabled:!!dn,title:d.task,onclick:()=>{const pts=award(PLAN_PTS,keyToDate(d.day).getTime()+DAY+4*HOUR,0,"考前计划 · "+d.topic);S.done[k]={at:Date.now(),pts};save();openBossSheet(id);renderAll()}},
+        h("span",null,(dn?"✓ ":"")+d.day.slice(5).replace("-","/")+" "+d.topic+(today&&!dn&&d.task?" — "+d.task:"")),h("span",{class:"rw"},"+"+(dn?dn.pts:R(PLAN_PTS))))})))}
 /* 待办小窗 */
 function undoDone(key,label){const d=S.done[key];if(!d)return;delete S.done[key];if(d.pts)earn(-d.pts,"撤销 · "+label);save();renderAll()}
 function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEmbed"});document.body.append(el)}const now=Date.now();
   const wk=t=>{const d=new Date(t);const days=Math.round((keyToDate(localKey(d))-keyToDate(localKey(new Date(now))))/DAY);return days<=0?(t<now?"过期":pad(d.getHours())+":"+pad(d.getMinutes())):days===1?"明天":"周"+WD[d.getDay()]};
-  const line=(text,when,soon,done,toggle,onDel,onStart,active)=>h("div",{class:"td-row"+(done?" done":"")+(soon&&!done?" soon":"")+(active?" active":""),onclick:e=>{if(e.target.closest(".x,.go2"))return;toggle()}},h("span",{class:"ck"}),h("span",{class:"t",title:text},text),when?h("span",{class:"w"},when):null,onStart&&!done?h("button",{class:"go2",title:active?"正在做":"开始做",onclick:onStart},active?"●":"▶"):null,onDel?h("button",{class:"x","aria-label":"删除",onclick:onDel},"×"):null);
+  const line=(text,when,soon,done,toggle,onDel,onStart,active,onDue)=>h("div",{class:"td-row"+(done?" done":"")+(soon&&!done?" soon":"")+(active?" active":""),onclick:e=>{if(e.target.closest(".x,.go2"))return;toggle()}},h("span",{class:"ck"}),h("span",{class:"t",title:text},text),when!==null&&onDue?h("span",{class:"w",title:"改截止时间",onclick:e=>{e.stopPropagation();editDue(e.currentTarget,onDue)}},when||"＋时间"):when?h("span",{class:"w"},when):null,onStart&&!done?h("button",{class:"go2",title:active?"正在做":"开始做",onclick:onStart},active?"●":"▶"):null,onDel?h("button",{class:"x","aria-label":"删除",onclick:onDel},"×"):null);
   const recent=k=>S.done[k]&&now-S.done[k].at<12*HOUR;const rows=[];
   if(!checkedToday())rows.push(line("签到","",false,false,()=>DESK?DESK.openZero("daily"):openDaily(suggestSubj())));
   const dueOf=o=>o.soft<now&&o.hard>now?o.hard:o.soft;
-  const items=[...occurrences().filter(o=>!S.skipped[o.key]&&(!S.done[o.key]||recent(o.key))&&dueOf(o)<now+5*DAY).map(o=>{const t=SUBJ[o.subj].name+" "+o.title;return{t,due:dueOf(o),done:!!S.done[o.key],go:()=>S.done[o.key]?undoDone(o.key,t):completeTask(o),start:()=>beginTask("occ",o.key,o.subj,t),key:o.key}}),
-    ...SIDE.filter(q=>q.due<now+5*DAY&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>{const k="cv-"+q.id;return{t:q.title,due:q.due,done:!!S.done[k],go:()=>{if(S.done[k]){undoDone(k,q.title);return}const pts=award(SIDE_PTS,q.due,0,"支线 · "+q.title);S.done[k]={at:Date.now(),pts};save();renderAll()},start:()=>beginTask("cv",k,q.subj,q.title),key:k}}),
-    ...(S.todos||[]).filter(t=>!t.done||now-t.done<12*HOUR).map(t=>({t:t.t,due:t.due||now+30*DAY,nodue:!t.due,done:!!t.done,go:()=>toggleTodo(t),del:()=>removeTodo(t),start:()=>beginTask("todo",t.id,t.subj,t.t),key:t.id}))].sort((a,b)=>(a.done-b.done)||(a.due-b.due));
-  for(const it of items)rows.push(line(it.t,it.nodue?"":wk(it.due),it.due-now<24*HOUR,it.done,it.go,it.del,it.start,S.cur&&S.cur.key===it.key));
+  const items=[...occurrences().filter(o=>!S.skipped[o.key]&&(!S.done[o.key]||recent(o.key))&&dueOf(o)<now+5*DAY).map(o=>{const t=SUBJ[o.subj].name+" "+o.title;return{t,due:dueOf(o),done:!!S.done[o.key],go:()=>S.done[o.key]?undoDone(o.key,t):completeTask(o),start:()=>beginTask("occ",o.key,o.subj,t),key:o.key,setDue:v=>setDueFix(o.key,v),due0:dueOf(o)}}),
+    ...SIDE.filter(q=>q.due<now+5*DAY&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>{const k="cv-"+q.id;return{t:q.title,due:q.due,done:!!S.done[k],go:()=>{if(S.done[k]){undoDone(k,q.title);return}const pts=award(SIDE_PTS,q.due,0,"支线 · "+q.title);S.done[k]={at:Date.now(),pts};save();renderAll()},start:()=>beginTask("cv",k,q.subj,q.title),key:k,setDue:v=>setDueFix(k,v)}}),
+    ...(S.todos||[]).filter(t=>!t.done||now-t.done<12*HOUR).map(t=>({t:t.t,due:t.due||now+30*DAY,nodue:!t.due,done:!!t.done,go:()=>toggleTodo(t),del:()=>removeTodo(t),start:()=>beginTask("todo",t.id,t.subj,t.t),key:t.id,setDue:v=>setTodoDue(t,v)}))].sort((a,b)=>(a.done-b.done)||(a.due-b.due));
+  for(const it of items)rows.push(line(it.t,it.nodue?"":wk(it.due),it.due-now<24*HOUR,it.done,it.go,it.del,it.start,S.cur&&S.cur.key===it.key,it.setDue));
   if(!S.sleep&&sleepWindow(now).ok)rows.push(line("晚安","00:30",false,false,goodnight));
   const ti=h("input",{type:"text",placeholder:"+ 待办"});const dt=h("input",{type:"datetime-local",hidden:true,title:"截止时间（可不填）"});
   const add=()=>{if(!ti.value.trim())return;addTodo(ti.value,dt.value,"");ti.value="";dt.value="";dt.hidden=true};
