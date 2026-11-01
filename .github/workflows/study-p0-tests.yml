@@ -17,6 +17,20 @@ on:
       - 'test/world01-causal-authoring.test.mjs'
       - 'test/fixtures/world01-causal-authoring-v1.json'
       - 'content/contracts/world01-route-agency-v1.md'
+      - 'scripts/validate-dm-beat-flow.mjs'
+      - 'scripts/validate-scene-learning-flow.mjs'
+      - 'scripts/validate-scene-learning-pacing.mjs'
+      - 'scripts/validate-dm-failure-forward.mjs'
+      - 'scripts/npc-testimony-reference.mjs'
+      - 'scripts/npc-dialogue-comparison.mjs'
+      - 'test/dm-beat-flow.test.mjs'
+      - 'test/dm-beat-sequence.test.mjs'
+      - 'test/scene-learning-flow.test.mjs'
+      - 'test/scene-learning-pacing.test.mjs'
+      - 'test/dm-failure-forward.test.mjs'
+      - 'test/npc-testimony-reference.test.mjs'
+      - 'test/npc-dialogue-comparison.test.mjs'
+      - 'test/fixtures/dm-beat-flow-synthetic-v1.json'
       - '.github/workflows/study-p0-tests.yml'
   push:
     branches:
@@ -37,6 +51,20 @@ on:
       - 'test/world01-causal-authoring.test.mjs'
       - 'test/fixtures/world01-causal-authoring-v1.json'
       - 'content/contracts/world01-route-agency-v1.md'
+      - 'scripts/validate-dm-beat-flow.mjs'
+      - 'scripts/validate-scene-learning-flow.mjs'
+      - 'scripts/validate-scene-learning-pacing.mjs'
+      - 'scripts/validate-dm-failure-forward.mjs'
+      - 'scripts/npc-testimony-reference.mjs'
+      - 'scripts/npc-dialogue-comparison.mjs'
+      - 'test/dm-beat-flow.test.mjs'
+      - 'test/dm-beat-sequence.test.mjs'
+      - 'test/scene-learning-flow.test.mjs'
+      - 'test/scene-learning-pacing.test.mjs'
+      - 'test/dm-failure-forward.test.mjs'
+      - 'test/npc-testimony-reference.test.mjs'
+      - 'test/npc-dialogue-comparison.test.mjs'
+      - 'test/fixtures/dm-beat-flow-synthetic-v1.json'
       - '.github/workflows/study-p0-tests.yml'
 permissions:
   contents: read
@@ -52,3 +80,5 @@ jobs:
         run: node --test test/study-core.test.mjs test/audit-legacy-save.test.mjs test/world01-structure.test.mjs test/validate-story-bundle.test.mjs
       - name: Test first-world public authoring contracts (synthetic only)
         run: node --test test/world01-causal-authoring.test.mjs test/world01-route-agency.test.mjs test/world01-public-contract.test.mjs
+      - name: Test spoiler-free DM pacing, failure-forward, and NPC testimony references
+        run: node --test test/dm-beat-flow.test.mjs test/dm-beat-sequence.test.mjs test/scene-learning-flow.test.mjs test/scene-learning-pacing.test.mjs test/dm-failure-forward.test.mjs test/npc-testimony-reference.test.mjs test/npc-dialogue-comparison.test.mjs
