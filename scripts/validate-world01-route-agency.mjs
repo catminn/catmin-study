@@ -18,7 +18,15 @@ export function validateWorld01RouteAgency(world, causal) {
     const nodes=new Map();
     for(const n of world.nodes){
       if(!obj(n)||!id(n.id)||!Array.isArray(n.next)||n.next.length>8||
-         !n.next.every(id)||!unique(n.next)||nodes.has(n.id))return fail('graph_invalid');
+         !n.next.every(id)||!unique(n.next)||nodes.has(n.id)||
+         Object.keys(n).some(k=>!['id','next','role','learning','worldMutation'].includes(k))||
+         (n.role!==undefined&&!id(n.role)))return fail('graph_invalid');
+      // Scene metadata is advisory, but it must not claim automatic world effects.
+      if(n.worldMutation!==undefined&&!['none','on_commit_only'].includes(n.worldMutation))
+        return fail('node_mutation_invalid');
+      if(n.learning!==undefined&&(!id(n.learning)||
+         ['forced','required','mandatory','auto_complete'].includes(n.learning)))
+        return fail('learning_route_gap');
       nodes.set(n.id,n);
     }
     if([...nodes.values()].some(n=>n.next.some(to=>!nodes.has(to))))return fail('graph_invalid');
@@ -37,6 +45,9 @@ export function validateWorld01RouteAgency(world, causal) {
       return fail('route_collapsed');
     const fork=nodes.get(events[0].from);
     if(!fork||!equalSet(fork.next,events.map(e=>e.to)))return fail('choice_mismatch');
+    // A branch advertised as an optional learning opportunity cannot say "none".
+    if(events.some(e=>nodes.get(e.to).learning==='none'))
+      return fail('learning_route_gap');
     const convergence=causal.convergence;
     if(!exact(convergence,['scene','preserve','routeOutcomes'])||!id(convergence.scene)||!nodes.has(convergence.scene)||
        convergence.scene===events[0].from||events.some(e=>e.to===convergence.scene))

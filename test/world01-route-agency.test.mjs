@@ -83,6 +83,17 @@ const cases=[
  ['outcome smuggles hidden claim',x=>{x.causal.convergence.routeOutcomes[0].hiddenClaim='demo.private';},'outcome_invalid'],
  ['convergence retains unreviewed state',x=>{x.causal.convergence.preserve.push('npc_knowledge');},'memory_erased'],
  ['learning smuggles forced completion',x=>{x.causal.learning.autoComplete=true;},'learning_route_gap'],
+ ['declared scene metadata is accepted',x=>{for(const n of x.world.nodes){n.role=n.role||'investigation';n.learning=n.id==='demo.entry'?'none':n.id==='demo.a'?'math1920.partial-derivative':n.id==='demo.b'?'math1920.gradient':'contextual';n.worldMutation=n.id==='demo.entry'?'none':'on_commit_only';}},null],
+ ['unreviewed scene side effect',x=>{x.world.nodes[2].autoReveal=true;},"graph_invalid"],
+ ['unreviewed opening metadata',x=>{x.world.nodes[0].hiddenClaim='demo.private';},"graph_invalid"],
+ ['uncommitted branch mutation',x=>{x.world.nodes[2].worldMutation='on_enter';},"node_mutation_invalid"],
+ ['automatic convergence mutation',x=>{x.world.nodes[4].worldMutation='auto';},"node_mutation_invalid"],
+ ['nonstring mutation metadata',x=>{x.world.nodes[2].worldMutation={mode:'on_commit_only'};},"node_mutation_invalid"],
+ ['learning advertised but disabled in branch',x=>{x.world.nodes[2].learning='none';},"learning_route_gap"],
+ ['forced learning metadata',x=>{x.world.nodes[2].learning='forced';},"learning_route_gap"],
+ ['mandatory learning metadata',x=>{x.world.nodes[2].learning='required';},"learning_route_gap"],
+ ['nonstring learning metadata',x=>{x.world.nodes[2].learning={kind:'optional'};},"learning_route_gap"],
+ ['invalid role metadata',x=>{x.world.nodes[2].role='Scene Title';},"graph_invalid"],
  ['no input mutation',()=>{},null]
 ];
 for(const [name,mutate,code] of cases)test(name,()=>{
