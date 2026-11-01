@@ -4,5 +4,6 @@ contextBridge.exposeInMainWorld("ring", {
   onGlass: (cb) => ipcRenderer.on("glass", (e, v) => cb(!!v)),
   hover: (k) => ipcRenderer.send("ring-hover", String(k || "")),
   onHl: (cb) => ipcRenderer.on("ring-hl", (e, k) => cb(String(k || ""))),
+  onFiles: (cb) => ipcRenderer.on("ring-files", (e, f) => cb(f)),
   onShow: (cb) => ipcRenderer.on("ring-show", () => cb()),
 });

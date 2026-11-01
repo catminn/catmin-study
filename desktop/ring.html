@@ -3,58 +3,59 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
 <title>学习转盘</title>
 <style>
-  :root{--bg:rgba(251,250,247,.86);--fg:#1d2030;--line:rgba(29,32,48,.12);--hi:rgba(29,32,48,.10);--acc:#1d2030}
+  :root{--tile:#ffffff;--tile-on:#e9eef7;--fg:#1d2030;--dim:rgba(29,32,48,.5);--mid:#f7f8fa;--cancel:#f6dcdc;--red:#c8434a}
   html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden;user-select:none;font:13px/1.2 "Microsoft YaHei UI","PingFang SC",system-ui,sans-serif}
-  svg{position:absolute;inset:0;width:100%;height:100%}
-  .seg{fill:var(--bg);stroke:var(--line);stroke-width:1;transition:fill .12s}
-  .seg.on{fill:var(--hi)}
-  .lbl{fill:var(--fg);font-size:14px;font-weight:600;letter-spacing:.5px;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
-  .sub{fill:var(--fg);opacity:.55;font-size:10px;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
-  .hole{fill:transparent}
-  .x{fill:var(--fg);opacity:.35;font-size:20px;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
-  .mid{fill:var(--bg);stroke:var(--line);stroke-width:1}
-  body.glass .mid{fill:rgba(255,255,255,.10);stroke:rgba(255,255,255,.4)}
-  .ring{animation:in .14s ease-out}@keyframes in{from{transform:scale(.85);opacity:0}}
-  .ring{transform-origin:50% 50%}
-  /* 毛玻璃：窗口已裁成圆环，格子只铺很淡的白，分隔线用亮线 */
-  body.glass .seg{fill:rgba(255,255,255,.5);stroke:rgba(255,255,255,.75)}
-  body.glass .seg.on{fill:rgba(255,255,255,.82)}
+  svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  /* 每一格是一块圆角瓷片：填充和描边同色，描边圆角 = 瓷片圆角 */
+  .seg{fill:var(--tile);stroke:var(--tile);stroke-linejoin:round;transition:fill .1s,stroke .1s}
+  .seg.on{fill:var(--tile-on);stroke:var(--tile-on)}
+  .tiles{opacity:.96;filter:drop-shadow(0 3px 8px rgba(20,24,40,.16)) drop-shadow(0 0 1px rgba(20,24,40,.18))}
+  .lbl{fill:var(--fg);font-size:15px;font-weight:700;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
+  .mid{fill:var(--mid);transition:fill .1s}
+  .mid.on{fill:var(--cancel)}
+  .ct{fill:var(--fg);font-size:15px;font-weight:700;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
+  .cs{fill:var(--dim);font-size:11px;text-anchor:middle;dominant-baseline:middle;pointer-events:none;transition:fill .1s}
+  .cs.on{fill:var(--red)}
+  .ring{transform-origin:50% 50%;animation:in .14s ease-out}@keyframes in{from{transform:scale(.88);opacity:0}}
 </style></head><body>
 <svg viewBox="0 0 300 300" id="svg"><g class="ring" id="g"></g></svg>
 <script>
-  // 中间留空（松手取消），外圈六格：拖上去的文件要做什么。哪一科自动判断（正在做的作业优先）
+  // 外圈五格（拖上去的文件是什么），中间“拖到这里取消”。哪门课、哪份作业由零判断
   const SEG = [
     { k: "hw", t: "作业" }, { k: "review", t: "复习资料" }, { k: "material", t: "课程资料" }, { k: "notes", t: "老师笔记" }, { k: "ask", t: "问零" },
   ];
-  const C = 150, R1 = 52, R2 = 142, N = SEG.length, g = document.getElementById("g"), NS = "http://www.w3.org/2000/svg";
+  const C = 150, R1 = 58, R2 = 138, RAD = 10, GAP = 6, N = SEG.length, g = document.getElementById("g"), NS = "http://www.w3.org/2000/svg";
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || g).append(e); return e; };
   const pt = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];
+  const tiles = mk("g", { class: "tiles" });
   const els = SEG.map((s, i) => {
-    const a0 = -Math.PI / 2 + (i - 0.5) * 2 * Math.PI / N + 0.012, a1 = -Math.PI / 2 + (i + 0.5) * 2 * Math.PI / N - 0.012;
-    const [x0, y0] = pt(R2, a0), [x1, y1] = pt(R2, a1), [x2, y2] = pt(R1, a1), [x3, y3] = pt(R1, a0);
-    const p = document.createElementNS(NS, "path");
-    p.setAttribute("d", `M${x0} ${y0} A${R2} ${R2} 0 0 1 ${x1} ${y1} L${x2} ${y2} A${R1} ${R1} 0 0 0 ${x3} ${y3}Z`);
-    p.setAttribute("class", "seg"); g.append(p);
-    const am = -Math.PI / 2 + i * 2 * Math.PI / N, [lx, ly] = pt((R1 + R2) / 2, am);
-    const t = document.createElementNS(NS, "text"); t.setAttribute("x", lx); t.setAttribute("y", ly); t.setAttribute("class", "lbl"); t.textContent = s.t; g.append(t);
+    const a0 = -Math.PI / 2 + (i - 0.5) * 2 * Math.PI / N, a1 = a0 + 2 * Math.PI / N;
+    // 瓷片几何往里缩 RAD，再用 2*RAD 宽的同色圆角描边撑回去，就得到圆角
+    const ro = R2 - RAD, ri = R1 + RAD, off = GAP / 2 + RAD, dO = Math.asin(off / ro), dI = Math.asin(off / ri);
+    const [x0, y0] = pt(ro, a0 + dO), [x1, y1] = pt(ro, a1 - dO), [x2, y2] = pt(ri, a1 - dI), [x3, y3] = pt(ri, a0 + dI);
+    const p = mk("path", { d: `M${x0} ${y0}A${ro} ${ro} 0 0 1 ${x1} ${y1}L${x2} ${y2}A${ri} ${ri} 0 0 0 ${x3} ${y3}Z`, class: "seg", "stroke-width": 2 * RAD }, tiles);
+    const am = (a0 + a1) / 2, [lx, ly] = pt((R1 + R2) / 2 + 2, am);
+    mk("text", { x: lx, y: ly, class: "lbl" }).textContent = s.t;
     return p;
   });
-  // 中间：松手取消
-  { const c = document.createElementNS(NS, "circle"); c.setAttribute("cx", C); c.setAttribute("cy", C); c.setAttribute("r", R1 - 6); c.setAttribute("class", "mid"); g.append(c);
-    const t = document.createElementNS(NS, "text"); t.setAttribute("x", C); t.setAttribute("y", C + 1); t.setAttribute("class", "x"); t.textContent = "×"; g.append(t); }
+  const mid = mk("circle", { cx: C, cy: C, r: R1 - 6, class: "mid" }, tiles);
+  const ct = mk("text", { x: C, y: C - 9, class: "ct" }); ct.textContent = "";
+  const cs = mk("text", { x: C, y: C + 13, class: "cs" }); cs.textContent = "拖到这里取消";
   function which(e) {
     const r = document.getElementById("svg").getBoundingClientRect(), sc = 300 / r.width;
     const x = (e.clientX - r.left) * sc - C, y = (e.clientY - r.top) * sc - C, d = Math.hypot(x, y);
-    if (d < R1 || d > R2 + 8) return -1;
+    if (d < R1 || d > R2 + 12) return -1;
     let a = Math.atan2(y, x) + Math.PI / 2 + Math.PI / N; a = ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
     return Math.floor(a / (2 * Math.PI / N));
   }
-  let cur = -1;
-  const mark = (i) => { if (i === cur) return; cur = i; els.forEach((p, j) => p.classList.toggle("on", j === i)); window.ring.hover && window.ring.hover(i >= 0 ? SEG[i].k : ""); };
-  document.addEventListener("dragover", (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; mark(which(e)); }); // 一律当复制，按住 Shift 拖也不会把原文件移走
-  document.addEventListener("dragleave", () => mark(-1));
+  let cur = -2;
+  const mark = (i) => { if (i === cur) return; cur = i; els.forEach((p, j) => p.classList.toggle("on", j === i)); const c = i < 0; mid.classList.toggle("on", c); cs.classList.toggle("on", c); };
+  document.addEventListener("dragover", (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; const i = which(e); mark(i); window.ring.hover && window.ring.hover(i >= 0 ? SEG[i].k : ""); });
   document.addEventListener("drop", (e) => { e.preventDefault(); const i = which(e); window.ring.drop(i >= 0 ? SEG[i].k : "", e.dataTransfer.files); });
-  window.ring.onGlass && window.ring.onGlass((v) => document.body.classList.toggle("glass", v));
-  window.ring.onHl && window.ring.onHl((k) => { const i = SEG.findIndex((s) => s.k === k); if (i === cur) return; cur = i; els.forEach((p, j) => p.classList.toggle("on", j === i)); });
-  window.ring.onShow(() => { mark(-1); g.style.animation = "none"; void g.offsetWidth; g.style.animation = ""; });
+  // 主程序按鼠标位置告诉我们停在哪一格（Windows 拖放收不到时也能亮）
+  window.ring.onHl && window.ring.onHl((k) => mark(SEG.findIndex((s) => s.k === k)));
+  // 中间显示拖的是什么：1 个 PDF / 3 个文件
+  window.ring.onFiles && window.ring.onFiles((f) => { ct.textContent = f && f.n ? f.n + " 个" + (f.ext ? " " + f.ext : "文件") : ""; cs.setAttribute("y", ct.textContent ? C + 13 : C); });
+  window.ring.onShow(() => { mark(-1); ct.textContent = ""; cs.setAttribute("y", C); g.style.animation = "none"; void g.offsetWidth; g.style.animation = ""; });
 </script>
 </body></html>

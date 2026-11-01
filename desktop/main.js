@@ -460,6 +460,7 @@ function showRing(x, y) {
 
   ringHoverKey = ""; ringCenter = { x: p.x, y: p.y };
   ringSel = process.platform === "win32" ? explorerSelection() : Promise.resolve([]); // 趁资源管理器还在前台，先把选中的文件记下来
+  ringSel.then((ps) => { if (!ringShown || !ring || ring.isDestroyed() || !ps.length) return; const ex = [...new Set(ps.map((x) => path.extname(x).slice(1).toUpperCase()))]; ring.webContents.send("ring-files", { n: ps.length, ext: ex.length === 1 && ex[0] ? ex[0] : "" }); });
   ring.webContents.send("ring-show"); ring.showInactive(); ringShown = true;
 }
 function hideRing(delay) { clearTimeout(ringHideT); ringHideT = setTimeout(() => { if (ring && !ring.isDestroyed()) ring.hide(); ringShown = false; }, delay || 0); }
@@ -502,7 +503,7 @@ const RING_KEYS = ["hw", "review", "material", "notes", "ask"];
 function ringSector(px, py) {
   if (!ringCenter) return "";
   const p = toDip(px, py), x = p.x - ringCenter.x, y = p.y - ringCenter.y, d = Math.hypot(x, y), s = RING / 300, N = RING_KEYS.length;
-  if (d < 52 * s || d > 150 * s) return "";
+  if (d < 58 * s || d > 152 * s) return "";
   let a = Math.atan2(y, x) + Math.PI / 2 + Math.PI / N; a = ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
   return RING_KEYS[Math.floor(a / (2 * Math.PI / N))] || "";
 }
