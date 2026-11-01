@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("zsDesktop", {
   toMain: (subj, list) => ipcRenderer.send("to-main", String(subj), list),
   saved: () => ipcRenderer.send("saved"),
   ready: () => ipcRenderer.send("ready"),
+  setPin: (v) => ipcRenderer.send("set-pin", !!v),
+  getPin: () => ipcRenderer.invoke("get-pin"),
   badge: (n) => ipcRenderer.send("badge", Number(n) || 0),
   saveLocal: (subj, course, list) => ipcRenderer.invoke("save-local", String(course), list),
   savePdf: (subj, course, name, html) => ipcRenderer.invoke("save-pdf", String(course), String(name), String(html)),

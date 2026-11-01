@@ -1095,7 +1095,7 @@ function useMakeup(k){if(S.checkins.includes(k)||S.cards.makeup<1)return;S.cards
 /* ============ weekly side quests ============ */
 const NUM_DEF={"engl-disc":{a:"2026-10-26",n:18,lead:"engl-disc"},"chem-ps":{a:"2026-10-28",n:8,lead:"chem-ps"},"chem-lab":{a:"2026-10-25",n:8,lead:"chem-lab3"},"engri-hw":{a:"2026-10-25",n:7,lead:"engri-hw"}};
 function rawOcc(k){const out=[];const d=keyToDate(k);for(const r of WEEKLY){if(r.dates?!(k in r.dates):!r.dow.includes(d.getDay()))continue;
-  const fin=r.dates&&k==="2026-11-24"?at(2026,11,24):at(d.getFullYear(),d.getMonth()+1,d.getDate());const soft=r.target?fin+r.target*DAY:fin;const hard=r.grace?soft+r.grace*DAY:soft;
+  const fin=r.dates&&k==="2026-11-24"?at(2026,11,24):at(d.getFullYear(),d.getMonth()+1,d.getDate());const plusDays=(t,n)=>{const d=new Date(t);d.setDate(d.getDate()+n);return d.getTime()};const soft=r.target?plusDays(fin,r.target):fin;const hard=r.grace?plusDays(soft,r.grace):soft;
   out.push({key:r.id+"@"+k,day:k,r,subj:r.subj,soft,hard,week:weekKey(fin)})}return out}
 const NUMC=new Map();
 function seqNum(grp,k){const def=Object.assign({},NUM_DEF[grp],(S.nums||{})[grp]||{});const ck=grp+k+JSON.stringify(def)+Object.keys(S.skipped).length;if(NUMC.has(ck))return NUMC.get(ck);
@@ -1356,7 +1356,7 @@ function battleMiss(subj){const b=S.battle[subj];if(!b)return;if(SAGA[subj]){con
   if(b.hearts<=0){b.hearts=5;setTimeout(()=>toast("体力回满"),900)}}
 
 /* ============ reward popup ============ */
-function showReward(pts,title,lines,lvup){document.querySelectorAll(".pop").forEach(x=>x.remove());
+function showReward(pts,title,lines,lvup){if(typeof EMBED!=="undefined"&&EMBED==="todo"){toast("+"+fp(pts)+" · "+title);renderAll();runAfter();return}document.querySelectorAll(".pop").forEach(x=>x.remove());
   const amt=h("div",{class:"amt num"},"+0");
   const p=h("div",{class:"pop",role:"dialog","aria-modal":"true"});
   const box=h("div",{class:"box"},h("div",{class:"eyebrow"},"获得奖励"),h("h3",null,title),amt,h("div",{class:"lines"},lines.map(l=>h("div",null,l))),
@@ -2311,7 +2311,7 @@ async function cloudBoot(){if(!cloudOn())return;
 /* ============ 桌面版「学习空间」：?embed=zero 零的聊天框，?embed=todo 置顶待办；window.zsDesktop 由桌面程序注入 ============ */
 const EMBED=(()=>{try{return new URLSearchParams(location.search).get("embed")||""}catch(e){return""}})();
 const DESK=window.zsDesktop||null;
-if(EMBED){document.body.classList.add("embed","embed-"+EMBED);const st=document.createElement("style");st.textContent=`
+if(EMBED){document.body.classList.add("embed","embed-"+EMBED);document.documentElement.classList.add("embed-root");try{if(new URLSearchParams(location.search).get("glass"))document.body.classList.add("glass")}catch(e){}const st=document.createElement("style");st.textContent=`
 body.embed{padding:0!important;overflow:hidden;background:var(--panel)}
 body.embed::before{display:none}
 body.embed>*:not(#zw):not(#todoEmbed):not(.toast):not(.pop):not(.scrim):not(.qz):not(#fxCv):not(#fxLayer):not(script):not(style):not(svg){display:none!important}
@@ -2321,19 +2321,26 @@ body.embed-zero .zw-fab{display:none}
 body.embed-zero .zw-panel{width:100vw!important;height:100vh!important;border-radius:0;border:0}
 .embed .zw-head,.embed .td-head{-webkit-app-region:drag;user-select:none}
 .embed .zw-head button,.embed .zw-head select,.embed .td-head button{-webkit-app-region:no-drag}
-#todoEmbed{position:fixed;inset:0;display:flex;flex-direction:column;background:color-mix(in oklab,var(--panel) 72%,transparent);border-radius:12px;color:var(--fg);-webkit-app-region:drag;padding:10px 12px;font-size:14px}
-body.embed-todo,body.embed-todo html{background:transparent!important}
-.td-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
-.td-row{display:flex;align-items:center;gap:8px;padding:3px 2px;line-height:1.4;-webkit-app-region:no-drag;cursor:default}
-.td-row .ck{width:14px;height:14px;border-radius:50%;border:1.5px solid currentColor;opacity:.55;flex:none;cursor:pointer;background:none;padding:0}
-.td-row .ck:hover{opacity:1}
-.td-row.done{opacity:.4}.td-row.done .ck{background:currentColor}
+#todoEmbed{position:fixed;inset:0;display:flex;flex-direction:column;background:color-mix(in oklab,var(--panel) 62%,transparent);border-radius:12px;color:var(--fg);-webkit-app-region:drag;padding:10px 12px;font-size:14px;overflow:hidden}
+body.embed.glass #todoEmbed{background:color-mix(in oklab,var(--panel) 28%,transparent);border-radius:0}
+html.embed-root,body.embed-todo{background:transparent!important}
+.td-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1px}
+.td-row{display:flex;align-items:center;gap:9px;padding:4px 4px;border-radius:7px;line-height:1.4;-webkit-app-region:no-drag;cursor:pointer;transition:opacity .2s}
+.td-row:hover{background:color-mix(in oklab,currentColor 6%,transparent)}
+.td-row .ck{width:14px;height:14px;border-radius:50%;border:1.5px solid currentColor;opacity:.5;flex:none;position:relative;transition:all .18s}
+.td-row:hover .ck{opacity:.9}
+.td-row.done{opacity:.45}.td-row.done .ck{background:currentColor;opacity:.7}
+.td-row.done .t{text-decoration:line-through}
 .td-row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .td-row .w{font-size:12px;opacity:.55;flex:none}.td-row.soon .w{opacity:1;color:var(--late)}
 .td-row .x{opacity:0;border:0;background:none;color:inherit;cursor:pointer;padding:0 2px}.td-row:hover .x{opacity:.5}
+.td-pin{position:absolute;top:4px;right:6px;border:0;background:none;color:inherit;opacity:0;font-size:10px;cursor:pointer;-webkit-app-region:no-drag;z-index:2}
+#todoEmbed:hover .td-pin{opacity:.45}.td-pin:hover{opacity:.9!important}
 .td-add{display:flex;gap:6px;-webkit-app-region:no-drag;margin-top:4px}
 .td-add input,.td-add input[type=text],.td-add input[type=datetime-local]{flex:1;min-width:0;background:transparent;border:0;border-bottom:1px solid color-mix(in oklab,currentColor 25%,transparent);border-radius:0;padding:4px 2px;color:inherit;font-size:14px;outline:none}
 .td-add input[type=datetime-local]{flex:0 0 auto;font-size:12px;opacity:.7}
+.embed .pop,.embed .scrim,.embed .qz,.embed .zw-pick,.embed .toast{-webkit-app-region:no-drag}
+body.embed-todo .toast{font-size:12px;padding:3px 12px;bottom:44px;font-weight:500;opacity:.92}
 .zw-pick{position:fixed;inset:0;z-index:60;background:var(--scrim);display:grid;place-items:center;padding:12px}
 .zw-pick .box{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;width:100%;max-width:340px}
 .zw-pick .box .row .btn{flex:1 1 40%}`;document.head.append(st)}
@@ -2419,19 +2426,24 @@ async function archiveFiles(subj,list){if(!SUBJ[subj]||!list||!list.length)retur
   if(local||drive)toast("已存到"+(local?" 桌面 Cornell\\"+COURSE[subj]:"")+(local&&drive?" 和":"")+(drive?" Drive":""))}
 
 /* 待办小窗 */
+function undoDone(key,label){const d=S.done[key];if(!d)return;delete S.done[key];if(d.pts)earn(-d.pts,"撤销 · "+label);save();renderAll()}
 function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEmbed"});document.body.append(el)}const now=Date.now();
-  const wk=t=>{const d=new Date(t);const days=Math.floor((keyToDate(localKey(d))-keyToDate(localKey(new Date(now))))/DAY);return days<=0?(t<now?"过期":pad(d.getHours())+":"+pad(d.getMinutes())):days===1?"明天":"周"+WD[d.getDay()]};
-  const rows=[];const line=(text,when,soon,done,onDone,onDel)=>h("div",{class:"td-row"+(done?" done":"")+(soon?" soon":"")},h("button",{class:"ck","aria-label":"完成",onclick:onDone}),h("span",{class:"t",title:text},text),when?h("span",{class:"w"},when):null,onDel?h("button",{class:"x","aria-label":"删除",onclick:onDel},"×"):null);
+  const wk=t=>{const d=new Date(t);const days=Math.round((keyToDate(localKey(d))-keyToDate(localKey(new Date(now))))/DAY);return days<=0?(t<now?"过期":pad(d.getHours())+":"+pad(d.getMinutes())):days===1?"明天":"周"+WD[d.getDay()]};
+  const line=(text,when,soon,done,toggle,onDel)=>h("div",{class:"td-row"+(done?" done":"")+(soon&&!done?" soon":""),onclick:e=>{if(e.target.closest(".x"))return;toggle()}},h("span",{class:"ck"}),h("span",{class:"t",title:text},text),when?h("span",{class:"w"},when):null,onDel?h("button",{class:"x","aria-label":"删除",onclick:onDel},"×"):null);
+  const recent=k=>S.done[k]&&now-S.done[k].at<12*HOUR;const rows=[];
   if(!checkedToday())rows.push(line("签到","",false,false,()=>DESK?DESK.openZero("daily"):openDaily(suggestSubj())));
-  const items=[...occurrences().filter(o=>isOpen(o)&&o.soft<now+5*DAY).map(o=>({t:SUBJ[o.subj].name+" "+o.title,due:o.soft<now&&o.hard>now?o.hard:o.soft,go:()=>{if(confirm(SUBJ[o.subj].name+" "+o.title+" 做完了？"))completeTask(o)}})),
-    ...SIDE.filter(q=>q.due<now+5*DAY&&!S.done["cv-"+q.id]).map(q=>({t:q.title,due:q.due,go:()=>{if(!confirm(q.title+" 做完了？"))return;const pts=award(SIDE_PTS,q.due,0,"支线 · "+q.title);S.done["cv-"+q.id]={at:Date.now(),pts};save();renderAll()}})),
-    ...(S.todos||[]).filter(t=>!t.done||now-t.done<3*HOUR).map(t=>({t:t.t,due:t.due||now+30*DAY,nodue:!t.due,done:!!t.done,go:()=>toggleTodo(t),del:()=>removeTodo(t)}))].sort((a,b)=>a.due-b.due);
-  for(const it of items)rows.push(line(it.t,it.nodue?"":wk(it.due),!it.done&&!it.nodue&&it.due-now<24*HOUR,it.done,it.go,it.del));
+  const dueOf=o=>o.soft<now&&o.hard>now?o.hard:o.soft;
+  const items=[...occurrences().filter(o=>!S.skipped[o.key]&&(!S.done[o.key]||recent(o.key))&&dueOf(o)<now+5*DAY).map(o=>{const t=SUBJ[o.subj].name+" "+o.title;return{t,due:dueOf(o),done:!!S.done[o.key],go:()=>S.done[o.key]?undoDone(o.key,t):completeTask(o)}}),
+    ...SIDE.filter(q=>q.due<now+5*DAY&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>{const k="cv-"+q.id;return{t:q.title,due:q.due,done:!!S.done[k],go:()=>{if(S.done[k]){undoDone(k,q.title);return}const pts=award(SIDE_PTS,q.due,0,"支线 · "+q.title);S.done[k]={at:Date.now(),pts};save();renderAll()}}}),
+    ...(S.todos||[]).filter(t=>!t.done||now-t.done<12*HOUR).map(t=>({t:t.t,due:t.due||now+30*DAY,nodue:!t.due,done:!!t.done,go:()=>toggleTodo(t),del:()=>removeTodo(t)}))].sort((a,b)=>(a.done-b.done)||(a.due-b.due));
+  for(const it of items)rows.push(line(it.t,it.nodue?"":wk(it.due),it.due-now<24*HOUR,it.done,it.go,it.del));
   if(!S.sleep&&sleepWindow(now).ok)rows.push(line("晚安","00:30",false,false,goodnight));
   const ti=h("input",{type:"text",placeholder:"+ 待办"});const dt=h("input",{type:"datetime-local",hidden:true,title:"截止时间（可不填）"});
   const add=()=>{if(!ti.value.trim())return;addTodo(ti.value,dt.value,"");ti.value="";dt.value="";dt.hidden=true};
   ti.addEventListener("focus",()=>{dt.hidden=false});ti.addEventListener("keydown",e=>{if(e.key==="Enter")add();if(e.key==="Escape"){ti.blur();dt.hidden=true}});dt.addEventListener("keydown",e=>{if(e.key==="Enter")add()});
-  el.replaceChildren(h("div",{class:"td-list"},rows),h("div",{class:"td-add"},ti,dt))}
+  const pin=DESK&&DESK.setPin?h("button",{class:"td-pin"+(S_PIN?" on":""),title:S_PIN?"取消置顶":"置顶",onclick:async()=>{S_PIN=!S_PIN;DESK.setPin(S_PIN);renderTodoEmbed()}},S_PIN?"●":"○"):null;
+  el.replaceChildren(pin||"",h("div",{class:"td-list"},rows),h("div",{class:"td-add"},ti,dt))}
+let S_PIN=true;if(DESK&&DESK.getPin)DESK.getPin().then(v=>{S_PIN=!!v;if(EMBED==="todo")renderTodoEmbed()}).catch(()=>{});
 if(EMBED==="todo"){setInterval(()=>{if(!document.hidden)renderTodoEmbed()},60000)}
 /* 桌面小圆的小红点：24 小时内有没交的作业 */
 function deskBadge(){if(!DESK||!DESK.badge||EMBED!=="zero")return;const now=Date.now();

@@ -7,6 +7,7 @@ const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeI
 const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
+const os = require("os");
 
 const SITE = process.env.ZS_SITE || "https://study.catmin.io/";
 const PART = "persist:xuexi";
@@ -111,8 +112,11 @@ function createTodo(show) {
   if (todo && !todo.isDestroyed()) { if (show) todo.showInactive(); return todo; }
   const a = workArea();
   const b = conf.todo && onScreen(conf.todo) ? conf.todo : { x: a.x + a.width - 280 - 24, y: a.y + 40, width: 280, height: 320 };
-  const opts = { x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 200, minHeight: 140, transparent: true, resizable: true, alwaysOnTop: conf.todoPinned !== false, backgroundColor: "#00000000" };
-  todo = pageWin(opts, SITE + "?embed=todo");
+  const glass = process.platform === "win32" && Number((os.release().split(".")[2]) || 0) >= 22000; // Windows 11：系统毛玻璃 + 圆角
+  const opts = { x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 200, minHeight: 140, resizable: true, alwaysOnTop: conf.todoPinned !== false, backgroundColor: "#00000000" };
+  if (glass) { opts.transparent = false; opts.backgroundMaterial = "acrylic"; opts.roundedCorners = true; }
+  else opts.transparent = true;
+  todo = pageWin(opts, SITE + "?embed=todo" + (glass ? "&glass=1" : ""));
   const remember = () => { if (todo && !todo.isDestroyed()) { conf.todo = todo.getBounds(); saveConf(); } };
   todo.on("moved", remember); todo.on("resized", remember);
   todo.on("closed", () => { todo = null; });
@@ -149,6 +153,8 @@ ipcMain.on("hide", (e) => { const w = winOf(e); if (w) w.hide(); if (w === todo)
 ipcMain.on("open-main", (e, hash) => openMain(typeof hash === "string" ? hash : ""));
 ipcMain.on("open-zero", (e, cmd) => showZero(typeof cmd === "string" ? cmd : ""));
 ipcMain.on("to-main", (e, subj, list) => { const w = openMain("#dungeon"); send(w, "files", String(subj), list); });
+ipcMain.handle("get-pin", () => conf.todoPinned !== false);
+ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(!!v); refreshMenu(); });
 ipcMain.on("badge", (e, n) => { if (bubble && !bubble.isDestroyed()) bubble.webContents.send("badge", n); });
 ipcMain.on("saved", (e) => {
   for (const w of [zero, todo, main]) if (w && !w.isDestroyed() && w.webContents.id !== e.sender.id) send(w, "pull");
