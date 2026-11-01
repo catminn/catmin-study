@@ -372,9 +372,18 @@ function showRing(x, y) {
   ring.webContents.send("ring-show"); ring.showInactive(); ringShown = true;
 }
 function hideRing(delay) { clearTimeout(ringHideT); ringHideT = setTimeout(() => { if (ring && !ring.isDestroyed()) ring.hide(); ringShown = false; }, delay || 0); }
+// 转盘按键：默认 Shift（Ctrl 留给 Filee）。按住它拖文件就出转盘
+const RING_MODS = { shift: "Shift", alt: "Alt", ctrlshift: "Ctrl + Shift", ctrl: "Ctrl" };
+function ringMod(e) {
+  const m = conf.ringMod || "shift";
+  if (m === "shift") return e.shiftKey && !e.ctrlKey && !e.altKey;
+  if (m === "alt") return e.altKey && !e.ctrlKey && !e.shiftKey;
+  if (m === "ctrlshift") return e.ctrlKey && e.shiftKey && !e.altKey;
+  return e.ctrlKey && !e.shiftKey && !e.altKey;
+}
 function startRingHook() {
   try { ({ uIOhook: hook } = require("uiohook-napi")); } catch (e) { hook = null; return; }
-  hook.on("mousedown", (e) => { ringDown = (e.button === 1 && e.ctrlKey) ? { x: e.x, y: e.y } : null; });
+  hook.on("mousedown", (e) => { ringDown = (e.button === 1 && ringMod(e)) ? { x: e.x, y: e.y } : null; });
   hook.on("mousemove", (e) => {
     if (!ringDown || ringShown) return;
     if (Math.hypot(e.x - ringDown.x, e.y - ringDown.y) > 14) showRing(ringDown.x, ringDown.y);
@@ -405,7 +414,11 @@ function menu() {
     { label: "打开学习空间", click: () => openMain() },
     { type: "separator" },
     { label: "显示零的小圆", type: "checkbox", checked: conf.bubbleHidden !== true, click: (i) => { conf.bubbleHidden = !i.checked; saveConf(); if (bubble) { if (i.checked) bubble.showInactive(); else bubble.hide(); } } },
-    { label: "学习转盘（按住 Ctrl 拖文件）", type: "checkbox", checked: !conf.ringOff, click: (i) => { conf.ringOff = !i.checked; saveConf(); } },
+    { label: "学习转盘：按住 " + RING_MODS[conf.ringMod || "shift"] + " 拖文件", submenu: [
+      { label: "开启", type: "checkbox", checked: !conf.ringOff, click: (i) => { conf.ringOff = !i.checked; saveConf(); refreshMenu(); } },
+      { type: "separator" },
+      ...Object.entries(RING_MODS).map(([k, t]) => ({ label: "按住 " + t, type: "radio", checked: (conf.ringMod || "shift") === k, click: () => { conf.ringMod = k; saveConf(); refreshMenu(); } })),
+    ] },
     { label: "开机启动", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
     { label: hotkey ? "设置快捷键…（现在是 " + keyName(hotkey) + "）" : "设置快捷键…（现在没有）", click: openHotkeyWin },
     { type: "separator" },

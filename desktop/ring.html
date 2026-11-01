@@ -44,7 +44,7 @@
   }
   let cur = -1;
   const mark = (i) => { if (i === cur) return; cur = i; els.forEach((p, j) => p.classList.toggle("on", j === i)); };
-  document.addEventListener("dragover", (e) => { e.preventDefault(); mark(which(e)); });
+  document.addEventListener("dragover", (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; mark(which(e)); }); // 一律当复制，按住 Shift 拖也不会把原文件移走
   document.addEventListener("dragleave", () => mark(-1));
   document.addEventListener("drop", (e) => { e.preventDefault(); const i = which(e); window.ring.drop(i >= 0 ? SEG[i].k : "", e.dataTransfer.files); });
   window.ring.onShow(() => { mark(-1); g.style.animation = "none"; void g.offsetWidth; g.style.animation = ""; });
