@@ -11,7 +11,7 @@ const os = require("os");
 
 const SITE = process.env.ZS_SITE || "https://study.catmin.io/";
 const PART = "persist:xuexi";
-const HOTKEYS = ["Control+Alt+Z", "Control+Alt+Q", "Alt+Shift+Z", "Control+Shift+Space"];
+const HOTKEYS = ["F2", "Control+Alt+Z", "Control+Alt+Q", "Alt+Shift+Z"];
 const keyName = (k) => k.replace("Control", "Ctrl").replace(/\+/g, " + ");
 let hotkey = "";
 const MAX_FILE = 25 * 1024 * 1024;
