@@ -987,7 +987,7 @@ function applyDyn(){const D=S.dyn&&S.dyn.data;MAIN=Object.assign({},BASE_MAIN);i
   for(const subj of["math","chem","engri"]){const d=D[subj]||{};const tp=(d.topics||[]).filter(t=>t&&t.t).slice(0,12);if(tp.length<2)continue;
     const exams=Object.keys(B).filter(id=>B[id].subj===subj&&B[id].exam&&B[id].due).sort((a,b)=>B[a].due-B[b].due);const next=exams.find(id=>B[id].due>now-6*HOUR)||exams[exams.length-1];
     MAIN[subj]=tp.map(t=>{const lec=t.lec?Date.parse(t.lec+"T11:00"):NaN;return{id:"d"+hashStr(t.t),t:String(t.t).slice(0,30),lec:isNaN(lec)?undefined:lec}}).concat(next?[{boss:next}]:[])}
-  const hw=D.math&&D.math.hw;if(Array.isArray(hw)&&hw.length){const r=WEEKLY.find(x=>x.id==="math-hw");const m={};for(const x of hw){if(x&&x.n>0&&/^\d{4}-\d\d-\d\d$/.test(x.due))m[x.due]=Math.round(x.n)}if(Object.keys(m).length)r.dates=m}
+  const hw=D.math&&D.math.hw;if(Array.isArray(hw)&&hw.length){const r=WEEKLY.find(x=>x.id==="math-hw");const ok=hw.filter(x=>x&&x.n>0&&/^\d{4}-\d\d-\d\d$/.test(x.due));if(ok.length){const m=Object.assign({},r.dates);const ns=new Set(ok.map(x=>Math.round(x.n)));for(const k in m)if(ns.has(m[k]))delete m[k];for(const x of ok)m[x.due]=Math.round(x.n);r.dates=m}}
   const seq={"chem-ps":D.chem&&D.chem.ps,"chem-lab":D.chem&&D.chem.lab,"engri-hw":D.engri&&D.engri.hw,"engl-disc":D.engl&&D.engl.disc};
   S.nums=S.nums||{};for(const g in seq){const v=seq[g];if(v&&v.n>0&&/^\d{4}-\d\d-\d\d$/.test(v.due)&&!(S.nums[g]&&S.nums[g].manual))S.nums[g]={a:v.due,n:Math.round(v.n)}}
   NUMC.clear()}
