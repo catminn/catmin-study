@@ -439,7 +439,7 @@ function showRing(x, y) {
   const p = toDip(x, y);
   ring.setBounds({ x: Math.round(p.x - RING / 2), y: Math.round(p.y - RING / 2), width: RING, height: RING });
 
-  ring.webContents.send("ring-show"); ring.showInactive(); ringShown = true;
+  ringHoverKey = ""; ring.webContents.send("ring-show"); ring.showInactive(); ringShown = true;
 }
 function hideRing(delay) { clearTimeout(ringHideT); ringHideT = setTimeout(() => { if (ring && !ring.isDestroyed()) ring.hide(); ringShown = false; }, delay || 0); }
 // 转盘按键：默认 Shift（Ctrl 留给 Filee）。按住它拖文件就出转盘
@@ -458,18 +458,35 @@ function startRingHook() {
     if (!ringDown || ringShown) return;
     if (Math.hypot(e.x - ringDown.x, e.y - ringDown.y) > 14) showRing(ringDown.x, ringDown.y);
   });
-  hook.on("mouseup", () => { ringDown = null; if (ringShown) hideRing(350); });
+  hook.on("mouseup", () => {
+    ringDown = null;
+    if (!ringShown) return;
+    hideRing(350);
+    // 保险：有时候 Windows 不把文件“放下”给转盘。松手后 0.5 秒还没收到，就按鼠标停在哪一格，去资源管理器里拿选中的文件
+    const k = ringHoverKey, t0 = Date.now();
+    if (k && process.platform === "win32") setTimeout(async () => {
+      if (ringDropAt >= t0) return;
+      const paths = await explorerSelection();
+      if (paths.length && ringDropAt < t0) handleRingDrop(k, paths);
+    }, 500);
+  });
   try { hook.start(); } catch (e) { hook = null; }
 }
+let ringHoverKey = "", ringDropAt = 0;
+ipcMain.on("ring-hover", (e, k) => { ringHoverKey = String(k || ""); });
 ipcMain.on("ring-drop", (e, target, paths) => {
-  hideRing(0);
+  hideRing(0); ringDropAt = Date.now();
+  handleRingDrop(target, paths);
+});
+function handleRingDrop(target, paths) {
   if (!target || !paths || !paths.length) return;
   const list = readFiles(paths);
   if (!list.length) return;
   // 存档不打开零的窗口（科目自动判断，存完弹个通知）；其余动作打开零
-  if (target !== "archive") showZero();
+  // 课程资料、老师笔记只存档，不打开零（存好弹通知）；作业、复习资料、问零打开零
+  if (!["archive", "material", "notes"].includes(target)) showZero();
   send(ensureZero(), "files", "act:" + target, list);
-});
+}
 
 // ---------- 下载自动收纳：盯着“下载”文件夹，课程文件交给零判断是哪门课，再移到 桌面\Cornell\<课程> ----------
 const INBOX_EXT = /\.(pdf|docx?|pptx?|xlsx?|txt|md|png|jpe?g|heic|zip)$/i;

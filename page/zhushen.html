@@ -2404,7 +2404,7 @@ function pickArchive(list){const wrap=h("div",{class:"zw-pick"},h("div",{class:"
     h("div",{class:"row"},...Object.keys(SUBJ).map(k=>h("button",{class:"btn",onclick:()=>{wrap.remove();archiveFiles(k,list);if(DESK)setTimeout(()=>DESK.hide(),1500)}},SUBJ[k].name))),h("button",{class:"btn flat sm",onclick:()=>{wrap.remove();if(DESK)DESK.hide()}},"算了")));document.body.append(wrap)}
 function deskDeliver(target,list){const files=deskFiles(list);if(!files.length)return;
   if(target==="inbox"){for(const it of list)inboxFile(it);return}
-  {const m=/^act:(\w+)$/.exec(target);if(m&&ACTS[m[1]]){doAct(m[1],list);return}}
+  {const m=/^act:(\w+)$/.exec(target);if(m&&(ACTS[m[1]]||m[1] in ACT_TAG)){doAct(m[1],list);return}}
   if(target==="archive"){pickArchive(list);return}
   {const m=/^zero:(\w+)$/.exec(target);if(m&&SUBJ[m[1]]){ZW.subj=m[1];zwRender();target="zero"}}
   archiveFiles(SUBJ[target]?target:ZW.subj,list);
@@ -2532,20 +2532,19 @@ function renderTaskBar(){let el=$("#zwTask");const hd=document.querySelector(".z
 setInterval(()=>{if(S.cur)renderTaskBar()},30000);
 
 /* 文件交给零时“要做什么”：讲题、收进当前作业、出类似题、总结讲义、只存档、只是发过去 */
-const ACTS={explain:"讲这道题",hw:"收进作业",similar:"出类似题",summary:"总结讲义",archive:"只存档",ask:"发给零"};
+/* 文件交给零：转盘、快捷键、拖到小圆都是这几种。文件一般是整份的：作业清单、复习资料/模拟卷、课程资料、老师笔记 */
+const ACTS={hw:"作业",review:"复习资料",material:"课程资料",notes:"老师笔记",ask:"问零"};
+const ACT_TAG={material:"课程资料",notes:"老师笔记",archive:""};
 async function guessSubj(f){if(S.cur)return S.cur.subj;const hay=f.name+"\n"+(await fileText(f)).slice(0,3000);return Object.keys(COURSE_RE).find(k=>COURSE_RE[k].test(hay))||ZW.subj||"math"}
 async function doAct(act,list){const files=deskFiles(list);if(!files.length)return;const subj=await guessSubj(files[0]);
   archiveFiles(subj,list);
-  if(act==="archive"){const m="已存到 "+COURSE[subj]+"（桌面 Cornell 文件夹 + Drive）";toast(m);if(DESK&&!document.hasFocus()){try{new Notification("学习空间",{body:m,silent:true})}catch(e){}}return}
+  if(act in ACT_TAG){const m=(files.length>1?files.length+" 个文件":files[0].name)+" 已存到 "+COURSE[subj]+(ACT_TAG[act]?"（"+ACT_TAG[act]+"）":"");toast(m);if(DESK&&!document.hasFocus()){try{new Notification("学习空间",{body:m,silent:true})}catch(e){}}return}
   ZW.subj=subj;zwOpen(subj);await zwAddFiles(files);
-  const t=S.cur?"「"+S.cur.title+"」":"作业";
-  const msg={explain:"讲这道题：先告诉我它考什么知识点，再一步一步带我做，一步一问，先别给答案。",
-    hw:S.cur?"这是"+t+"的一道题，记下来，然后带我做第一步。":"这是一道作业题，记下来，然后带我做第一步。",
-    similar:"照这道题出 2 道同类型的练习题，一道一道来，等我作答再批改。",
-    summary:"总结这份材料的要点：按考试会怎么考来讲，公式和定义写清楚，最后给 3 个检查问题。"}[act];
+  const msg={hw:(S.cur?"这是「"+S.cur.title+"」的作业清单。":"这是一份作业清单。")+"把里面每一道题在回复最后各写一行 [题目]（只给了教材题号的，按题号写出原题内容；找不到原题就写题号和要求）。正文只说：一共几道、哪天截止、按我的速度大概要多久、建议从哪道开始。先不要讲题。",
+    review:"这是复习资料 / 模拟卷。按考点整理：每个考点一句话，后面列出对应的题号；标出最可能考的 3 个；最后问我想先练哪一个。先不要讲题。"}[act];
   if(msg&&SAMPLE)zwSend(msg);else setTimeout(()=>$("#zwInput")&&$("#zwInput").focus(),50)}
 function pickTarget(list){const box=h("div",{class:"box"},h("b",null,(S.cur?"正在做 "+S.cur.title+" · ":"")+list.map(f=>f.name).join("、").slice(0,50)),
-    h("div",{class:"row"},...Object.keys(ACTS).map(k=>h("button",{class:"btn"+(k===(S.cur?"hw":"explain")?" go":""),onclick:()=>{wrap.remove();doAct(k,list)}},ACTS[k]))),
+    h("div",{class:"row"},...Object.keys(ACTS).map(k=>h("button",{class:"btn"+(k==="hw"?" go":""),onclick:()=>{wrap.remove();doAct(k,list)}},ACTS[k]))),
     h("button",{class:"btn flat sm",onclick:()=>wrap.remove()},"算了"));const wrap=h("div",{class:"zw-pick"},box);document.body.append(wrap)}
 
 /* 每日存档备份（网站版）：/api/backups 列出，选一天退回 */
