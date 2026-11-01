@@ -14,6 +14,10 @@
   .hole{fill:transparent}
   .ring{animation:in .14s ease-out}@keyframes in{from{transform:scale(.85);opacity:0}}
   .ring{transform-origin:50% 50%}
+  /* 毛玻璃：窗口已裁成圆环，格子只铺很淡的白，分隔线用亮线 */
+  body.glass .seg{fill:rgba(255,255,255,.16);stroke:rgba(255,255,255,.55)}
+  body.glass .seg.on{fill:rgba(255,255,255,.5)}
+  @media (prefers-color-scheme:dark){body.glass .seg{fill:rgba(255,255,255,.05);stroke:rgba(255,255,255,.18)}body.glass .seg.on{fill:rgba(255,255,255,.2)}}
 </style></head><body>
 <svg viewBox="0 0 300 300" id="svg"><g class="ring" id="g"></g></svg>
 <script>
@@ -47,6 +51,7 @@
   document.addEventListener("dragover", (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; mark(which(e)); }); // 一律当复制，按住 Shift 拖也不会把原文件移走
   document.addEventListener("dragleave", () => mark(-1));
   document.addEventListener("drop", (e) => { e.preventDefault(); const i = which(e); window.ring.drop(i >= 0 ? SEG[i].k : "", e.dataTransfer.files); });
+  window.ring.onGlass && window.ring.onGlass((v) => document.body.classList.toggle("glass", v));
   window.ring.onShow(() => { mark(-1); g.style.animation = "none"; void g.offsetWidth; g.style.animation = ""; });
 </script>
 </body></html>

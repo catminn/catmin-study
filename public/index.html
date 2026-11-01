@@ -2348,7 +2348,7 @@ async function cloudBoot(){if(!cloudOn())return;
 const EMBED=(()=>{try{return new URLSearchParams(location.search).get("embed")||""}catch(e){return""}})();
 const DESK=window.zsDesktop||null;
 if(EMBED){document.body.classList.add("embed","embed-"+EMBED);document.documentElement.classList.add("embed-root");try{if(new URLSearchParams(location.search).get("glass"))document.body.classList.add("glass")}catch(e){}const st=document.createElement("style");st.textContent=`
-body.embed{padding:0!important;overflow:hidden;background:var(--panel)}
+body.embed{padding:0!important;overflow:hidden;background:var(--panel)}body.embed-zero{background:color-mix(in oklab,var(--panel) 96%,transparent)}
 body.embed::before{display:none}
 body.embed>*:not(#zw):not(#todoEmbed):not(.zw-pick):not(.toast):not(.pop):not(.scrim):not(.qz):not(#fxCv):not(#fxLayer):not(script):not(style):not(svg){display:none!important}
 body.embed-zero #todoEmbed,body.embed-todo #zw{display:none!important}
@@ -2373,6 +2373,24 @@ html.embed-root,body.embed-todo{background:transparent!important}
 .td-row .go2{border:0;background:none;color:inherit;opacity:0;cursor:pointer;font-size:10px;padding:0 3px}.td-row:hover .go2{opacity:.6}.td-row .go2:hover{opacity:1}.td-row.active .go2{opacity:1;color:var(--early)}.td-row.active .t{font-weight:600}
 .td-row .w{cursor:pointer}.td-row .w:hover{text-decoration:underline}.td-due{font:inherit;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:inherit;padding:1px 4px;width:150px}
 .checklist button.today{outline:2px solid var(--early);outline-offset:-2px}
+/* ===== 桌面版：毛玻璃（窗口后面是系统模糊，这里只铺一层很淡的白 + 亮边 + 顶部高光）===== */
+body.embed.glass{--gl-bg:linear-gradient(165deg,rgba(255,255,255,.34),rgba(255,255,255,.12));--gl-line:rgba(255,255,255,.55);--gl-hi:inset 0 1px 0 rgba(255,255,255,.7);--gl-card:rgba(255,255,255,.42);--gl-sep:rgba(29,32,48,.08)}
+@media (prefers-color-scheme:dark){body.embed.glass{--gl-bg:linear-gradient(165deg,rgba(255,255,255,.10),rgba(255,255,255,.03));--gl-line:rgba(255,255,255,.14);--gl-hi:inset 0 1px 0 rgba(255,255,255,.12);--gl-card:rgba(255,255,255,.08);--gl-sep:rgba(255,255,255,.08)}}
+body.embed.glass #todoEmbed,body.embed.glass.td-docked #todoEmbed,body.embed.glass.td-collapsed #todoEmbed{background:var(--gl-bg);border:1px solid var(--gl-line);box-shadow:var(--gl-hi);border-radius:8px}
+body.embed.glass .td-row:hover{background:var(--gl-card)}
+body.embed.glass .td-add,body.embed.glass .td-add input{background:transparent}
+/* 书签：贴边时也显示“待办 N”，左右两边竖排 */
+body.td-docked #todoEmbed>.td-mini{display:flex!important;justify-content:center;padding:0;font-size:12px;gap:4px}
+body.td-docked:not(.glass) #todoEmbed{background:color-mix(in oklab,var(--panel) 82%,transparent);border:1px solid color-mix(in oklab,var(--fg) 12%,transparent)}
+body.dock-left .td-mini,body.dock-right .td-mini{writing-mode:vertical-rl;letter-spacing:2px}
+body.dock-left .td-mini .n,body.dock-right .td-mini .n{writing-mode:horizontal-tb;letter-spacing:0}
+body.td-collapsed .td-mini{justify-content:center}
+/* 零的窗口 */
+body.embed-zero.glass{background:transparent!important}
+body.embed-zero.glass .zw-panel{background:var(--gl-bg);border:1px solid var(--gl-line);box-shadow:var(--gl-hi);border-radius:8px!important}
+body.embed-zero.glass .zw-head,body.embed-zero.glass .zw-in,body.embed-zero.glass #zwTask{border-color:var(--gl-sep);background:transparent}
+body.embed-zero.glass .zw-in textarea,body.embed-zero.glass .zw-in textarea:focus{outline:none;border:0;box-shadow:inset 0 0 0 1px var(--gl-line)}
+body.embed-zero.glass .zw-m.a,body.embed-zero.glass .zw-in textarea,body.embed-zero.glass .zw-t select,body.embed-zero.glass .zw-head .zface{background:var(--gl-card)}
 .td-pin{position:absolute;top:4px;right:6px;border:0;background:none;color:inherit;opacity:0;font-size:10px;cursor:pointer;-webkit-app-region:no-drag;z-index:2}
 #todoEmbed:hover .td-pin{opacity:.45}
 .td-mini{display:none;align-items:center;gap:6px;height:100%;padding:0 12px;font-size:13px;white-space:nowrap}
@@ -2622,6 +2640,7 @@ if(EMBED==="todo"&&DESK&&DESK.todoMode){const B=document.body;
   const tell=()=>DESK.todoBusy&&DESK.todoBusy(busy());["focusin","input","keyup"].forEach(ev=>document.addEventListener(ev,tell));document.addEventListener("focusout",()=>setTimeout(tell,50));new MutationObserver(tell).observe(B,{childList:true});
   DESK.onTodoState&&DESK.onTodoState(st=>{if(st.mode!=="full"&&document.activeElement&&document.activeElement.tagName==="INPUT")document.activeElement.blur()});
   if(DESK.isGlass)DESK.isGlass().then(g=>{if(g)B.classList.add("glass")}).catch(()=>{})}
+if(DESK&&EMBED==="zero"&&DESK.isGlass)DESK.isGlass().then(g=>{if(g)document.body.classList.add("glass")}).catch(()=>{});
 let S_PIN=true;if(DESK&&DESK.getPin)DESK.getPin().then(v=>{S_PIN=!!v;if(EMBED==="todo")renderTodoEmbed()}).catch(()=>{});
 if(EMBED==="todo"){setInterval(()=>{if(!document.hidden)renderTodoEmbed()},60000)}
 /* 桌面小圆的小红点：24 小时内有没交的作业 */
