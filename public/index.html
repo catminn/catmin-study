@@ -254,7 +254,7 @@ input[type=text],input[type=number],input[type=datetime-local],textarea.plain,se
 .thumb button{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;border:0;background:var(--fg);color:var(--bg);font-size:12px;line-height:20px;padding:0}
 
 .shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.item{display:flex;flex-direction:column;gap:8px;background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 4px 0 var(--line)}
+.item{display:flex;flex-direction:column;gap:8px;background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 4px 0 var(--line)}.item.playbar{grid-column:1/-1;flex-direction:row;align-items:center;gap:14px}.playbar .pb-t{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}.playbar .pb-t b{font-size:16px}.playbar .pb-t .dim{font-size:13px}
 .item .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--warn)}
 .item .ic svg{width:26px;height:26px}
 .item p{margin:0;font-size:14px;color:var(--dim);flex:1}
@@ -1043,11 +1043,10 @@ function stopPlay(){if(!playing())return;const {m,cost}=playNow(),min=Math.round
   const lab=S.timer.free;S.timer=null;if(cost>0)earn(-cost,"游戏 "+min+" 分钟");else S.ledger.push({at:Date.now(),d:0,t:"游戏 "+min+" 分钟"+(lab?"（休息日免费）":"")});
   save();renderAll();if(DESK&&DESK.gameMode)DESK.gameMode(false,-1);toast("玩了 "+min+" 分钟"+(cost?"，扣 "+cost+" 分":""))}
 function affordMin(){const b=playedToday();let m=0;while(m<600&&playCost(b,m+1)<=S.points)m++;return m}
-function playCard(){const on=playing(),free=false,b=playedToday(),am=affordMin();
-  return h("div",{class:"item"},h("div",{class:"row between"},h("div",{class:"ic"},icon("game")),h("span",{class:"price"},free?"免费":"按分钟")),h("h3",null,"玩游戏"),
-    h("p",null,free?"休息日，随便玩":"开始计时，玩完点停，按真实时长扣分。当天累计：前 30 分钟每分钟 0.7，30–60 分钟 0.9，1–2 小时 1.2，超过 2 小时 1.6。"),
-    h("div",{class:"dim small"},"今天已玩 "+Math.round(b)+" 分钟"+(free?"":" · 现在的积分够玩约 "+am+" 分钟")),
-    h("div",{class:"row"},on?h("button",{class:"btn sm go",onclick:stopPlay},"玩完了"):h("button",{class:"btn sm"+((free||am>0)?" go":""),onclick:startPlay},"开始玩")))}
+function playCard(){const on=playing(),b=playedToday(),am=affordMin();
+  const tip="按真实时长扣分，当天累计越久越贵：前 30 分钟每分钟 0.7，30–60 分钟 0.9，1–2 小时 1.2，2 小时以上 1.6";
+  if(on){const {m,cost}=playNow();return h("div",{class:"item playbar on",title:tip},h("div",{class:"ic"},icon("game")),h("div",{class:"pb-t"},h("b",null,"游戏中"),h("span",{class:"dim"},Math.floor(m)+" 分钟 · "+cost+" 分")),h("button",{class:"btn go",onclick:stopPlay},"玩完了"))}
+  return h("div",{class:"item playbar",title:tip},h("div",{class:"ic"},icon("game")),h("div",{class:"pb-t"},h("b",null,"玩游戏"),h("span",{class:"dim"},am>0?"够玩约 "+am+" 分钟"+(b>=1?" · 今天已玩 "+Math.round(b)+" 分钟":""):"积分不够")),h("button",{class:"btn"+(am>0?" go":""),onclick:startPlay},"开始玩"))}
 const CNY_TIERS=[["6",6],["15",15],["30",30],["60",60],["100",100],["180",180],["300",300],["600",600],["月卡",30],["战令",68],["战令",128]];
 const SHOP_ITEMS=[
   {id:"makeup",name:"补签卡",price:35,ic:"ticket",desc:"补上漏掉的一天签到"},
