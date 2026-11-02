@@ -445,7 +445,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 .zw-m{max-width:92%;border-radius:14px;padding:8px 12px;font-size:15px;line-height:1.75;overflow-wrap:anywhere}
 .zw-m.a{align-self:flex-start;background:var(--panel2);border-radius:4px 14px 14px 14px}
 .zw-m.u{align-self:flex-end;background:var(--fg);color:var(--panel);border-radius:14px 4px 14px 14px;white-space:pre-wrap}
-.zw-m p{margin:.35em 0}.zw-m p:first-child{margin-top:0}.zw-m p:last-child{margin-bottom:0}.zw-m table{display:block;overflow-x:auto;max-width:100%;border-collapse:collapse;font-size:13px;line-height:1.5;margin:.4em 0}.zw-m th,.zw-m td{padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left;overflow-wrap:normal;word-break:normal;min-width:6em}.zw-m th:first-child,.zw-m td:first-child{white-space:nowrap;min-width:0}.zw-fig{margin:.5em 0;background:#fff;border-radius:10px;padding:6px;border:1px solid var(--line)}.zw-svg svg{display:block;width:100%;height:auto;max-height:420px}.zw-plot{width:100%;height:320px}.zw-figdl{margin-top:4px;font-size:12px}.zw-figerr{white-space:pre-wrap;font-size:12px;color:var(--dim);margin:0}.zw-m.a{position:relative}.zw-copy{position:absolute;top:4px;right:6px;border:0;background:var(--panel);color:var(--dim);font-size:11px;padding:2px 6px;border-radius:6px;cursor:pointer;opacity:0;transition:opacity .15s}.zw-m.a:hover .zw-copy{opacity:.9}@media (hover:none){.zw-copy{opacity:.6}}.zw-m mjx-container{cursor:copy;overflow-x:auto;overflow-y:hidden;max-width:100%}
+.zw-m p{margin:.35em 0}.zw-m p:first-child{margin-top:0}.zw-m p:last-child{margin-bottom:0}.zw-m table{display:block;overflow-x:auto;max-width:100%;border-collapse:collapse;font-size:13px;line-height:1.5;margin:.4em 0}.zw-m th,.zw-m td{padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left;overflow-wrap:normal;word-break:normal;min-width:6em}.zw-m th:first-child,.zw-m td:first-child{white-space:nowrap;min-width:0}.zw-fig{margin:.5em 0;background:#fff;border-radius:10px;padding:6px;border:1px solid var(--line)}.zw-svg svg{display:block;width:100%;height:auto;max-height:420px}.zw-plot{width:100%;height:320px}.zw-figdl{margin-top:4px;font-size:12px}.zw-figerr{white-space:pre-wrap;font-size:12px;color:var(--dim);margin:0}.zw-m.a{position:relative}.zw-copy{position:absolute;top:4px;right:6px;border:0;background:var(--panel);color:var(--dim);font-size:11px;padding:2px 6px;border-radius:6px;cursor:pointer;opacity:0;transition:opacity .15s}.zw-m.a:hover .zw-copy{opacity:.9}@media (hover:none){.zw-copy{opacity:.6}}.zw-m math{font-size:1.12em}.zw-m math[display=block]{display:block;margin:.4em 0;overflow-x:auto;overflow-y:hidden}.zw-m mjx-container{cursor:copy;overflow-x:auto;overflow-y:hidden;max-width:100%}
 .zw-choose{align-self:stretch;display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:12px;background:var(--gl-card,var(--panel2))}.zw-choose .q{font-size:13px;color:var(--dim)}.zw-choose .row{display:flex;flex-wrap:wrap;gap:6px}
 .zw-hint{align-self:center;font-size:13px;color:var(--dim);text-align:center;padding:20px 8px}
 .zw-in{display:flex;gap:6px;align-items:flex-end;padding:8px;border-top:1px solid var(--line)}
@@ -1822,10 +1822,16 @@ function renderChat(){const box=$("#chat");box.replaceChildren();const turns=CHA
     box.onclick=()=>{revealEls.forEach(e=>e.classList.remove("pending"));i=revealEls.length};setTimeout(next,60)}
   else showChoices()}
 function bubble(t){return aiTurnEl(t,false)}
+/* 公式用 KaTeX 输出成浏览器原生的 MathML：和正常文字一样能选中、能复制一部分。KaTeX 没加载好时退回 MathJax */
+const KATEX=["https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js","https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"];
+setTimeout(async()=>{for(const u of KATEX){try{await loadScript(u);if(window.katex){if(typeof zwRender==="function")zwRender();return}}catch(e){}}},0);
+function texHtml(m){if(!window.katex)return null;let d=false,t=m;
+  if(/^\$\$[\s\S]*\$\$$/.test(m)){d=true;t=m.slice(2,-2)}else if(/^\\\[[\s\S]*\\\]$/.test(m)){d=true;t=m.slice(2,-2)}else if(/^\\\([\s\S]*\\\)$/.test(m))t=m.slice(2,-2);else t=m.slice(1,-1);
+  try{return katex.renderToString(t,{output:"mathml",displayMode:d,throwOnError:false,strict:"ignore"})}catch(e){return null}}
 function renderMd(text){const wrap=h("div");const maths=[],figs=[];const t=String(text).replace(/```(svg|plotly)\s*\n([\s\S]*?)```/g,(_,k,c)=>{figs.push({k,c});return"\n\n@@F"+(figs.length-1)+"@@\n\n"}).replace(/\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|\$[^$\n]+?\$/g,m=>{maths.push(m);return"@@M"+(maths.length-1)+"@@"});
   const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));let html=null;
   try{if(window.marked&&window.DOMPurify)html=DOMPurify.sanitize(marked.parse(t))}catch(e){}
-  if(html==null)html=esc(t).replace(/\n/g,"<br>");wrap.innerHTML=html.replace(/@@M(\d+)@@/g,(_,i)=>esc(maths[+i])).replace(/(<p>)?@@F(\d+)@@(<\/p>)?/g,(_,a,i)=>'<div class="zw-fig" data-f="'+i+'"></div>');
+  if(html==null)html=esc(t).replace(/\n/g,"<br>");wrap.innerHTML=html.replace(/@@M(\d+)@@/g,(_,i)=>texHtml(maths[+i])||esc(maths[+i])).replace(/(<p>)?@@F(\d+)@@(<\/p>)?/g,(_,a,i)=>'<div class="zw-fig" data-f="'+i+'"></div>');
   if(figs.length)setTimeout(()=>drawFigs(wrap,figs),0);return wrap}
 /* 零画的图：```svg 直接显示，```plotly 用 Plotly 画（函数图、3D 曲面、数据图）；都能下载 PNG */
 const PLOTLY=["https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js","https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"];
@@ -2348,6 +2354,15 @@ setTimeout(()=>{const l=$("#zwLog"),b=$("#zwJump");if(l)l.addEventListener("scro
 async function copyText(t,msg){try{await navigator.clipboard.writeText(t)}catch(e){const ta=document.createElement("textarea");ta.value=t;document.body.append(ta);ta.select();try{document.execCommand("copy")}catch(x){}ta.remove()}toast(msg||"已复制")}
 document.addEventListener("click",e=>{const c=e.target.closest&&e.target.closest(".zw-m mjx-container");if(!c||!window.MathJax||!MathJax.startup||!MathJax.startup.document)return;
   try{const it=MathJax.startup.document.getMathItemsWithin(c)[0];if(it&&it.math)copyText(it.math.trim(),"已复制公式（LaTeX）")}catch(x){}});
+/* 复制零回复里的一段：公式里的字连成一行、𝐻 这类数学字母变回普通字母 */
+document.addEventListener("copy",e=>{const sel=getSelection();if(!sel||sel.isCollapsed||!sel.rangeCount)return;const log=$("#zwLog");if(!log||!log.contains(sel.anchorNode))return;
+  const frag=sel.getRangeAt(0).cloneContents();if(!frag.querySelector||!frag.querySelector("math")&&!(sel.anchorNode.parentElement&&sel.anchorNode.parentElement.closest("math")))return;
+  for(const m of frag.querySelectorAll("math")){const ann=m.querySelector("annotation");if(ann)ann.remove();
+    const tx=x=>x.textContent.replace(/\s+/g,""),w=x=>x.length>1?"("+x+")":x;
+    for(const el of [...m.querySelectorAll("msup,msub,msubsup,mfrac,msqrt")].reverse()){const c=[...el.children].map(tx),n=el.localName;
+      el.replaceWith(document.createTextNode(n==="msup"?c[0]+"^"+w(c[1]):n==="msub"?c[0]+"_"+c[1]:n==="msubsup"?c[0]+"_"+c[1]+"^"+w(c[2]):n==="mfrac"?w(c[0])+"/"+w(c[1]):"√"+w(c.join(""))))}m.replaceWith(document.createTextNode(m.textContent.replace(/\s+/g,"")))}
+  const box=document.createElement("div");box.style.cssText="position:fixed;left:-9999px;white-space:pre-wrap";box.append(frag);document.body.append(box);let t=box.innerText;box.remove();
+  if(!t.trim())t=sel.toString();t=t.normalize("NFKC").replace(/\u2061|\u2062|\u2063/g,"");e.clipboardData.setData("text/plain",t);e.preventDefault()});
 /* 文件直接拖到零的窗口上（桌面版零窗口整个都算） */
 const zwDropZone=e=>{const pn=$("#zwPanel");return pn&&!pn.hidden&&(EMBED==="zero"||pn.contains(e.target))};
 document.addEventListener("dragover",e=>{if(zwDropZone(e)){e.preventDefault();e.stopPropagation();if(e.dataTransfer)e.dataTransfer.dropEffect="copy";$("#zwPanel").classList.add("drag");return}const pn=$("#zwPanel");if(pn)pn.classList.remove("drag")},true);
