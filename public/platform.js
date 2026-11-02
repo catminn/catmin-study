@@ -124,7 +124,8 @@
       cu.style.cssText = el.style.cssText; host.appendChild(cu);
     }
     if (cu) {
-      if (st.cornell) { cu.textContent = "Cornell Drive ✓"; cu.title = (st.cornellEmail || "") + "：交给零的文件和作业 PDF 存在这里"; cu.onclick = null; }
+      if (st.cornell && st.cornellRead) { cu.textContent = "Cornell Drive ✓"; cu.title = (st.cornellEmail || "") + "：AI 能读这里的作业，交给零的文件也存在这里"; cu.onclick = null; }
+      else if (st.cornell) { cu.textContent = "Cornell Drive 加读权限"; cu.title = "让 AI 能读学校 Drive 里的作业：点一下重新授权，勾选查看文件的权限"; cu.onclick = function () { location.href = "/auth/google/start?acct=cornell"; }; }
       else { cu.textContent = "连 Cornell Drive"; cu.title = "把文件存到 Cornell 账号的 Drive（学校可能不允许，不行就存个人 Drive）"; cu.onclick = function () { location.href = "/auth/google/start?acct=cornell"; }; }
     }
     if (st.connected && st.needsUpgrade) {

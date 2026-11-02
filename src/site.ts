@@ -14,7 +14,7 @@ import { approveProposal, courseStatus, getProposal, proposePack, removeFolder, 
 import { auditStats, declineOffer, getProfile, putProfile } from "./learning";
 import { getSession, postAction, sessionOp } from "./adventure";
 import { getBalance, listEvents, postEvent, postReward } from "./events";
-import { GErr, finishAuth, googleDisconnect, googleStatus, googleTool, startAuth } from "./google";
+import { GErr, finishAuth, googleDisconnect, googleStatus, googleTool, startAuth, aiDriveSearch, aiDriveRead } from "./google";
 
 export type SiteEnv = Env & {
   ASSETS: Fetcher;
@@ -136,12 +136,11 @@ const DRIVE_TOOLS = [
 async function runDriveTool(env: SiteEnv, name: string, input: any): Promise<string> {
   try {
     if (name === "drive_search") {
-      const q = String(input?.query || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-      const r: any = await googleTool(env, "Google Drive", "search_files", { query: `title contains '${q}'`, pageSize: 12 });
-      return JSON.stringify((r.files || []).map((f: any) => ({ id: f.id, title: f.title, mimeType: f.mimeType, modified: f.modifiedTime })));
+      const r = await aiDriveSearch(env, String(input?.query || ""));
+      return JSON.stringify(r.map((f: any) => ({ id: f.id, title: f.title, mimeType: f.mimeType, modified: f.modifiedTime, account: f.acct === "cornell" ? "Cornell 学校账号" : "个人账号" })));
     }
     if (name === "drive_read") {
-      const r: any = await googleTool(env, "Google Drive", "read_file_content", { fileId: String(input?.id || "") });
+      const r: any = await aiDriveRead(env, String(input?.id || ""));
       return String(r.fileContent || "（读不出文字）").slice(0, 24000);
     }
     return "没有这个工具";

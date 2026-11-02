@@ -19,8 +19,8 @@ const SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
   "https://www.googleapis.com/auth/drive.file",
 ].join(" ");
-// 第二个账号（Cornell）只用来往它的 Drive 里存文件
-const CORNELL_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/drive.file"].join(" ");
+// 第二个账号（Cornell）：存文件，也让 AI 读学校 Drive 里的作业（电脑上的 Cornell 文件夹同步在这里）
+const CORNELL_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive.readonly"].join(" ");
 type Acct = "main" | "cornell";
 const KK = (acct: Acct) => acct === "main" ? { refresh: "google:refresh", access: "google:access", email: "google:email", scope: "google:scope" } : { refresh: "google:cornell:refresh", access: "google:cornell:access", email: "google:cornell:email", scope: "google:cornell:scope" };
 const K_REFRESH = "google:refresh";
@@ -124,7 +124,8 @@ export async function googleStatus(env: SiteEnv) {
   const cornell = configured && !!(await env.OAUTH_KV.get("google:cornell:refresh"));
   return { configured, connected, email: connected ? (await env.OAUTH_KV.get(K_EMAIL)) || "" : "",
     needsUpgrade: connected && !(scope.includes("calendar.events") && scope.includes("drive.file")),
-    cornell, cornellEmail: cornell ? (await env.OAUTH_KV.get("google:cornell:email")) || "" : "" };
+    cornell, cornellEmail: cornell ? (await env.OAUTH_KV.get("google:cornell:email")) || "" : "",
+    cornellRead: cornell && String((await env.OAUTH_KV.get("google:cornell:scope")) || "").includes("drive.readonly") };
 }
 
 export async function googleDisconnect(env: SiteEnv) {
@@ -306,21 +307,21 @@ const mapFiles = (o: any) => ({
   files: (o.files || []).map((f: any) => ({ id: f.id, title: f.name, mimeType: f.mimeType, modifiedTime: f.modifiedTime, size: f.size, webViewLink: f.webViewLink })),
   nextPageToken: o.nextPageToken,
 });
-async function driveList(env: SiteEnv, q: string, orderBy: string | null, input: Record<string, any>) {
+async function driveList(env: SiteEnv, q: string, orderBy: string | null, input: Record<string, any>, acct: Acct = "main") {
   const p = new URLSearchParams({ q, pageSize: String(Math.min(Number(input.pageSize) || 25, 100)), fields: `nextPageToken,files(${FILE_FIELDS})`, supportsAllDrives: "true", includeItemsFromAllDrives: "true" });
   if (orderBy) p.set("orderBy", orderBy);
   if (input.pageToken) p.set("pageToken", String(input.pageToken));
-  return mapFiles(await gjson(env, "https://www.googleapis.com/drive/v3/files?" + p));
+  return mapFiles(await gjson(env, "https://www.googleapis.com/drive/v3/files?" + p, {}, acct));
 }
 
 const MAX_BYTES = 15_000_000;
 const MAX_TEXT = 1_500_000;
 const TEXTY = /^(text\/|application\/(json|xml)$)/;
 
-async function readFile(env: SiteEnv, input: Record<string, any>) {
+async function readFile(env: SiteEnv, input: Record<string, any>, acct: Acct = "main") {
   const id = String(input.fileId || "");
   if (!/^[\w-]{5,200}$/.test(id)) throw new GErr("bad_request", "fileId 不合法");
-  const meta = await gjson(env, `https://www.googleapis.com/drive/v3/files/${id}?fields=id,name,mimeType,size&supportsAllDrives=true`);
+  const meta = await gjson(env, `https://www.googleapis.com/drive/v3/files/${id}?fields=id,name,mimeType,size&supportsAllDrives=true`, {}, acct);
   const mt: string = meta.mimeType || "";
   const cut = (s: string) => (s.length > MAX_TEXT ? s.slice(0, MAX_TEXT) : s);
   const fail = (r: Response) => new GErr("upstream_error", "读取失败（" + r.status + "）：文件可能太大或没有权限", 502);
@@ -328,12 +329,12 @@ async function readFile(env: SiteEnv, input: Record<string, any>) {
   if (mt.startsWith("application/vnd.google-apps.")) {
     const kind = mt.endsWith(".spreadsheet") ? "text/csv" : mt.endsWith(".document") || mt.endsWith(".presentation") ? "text/plain" : "";
     if (!kind) throw new GErr("unsupported", "这种 Google 文件读不了：" + mt);
-    const r = await gfetch(env, `https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=${encodeURIComponent(kind)}`);
+    const r = await gfetch(env, `https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=${encodeURIComponent(kind)}`, {}, acct);
     if (!r.ok) throw fail(r);
     return { fileContent: cut(await r.text()) };
   }
   if (Number(meta.size || 0) > MAX_BYTES) throw new GErr("too_large", "文件超过 15MB，读不了", 413);
-  const r = await gfetch(env, `https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`);
+  const r = await gfetch(env, `https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`, {}, acct);
   if (!r.ok) throw fail(r);
   if (TEXTY.test(mt)) return { fileContent: cut(await r.text()) };
   // PDF / Word / PPT / 图片：交给 Cloudflare 的文档转换
@@ -343,6 +344,28 @@ async function readFile(env: SiteEnv, input: Record<string, any>) {
   const first = Array.isArray(out) ? out[0] : out;
   if (!first || first.format === "error") throw new GErr("unsupported", "转换失败：" + String(first?.error || "不支持的格式"));
   return { fileContent: cut(String(first.data || "")) };
+}
+
+// AI 用的 Drive：个人账号和 Cornell 账号一起搜；读的时候哪个账号有就用哪个
+export async function hasCornellRead(env: SiteEnv) { return String((await env.OAUTH_KV.get("google:cornell:scope")) || "").includes("drive.readonly"); }
+export async function aiDriveSearch(env: SiteEnv, query: string) {
+  const q = driveQuery(`title contains '${query.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`);
+  const out: any[] = [];
+  const accts: Acct[] = ["main"];
+  if (await hasCornellRead(env)) accts.unshift("cornell");
+  for (const a of accts) {
+    try { const r: any = await driveList(env, q, "modifiedTime desc", { pageSize: 12 }, a); for (const f of r.files || []) out.push({ ...f, acct: a }); } catch {}
+  }
+  return out;
+}
+export async function aiDriveRead(env: SiteEnv, id: string, acct?: string) {
+  const order: Acct[] = acct === "main" ? ["main", "cornell"] : ["cornell", "main"];
+  let last: any = null;
+  for (const a of order) {
+    if (a === "cornell" && !(await hasCornellRead(env))) continue;
+    try { return await readFile(env, { fileId: id }, a); } catch (e) { last = e; }
+  }
+  throw last || new GErr("not_found", "读不到这个文件");
 }
 
 // ---------- 对外入口 ----------
