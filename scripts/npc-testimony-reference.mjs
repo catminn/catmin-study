@@ -5,7 +5,16 @@ const clone = x => structuredClone(x);
 // Keep commit keys within the same safe author-ID grammar as scene/event refs.
 // In particular, '__proto__' cannot be a commit key in a plain-object ledger.
 const validEventId = x => typeof x === 'string' && /^[a-z][a-z0-9._-]{0,79}$/.test(x);
-const equalScope = (a, b) => !!a && !!b && ['worldId', 'revision', 'sessionId'].every(k => a[k] === b[k] && typeof a[k] === 'string' && a[k].length > 0);
+// Persisted and incoming scope envelopes must contain exactly the three
+// reviewed identifiers. Matching only their values would allow an arbitrary
+// unreviewed payload to ride inside a valid-looking evidence fingerprint.
+const validScope = s => s !== null && typeof s === 'object' && !Array.isArray(s) &&
+  Object.keys(s).length === 3 &&
+  ['worldId', 'revision', 'sessionId'].every(k =>
+    Object.prototype.hasOwnProperty.call(s, k) &&
+    typeof s[k] === 'string' && s[k].length > 0);
+const equalScope = (a, b) => validScope(a) && validScope(b) &&
+  ['worldId', 'revision', 'sessionId'].every(k => a[k] === b[k]);
 
 export const policy = Object.freeze({
   scope: { worldId: 'demo-world', revision: 'demo-r1', sessionId: 'demo-session' },
