@@ -2256,8 +2256,9 @@ async function saveChat(subj){const body={turns:CHATS[subj].slice(-30).map(t=>{c
   body.turns=CHATS[subj].slice(-30).map(t=>{const o={role:t.role,content:t.content};if(t.quiz)o.quiz=t.quiz;if(t.choices)o.choices=t.choices;if(t.refs)o.refs=t.refs;if(t.at)o.at=t.at;return o});
   body.savedAt=Date.now();CHAT_AT[subj]=body.savedAt;cloudQueue("chat-"+subj,()=>body);
   if(DB&&UID){try{await DB.doc("data/users/"+UID+"/chat-"+subj).set(body)}catch(e){}}else{try{localStorage.setItem("zs-chat-"+subj,JSON.stringify(body))}catch(e){}}}
-function deepCopy(){const subj=CUR;const turns=CHATS[subj].slice(-6);
-  const txt=`我在用学习网站学 ${SUBJ[subj].full}，想在这里接着深聊。\n学习笔记：${(S.progress[subj]||[]).slice(-5).map(p=>p.t).join("；")||"无"}\n没打败的错题：${S.mistakes.filter(m=>m.subj===subj&&!m.killed).slice(-5).map(m=>m.text).join("；")||"无"}\n刚才的对话：\n${turns.map(t=>(t.role==="user"?"我：":"系统：")+t.content.slice(0,600)).join("\n")}`;
+function deepCopy(){const subj=CUR;const ts=topicStart(subj);const turns=CHATS[subj].slice(topicFrom(subj)).filter(t=>!t.err&&!t.quiz).slice(-12);
+  const mis=S.mistakes.filter(m=>m.subj===subj&&!m.killed&&m.at&&m.at>=ts).map(m=>m.text);const sk=((S.skills||{})[subj]||[]).filter(x=>x.at&&x.at>=ts).map(x=>x.n);
+  const txt=`我在用学习网站学 ${SUBJ[subj].full}，想在这里接着深聊刚才这个话题。`+(sk.length?`\n这次学到的技能：${sk.join("；")}`:"")+(mis.length?`\n这次做错的题：${mis.join("；")}`:"")+`\n刚才的对话：\n${turns.map(t=>(t.role==="user"?"我：":"系统：")+String(t.content).slice(0,800)).join("\n")||"（还没开始）"}`;
   const fallback=()=>{const ta=h("textarea",{class:"plain",style:{width:"100%",minHeight:"180px"}});ta.value=txt;sheet(null,h("h3",null,"复制下面的内容"),ta);ta.select()};
   try{navigator.clipboard.writeText(txt).then(()=>toast("已复制，去对应的 Claude 项目里粘贴")).catch(fallback)}catch(e){fallback()}}
 function addImgs(files){if(!IMG_OK){toast("这里不能发图片");return}let n=0;for(const f of files){if(f&&f.type&&f.type.startsWith("image/")&&IMGS.length<5){IMGS.push(f);n++}}if(n)toast("已附 "+n+" 张图，随下一条消息发送");renderThumbs()}
