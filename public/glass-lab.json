@@ -1,1 +1,1 @@
-{"name":"B 系统背景3+扩展边框","accent":{"state":0,"flags":0,"color":0},"extend":-1,"backdrop":3,"nca":true}
+{"name":"B2 背景3 透明面板","accent":{"state":0,"flags":0,"color":0},"extend":-1,"backdrop":3,"nca":true,"css":"html,body,.zw-panel,#todoEmbed,.zw-m.a{background:transparent!important}"}
