@@ -438,4 +438,31 @@ export const TOOLS: Tool[] = [
 
 TOOLS.push(...(STUDY_TOOLS as Tool[]));
 
+// Google Drive：同时搜 Catherine 的个人账号和 Cornell 学校账号（学习网站上连过的那两个），给 Claude、ChatGPT 和学习空间用
+TOOLS.push(
+  {
+    name: "drive_search",
+    description: "Search Catherine's Google Drive by file name — both her personal account and her Cornell school account (her course files from Desktop/Cornell sync to the Cornell one). Returns id, title, mimeType, modified time and which account. Keep keywords short, e.g. 'HW8', 'Quiz 3', 'Lab 8'; try another keyword if empty.",
+    inputSchema: { type: "object", properties: { query: { type: "string", description: "Keyword contained in the file name" } }, required: ["query"] },
+    annotations: { readOnlyHint: true },
+    async run(env, a) {
+      const g = await import("./google");
+      const r = await g.aiDriveSearch(env as any, String(a.query || ""));
+      return JSON.stringify(r.map((f: any) => ({ id: f.id, title: f.title, mimeType: f.mimeType, modified: f.modifiedTime, account: f.acct === "cornell" ? "cornell" : "personal" })));
+    },
+  },
+  {
+    name: "drive_read",
+    description: "Read the text content of a Google Drive file (PDF, Google Doc, Word, etc.) by the id from drive_search. Works for both the personal and the Cornell account.",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, account: { type: "string", description: "'cornell' or 'personal' from drive_search (optional)" } }, required: ["id"] },
+    annotations: { readOnlyHint: true },
+    async run(env, a) {
+      const g = await import("./google");
+      const r: any = await g.aiDriveRead(env as any, String(a.id || ""), a.account === "personal" ? "main" : undefined);
+      return String(r.fileContent || "(no text could be extracted)").slice(0, 30000);
+    },
+  } as Tool,
+);
+
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
+

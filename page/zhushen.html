@@ -1995,11 +1995,15 @@ function drivePayload(r){let p=r&&r.payload;if(typeof p==="string"){try{p=JSON.p
 function driveErr(e){const c=e&&e.code;return c==="not_granted"||c==="server_not_connected"?"Google Drive 还没连上，到 claude.ai 的连接器里接入 Google Drive":"Drive 出错了："+((e&&e.message)||c||"").slice(0,60)}
 async function driveRead(f){const r=await MCP.callTool(DRIVE,"read_file_content",{fileId:f.id},{cache:false});const p=drivePayload(r);return typeof p==="string"?p:(p.fileContent||"")}
 /* 让 AI 自己去 Google Drive 找文件、读内容：Claude 版用页面工具，网页版/桌面版由服务器代办（serverTools） */
+/* 共享记忆服务器上的 drive_search / drive_read 会同时搜个人和 Cornell 两个 Google 账号；用不了时退回 Claude 自带的 Google Drive（只有个人账号） */
+function smPayload(r,raw){let p=r&&r.payload;if(p&&Array.isArray(p.content)&&p.content[0]&&typeof p.content[0].text==="string")p=p.content[0].text;if(raw)return typeof p==="string"?p:JSON.stringify(p);if(typeof p==="string"){try{return JSON.parse(p)}catch(e){return null}}return p}
 function driveTools(){if(window.__SITE||!MCP)return null;const qe=t=>String(t).replace(/\\/g,"\\\\").replace(/'/g,"\\'");
   return[{name:"drive_search",description:"在 Catherine 的 Google Drive 里按文件名搜索，返回文件 id、标题、类型、修改时间。关键词尽量短，比如 HW8、Quiz 3、Lab 8；搜不到就换个关键词再试。",inputSchema:{type:"object",properties:{query:{type:"string",description:"文件名里包含的关键词"}},required:["query"]},
-      execute:async({query})=>{const r=await MCP.callTool(DRIVE,"search_files",{query:"title contains '"+qe(query)+"'",pageSize:12,excludeContentSnippets:true},{cache:false});return(drivePayload(r).files||[]).map(f=>({id:f.id,title:f.title,mimeType:f.mimeType,modified:f.modifiedTime}))}},
-    {name:"drive_read",description:"读出 Google Drive 里一个文件的文字内容（PDF、Google 文档、Word 等），参数是 drive_search 给的 id。",inputSchema:{type:"object",properties:{id:{type:"string"}},required:["id"]},
-      execute:async({id})=>{const t=await driveRead({id});return String(t||"（这个文件读不出文字，可能是扫描件）").slice(0,24000)}}]}
+      execute:async({query})=>{try{const r=await MCP.callTool(SM,"drive_search",{query},{cache:false});const v=smPayload(r);if(Array.isArray(v))return v}catch(e){}
+        const r=await MCP.callTool(DRIVE,"search_files",{query:"title contains '"+qe(query)+"'",pageSize:12,excludeContentSnippets:true},{cache:false});return(drivePayload(r).files||[]).map(f=>({id:f.id,title:f.title,mimeType:f.mimeType,modified:f.modifiedTime}))}},
+    {name:"drive_read",description:"读出 Google Drive 里一个文件的文字内容（PDF、Google 文档、Word 等），参数是 drive_search 给的 id（和 account）。",inputSchema:{type:"object",properties:{id:{type:"string"},account:{type:"string"}},required:["id"]},
+      execute:async({id,account})=>{try{const r=await MCP.callTool(SM,"drive_read",{id,...(account?{account}:{})},{cache:false});const v=smPayload(r,true);if(typeof v==="string"&&v)return v.slice(0,24000)}catch(e){}
+        const t=await driveRead({id});return String(t||"（这个文件读不出文字，可能是扫描件）").slice(0,24000)}}]}
 const DRIVE_HINT="\n\n（你可以用 drive_search 和 drive_read 两个工具直接去她的 Google Drive 找文件、读内容。她说文件在 Drive 里时，自己去找，不要让她再发。）";
 function openDrive(){if(!MCP){toast("需要在 Claude 里打开");return}const subj=CUR;
   const list=h("div",{class:"dlist"},h("div",{class:"muted"},"读取中…"));const q=h("input",{class:"dsearch",type:"search",placeholder:"搜索文件名或文件夹名"});
