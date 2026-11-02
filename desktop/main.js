@@ -398,11 +398,14 @@ function setTodoMode(mode) {
     conf.todo = Object.assign({}, todo.getBounds()); saveConf();
     todoState = "mini";
     const t = ensureTab(); t.setBounds(tabRect()); tabSend();
-    fade(todo, 1, 0, 120, () => { if (todoState === "mini" && todo && !todo.isDestroyed()) todo.hide(); });
+    fade(todo, 1, 0, 120, () => { if (todoState === "mini" && todo && !todo.isDestroyed()) { todo.hide(); applyOnTop(); } });
     if (t.webContents.isLoading()) t.once("ready-to-show", () => { if (todoState === "mini") t.showInactive(); }); else t.showInactive();
   } else {
     todoState = "full"; tellTodo();
-    todo.setBounds(fullRect()); todo.setOpacity(0); todo.showInactive(); fade(todo, 0, 1, 140);
+    // 展开时一定放到最上面（就算没置顶 / 在玩游戏，鼠标移上去就是想看）；收起时再恢复
+    todo.setAlwaysOnTop(true, "screen-saver");
+    todo.setBounds(fullRect()); todo.setOpacity(0); todo.showInactive(); todo.moveTop(); fade(todo, 0, 1, 140);
+    dlog("todo expand", todo.getBounds(), todo.isVisible());
     if (tab && !tab.isDestroyed()) tab.hide();
   }
 }
@@ -767,7 +770,7 @@ function menu() {
     { label: lastInbox ? "撤销上次收纳（" + path.basename(lastInbox.to).slice(0, 24) + "）" : "撤销上次收纳", enabled: !!lastInbox, click: undoInbox },
     { label: "开机启动", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
     { label: hotkey ? "设置快捷键…（现在是 " + keyName(hotkey) + "）" : "设置快捷键…（现在没有）", click: openHotkeyWin },
-    ...(updateReady ? [{ label: "重启并更新到 " + updateReady, click: () => { app.isQuitting = true; updater.quitAndInstall(true, true); } }] : []),
+    ...(updateReady ? [{ label: "重启并更新到 " + updateReady, click: () => { app.isQuitting = true; app.releaseSingleInstanceLock(); setImmediate(() => updater.quitAndInstall(true, true)); } }] : []), // 先放开单实例锁，否则装好后新版一启动就以为旧的还在、自己退出
     ...(updateReady ? [] : [{ label: updateState || "检查更新（现在 " + app.getVersion() + "）", enabled: !updateState, click: () => checkUpdate(true) }]),
     { type: "separator" },
     { label: "退出", click: () => { app.isQuitting = true; app.quit(); } },
