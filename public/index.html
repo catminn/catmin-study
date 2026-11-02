@@ -662,7 +662,7 @@ const NS="http://www.w3.org/2000/svg";
 function icon(id){const s=document.createElementNS(NS,"svg");s.setAttribute("class","i");const u=document.createElementNS(NS,"use");u.setAttribute("href","#i-"+id);s.append(u);return s}
 const DAY=864e5,HOUR=36e5,MIN=6e4;
 /* 积分 = 美元。旧规则按 12 旧分 = 1 美元换算；经验值仍按旧分计，等级速度不变 */
-const USD=0.8,XP_PER=1.2,PER_USD=10,r1=x=>Math.round(x*10)/10,R=x=>x>0?Math.max(1,Math.round(x/USD)):0,fp=x=>String(Math.round(x)),PT=x=>R(x),CNY_PER_PT=0.4;
+const USD=0.8,XP_PER=1.2,PER_USD=10,r1=x=>Math.round(x*10)/10,R=x=>{if(!(x>0))return 0;const v=Math.max(1,Math.round(x/USD));return v<10?v:Math.round(v/5)*5},/* 10 分以上一律取到 5 的倍数 */fp=x=>String(Math.round(x)),PT=x=>R(x),CNY_PER_PT=0.4;
 const pad=n=>String(n).padStart(2,"0");
 const localKey=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const dayKey=(t=Date.now())=>localKey(new Date(t-4*HOUR));
@@ -968,11 +968,11 @@ engl:[["写 Discussion","【Discussion】帮我写今晚的 reading response dis
 const WEEKLY=[
   /* ENGL 1111 Discussion：按 Canvas 的实际日期（上课当天 9:00 前），编号按 Canvas 顺序；一学期写够 9 篇即可 */
   {id:"engl-disc",subj:"engl",hh:9,mm:0,dates:{"2026-10-27":[17,"D&D 与 Le Guin"],"2026-10-29":[18,"BG3 鹦鹉螺教程"],"2026-11-03":[19,"BG3 Goblin Camp"],"2026-11-05":[20,"BG3 庆功宴与 Risen Road"],"2026-11-10":[21,"BG3 Crèche 与第一幕结局"],"2026-11-12":[22,"House of the Dragon S1E1"],"2026-11-17":[23,"Rogue One"],"2026-11-19":[24,"The Uses of Fantasy"],"2026-12-01":[25,"Spirited Away"]},fmt:v=>"Discussion "+v[0]+" · "+v[1],dow:[0,1,2,3,4,5,6],base:24},
-  {id:"chem-ps",subj:"chem",num:"chem-ps",fmt:n=>"PS "+n,dow:[3],base:54},
-  {id:"math-hw",subj:"math",dates:{"2026-10-22":8,"2026-10-29":9,"2026-11-05":10,"2026-11-19":11,"2026-11-24":12,"2026-12-03":13},fmt:n=>"HW "+n,dow:[0,1,2,3,4,5,6],base:54,target:3,note:"截止是三天后的完全截止；在原定 ddl 前交 = 提前 3 天，拿 ×2.5。"},
-  {id:"chem-lab3",subj:"chem",num:"chem-lab",fmt:n=>"Lab "+n+" report",dow:[0],base:42},
-  {id:"chem-prelab",subj:"chem",num:"chem-lab",fmt:n=>"Pre-lab "+(n+1),dow:[0],base:18},
-  {id:"engri-hw",subj:"engri",num:"engri-hw",fmt:n=>"HW "+n,dow:[0],base:54}
+  {id:"chem-ps",subj:"chem",num:"chem-ps",fmt:n=>"PS "+n,dow:[3],base:48},
+  {id:"math-hw",subj:"math",dates:{"2026-10-22":8,"2026-10-29":9,"2026-11-05":10,"2026-11-19":11,"2026-11-24":12,"2026-12-03":13},fmt:n=>"HW "+n,dow:[0,1,2,3,4,5,6],base:48,target:3,note:"截止是三天后的完全截止；在原定 ddl 前交 = 提前 3 天，拿 ×2.5。"},
+  {id:"chem-lab3",subj:"chem",num:"chem-lab",fmt:n=>"Lab "+n+" report",dow:[0],base:40},
+  {id:"chem-prelab",subj:"chem",num:"chem-lab",fmt:n=>"Pre-lab "+(n+1),dow:[0],base:16},
+  {id:"engri-hw",subj:"engri",num:"engri-hw",fmt:n=>"HW "+n,dow:[0],base:48}
 ];
 const BASE_MAIN={
   math:[{id:"155",t:"§15.5 梯度与方向导数",lec:at(2026,9,28,11,0)},{id:"156",t:"§15.6 链式法则",lec:at(2026,10,5,11,0)},{id:"157",t:"§15.7 最优化",lec:at(2026,10,7,11,0)},{id:"158",t:"§15.8 拉格朗日乘数",lec:at(2026,10,14,11,0)},{id:"161",t:"§16.1–16.2 二重积分",lec:at(2026,10,19,11,0)},{id:"163",t:"§16.3 三重积分",lec:at(2026,10,21,11,0)},{id:"164",t:"§16.4 极、柱、球坐标积分",lec:at(2026,10,23,11,0)},{id:"165",t:"§16.5 积分的应用",lec:at(2026,10,26,11,0)},{id:"171",t:"§17.1–17.2 向量场与线积分",lec:at(2026,11,2,11,0)},{id:"173",t:"§17.3 保守向量场",lec:at(2026,11,6,11,0)},{boss:"math-p2"}],
@@ -1070,6 +1070,8 @@ function mergeState(raw){const x=raw?clone(raw):{};const o=Object.assign(default
   for(const k of["done","started","skipped","chests","weekEarly","nodeNames","battle","trainLog","quizLog","tale","saga","fate"])if(!o[k]||typeof o[k]!=="object"||Array.isArray(o[k]))o[k]={};
   for(const k of["checkins","restDays","ledger","mistakes","customRewards","customWorlds","scores","spend","sleepLog","todos","hwArchive"])if(!Array.isArray(o[k]))o[k]=[];if(!o.hwDraft||typeof o.hwDraft!=="object"||Array.isArray(o.hwDraft))o.hwDraft={};
   delete o.story;
+  /* 一次性：数学 HW 9 按新规则补到 60 */
+  if(!o.mig1102){const d=o.done["math-hw@2026-10-29"];if(d&&typeof d.pts==="number"&&d.pts<60){const add=60-d.pts;o.points=r1((o.points||0)+add);o.xp=(o.xp||0)+Math.round(add*XP_PER);o.ledger.push({at:Date.now(),d:add,t:"补发 · 数学 HW 9（按新规则 60 分）"});d.pts=60}o.mig1102=1}
   /* 一次性：HW 9 实际用时 90 分钟；11/1 的 lab report 和 pre-lab 截止延后 30 分钟 */
   if(!o.mig1101){o.timeLog=Array.isArray(o.timeLog)?o.timeLog:[];for(const e of o.timeLog)if(e.subj==="math"&&/HW 9\b/.test(e.title||"")&&e.min>100)e.min=90;
     if(o.cur&&o.cur.subj==="math"&&/HW 9\b/.test(o.cur.title||"")){o.cur.spent=90*60000;o.cur.start=null}
