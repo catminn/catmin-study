@@ -2572,7 +2572,11 @@ async function finishTask(){const c=S.cur;if(!c)return;const min=curMinutes();co
   else if(c.kind==="cv"&&it&&!S.done[c.key]){const p=award(SIDE_PTS,it.due,0,"支线 · "+it.title);S.done[c.key]={at:Date.now(),pts:p};pts="，+"+p}
   else if(c.kind==="todo"&&it&&!it.done)toggleTodo(it);
   zwSay("「"+c.title+"」做完了，用时 "+min+" 分钟"+pdf+pts+"。");save();renderAll()}
-function renderTaskBar(){let el=$("#zwTask");const hd=document.querySelector(".zw-head");if(!hd)return;
+/* 正在做的那份已经在别处打勾了（网站、待办）：自动收尾（记时、出 PDF），不重复加分 */
+function curDoneElsewhere(){const c=S.cur;if(!c)return false;if(c.kind==="todo"){const t=(S.todos||[]).find(x=>x.id===c.key);return !t||!!t.done}return !!S.done[c.key]}
+let CUR_AUTO=0;
+function checkCurDone(){if(!curDoneElsewhere())return;if(DESK&&EMBED==="todo")return;if(Date.now()-CUR_AUTO<5000)return;CUR_AUTO=Date.now();finishTask()}
+function renderTaskBar(){checkCurDone();let el=$("#zwTask");const hd=document.querySelector(".zw-head");if(!hd)return;
   if(!el){el=h("div",{id:"zwTask"});hd.after(el)}const c=S.cur;el.hidden=!c;if(!c)return;
   const n=((S.hwDraft||{})[c.subj]||[]).length;
   el.replaceChildren(h("span",{class:"tt"},"正在做 "+c.title),h("span",{class:"dim"},curMinutes()+" 分钟"+(n?" · 已收 "+n+" 题":"")),
