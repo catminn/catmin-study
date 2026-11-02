@@ -2555,13 +2555,17 @@ function pauseTask(silent){const c=S.cur;if(!c)return;S.pausedTasks=S.pausedTask
 async function finishTask(){const c=S.cur;if(!c)return;const min=curMinutes();const it=curItem();
   S.timeLog=S.timeLog||[];S.timeLog.push({kind:c.kind==="occ"&&it&&it.r?it.r.id:c.kind,subj:c.subj,title:c.title,min,at:Date.now()});S.timeLog=S.timeLog.slice(-120);
   S.cur=null;save();
-  const draft=((S.hwDraft||{})[c.subj]||[]);let pdf="";
-  if(draft.length){const a={id:"h"+uid(),subj:c.subj,title:c.title.replace(/^(数学|化学|机械|英文)\s*/,""),items:draft.slice(),at:Date.now()};S.hwArchive=S.hwArchive||[];S.hwArchive.push(a);S.hwDraft[c.subj]=[];save();await hwExport(a);pdf="，"+a.items.length+" 道题整理成了 PDF"}
+  /* 做完了不自动出汇总：先问。题目没认出来（只有题号）的不算 */
+  const draft=((S.hwDraft||{})[c.subj]||[]),real=draft.filter(q=>q&&q.text&&!/无法辨认|仅有题号/.test(q.text));const pdf="";
+  if(draft.length&&!real.length){S.hwDraft[c.subj]=[];save()}
   let pts="";
   if(c.kind==="occ"&&it&&!S.done[it.key]){const before=S.points;completeTask(it);pts="，+"+fp(S.points-before)}
   else if(c.kind==="cv"&&it&&!S.done[c.key]){const p=award(SIDE_PTS,it.due,0,"支线 · "+it.title);S.done[c.key]={at:Date.now(),pts:p};pts="，+"+p}
   else if(c.kind==="todo"&&it&&!it.done)toggleTodo(it);
-  zwSay("「"+c.title+"」做完了，用时 "+min+" 分钟"+pdf+pts+"。");save();renderAll()}
+  zwSay("「"+c.title+"」做完了，用时 "+min+" 分钟"+pdf+pts+"。");save();renderAll();
+  if(real.length&&(!DESK||EMBED==="zero")){const go=await zwChoose("要把这次收的 "+real.length+" 道题整理成一份 PDF 吗？",[{t:"整理",v:1,go:true},{t:"不用",v:0}]);
+    if(go){const a={id:"h"+uid(),subj:c.subj,title:c.title.replace(/^(数学|化学|机械|英文)\s*/,""),items:real.slice(),at:Date.now()};S.hwArchive=S.hwArchive||[];S.hwArchive.push(a);S.hwDraft[c.subj]=[];save();await hwExport(a)}
+    else if(go===0){S.hwDraft[c.subj]=[];save();zwSay("好，不整理了。")}}}
 /* 正在做的那份已经在别处打勾了（网站、待办）：自动收尾（记时、出 PDF），不重复加分 */
 function curDoneElsewhere(){const c=S.cur;if(!c)return false;if(c.kind==="todo"){const t=(S.todos||[]).find(x=>x.id===c.key);return !t||!!t.done}return !!S.done[c.key]}
 let CUR_AUTO=0;
