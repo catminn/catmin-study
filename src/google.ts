@@ -279,7 +279,7 @@ async function uploadFile(env: SiteEnv, input: Record<string, any>) {
   const bytes = unb64(data);
   if (bytes.length > 25 * 1024 * 1024) throw new GErr("bad_request", "文件太大（超过 25MB）");
   const acct = await uploadAcct(env);
-  const folder = await ensureFolder(env, acct, Array.isArray(input.folderPath) ? input.folderPath.slice(0, 4) : ["学习空间"]);
+  const folder = await ensureFolder(env, acct, Array.isArray(input.folderPath) ? input.folderPath.slice(0, 4) : ["Cornell"]);
   const q = new URLSearchParams({ q: `name='${qEsc(name)}' and '${folder}' in parents and trashed=false`, fields: "files(id,size,webViewLink)", pageSize: "5" });
   const same = (await gjson(env, "https://www.googleapis.com/drive/v3/files?" + q, {}, acct)).files || [];
   const dup = same.find((f: any) => Number(f.size) === bytes.length);

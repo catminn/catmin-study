@@ -527,10 +527,25 @@ async function onHotkey() {
   if (paths.length) deliverPaths(paths); else toggleZero();
 }
 
-// ---------- 存到 桌面\Cornell\<课程> ----------
+// ---------- 存到 Cornell\<课程>（Google Drive 盘里，没有就桌面） ----------
+// 装了 Google Drive 桌面版（G:\My Drive 这类盘）就放进 My Drive\Cornell：网页、手机上传到 Drive 的文件也会自动出现在电脑上
+let rootCache = null;
+function cornellRoot() {
+  if (rootCache && Date.now() - rootCache.at < 60000) return rootCache.dir;
+  let dir = path.join(app.getPath("desktop"), "Cornell");
+  if (process.platform === "win32") {
+    outer: for (const L of "GHIJKLMNOPQRSTUVWXYZDEF") for (const n of ["My Drive", "我的云端硬盘", "我的雲端硬碟"]) {
+      const p = L + ":\\" + n;
+      try { if (fs.existsSync(p)) { dir = path.join(p, "Cornell"); break outer; } } catch (e) {}
+    }
+  }
+  if (!rootCache || rootCache.dir !== dir) dlog("cornell root " + dir);
+  rootCache = { dir, at: Date.now() };
+  return dir;
+}
 function courseDir(course) {
   const safe = String(course).replace(/[\\/:*?"<>|]/g, " ").trim() || "其他";
-  const dir = path.join(app.getPath("desktop"), "Cornell", safe);
+  const dir = path.join(cornellRoot(), safe);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }

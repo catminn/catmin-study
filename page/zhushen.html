@@ -2461,7 +2461,7 @@ function todoForm(dayK){const ti=h("input",{type:"text",placeholder:"加一个�
   return h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap"}},ti,dt,sj,h("button",{class:"btn sm go",onclick:go},"添加"))}
 
 
-/* ============ 作业档案：聊天里收集的题目 → 一份 PDF（桌面 Cornell 文件夹 + Google Drive + 网站背包） ============ */
+/* ============ 作业档案：聊天里收集的题目 → 一份 PDF（Cornell 文件夹 + Google Drive + 网站背包） ============ */
 const COURSE={math:"MATH 1920",chem:"CHEM 2090",engri:"ENGRI 1170",engl:"ENGL 1111"};
 function hwAdd(subj,raw){const[no,...rest]=String(raw).split("||");const text=rest.join("||").trim();if(!text)return;S.hwDraft=S.hwDraft||{};const L=S.hwDraft[subj]=S.hwDraft[subj]||[];
   const key=text.replace(/\s+/g,"").slice(0,60);if(L.some(x=>x.text.replace(/\s+/g,"").slice(0,60)===key))return;L.push({no:(no||"?").trim().slice(0,20),text:text.slice(0,4000),at:Date.now()});if(L.length>60)L.shift()}
@@ -2476,7 +2476,7 @@ function hwHtml(a){const esc=x=>String(x).replace(/[&<>]/g,c=>({"&":"&amp;","<":
 ${a.items.map((q,i)=>`<div class="q"><div class="no">${esc(q.no&&q.no!=="?"?q.no:"第 "+(i+1)+" 题")}</div><div class="t">${esc(q.text)}</div></div>`).join("")}
 </body></html>`}
 async function hwExport(a){const name=COURSE[a.subj]+" "+a.title.replace(/[\\/:*?"<>|]/g," ")+".pdf";
-  if(DESK&&DESK.savePdf){try{const r=await DESK.savePdf(a.subj,COURSE[a.subj],name,hwHtml(a));if(r&&r.path)a.local=r.path;if(r&&r.data)await driveUpload(a.subj,name,"application/pdf",r.data).then(x=>{if(x&&x.webViewLink)a.drive=x.webViewLink});save();toast("已存到桌面 Cornell\\"+COURSE[a.subj]+(a.drive?" 和 Drive":""));return}catch(e){toast("PDF 没存成功")}}
+  if(DESK&&DESK.savePdf){try{const r=await DESK.savePdf(a.subj,COURSE[a.subj],name,hwHtml(a));if(r&&r.path)a.local=r.path;if(r&&r.data)await driveUpload(a.subj,name,"application/pdf",r.data).then(x=>{if(x&&x.webViewLink)a.drive=x.webViewLink});save();toast("已存到Cornell\\"+COURSE[a.subj]+(a.drive?" 和 Drive":""));return}catch(e){toast("PDF 没存成功")}}
   const w=window.open("","_blank");if(w){w.document.write(hwHtml(a).replace("</body>","<script>window.onload=()=>setTimeout(()=>print(),1200)<\/script></body>"));w.document.close()}}
 function openHwSheet(subj){subj=subj||ZW.subj||CUR||"math";const draft=((S.hwDraft||{})[subj]||[]);const title=h("input",{type:"text",value:hwGuessTitle(subj),style:{flex:"1 1 160px"}});
   const list=h("div",{class:"list"},draft.length?draft.map((q,i)=>h("div",{class:"li",style:{display:"block"}},h("b",null,q.no&&q.no!=="?"?q.no:"第 "+(i+1)+" 题"),h("div",{class:"small",style:{whiteSpace:"pre-wrap"}},q.text.slice(0,300)),
@@ -2488,13 +2488,13 @@ function openHwSheet(subj){subj=subj||ZW.subj||CUR||"math";const draft=((S.hwDra
 
 /* 交给零的文件：存一份到 桌面\Cornell\<课程>，再传一份到 Google Drive 的 学习空间/<课程> */
 function abToB64(buf){const u=new Uint8Array(buf);let s="";for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)}
-/* 桌面版只放进 桌面\Cornell\<课程>，由 Google Drive 桌面版同步到 Cornell Drive */
-async function driveUpload(subj,name,mime,data){if(!MCP||DESK)return null;try{const r=await MCP.callTool("Google Drive","upload_file",{name,mimeType:mime||"application/octet-stream",dataBase64:typeof data==="string"?data:abToB64(data),folderPath:["学习空间",COURSE[subj]]},{cache:false});let p=r&&r.payload;if(typeof p==="string"){try{p=JSON.parse(p)}catch(e){}}return p}
+/* 电脑上：桌面程序放进 My Drive\Cornell\<课程>，Drive 桌面版负责上传。不在电脑上（网页、手机）：直接传到 Cornell Drive 的 Cornell/<课程>，Drive 桌面版会同步回电脑 */
+async function driveUpload(subj,name,mime,data){if(!MCP||DESK)return null;try{const r=await MCP.callTool("Google Drive","upload_file",{name,mimeType:mime||"application/octet-stream",dataBase64:typeof data==="string"?data:abToB64(data),folderPath:["Cornell",COURSE[subj]]},{cache:false});let p=r&&r.payload;if(typeof p==="string"){try{p=JSON.parse(p)}catch(e){}}return p}
   catch(e){if(!driveUpload.warned){driveUpload.warned=1;toast((e&&e.code)==="needs_reauth"?"Google 需要重新授权才能存文件":(e&&e.code)==="no_cornell"?"还没连 Cornell Drive，文件没上传（点顶上「连 Cornell Drive」）":"文件没传到 Drive")}return null}}
 async function archiveFiles(subj,list){if(!SUBJ[subj]||!list||!list.length)return;let local=0,drive=0;
   if(DESK&&DESK.saveLocal){try{local=await DESK.saveLocal(subj,COURSE[subj],list)}catch(e){}}
   for(const f of list){const r=await driveUpload(subj,f.name,f.type,f.data);if(r&&r.id)drive++}
-  if(local||drive)toast("已存到"+(local?" 桌面 Cornell\\"+COURSE[subj]:"")+(local&&drive?" 和":"")+(drive?" Drive":""))}
+  if(local||drive)toast("已存到"+(local?" Cornell\\"+COURSE[subj]:"")+(local&&drive?" 和":"")+(drive?" Drive":""))}
 
 
 /* 下载自动收纳：桌面程序发现“下载”里多了文件，交给这里判断是哪门课，再让桌面程序移到 Cornell\<课程>、传 Drive、进资料架 */
