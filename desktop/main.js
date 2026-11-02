@@ -83,9 +83,10 @@ function glassFor(win, on) {
   if (m === "lab") { win._glass = true; setTimeout(labApply, 500); return; }
   if (m === "material") {
     win._glass = true; keepActive(win); dwmAttr(win, 33, 2); // 圆角
-    win.on("blur", () => setTimeout(() => keepActive(win), 30));
-    const css = () => win.webContents.insertCSS(MATERIAL_CSS).catch(() => {});
-    win.webContents.on("did-finish-load", css); css();
+    const css = () => { if (!win.isDestroyed()) win.webContents.insertCSS(MATERIAL_CSS).catch(() => {}); };
+    // 透明效果开关变了会再调一次：监听只挂一次，免得越挂越多
+    if (!win._glassHooked) { win._glassHooked = true; win.on("blur", () => setTimeout(() => keepActive(win), 30)); win.webContents.on("did-finish-load", css); }
+    css();
     return;
   }
   win._glass = applyGlass(win, false, 2, m === "acrylic" ? 4 : 3);
@@ -164,8 +165,12 @@ try { if (fs.existsSync(LOGF) && fs.statSync(LOGF).size > 512 * 1024) fs.writeFi
 process.on("uncaughtException", (e) => dlog("uncaught", e && e.stack || String(e)));
 let conf = {};
 try { conf = JSON.parse(fs.readFileSync(CONF, "utf8")); } catch (e) { conf = {}; }
+if (!conf || typeof conf !== "object" || Array.isArray(conf)) conf = {};
 let confTimer = null;
-function saveConf() { clearTimeout(confTimer); confTimer = setTimeout(() => { try { fs.writeFileSync(CONF, JSON.stringify(conf)); } catch (e) {} }, 300); }
+// 先写临时文件再换上，写到一半断电/被杀也不会把设置弄坏（坏了会全部重置，包括开机启动）
+function writeConf() { const s = JSON.stringify(conf), tmp = CONF + ".tmp"; try { fs.writeFileSync(tmp, s); fs.renameSync(tmp, CONF); } catch (e) { try { fs.writeFileSync(CONF, s); } catch (x) {} } }
+function saveConf() { clearTimeout(confTimer); confTimer = setTimeout(() => { confTimer = null; writeConf(); }, 300); }
+function flushConf() { if (confTimer) { clearTimeout(confTimer); confTimer = null; writeConf(); } }
 
 let bubble = null, zero = null, todo = null, main = null, tray = null;
 const readyWins = new Set();
@@ -186,14 +191,23 @@ function onScreen(b) {
 const ICON = path.join(__dirname, "assets", "icon.png");
 const TRAY_ICON = path.join(__dirname, "assets", "tray.png");
 
+// 只允许在窗口里打开学习空间和 Google 登录；别的链接交给浏览器（只放行 http/https/mailto，不让网页打开本地程序或文件）
+function navOk(u) { if (String(u).startsWith(SITE)) return true; try { const x = new URL(u); return x.protocol === "https:" && x.hostname === "accounts.google.com"; } catch (e) { return false; } }
+function openOut(u) { try { if (/^(https?|mailto):$/.test(new URL(u).protocol)) shell.openExternal(u); } catch (e) {} }
+// 只有学习空间自己的页面能让桌面程序动文件
+const fromSite = (e) => { try { return e.sender.getURL().startsWith(SITE); } catch (x) { return false; } };
 function pageWin(opts, url) {
   const w = new BrowserWindow(Object.assign({
     show: false, frame: false, skipTaskbar: true, icon: ICON,
-    webPreferences: { partition: PART, preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: false, spellcheck: false },
+    // preload.js 只用 contextBridge / ipcRenderer，沙盒里也能用；远程网页放进沙盒更安全
+    webPreferences: { partition: PART, preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, spellcheck: false },
   }, opts));
-  w.webContents.on("did-start-loading", () => readyWins.delete(w.webContents.id));
-  w.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: "deny" }; });
-  w.webContents.on("will-navigate", (e, url) => { if (!url.startsWith(SITE) && !url.startsWith("https://accounts.google.com")) { e.preventDefault(); shell.openExternal(url); } });
+  const id = w.webContents.id;
+  w.webContents.on("did-start-loading", () => readyWins.delete(id));
+  w.once("ready-to-show", () => { w._painted = true; });
+  w.on("closed", () => { readyWins.delete(id); queued.delete(id); });
+  w.webContents.setWindowOpenHandler(({ url }) => { openOut(url); return { action: "deny" }; });
+  w.webContents.on("will-navigate", (e, url) => { if (!navOk(url)) { e.preventDefault(); openOut(url); } });
   w.loadURL(url);
   return w;
 }
@@ -216,7 +230,7 @@ function createBubble() {
   bubble.webContents.on("console-message", (e, lvl, msg) => { if (lvl >= 2) dlog("bubble console", msg); });
   matWin(bubble, circleRects(BUB / 2, BUB / 2, 26, 0));
   bubble.on("show", () => setTimeout(() => smallApplyOne(bubble), 100)); bubble.on("moved", () => smallApplyOne(bubble));
-  bubble.webContents.on("did-finish-load", () => smallApplyOne(bubble));
+  bubble.webContents.on("did-finish-load", () => { smallApplyOne(bubble); if (bubbleDotOn) bubble.webContents.send("badge", 1); }); // 重建的小圆也要带上红点
 }
 // 小圆：窗口裁成直径 52 的圆，圆里是毛玻璃
 // 小圆：拖动时限制在屏幕内；松手时离左右边很近就贴过去（整颗球留在屏幕里）
@@ -294,8 +308,9 @@ function showZero(cmd) {
   bubbleDot(false);
   const w = ensureZero();
   placeZero();
-  const go = () => { w.show(); w.focus(); if (cmd) send(w, "cmd", cmd); };
-  if (w.webContents.isLoading()) w.once("ready-to-show", go); else go();
+  const go = () => { if (w.isDestroyed()) return; w.show(); w.focus(); if (cmd) send(w, "cmd", cmd); };
+  // ready-to-show 每个窗口只来一次：重新加载（登录后刷新）时 isLoading 也是 true，等它就永远打不开了
+  if (!w._painted) w.once("ready-to-show", go); else go();
 }
 function toggleZero() { if (zero && zero.isVisible()) zero.hide(); else showZero(); }
 
@@ -380,7 +395,8 @@ function ensureTab() {
   tab.setAlwaysOnTop(!gameHidden && conf.todoPinned !== false, "screen-saver"); // 置顶时书签也一直在最上面（玩游戏时不置顶）
   tab.loadFile(path.join(__dirname, "tab.html"));
   tab.on("show", () => setTimeout(() => smallApplyOne(tab), 100)); tab.on("move", () => setTimeout(() => smallApplyOne(tab), 50));
-  tab.webContents.on("did-finish-load", () => smallApplyOne(tab));
+  // 新建书签时 tabSend 发得比页面加载早，会丢：加载好再发一次（不然贴左右边时画成朝下的形状、没有红点）
+  tab.webContents.on("did-finish-load", () => { smallApplyOne(tab); tabSend(); });
   tab.on("closed", () => { tab = null; });
   return tab;
 }
@@ -427,11 +443,11 @@ function setTodoMode(mode) {
     if (tab && !tab.isDestroyed()) tab.hide();
   }
 }
-ipcMain.on("todo-mode", (e, mode) => setTodoMode(mode));
+ipcMain.on("todo-mode", (e, mode) => { if (winOf(e) === todo) setTodoMode(mode); });
 ipcMain.on("tab-click", () => setTodoMode("full"));
 // 鼠标位置由主进程盯着：移到书签上就展开，移出列表 0.6 秒后收起（页面里正在输入时不收）
 let todoBusy = false, todoAway = 0;
-ipcMain.on("todo-busy", (e, v) => { todoBusy = !!v; });
+ipcMain.on("todo-busy", (e, v) => { if (winOf(e) === todo) todoBusy = !!v; }); // 只认待办窗口自己（零的窗口、完整网站发来的不算）
 function inRect(p, b, m) { return p.x >= b.x - m && p.x < b.x + b.width + m && p.y >= b.y - m && p.y < b.y + b.height + m; }
 setInterval(() => {
   if (!todo || todo.isDestroyed() || todoDragging || conf.todoShown === false) return;
@@ -458,7 +474,7 @@ function todoMoved() {
   conf.todo = b; saveConf();
 }
 ipcMain.handle("is-glass", (e) => { const w = BrowserWindow.fromWebContents(e.sender); return !!(w && w._glass); });
-ipcMain.on("todo-resize", (e, dw, dh) => { if (!todo || todo.isDestroyed() || todoState !== "full") return; const b = todo.getBounds(); todo.setBounds({ x: b.x, y: b.y, width: Math.max(180, Math.round(b.width + dw)), height: Math.max(120, Math.round(b.height + dh)) }); conf.todo = todo.getBounds(); saveConf(); });
+ipcMain.on("todo-resize", (e, dw, dh) => { if (!todo || todo.isDestroyed() || todoState !== "full" || winOf(e) !== todo) return; const b = todo.getBounds(); todo.setBounds({ x: b.x, y: b.y, width: Math.max(180, Math.round(b.width + dw)), height: Math.max(120, Math.round(b.height + dh)) }); conf.todo = todo.getBounds(); saveConf(); });
 ipcMain.handle("get-pin", () => conf.todoPinned !== false);
 ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); applyOnTop(); refreshMenu(); });
 // 游戏计时开始：把小圆、待办、零藏起来（记住原来哪些开着），计时结束再放回来
@@ -560,21 +576,39 @@ function findCourseDir(safe) {
   return hits.sort((x, y) => score(y) - score(x))[0];
 }
 function courseDir(course) {
-  const safe = String(course).replace(/[\\/:*?"<>|]/g, " ").trim() || "其他";
+  // 去掉首尾的点和空格：“..”这种名字不能跑到 Cornell 外面去
+  const safe = String(course).replace(/[\\/:*?"<>|\x00-\x1f]/g, " ").replace(/^[.\s]+|[.\s]+$/g, "") || "其他";
   const dir = findCourseDir(safe) || path.join(cornellBase(), termName(), safe);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
-function freeName(dir, name, size) {
-  const base = String(name).replace(/[\\/:*?"<>|]/g, "_");
+// 文件名只留名字本身：不能带路径、不能是 . / ..、不能是 Windows 保留名，结尾的点和空格去掉
+function safeName(name) {
+  let s = String(name == null ? "" : name).replace(/[\\/:*?"<>|\x00-\x1f]/g, "_").replace(/[.\s]+$/, "").trim();
+  if (!s || /^\.+$/.test(s)) s = "文件";
+  if (/^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(s)) s = "_" + s;
+  return s;
+}
+// 内容完全一样才算“同一个文件”（只比大小会把不同的文件当成重复，然后删掉下载里的那份）
+function sameFile(p, data) {
+  try {
+    const n = Buffer.isBuffer(data) ? data.length : fs.statSync(data).size;
+    if (fs.statSync(p).size !== n) return false;
+    return fs.readFileSync(p).equals(Buffer.isBuffer(data) ? data : fs.readFileSync(data));
+  } catch (e) { return false; }
+}
+// 返回可以写的新路径；data（Buffer 或源文件路径）和已有文件内容一样时返回 null。永远不覆盖已有文件
+function freeName(dir, name, data) {
+  const base = safeName(name);
   let p = path.join(dir, base);
   if (!fs.existsSync(p)) return p;
-  if (size != null && fs.statSync(p).size === size) return null; // 已经有同一个文件
+  if (data != null && sameFile(p, data)) return null; // 已经有同一个文件
   const ext = path.extname(base), stem = base.slice(0, base.length - ext.length);
   for (let i = 2; i < 100; i++) { p = path.join(dir, `${stem} (${i})${ext}`); if (!fs.existsSync(p)) return p; }
-  return null;
+  return path.join(dir, `${stem} (${Date.now()})${ext}`);
 }
 ipcMain.handle("save-local", (e, course, list) => {
+  if (!fromSite(e) || !Array.isArray(list)) return 0;
   const dir = courseDir(course); let n = 0;
   const dl = app.getPath("downloads").toLowerCase() + path.sep, lc = (x) => path.resolve(x).toLowerCase();
   for (const f of (list || []).slice(0, 6)) {
@@ -585,26 +619,31 @@ ipcMain.handle("save-local", (e, course, list) => {
         if (lc(path.dirname(f.src)) === lc(dir)) { n++; continue; }
         // 从“下载”里拖来的：直接搬进课程文件夹（下载里不留）
         if (lc(f.src).startsWith(dl)) {
-          const p = freeName(dir, f.name, buf.length);
+          const p = freeName(dir, f.name, f.src);
           if (p) { try { fs.renameSync(f.src, p); } catch (err) { fs.copyFileSync(f.src, p); fs.unlinkSync(f.src); } }
           n++; continue;
         }
       }
-      const p = freeName(dir, f.name, buf.length); if (p) fs.writeFileSync(p, buf); n++;
+      const p = freeName(dir, f.name, buf); if (p) fs.writeFileSync(p, buf, { flag: "wx" }); n++;
     } catch (err) {}
   }
   return n;
 });
 ipcMain.handle("save-pdf", async (e, course, name, html) => {
+  if (!fromSite(e)) return null;
   const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: true } });
+  // 这个隐藏窗口里的页面不能弹新窗口、不能跳走
+  w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  w.webContents.on("will-navigate", (ev) => ev.preventDefault());
+  // MathJax 加载不出来时别一直卡着（窗口也一直不关）
+  const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(r, ms))]);
   try {
-    await w.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
-    await w.webContents.executeJavaScript("(window.MathJax&&MathJax.startup&&MathJax.startup.promise)?MathJax.startup.promise.then(()=>1):new Promise(r=>setTimeout(()=>r(1),1500))");
+    await within(w.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html)), 30000);
+    await within(w.webContents.executeJavaScript("(window.MathJax&&MathJax.startup&&MathJax.startup.promise)?MathJax.startup.promise.then(()=>1):new Promise(r=>setTimeout(()=>r(1),1500))"), 15000);
     const pdf = await w.webContents.printToPDF({ pageSize: "Letter", printBackground: true });
     const dir = courseDir(course);
-    let p = path.join(dir, String(name).replace(/[\\/:*?"<>|]/g, "_"));
-    if (fs.existsSync(p)) p = freeName(dir, path.basename(p), -1) || p;
-    fs.writeFileSync(p, pdf);
+    const p = freeName(dir, name); // 同名的不覆盖，存成 “名字 (2).pdf”
+    fs.writeFileSync(p, pdf, { flag: "wx" });
     return { path: p, data: pdf.toString("base64") };
   } finally { w.destroy(); }
 });
@@ -651,8 +690,9 @@ function createRing() {
 }
 function toDip(x, y) { return process.platform === "win32" ? screen.screenToDipPoint({ x, y }) : { x, y }; }
 function showRing(x, y) {
-  dlog("ring show", x, y);
+  ringDown = null; // 只弹一次；转盘关着时也不要每动一下鼠标都来一次（还写日志）
   if (!ring || ring.isDestroyed() || conf.ringOff) return;
+  dlog("ring show", x, y);
   const p = toDip(x, y);
   ring.setBounds({ x: Math.round(p.x - RING / 2), y: Math.round(p.y - RING / 2), width: RING, height: RING });
 
@@ -673,7 +713,7 @@ function ringMod(e) {
 }
 function startRingHook() {
   try { ({ uIOhook: hook } = require("uiohook-napi")); } catch (e) { hook = null; return; }
-  hook.on("mousedown", (e) => { ringDown = (e.button === 1 && ringMod(e)) ? { x: e.x, y: e.y } : null; });
+  hook.on("mousedown", (e) => { ringDown = (!conf.ringOff && e.button === 1 && ringMod(e)) ? { x: e.x, y: e.y } : null; });
   hook.on("mousemove", (e) => {
     if (ringShown) { const k = ringSector(e.x, e.y); if (k !== ringHoverKey) { ringHoverKey = k; if (ring && !ring.isDestroyed()) ring.webContents.send("ring-hl", k); } return; }
     if (!ringDown) return;
@@ -708,7 +748,9 @@ function ringSector(px, py) {
 }
 ipcMain.on("ring-hover", (e, k) => { ringHoverKey = String(k || ""); });
 ipcMain.on("ring-drop", (e, target, paths) => {
-  dlog("ring-drop", target, (paths || []).length);
+  if (winOf(e) !== ring) return;
+  if (!Array.isArray(paths)) paths = [];
+  dlog("ring-drop", target, paths.length);
   hideRing(0);
   if (paths && paths.length) { ringDropAt = Date.now(); handleRingDrop(target, paths); return; }
   // 拖放到了，但拿不到文件路径（你电脑上就是这样）：用开始拖时记下的资源管理器选中文件
@@ -759,12 +801,16 @@ function settleInbox(p, lastSize) {
 }
 ipcMain.handle("inbox-place", (e, src, course, name) => {
   try {
-    if (!src || !fs.existsSync(src)) return "";
-    const dir = courseDir(course), size = fs.statSync(src).size;
-    let dest = freeName(dir, name || path.basename(src), size);
-    if (!dest) { fs.unlinkSync(src); dest = path.join(dir, name || path.basename(src)); } // 课程文件夹里已经有同一个文件
-    else { try { fs.renameSync(src, dest); } catch (err) { fs.copyFileSync(src, dest); fs.unlinkSync(src); } }
-    lastInbox = { from: src, to: dest }; conf.lastInbox = lastInbox; saveConf(); bubbleDot(true);
+    if (!fromSite(e) || !src) return "";
+    // 只收“下载”文件夹里直接放着的文件（就是 settleInbox 交过去的那些），网页不能让这里搬别处的文件
+    src = path.resolve(String(src));
+    if (path.dirname(src).toLowerCase() !== path.resolve(app.getPath("downloads")).toLowerCase()) return "";
+    if (!fs.existsSync(src) || !fs.statSync(src).isFile()) return "";
+    const dir = courseDir(course);
+    let dest = freeName(dir, name || path.basename(src), src), dup = false;
+    if (!dest) { dup = true; dest = path.join(dir, safeName(name || path.basename(src))); fs.unlinkSync(src); } // 课程文件夹里已经有内容一样的文件
+    else { try { fs.renameSync(src, dest); } catch (err) { fs.copyFileSync(src, dest, fs.constants.COPYFILE_EXCL); fs.unlinkSync(src); } }
+    lastInbox = { from: src, to: dest, dup }; conf.lastInbox = lastInbox; saveConf(); bubbleDot(true);
     try { new Notification({ title: "已收纳到 " + course, body: path.basename(dest), icon: ICON, silent: true }).show(); } catch (err) {}
     refreshMenu();
     return dest;
@@ -776,7 +822,9 @@ function undoInbox() {
     if (fs.existsSync(lastInbox.to) && !fs.existsSync(lastInbox.from)) {
       const size = fs.statSync(lastInbox.to).size;
       conf.inboxIgnore = [...(conf.inboxIgnore || []), path.basename(lastInbox.from).toLowerCase() + "|" + size].slice(-50);
-      try { fs.renameSync(lastInbox.to, lastInbox.from); } catch (e) { fs.copyFileSync(lastInbox.to, lastInbox.from); fs.unlinkSync(lastInbox.to); }
+      // 课程文件夹里那份本来就有（收纳时只删了下载里的重复）：撤销时复制回去，不把原来的搬走
+      if (lastInbox.dup) fs.copyFileSync(lastInbox.to, lastInbox.from);
+      else { try { fs.renameSync(lastInbox.to, lastInbox.from); } catch (e) { fs.copyFileSync(lastInbox.to, lastInbox.from); fs.unlinkSync(lastInbox.to); } }
       note("已撤销收纳", path.basename(lastInbox.from) + " 回到了下载文件夹，之后不会再自动收它。");
     }
   } catch (e) { dlog("undo err", e.message); }
@@ -797,10 +845,15 @@ function startUpdater() {
   if (!app.isPackaged) return;
   try { ({ autoUpdater: updater } = require("electron-updater")); } catch (e) { updater = null; return; }
   updater.autoDownload = true; updater.autoInstallOnAppQuit = false; // 退出时不偷偷装（被安全软件打断会把程序弄没），只在点「重启并更新」时装
-  updater.on("update-available", (info) => { updateState = "正在下载新版 " + ((info && info.version) || ""); refreshMenu(); note("学习空间有新版本", "正在后台下载 " + ((info && info.version) || "") + "，好了会再提醒你"); });
+  // 下载好以后每小时还会再检查：同一个版本不要每小时再提醒一遍
+  updater.on("update-available", (info) => { const v = (info && info.version) || ""; if (v && v === updateReady) { updateState = ""; refreshMenu(); return; } updateState = "正在下载新版 " + v; refreshMenu(); note("学习空间有新版本", "正在后台下载 " + v + "，好了会再提醒你"); });
   updater.on("update-not-available", () => { if (manualCheck) note("学习空间", "已经是最新版 " + app.getVersion()); updateState = ""; manualCheck = false; refreshMenu(); });
-  updater.on("download-progress", (p) => { updateState = "正在下载新版 " + Math.round((p && p.percent) || 0) + "%"; refreshMenu(); });
+  let lastPct = -1; // 进度一秒来好几次，百分比变了才重建托盘菜单
+  updater.on("download-progress", (p) => { const pct = Math.round((p && p.percent) || 0); if (pct === lastPct) return; lastPct = pct; updateState = "正在下载新版 " + pct + "%"; refreshMenu(); });
   updater.on("update-downloaded", (info) => {
+    lastPct = -1;
+    if (info && info.version && info.version === updateReady) { updateState = ""; if (manualCheck) note("学习空间", updateReady + " 已经下载好了：点托盘里的「重启并更新」换上。"); manualCheck = false; refreshMenu(); return; }
+    manualCheck = false;
     bubbleDot(true);
     updateReady = info && info.version || "新版本"; updateState = ""; refreshMenu();
     note("新版本下载好了", updateReady + " 已经准备好：点托盘里的「重启并更新」换上。");
@@ -829,7 +882,7 @@ function menu() {
     { label: lastInbox ? "撤销上次收纳（" + path.basename(lastInbox.to).slice(0, 24) + "）" : "撤销上次收纳", enabled: !!lastInbox, click: undoInbox },
     { label: "开机启动", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
     { label: hotkey ? "设置快捷键…（现在是 " + keyName(hotkey) + "）" : "设置快捷键…（现在没有）", click: openHotkeyWin },
-    ...(updateReady ? [{ label: "重启并更新到 " + updateReady, click: () => { app.isQuitting = true; app.releaseSingleInstanceLock(); setImmediate(() => updater.quitAndInstall(true, true)); } }] : []), // 先放开单实例锁，否则装好后新版一启动就以为旧的还在、自己退出
+    ...(updateReady ? [{ label: "重启并更新到 " + updateReady, click: () => { app.isQuitting = true; flushConf(); app.releaseSingleInstanceLock(); setImmediate(() => updater.quitAndInstall(true, true)); } }] : []), // 先放开单实例锁，否则装好后新版一启动就以为旧的还在、自己退出
     { label: updateState || "检查更新（现在 " + app.getVersion() + "）", enabled: !updateState, click: () => checkUpdate(true) }, // 下载好了也留着：可能还有更新的版本
     { type: "separator" },
     { label: "退出", click: () => { app.isQuitting = true; app.quit(); } },
@@ -880,11 +933,19 @@ app.whenReady().then(async () => {
   startUpdater();
   const files = filesFromArgv(process.argv);
   if (files.length) deliverPaths(files);
-  screen.on("display-metrics-changed", () => { if (bubble && !onScreen({ x: bubble.getPosition()[0], y: bubble.getPosition()[1] })) { const a = workArea(); bubble.setPosition(a.x + a.width - BUB - 2, a.y + a.height - BUB - 2); } });
+  // 拔掉显示器、改分辨率/缩放：小圆、待办、书签留在屏幕外就拉回来
+  const fixScreens = () => {
+    if (bubble && !bubble.isDestroyed() && !onScreen({ x: bubble.getPosition()[0], y: bubble.getPosition()[1] })) { const a = workArea(); bubble.setPosition(a.x + a.width - BUB - 2, a.y + a.height - BUB - 2); }
+    if (conf.todo && conf.todo.width > 120 && !onScreen(conf.todo)) { conf.todo = fullRect(); saveConf(); }
+    if (todo && !todo.isDestroyed() && todoState === "full" && todo.isVisible() && !onScreen(todo.getBounds())) todo.setBounds(fullRect());
+    if (tab && !tab.isDestroyed() && tab.isVisible()) tab.setBounds(tabRect());
+  };
+  let fixT = null; const fixSoon = () => { clearTimeout(fixT); fixT = setTimeout(fixScreens, 500); };
+  screen.on("display-metrics-changed", fixSoon); screen.on("display-removed", fixSoon);
 });
 
 app.on("window-all-closed", (e) => { /* 常驻托盘，不退出 */ });
-app.on("will-quit", () => { globalShortcut.unregisterAll(); try { if (hook) hook.stop(); } catch (e) {} });
+app.on("will-quit", () => { flushConf(); globalShortcut.unregisterAll(); try { if (hook) hook.stop(); } catch (e) {} });
 
 // 本地冒烟测试（不打包进安装包）：ZS_TEST=1 electron .
 if (process.env.ZS_TEST) app.whenReady().then(() => require("./smoke.js")({ deliverPaths, get zero() { return zero; }, get todo() { return todo; }, get bubble() { return bubble; }, showZero, toggleTodo, openHotkeyWin }));
