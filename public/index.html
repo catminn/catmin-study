@@ -2230,7 +2230,7 @@ function renderBag(){renderSyncRow();renderArchive();$("#scoreList").replaceChil
 /* 睡觉：随时点「晚安」，记下几点睡；第二天早上第一次打开时记起床、发奖励。
    00:30 前睡一定有奖励（连续 3 晚起更多）；更晚但比最近 7 晚的平均早 20 分钟以上，也有进步奖励。
    点了晚安 15 分钟后又在用网站/桌面版，说明没睡，这次不算，睡前再点一次就行。 */
-const SLEEP_BY=[0,30],SLEEP_GRACE=15*MIN,SLEEP_PTS=30,SLEEP_STREAK_PTS=45,SLEEP_PROG_PTS=15;
+const SLEEP_BY=[0,30],SLEEP_GRACE=15*MIN,SLEEP_PTS=30,SLEEP_STREAK_PTS=45,SLEEP_PROG_PTS=15,WAKE_DUR_PTS=15,WAKE_EARLY_PTS=20,WAKE_OK_PTS=10;
 const bedMin=t=>{const d=new Date(t);let m=d.getHours()*60+d.getMinutes();if(m<12*60)m+=24*60;return m}; /* 晚上 18:00 起算，过了零点继续往上加 */
 const fmtBed=m=>{m=Math.round(m)%(24*60);return pad(Math.floor(m/60))+":"+pad(m%60)};
 const BED_OK=24*60+SLEEP_BY[0]*60+SLEEP_BY[1];
@@ -2248,7 +2248,11 @@ function sleepCheck(){const s=S.sleep;if(!s)return;const now=Date.now();
   let pts=0,lines=[fmtBed(bm)+" 睡，"+pad(new Date(now).getHours())+":"+pad(new Date(now).getMinutes())+" 起"+(avg!=null?"（最近平均 "+fmtBed(avg)+" 睡）":"")];
   if(sleepWindow(s.at).ok){S.sleepLog=S.sleepLog||[];if(!S.sleepLog.includes(s.day))S.sleepLog.push(s.day);S.sleepLog=S.sleepLog.slice(-60);const n=sleepStreak()+1;pts=n>=3?SLEEP_STREAK_PTS:SLEEP_PTS;lines.push("连续早睡 "+n+" 晚"+(n>=3?"，奖励加码":"，连续 3 晚起每晚 +"+SLEEP_STREAK_PTS))}
   else if(avg!=null&&avg-bm>=20){pts=SLEEP_PROG_PTS;lines.push("比最近平均早了 "+Math.round(avg-bm)+" 分钟，进步奖励")}
-  if(pts){const before=levelOf(S.xp).L;earn(pts,"早睡");save();setTimeout(()=>showReward(pts,"早睡",lines,levelOf(S.xp).L>before?levelOf(S.xp).L:0),900)}
+  /* 起床（第二天第一次打开的时间）：睡够 7 小时 +15；睡了 6 小时以上并且 8:00 前起 +20、9:00 前起 +10 */
+  {const dur=(now-s.at)/HOUR,u=new Date(now),um=u.getHours()*60+u.getMinutes();
+    if(dur>=7&&dur<=12){pts+=WAKE_DUR_PTS;lines.push("睡了 "+dur.toFixed(1)+" 小时，睡够了 +"+WAKE_DUR_PTS)}
+    if(dur>=6&&um<=8*60){pts+=WAKE_EARLY_PTS;lines.push("8:00 前起床 +"+WAKE_EARLY_PTS)}else if(dur>=6&&um<=9*60){pts+=WAKE_OK_PTS;lines.push("9:00 前起床 +"+WAKE_OK_PTS)}}
+  if(pts){const before=levelOf(S.xp).L;earn(pts,"早睡早起");save();setTimeout(()=>showReward(pts,"早上好",lines,levelOf(S.xp).L>before?levelOf(S.xp).L:0),900)}
   else{save();setTimeout(()=>toast("睡眠记下了："+lines[0]),1200)}}
 function nextSteps(){const out=[];const now=Date.now();
   {const hr=new Date(now).getHours();if(!S.sleep&&(hr>=21||hr<6)){const ok=sleepWindow(now).ok,late=hr<21||hr>=23&&new Date(now).getMinutes()>=30;
