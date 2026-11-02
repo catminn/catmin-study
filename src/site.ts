@@ -133,15 +133,19 @@ const DRIVE_TOOLS = [
   { name: "drive_search", description: "在 Catherine 的 Google Drive 里按文件名搜索，返回文件 id、标题、类型、修改时间。关键词尽量短，比如 HW8、Quiz 3、Lab 8；搜不到就换个关键词再试。", input_schema: { type: "object", properties: { query: { type: "string", description: "文件名里包含的关键词" } }, required: ["query"] } },
   { name: "drive_read", description: "读出 Google Drive 里一个文件的文字内容（PDF、Google 文档、Word 等），参数是 drive_search 给的 id。", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
 ];
-async function runDriveTool(env: SiteEnv, name: string, input: any): Promise<string> {
+async function runDriveTool(env: SiteEnv, name: string, input: any, seen?: { titles: Record<string, string>; files: { id: string; title: string; text: string }[] }): Promise<string> {
   try {
     if (name === "drive_search") {
       const r = await aiDriveSearch(env, String(input?.query || ""));
+      if (seen) for (const f of r) if (f?.id) seen.titles[f.id] = f.title;
       return JSON.stringify({ files: r.map((f: any) => ({ id: f.id, title: f.title, mimeType: f.mimeType, modified: f.modifiedTime, account: f.acct === "cornell" ? "Cornell 学校账号" : "个人账号" })), accounts: (r as any).status });
     }
     if (name === "drive_read") {
-      const r: any = await aiDriveRead(env, String(input?.id || ""));
-      return String(r.fileContent || "（读不出文字）").slice(0, 24000);
+      const id = String(input?.id || "");
+      const r: any = await aiDriveRead(env, id);
+      const t = String(r.fileContent || "").slice(0, 24000);
+      if (seen && t) seen.files.push({ id, title: seen.titles[id] || r.title || id, text: t });
+      return t || "（读不出文字）";
     }
     return "没有这个工具";
   } catch (e: any) {
@@ -160,6 +164,7 @@ async function anthropicWithTools(env: SiteEnv, model: string, r: AiReq, signal:
     return { role: m.role, content: text };
   });
   let inTok = 0, outTok = 0, truncated = false, text = "";
+  const seen = { titles: {} as Record<string, string>, files: [] as { id: string; title: string; text: string }[] };
   for (let round = 0; round < 6; round++) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST", signal,
@@ -177,10 +182,10 @@ async function anthropicWithTools(env: SiteEnv, model: string, r: AiReq, signal:
     if (o.stop_reason !== "tool_use") break;
     msgs.push({ role: "assistant", content: blocks });
     const results = [];
-    for (const b of blocks.filter((b) => b.type === "tool_use")) results.push({ type: "tool_result", tool_use_id: b.id, content: await runDriveTool(env, b.name, b.input) });
+    for (const b of blocks.filter((b) => b.type === "tool_use")) results.push({ type: "tool_result", tool_use_id: b.id, content: await runDriveTool(env, b.name, b.input, seen) });
     msgs.push({ role: "user", content: results });
   }
-  return { text, inTok, outTok, truncated };
+  return { text, inTok, outTok, truncated, files: seen.files };
 }
 type Img = { media_type: string; data: string };
 type Msg = { role: "user" | "assistant"; content: string };
@@ -350,6 +355,7 @@ async function aiHandler(req: Request, env: SiteEnv, ctx: ExecutionContext) {
       try {
         const out = await anthropicWithTools(env, model, r, ac.signal);
         if (out.text) await send({ d: out.text });
+        if (out.files.length) await send({ files: out.files });
         const cost = await recordUsage(env, model, out.inTok, out.outTok);
         await send({ done: true, model, cost, truncated: out.truncated, input_tokens: out.inTok, output_tokens: out.outTok });
       } catch (e: any) {

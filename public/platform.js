@@ -194,6 +194,7 @@
           if (!line) continue;
           var ev; try { ev = JSON.parse(line); } catch (e) { continue; }
           if (ev.d) { text += ev.d; if (opts.onText) try { opts.onText({ text: text, delta: ev.d }); } catch (e) {} }
+          else if (ev.files) { if (opts.onFiles) try { opts.onFiles(ev.files); } catch (e) {} }
           else if (ev.error) fail = ev.error;
           else if (ev.done) { truncated = !!ev.truncated; if (STATUS) { STATUS.spent.today += ev.cost || 0; STATUS.spent.month += ev.cost || 0; renderPicker(); } }
         }
