@@ -698,7 +698,7 @@ function handleRingDrop(target, paths) {
 
 // ---------- 下载自动收纳：盯着“下载”文件夹，课程文件交给零判断是哪门课，再移到 桌面\Cornell\<课程> ----------
 const INBOX_EXT = /\.(pdf|docx?|pptx?|xlsx?|txt|md|png|jpe?g|heic|zip)$/i;
-let inboxWatcher = null, lastInbox = null;
+let inboxWatcher = null, lastInbox = null; // lastInbox 也存进 conf，重启后还能撤销
 const inboxTimers = new Map();
 function startInbox() {
   if (inboxWatcher || conf.inboxOff) return;
@@ -719,6 +719,9 @@ function settleInbox(p, lastSize) {
   if (!st.isFile() || st.size === 0 || st.size > MAX_FILE) return;
   if (Date.now() - st.birthtimeMs > 10 * 60 * 1000 && Date.now() - st.mtimeMs > 10 * 60 * 1000) return; // 只管新下载的
   if (st.size !== lastSize) { inboxTimers.set(p, setTimeout(() => settleInbox(p, st.size), 1500)); return; } // 还在写
+  // 撤销过的文件不再自动收纳
+  const key = path.basename(p).toLowerCase() + "|" + st.size;
+  if ((conf.inboxIgnore || []).includes(key)) { dlog("inbox skip (undone before)", path.basename(p)); return; }
   const list = readFiles([p]); if (!list.length) return;
   list[0].src = p;
   send(ensureZero(), "files", "inbox", list);
@@ -730,7 +733,7 @@ ipcMain.handle("inbox-place", (e, src, course, name) => {
     let dest = freeName(dir, name || path.basename(src), size);
     if (!dest) { fs.unlinkSync(src); dest = path.join(dir, name || path.basename(src)); } // 课程文件夹里已经有同一个文件
     else { try { fs.renameSync(src, dest); } catch (err) { fs.copyFileSync(src, dest); fs.unlinkSync(src); } }
-    lastInbox = { from: src, to: dest }; bubbleDot(true);
+    lastInbox = { from: src, to: dest }; conf.lastInbox = lastInbox; saveConf(); bubbleDot(true);
     try { new Notification({ title: "已收纳到 " + course, body: path.basename(dest), icon: ICON, silent: true }).show(); } catch (err) {}
     refreshMenu();
     return dest;
@@ -738,8 +741,15 @@ ipcMain.handle("inbox-place", (e, src, course, name) => {
 });
 function undoInbox() {
   if (!lastInbox) return;
-  try { if (fs.existsSync(lastInbox.to) && !fs.existsSync(lastInbox.from)) fs.renameSync(lastInbox.to, lastInbox.from); } catch (e) {}
-  lastInbox = null; refreshMenu();
+  try {
+    if (fs.existsSync(lastInbox.to) && !fs.existsSync(lastInbox.from)) {
+      const size = fs.statSync(lastInbox.to).size;
+      conf.inboxIgnore = [...(conf.inboxIgnore || []), path.basename(lastInbox.from).toLowerCase() + "|" + size].slice(-50);
+      try { fs.renameSync(lastInbox.to, lastInbox.from); } catch (e) { fs.copyFileSync(lastInbox.to, lastInbox.from); fs.unlinkSync(lastInbox.to); }
+      note("已撤销收纳", path.basename(lastInbox.from) + " 回到了下载文件夹，之后不会再自动收它。");
+    }
+  } catch (e) { dlog("undo err", e.message); }
+  lastInbox = null; delete conf.lastInbox; saveConf(); refreshMenu();
 }
 
 // ---------- 自动更新：从 GitHub Releases（catminn/catmin-study）后台下载，退出或点托盘时换上 ----------
@@ -815,6 +825,7 @@ app.whenReady().then(async () => {
   transOn = await readTransparency();
   if (!transOn && !conf.transWarned) { conf.transWarned = true; saveConf(); setTimeout(() => note("毛玻璃需要打开 Windows 的“透明效果”", "设置 → 个性化 → 颜色 → 透明效果。打开后退出学习空间再打开。现在先用普通半透明。"), 4000); }
   setInterval(async () => { const t = await readTransparency(); if (t !== transOn) { transOn = t; glassFor(zero, true); glassFor(todo, todoState === "full"); } }, 10 * 60 * 1000);
+  if (conf.lastInbox && conf.lastInbox.to && fs.existsSync(conf.lastInbox.to)) lastInbox = conf.lastInbox;
   if (conf.glassMode) { delete conf.glassMode; saveConf(); } // 玻璃效果固定用默认（Windows 11 材质），菜单已去掉
   setInterval(labPoll, 15000); setTimeout(labPoll, 6000); // 远程排查小圆和书签的磨砂（glass-lab.json）
   // 节能模式：系统关掉模糊时，各个窗口改成纯白底
