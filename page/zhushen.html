@@ -515,6 +515,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset-top,0px))}}
 /* 电脑上「资料」已能上传文件（含图片），副本里不再放回形针 */
 @media (min-width:821px){.dg #imgLabel{display:none!important}}
+.dq-brief{border-left:3px solid var(--accent);background:var(--accent-soft,rgba(240,192,96,.12));border-radius:10px;padding:10px 14px;margin:4px 0 8px;font-size:15px;line-height:1.7}.dq-from{font-size:12px;font-weight:500;color:var(--dim,#888);margin-bottom:2px}
 /* iPhone 输入框字小于 16px 会自动放大页面 */
 @media (max-width:820px),(pointer:coarse){input,textarea,select{font-size:16px!important}}
 /* 副本聊天不显示头像 */
@@ -2184,7 +2185,7 @@ let DQ_CTL=null;
 async function openDaily(subj){if(checkedToday()){openCheckin();return}subj=subj||(planToday()||{b:{}}).b.subj||suggestSubj();if(subj==="engl")subj="math";closeSheet();
   document.querySelectorAll(".qz").forEach(x=>x.remove());const card=h("div",{class:"card2"});const ov=h("div",{class:"qz",role:"dialog","aria-modal":"true"},card);document.body.append(ov);
   const close=()=>{if(DQ_CTL)DQ_CTL.abort();ov.remove()};
-  const head=()=>h("div",{class:"row between"},h("div",null,h("div",{class:"eyebrow"},"每日一课 · +"+ckReward(streak()+1)),h("h2",{style:{margin:0}},SUBJ[subj].full)),h("button",{class:"btn sm flat",onclick:close,"aria-label":"关闭"},"×"));
+  const head=()=>h("div",{class:"row between"},h("div",null,h("div",{class:"eyebrow"},"每日委托 · +"+ckReward(streak()+1)),h("h2",{style:{margin:0}},SUBJ[subj].full)),h("button",{class:"btn sm flat",onclick:close,"aria-label":"关闭"},"×"));
   const swap=h("div",{class:"row",style:{gap:"6px"}},["math","chem","engri"].map(k=>h("button",{class:"btn sm"+(k===subj?" go":""),onclick:()=>{if(k!==subj){S.dailyQ=null;close();openDaily(k)}}},SUBJ[k].name)));
   let dq=S.dailyQ&&S.dailyQ.day===dayKey()&&S.dailyQ.subj===subj?S.dailyQ:null;
   const mon=null;
@@ -2192,13 +2193,13 @@ async function openDaily(subj){if(checkedToday()){openCheckin();return}subj=subj
     DQ_CTL=new AbortController();
     const ex=examInfo(subj);const exTxt=ex&&ex.due-Date.now()<10*DAY?`最近的考试：「${ex.title}」${fmtDue(ex.due)}${ex.scope?"，范围 "+ex.scope:ex.where?"（"+ex.where+"）":""}。`:"";
     const hw=(S.hwArchive||[]).filter(a=>a.subj===subj).slice(-4).map(a=>"【"+a.title+"】\n"+a.items.map(q=>(q.no&&q.no!=="?"?q.no+"：":"")+q.text).join("\n")).join("\n\n").slice(0,5000);
-    try{const j=await SAMPLE.json(contextTurn(subj)+`\n\n现在是「每日一课」，不要剧情，不要角色台词。目的是每天教她一点新东西，不是刷题。
+    try{const j=await SAMPLE.json(contextTurn(subj)+`\n\n现在是「每日委托」：像游戏里的每日任务，当前世界里有人（或某个势力、某台机器）发来一份小委托，委托要解决的事正好需要今天这个知识点。目的是每天教她一点新东西，不是刷题。委托背景只要一两句（60 字以内），有画面、和世界观一致、和知识点直接相关（比如「梯田守夜人：棚下能存多少雨水？算不出来今晚就得撤离」），讲解正文里不要再写剧情和角色台词。
 ${exTxt}
 ${(()=>{const pt=planToday(subj);return pt?"今天考前计划里的知识点是「"+pt.it.topic+"」（"+pt.it.task+"），就教这个。\n":""})()}先挑一个她现在最需要的知识点：最近 10 天内有考试或 quiz 的，就从它的范围里挑她最可能不会的一个点；没有的话，挑主线上接下来要学的一个点。${hw?"\n她作业里的原题（可以直接拿一道来当例题教）：\n"+hw:""}
 然后像家教一样从零教这一个点：先一两句说清是什么、什么时候用，再用一道具体的例题（最好是作业原题或考试题型）一步一步做给她看，每一步说做什么、为什么。整体 300 字以内，分 3 到 5 小段，公式用 $...$。${subj==="chem"?"例题和术语用英文，讲解用中文。":""}
 最后出一道检查题，考刚教的这个点，换个数字或问法，3 分钟能做完。能用选择题考的就出 4 个选项的单选题；需要算一个数或写一句话的就出简答题。
-只回复 JSON：{"topic":"知识点名称，15 字以内","lesson":"教学内容，段落之间用 \\n\\n 隔开","q":"检查题","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解"}`,{cache:false,signal:DQ_CTL.signal});
-      if(!j||!j.q)throw{code:"invalid_json"};dq={day:dayKey(),subj,q:String(j.q),type:j.type==="choice"&&Array.isArray(j.options)&&j.options.length>=2?"choice":"short",options:(j.options||[]).map(String),answer:j.answer,explain:String(j.explain||""),topic:String(j.topic||"").slice(0,30),lesson:String(j.lesson||"")};
+只回复 JSON：{"client":"委托人，当前世界里的一个人或势力，10 字以内","brief":"委托背景一两句，60 字以内","topic":"知识点名称，15 字以内","lesson":"教学内容，段落之间用 \\n\\n 隔开","q":"检查题","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解"}`,{cache:false,signal:DQ_CTL.signal});
+      if(!j||!j.q)throw{code:"invalid_json"};dq={day:dayKey(),subj,q:String(j.q),type:j.type==="choice"&&Array.isArray(j.options)&&j.options.length>=2?"choice":"short",options:(j.options||[]).map(String),answer:j.answer,explain:String(j.explain||""),topic:String(j.topic||"").slice(0,30),lesson:String(j.lesson||""),client:String(j.client||"").slice(0,16),brief:String(j.brief||"").slice(0,120)};
       if(dq.type==="choice"){const ci=+dq.answer;const right=dq.options[ci]!=null?dq.options[ci]:dq.options[0];const sh=dq.options.slice();for(let i=sh.length-1;i>0;i--){const r=Math.floor(Math.random()*(i+1));[sh[i],sh[r]]=[sh[r],sh[i]]}dq.options=sh;dq.answer=sh.indexOf(right)}
       S.dailyQ=dq;save()}
     catch(e){if(e&&e.code==="cancelled")return;card.replaceChildren(head(),swap,h("div",{class:"muted"},e&&e.code==="invalid_json"?"题目没生成好。":sampleErr(e)),h("button",{class:"btn go",onclick:()=>{close();openDaily(subj)}},"再出一道"));return}
@@ -2208,7 +2209,7 @@ ${(()=>{const pt=planToday(subj);return pt?"今天考前计划里的知识点是
     if(!ok){const nm={id:"m"+uid().slice(0,4),subj,text:dq.q.replace(/\s+/g," ").slice(0,160),fix:(dq.type==="choice"?"正确答案："+dq.options[dq.answer]+"。":"标准答案："+dq.answer+"。")+dq.explain.slice(0,150),added:dayKey(),at:Date.now(),revive:addDays(dayKey(),3),killed:false};S.mistakes.push(nm);syncMistake(nm)}
     smEvent("签到题"+(ok?"做对":"做错"),subj);draw()}
   function teach(){zwOpen(subj,"【签到题】题目："+dq.q+(dq.type==="choice"?"\n选项："+dq.options.map((o,k)=>String.fromCharCode(65+k)+". "+o).join("  "):"")+"\n我不会做，教我怎么做。先讲需要的知识，再带我做第一步，一步一问，先别告诉我答案。")}
-  function draw(){if(dq.lesson&&!dq.read&&!dq.done){const body=h("div",{class:"qexp",style:{fontSize:"16px",color:"var(--fg)",lineHeight:"1.8"}},renderMd(dq.lesson));card.replaceChildren(head(),swap,dq.topic?h("h3",null,dq.topic):null,body,h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{dq.read=true;save();draw()}},"看完了，做一道题"),h("button",{class:"btn sm flat",onclick:()=>zwOpen(subj,"【每日一课】"+(dq.topic||"")+"\n"+dq.lesson.slice(0,1500)+"\n\n这里我没看懂，再讲一遍，讲慢一点。")},"没看懂，问零")));typeset(card);return}
+  function draw(){if(dq.lesson&&!dq.read&&!dq.done){const body=h("div",{class:"qexp",style:{fontSize:"16px",color:"var(--fg)",lineHeight:"1.8"}},renderMd(dq.lesson));card.replaceChildren(head(),swap,dq.brief?h("div",{class:"dq-brief"},h("div",{class:"dq-from"},"委托人 · "+(dq.client||"未署名")),h("div",null,dq.brief)):null,dq.topic?h("h3",null,dq.topic):null,body,h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{dq.read=true;save();draw()}},"看完了，做一道题"),h("button",{class:"btn sm flat",onclick:()=>zwOpen(subj,"【每日委托】"+(dq.topic||"")+"\n"+dq.lesson.slice(0,1500)+"\n\n这里我没看懂，再讲一遍，讲慢一点。")},"没看懂，问零")));typeset(card);return}
     const kids=[head(),dq.done?null:swap,dq.topic?h("div",{class:"eyebrow"},dq.topic):null,h("div",{class:"qtext"},renderMd(dq.q))];
     if(!dq.done)kids.push(h("button",{class:"btn sm",style:{alignSelf:"flex-start"},onclick:teach},"教我怎么做"));
     if(dq.type==="choice"){const a=dq.done?dq.picked:null;kids.push(...dq.options.map((o,k)=>h("button",{class:"qopt"+(dq.done?(k===dq.answer?" right":k===a?" wrong":""):""),disabled:!!dq.done,onclick:()=>{dq.picked=k;finish(k===dq.answer)}},renderMd(o))))}
@@ -2921,7 +2922,7 @@ async function makePlan(id,b,btn){if(!SAMPLE){toast("需要在 Claude 里打开"
     if(!list.length)throw 0;S.examPlan=S.examPlan||{};S.examPlan[id]={at:Date.now(),days:list};save();openBossSheet(id)}
   catch(e){toast("计划没排出来，再试一次");btn.disabled=false;btn.textContent="排考前计划"}}
 function planBlock(id,b){const left=b.due-Date.now();if(left>10*DAY||left<0)return null;const p=(S.examPlan||{})[id];
-  if(!p)return h("div",{class:"row"},h("button",{class:"btn",onclick:e=>makePlan(id,b,e.currentTarget)},"排考前计划"),h("span",{class:"dim small"},"每天一个点，每日一课跟着教"));
+  if(!p)return h("div",{class:"row"},h("button",{class:"btn",onclick:e=>makePlan(id,b,e.currentTarget)},"排考前计划"),h("span",{class:"dim small"},"每天一个点，每日委托跟着教"));
   return h("div",null,h("div",{class:"row between",style:{marginBottom:"6px"}},h("div",{class:"eyebrow"},"考前计划"),h("button",{class:"btn sm flat",onclick:()=>{delete S.examPlan[id];save();openBossSheet(id)}},"重排")),
     h("div",{class:"checklist"},p.days.map(d=>{const k="plan:"+id+":"+d.day;const dn=S.done[k];const today=d.day===dayKey();
       return h("button",{class:(dn?"done":"")+(today?" today":""),disabled:!!dn,title:d.task,onclick:()=>{const pts=award(PLAN_PTS,keyToDate(d.day).getTime()+DAY+4*HOUR,0,"考前计划 · "+d.topic);S.done[k]={at:Date.now(),pts};save();openBossSheet(id);renderAll()}},
