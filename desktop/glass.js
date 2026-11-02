@@ -10,6 +10,7 @@ function load() {
     const koffi = require("koffi");
     const user32 = koffi.load("user32.dll"), dwm = koffi.load("dwmapi.dll"), gdi = koffi.load("gdi32.dll");
     const ACCENT = koffi.struct("XK_ACCENT", { AccentState: "int", AccentFlags: "int", GradientColor: "uint32", AnimationId: "int" });
+    koffi.struct("XK_MARGINS", { l: "int", r: "int", t: "int", b: "int" });
     const WCAD = koffi.struct("XK_WCAD", { Attribute: "int", Data: "void *", SizeOfData: "size_t" });
     api = {
       koffi, ACCENT, WCAD,
@@ -20,6 +21,7 @@ function load() {
       del: gdi.func("bool __stdcall DeleteObject(intptr_t obj)"),
       setRgn: user32.func("int __stdcall SetWindowRgn(intptr_t hwnd, intptr_t rgn, bool redraw)"),
       poly: gdi.func("intptr_t __stdcall CreatePolygonRgn(_In_ int *pts, int n, int mode)"),
+      extend: dwm.func("long __stdcall DwmExtendFrameIntoClientArea(intptr_t hwnd, _In_ XK_MARGINS *m)"),
       post: user32.func("bool __stdcall PostMessageW(intptr_t hwnd, uint32_t msg, uintptr_t w, intptr_t l)"),
     };
   } catch (e) { api = null; }
@@ -96,4 +98,8 @@ function clearGlass(win) {
 }
 // Windows 11 材质在窗口失去焦点时会变成纯色；告诉窗口“你还是激活的样子”（WM_NCACTIVATE=TRUE），材质就留着
 function keepActive(win) { const a = load(); if (!a || !win || win.isDestroyed()) return; try { a.post(hwndOf(win), 0x86, 1, 0); } catch (e) {} }
-module.exports = { keepActive, applyGlass, clearGlass, shapeWin, circleRects, ribbonRects };
+// 实验用：直接设参数
+function accentRaw(win, state, flags, color) { const a = load(); if (!a || !win || win.isDestroyed()) return false; try { const mem = a.koffi.alloc(a.ACCENT, 1); a.koffi.encode(mem, a.ACCENT, { AccentState: state | 0, AccentFlags: flags | 0, GradientColor: (color >>> 0), AnimationId: 0 }); return !!a.setWCA(hwndOf(win), { Attribute: 19, Data: mem, SizeOfData: a.koffi.sizeof(a.ACCENT) }); } catch (e) { return false; } }
+function dwmAttr(win, attr, val) { const a = load(); if (!a || !win || win.isDestroyed()) return -1; try { return a.dwmSet(hwndOf(win), attr, [val | 0], 4); } catch (e) { return -2; } }
+function extendFrame(win, v) { const a = load(); if (!a || !win || win.isDestroyed()) return -1; try { return a.extend(hwndOf(win), { l: v, r: v, t: v, b: v }); } catch (e) { return -2; } }
+module.exports = { accentRaw, dwmAttr, extendFrame, keepActive, applyGlass, clearGlass, shapeWin, circleRects, ribbonRects };

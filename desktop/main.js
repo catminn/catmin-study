@@ -8,7 +8,7 @@ const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const os = require("os");
-const { applyGlass, clearGlass, keepActive } = require("./glass");
+const { applyGlass, clearGlass, keepActive, accentRaw, dwmAttr, extendFrame } = require("./glass");
 // 毛玻璃：用 Windows 自己的模糊，底下有什么就透出什么（需要 Windows 设置里“透明效果”开着）。
 // 只给方形的待办（展开时）和零的窗口用；小圆、书签、转盘是自己画的半透明形状，不加系统模糊（否则会多出一个方框）。
 let transOn = null;
@@ -26,7 +26,7 @@ function readTransparency() {
 //   acrylic  系统亚克力（ACCENT_ENABLE_ACRYLICBLURBEHIND）
 //   material Windows 11 的亚克力材质（backgroundMaterial），窗口不透明，失去焦点时用“保持激活”的办法留住效果
 //   clear    不模糊，只是半透明
-const GLASS_MODES = { blur: "模糊", acrylic: "亚克力", material: "Windows 11 材质", clear: "只半透明" };
+const GLASS_MODES = { blur: "模糊", acrylic: "亚克力", material: "Windows 11 材质", clear: "只半透明", lab: "实验（排查用）" };
 const glassMode = () => (GLASS_MODES[conf.glassMode] ? conf.glassMode : "blur");
 function glassOpts() {
   if (glassMode() === "material" && process.platform === "win32") return { transparent: false, backgroundColor: "#00000000", backgroundMaterial: "acrylic" };
@@ -36,10 +36,40 @@ function glassFor(win, on) {
   if (!win || win.isDestroyed()) return;
   const m = glassMode();
   if (!on || !transOn || m === "clear") { win._glass = false; return; }
+  if (m === "lab") { win._glass = true; setTimeout(labApply, 500); return; }
   if (m === "material") { win._glass = true; keepActive(win); win.on("blur", () => setTimeout(() => keepActive(win), 30)); return; }
   win._glass = applyGlass(win, false, 2, m === "acrylic" ? 4 : 3);
 }
+// 实验模式：每 10 秒读一次网站上的 glass-lab.json，按里面的参数给待办和零的窗口设效果，方便远程排查
+let labCfg = null, labTimer = null, labLog = [];
+async function labPoll() {
+  try {
+    const r = await session.fromPartition(PART).fetch(SITE + "/glass-lab.json?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (JSON.stringify(j) !== JSON.stringify(labCfg)) { labCfg = j; labApply(); }
+  } catch (e) {}
+}
+function labApply() {
+  const c = labCfg || {}; const out = [];
+  for (const w of [todo, zero]) {
+    if (!w || w.isDestroyed()) continue;
+    try {
+      if (c.accent) out.push("accent=" + accentRaw(w, c.accent.state, c.accent.flags, c.accent.color));
+      if (c.backdrop != null) out.push("backdrop=" + dwmAttr(w, 38, c.backdrop));
+      if (c.corner != null) out.push("corner=" + dwmAttr(w, 33, c.corner));
+      if (c.extend != null) out.push("extend=" + extendFrame(w, c.extend));
+      if (c.material !== undefined && w.setBackgroundMaterial) { w.setBackgroundMaterial(c.material); out.push("material=" + c.material); }
+      if (c.bg) w.setBackgroundColor(c.bg);
+      if (c.nca) keepActive(w);
+      if (c.css != null) { const old = w._labCss; w.webContents.insertCSS(String(c.css)).then((k) => { w._labCss = k; if (old) w.webContents.removeInsertedCSS(old).catch(() => {}); }).catch(() => {}); }
+    } catch (e) { out.push("err " + e.message); }
+  }
+  labLog = out; refreshMenu();
+}
 function setGlassMode(k) {
+  clearInterval(labTimer); labTimer = null;
+  if (k === "lab") { labCfg = null; labTimer = setInterval(labPoll, 10000); setTimeout(labPoll, 3000); }
   conf.glassMode = k; saveConf(); refreshMenu();
   // 换做法要重建窗口（material 需要不透明窗口）
   const showTodo = conf.todoShown !== false, zeroWasOpen = zero && !zero.isDestroyed() && zero.isVisible();
@@ -632,7 +662,7 @@ function menu() {
     { label: "签到", click: () => showZero("daily") },
     { label: "待办", type: "checkbox", checked: conf.todoShown !== false, click: toggleTodo },
     { label: "待办置顶", type: "checkbox", checked: conf.todoPinned !== false, click: (i) => { conf.todoPinned = i.checked; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(i.checked); } },
-    { label: "玻璃效果：" + GLASS_MODES[glassMode()], submenu: Object.entries(GLASS_MODES).map(([k, t]) => ({ label: t, type: "radio", checked: glassMode() === k, click: () => setGlassMode(k) })) },
+    { label: "玻璃效果：" + GLASS_MODES[glassMode()], submenu: [...Object.entries(GLASS_MODES).map(([k, t]) => ({ label: t, type: "radio", checked: glassMode() === k, click: () => setGlassMode(k) })), ...(glassMode() === "lab" ? [{ type: "separator" }, { label: "实验 " + ((labCfg && labCfg.name) || "等待参数") + " · " + labLog.join(" ").slice(0, 60), enabled: false }] : [])] },
     { label: "打开学习空间", click: () => openMain() },
     { type: "separator" },
     { label: "显示零的小圆", type: "checkbox", checked: conf.bubbleHidden !== true, click: (i) => { conf.bubbleHidden = !i.checked; saveConf(); if (bubble) { if (i.checked) bubble.showInactive(); else bubble.hide(); } } },
@@ -672,6 +702,7 @@ app.whenReady().then(async () => {
   transOn = await readTransparency();
   if (!transOn && !conf.transWarned) { conf.transWarned = true; saveConf(); setTimeout(() => note("毛玻璃需要打开 Windows 的“透明效果”", "设置 → 个性化 → 颜色 → 透明效果。打开后退出学习空间再打开。现在先用普通半透明。"), 4000); }
   setInterval(async () => { const t = await readTransparency(); if (t !== transOn) { transOn = t; glassFor(zero, true); glassFor(todo, todoState === "full"); } }, 10 * 60 * 1000);
+  if (glassMode() === "lab") { labTimer = setInterval(labPoll, 10000); setTimeout(labPoll, 5000); }
   if (!conf.setupDone) { app.setLoginItemSettings({ openAtLogin: true }); conf.setupDone = true; conf.todoShown = true; saveConf(); }
   tray = new Tray(nativeImage.createFromPath(TRAY_ICON));
   tray.setToolTip("学习空间");
