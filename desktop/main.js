@@ -10,7 +10,7 @@ const { execFile } = require("child_process");
 const os = require("os");
 const { applyGlass, clearGlass, keepActive, accentRaw, dwmAttr, extendFrame, powerSaver, shapeWin, circleRects, ribbonRects } = require("./glass");
 // 小圆、书签、转盘也用 Windows 11 材质：窗口不透明 + 系统亚克力，再用 setShape 裁成自己的形状
-const MAT = () => process.platform === "win32" && WIN11;
+const MAT = () => false; // 试过：在这台电脑上材质窗口裁不成圆形/书签形状（整块方形灰底），小东西先用半透明
 function smallOpts() { return MAT() ? { transparent: false, backgroundColor: "#00000000", backgroundMaterial: "acrylic" } : { transparent: true }; }
 function matWin(win, rects) {
   if (!win || win.isDestroyed() || !MAT()) return;
