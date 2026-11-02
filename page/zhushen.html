@@ -939,7 +939,7 @@ const COMMON_RULES=`你在写一部和玩家实时互动的无限流小说，同
 - 中文行文：正文不加粗，不用破折号，少用引号，不用四字套话和「不是A而是B」这种句式。
 - 教新东西时当她零基础，一次只讲一小块，讲完给一个检查问题，等她回答再继续。不要一次输出一大段。
 - 每次回复短一点：剧情和讲解加起来 200 字以内（公式不算），然后停下来给她一个要回应的东西。像游戏的一回合，不要像讲义。
-- 剧情学新课时：用当前世界的剧情包装，概念就是剧情里要解开的机关或线索（但要按上面「讲解永远比剧情重要」的规矩来：和讲解无关的纯剧情一回合最多一两句，不能挤掉讲解；主线就靠讲解用的那个故事场景往前推）；每段剧情短一点，到关键处停下来让她作答，答对剧情推进，答错剧情出点小麻烦，再把概念讲清楚。
+- 剧情学新课时：用当前世界的剧情包装，概念就是剧情里要解开的机关或线索（但要按上面「讲解永远比剧情重要」的规矩来：和讲解无关的纯剧情一回合最多一两句，不能挤掉讲解；主线就靠讲解用的那个故事场景往前推。剧情不能原地打转：她每答对一问，主线就要发生一个具体的变化，比如走到新地方、发现新线索、有人出场或露出秘密、危机升级或解除；同一个场景最多停三回合，之后必须推进到这一幕的下一个事件，不能只把世界观当背景）；每段剧情短一点，到关键处停下来让她作答，答对剧情推进，答错剧情出点小麻烦，再把概念讲清楚。
 - 公式一律用 LaTeX：行内 $...$，独立公式 $$...$$。
 - 出题后停下来等她作答，不要自己把答案写出来。做完一题，主动说出下一题是什么。
 - 不确定的日期或课程细节就说不确定，不要猜。
@@ -1986,7 +1986,7 @@ async function ensureArc(subj){if(subj==="engl"||!SAMPLE)return;const T=tale(sub
 只回复 JSON：{"premise":"开场处境，60 字内","goal":"通关目标","mystery":"核心悬念","cast":[{"name":"名字","role":"身份和性格","secret":"隐藏动机"}],"acts":["第一幕：……","第二幕：……","第三幕：……","第四幕：……","第五幕：……"],"zero":"零的记忆碎片"}`,{cache:false});
     if(j&&Array.isArray(j.acts)&&j.acts.length){T.arc={world:w.name,premise:String(j.premise||""),goal:String(j.goal||""),mystery:String(j.mystery||""),cast:(j.cast||[]).slice(0,4),acts:j.acts.map(String).slice(0,5),zero:String(j.zero||"")};T.beat=0;T.turns=0;
       for(const c of T.arc.cast){if(c&&c.name)T.npcs[String(c.name).slice(0,10)]=String(c.role||"").slice(0,24)}save()}}catch(e){}}
-function advanceBeat(subj,force){const T=tale(subj);if(!T.arc)return;T.turns=(T.turns||0)+1;if(force||T.turns>=7){if((T.beat||0)<T.arc.acts.length-1){T.beat=(T.beat||0)+1;T.turns=0;FXQ.push({t:"loc",subj,name:"第 "+(T.beat+1)+" 幕",desc:T.arc.acts[T.beat].replace(/^第.幕[：:]/,"").slice(0,30)})}}}
+function advanceBeat(subj,force){const T=tale(subj);if(!T.arc)return;T.turns=(T.turns||0)+1;if(force||T.turns>=5){if((T.beat||0)<T.arc.acts.length-1){T.beat=(T.beat||0)+1;T.turns=0;FXQ.push({t:"loc",subj,name:"第 "+(T.beat+1)+" 幕",desc:T.arc.acts[T.beat].replace(/^第.幕[：:]/,"").slice(0,30)})}}}
 async function send(text){text=(text||$("#input").value).trim();if(!text||!SAMPLE||CTL)return;focusAct();$("#input").value="";
   if(CUR!=="engl"&&text.length<12&&/^(签到|每日委托|签到题)/.test(text)){openDaily(CUR);return}
   if(CUR!=="engl"){const k=intentOf(text,IMGS.length);if(k&&!(S.battle[CUR]&&S.battle[CUR].kind===k)){if(k==="quest"&&!QUEST[CUR]){const n=MAIN[CUR][curIndex(CUR)];if(n&&!n.boss){startNode(CUR,n);return}}startBattle(CUR,k,FOES[k])}}
