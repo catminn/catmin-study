@@ -921,7 +921,8 @@ const COMMON_RULES=`你在写一部和玩家实时互动的无限流小说，同
 沉浸式剧情（数学、化学、机械这三科都要这样，英文课除外）：
 - 她是这个无限流世界里的玩家，用第二人称「你」。知识点是闯关的钥匙：门上的屏幕要她输入一个数，守卫用一道题拦路，Boss 的血条靠一问一问打掉。
 - 剧情要真的往前走：每个世界有自己的悬念和主线（见下面的世界大纲），每回合都要发生一点新的事情，推进当前这一幕。不要原地打转，不要只换一句描写就算剧情。
-- 角色要活起来：每回合至少有一两句其他角色的台词。角色之间可以有冲突、误会、玩笑和秘密。
+- 角色要活起来，但不用每回合都让每个人说话：只有剧情需要、或者这个角色真有话要说时才让他开口，一回合一两个人发言就够，很多回合只有旁白和零也完全可以。角色之间可以有冲突、误会、玩笑和秘密。
+- 功能性的对话不走剧情：她问的是现实里的事（找文件、搜 Drive、截止时间、积分、怎么用这个页面、要你整理或解释什么），或者明显是在跟你本人说话，就只由零直接回答，像平时的 Claude 一样把事办好，不写旁白，不让任何角色插话，不推进剧情，也不出「第 N 问」。办完了她回到做题，再接着剧情走。
 - 无限流的基调：这是一场会死人的副本，不是游学。每回合都要有一个紧迫的压力：倒计时、追击、陷阱、规则反噬、竞争玩家抢先、同伴突然失踪或背叛的苗头。体力和队友的命都是真的，写得紧张一点，可以有惊险的瞬间和死里逃生，但不要真的杀死她。零偶尔以主神广播的口吻通报时间、任务和规则。关键的题就是门、锁、刀、绳，答对才能过去，答错就要付出一点代价（给她提示，剧情出一个小麻烦）。
 - 排版规则，页面靠它把每个人分进不同的对话框，必须严格遵守：
   · 每一段都以说话人开头：旁白写「旁白：」，系统写「零：」，角色写「名字：」，名字必须和角色表里的名字完全一致，新角色第一次出场先用 [人物] 标签登记。
@@ -930,7 +931,7 @@ const COMMON_RULES=`你在写一部和玩家实时互动的无限流小说，同
 - 制造惊喜：大约每三四回合安排一次意外，比如机关突然变化、同伴其实另有目的、竞争玩家抢先一步、隐藏任务出现、零的记忆碎片闪回、规则被改写。发生意外的那一回合，单独一行写「[惊喜] 一句话说发生了什么」，页面会放全屏特效。
 - 每回合的格式（照这个顺序，每块单独起一行）：
   1. 她作答之后，第一行先判定。答对写「✅ 正确！」加半句剧情反馈；答错写「❌ 差一点！不扣血，再试一次。」，接着给一个具体提示（指出哪一步错了），然后把同一问再问一遍。
-  2. 剧情推进：「旁白：」一两句写发生了什么，再加一两句其他角色的台词。
+  2. 剧情推进：「旁白：」一两句写发生了什么；有角色需要说话时再加一两句台词，没有就不加。
   3. 需要新知识时，单独起一行「📜 新技能解锁：名称」，下面用大白话讲：一个生活里的类比，最多一个公式，再用一句话说怎么用。不要一次讲两个技能。
   4. 最后只问一个小问题，单独一行写「第 N 问：……」，N 接着上一问往下编（答错重问时编号不变）。问题要小到她回一个数字、一个词或一句话就能答，可以在括号里给提示，比如（提示：GR = 输出齿数 ÷ 输入齿数）。
 - 大题拆成小步，一步一问。她跳步直接答对，就算「暴击」，跳过中间步骤往下走。
@@ -2016,7 +2017,7 @@ async function driveRead(f){const r=await MCP.callTool(DRIVE,"read_file_content"
 function smPayload(r,raw){let p=r&&r.payload;if(p&&Array.isArray(p.content)&&p.content[0]&&typeof p.content[0].text==="string")p=p.content[0].text;if(raw)return typeof p==="string"?p:JSON.stringify(p);if(typeof p==="string"){try{return JSON.parse(p)}catch(e){return null}}return p}
 function driveTools(){if(window.__SITE||!MCP)return null;const qe=t=>String(t).replace(/\\/g,"\\\\").replace(/'/g,"\\'");
   return[{name:"drive_search",description:"在 Catherine 的 Google Drive 里按文件名搜索，返回文件 id、标题、类型、修改时间。关键词尽量短，比如 HW8、Quiz 3、Lab 8；搜不到就换个关键词再试。",inputSchema:{type:"object",properties:{query:{type:"string",description:"文件名里包含的关键词"}},required:["query"]},
-      execute:async({query})=>{try{const r=await MCP.callTool(SM,"drive_search",{query},{cache:false});const v=smPayload(r);if(Array.isArray(v))return v}catch(e){}
+      execute:async({query})=>{try{const r=await MCP.callTool(SM,"drive_search",{query},{cache:false});const v=smPayload(r);if(Array.isArray(v))return v;if(v&&Array.isArray(v.files))return v}catch(e){}
         const r=await MCP.callTool(DRIVE,"search_files",{query:"title contains '"+qe(query)+"'",pageSize:12,excludeContentSnippets:true},{cache:false});return(drivePayload(r).files||[]).map(f=>({id:f.id,title:f.title,mimeType:f.mimeType,modified:f.modifiedTime}))}},
     {name:"drive_read",description:"读出 Google Drive 里一个文件的文字内容（PDF、Google 文档、Word 等），参数是 drive_search 给的 id（和 account）。",inputSchema:{type:"object",properties:{id:{type:"string"},account:{type:"string"}},required:["id"]},
       execute:async({id,account})=>{try{const r=await MCP.callTool(SM,"drive_read",{id,...(account?{account}:{})},{cache:false});const v=smPayload(r,true);if(typeof v==="string"&&v)return v.slice(0,24000)}catch(e){}

@@ -137,7 +137,7 @@ async function runDriveTool(env: SiteEnv, name: string, input: any): Promise<str
   try {
     if (name === "drive_search") {
       const r = await aiDriveSearch(env, String(input?.query || ""));
-      return JSON.stringify(r.map((f: any) => ({ id: f.id, title: f.title, mimeType: f.mimeType, modified: f.modifiedTime, account: f.acct === "cornell" ? "Cornell 学校账号" : "个人账号" })));
+      return JSON.stringify({ files: r.map((f: any) => ({ id: f.id, title: f.title, mimeType: f.mimeType, modified: f.modifiedTime, account: f.acct === "cornell" ? "Cornell 学校账号" : "个人账号" })), accounts: (r as any).status });
     }
     if (name === "drive_read") {
       const r: any = await aiDriveRead(env, String(input?.id || ""));

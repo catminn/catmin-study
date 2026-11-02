@@ -351,11 +351,15 @@ export async function hasCornellRead(env: SiteEnv) { return String((await env.OA
 export async function aiDriveSearch(env: SiteEnv, query: string) {
   const q = driveQuery(`title contains '${query.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`);
   const out: any[] = [];
+  const status: Record<string, string> = {};
   const accts: Acct[] = ["main"];
   if (await hasCornellRead(env)) accts.unshift("cornell");
+  else status.cornell = (await env.OAUTH_KV.get("google:cornell:refresh")) ? "连了但没有读文件的权限，要在学习网站顶上点「Cornell Drive 加读权限」重新授权" : "没连，要在学习网站顶上点「连 Cornell Drive」";
   for (const a of accts) {
-    try { const r: any = await driveList(env, q, "modifiedTime desc", { pageSize: 12 }, a); for (const f of r.files || []) out.push({ ...f, acct: a }); } catch {}
+    try { const r: any = await driveList(env, q, "modifiedTime desc", { pageSize: 12 }, a); for (const f of r.files || []) out.push({ ...f, acct: a }); status[a === "main" ? "personal" : "cornell"] = "ok"; }
+    catch (e: any) { status[a === "main" ? "personal" : "cornell"] = "出错：" + String(e?.message || e).slice(0, 160); }
   }
+  (out as any).status = status;
   return out;
 }
 export async function aiDriveRead(env: SiteEnv, id: string, acct?: string) {

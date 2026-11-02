@@ -448,7 +448,7 @@ TOOLS.push(
     async run(env, a) {
       const g = await import("./google");
       const r = await g.aiDriveSearch(env as any, String(a.query || ""));
-      return JSON.stringify(r.map((f: any) => ({ id: f.id, title: f.title, mimeType: f.mimeType, modified: f.modifiedTime, account: f.acct === "cornell" ? "cornell" : "personal" })));
+      return JSON.stringify({ files: r.map((f: any) => ({ id: f.id, title: f.title, mimeType: f.mimeType, modified: f.modifiedTime, account: f.acct === "cornell" ? "cornell" : "personal" })), accounts: (r as any).status });
     },
   },
   {
