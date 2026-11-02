@@ -453,6 +453,18 @@ async function aiStatus(env: SiteEnv) {
 // ---------- 存档 ----------
 const KEY_RE = /^[a-z0-9][a-z0-9_.:-]{0,63}$/i;
 async function dbHandler(req: Request, env: SiteEnv, url: URL) {
+  // ?meta=state,chat-zero,... 只回版本号，网页和桌面版每隔几秒问一次，变了才去拉整份（各端互通用）
+  const meta = url.searchParams.get("meta");
+  if (meta != null && req.method === "GET") {
+    const keys = meta.split(",").filter((k) => KEY_RE.test(k)).slice(0, 20);
+    if (!keys.length) return json({ meta: {} });
+    const rs = await env.DB.prepare(`SELECT key, version, updated_at FROM study_state WHERE key IN (${keys.map(() => "?").join(",")})`)
+      .bind(...keys)
+      .all<{ key: string; version: number; updated_at: number }>();
+    const out: Record<string, { version: number; updated_at: number }> = {};
+    for (const r of rs.results || []) out[r.key] = { version: r.version, updated_at: r.updated_at };
+    return json({ meta: out });
+  }
   const key = url.searchParams.get("key") || "";
   if (!KEY_RE.test(key)) return err("bad_request", "key 不合法");
   if (req.method === "GET") {
@@ -471,13 +483,14 @@ async function dbHandler(req: Request, env: SiteEnv, url: URL) {
     }
     const t = Date.now() / 1000;
     if (key === "state") await dailyBackup(env, t);
-    await env.DB.prepare(
+    const r = await env.DB.prepare(
       `INSERT INTO study_state (key,value,version,updated_at,updated_by) VALUES (?,?,1,?,'site')
-       ON CONFLICT(key) DO UPDATE SET value=excluded.value, version=study_state.version+1, updated_at=excluded.updated_at, updated_by='site'`,
+       ON CONFLICT(key) DO UPDATE SET value=excluded.value, version=study_state.version+1, updated_at=excluded.updated_at, updated_by='site'
+       RETURNING version`,
     )
       .bind(key, text, t)
-      .run();
-    return json({ ok: true });
+      .first<{ version: number }>();
+    return json({ ok: true, version: r ? r.version : null });
   }
   return err("bad_request", "只支持 GET / PUT", 405);
 }

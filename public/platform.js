@@ -37,13 +37,15 @@
         },
         set: async function (v) {
           if (!key) throw { code: "bad_path", message: path };
-          await api("/api/db?key=" + encodeURIComponent(key), {
+          return await api("/api/db?key=" + encodeURIComponent(key), {
             method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(v)
           });
         }
       };
     },
-    collection: function () { throw { code: "unsupported", message: "网站版不支持 collection" }; }
+    collection: function () { throw { code: "unsupported", message: "网站版不支持 collection" }; },
+    // 只取版本号（各端互通：变了再拉整份）
+    meta: async function (keys) { var o = await api("/api/db?meta=" + encodeURIComponent((keys || []).join(","))); return o.meta || {}; }
   });
 
   // ---------- user ----------
