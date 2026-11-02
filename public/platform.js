@@ -133,7 +133,7 @@
     if (st.connected && st.needsUpgrade) {
       el.hidden = false;
       el.textContent = "Google 需更新授权";
-      el.title = "加了写日历和存文件的权限，点一下重新授权";
+      el.title = "加了读邮件等新权限，点一下重新授权";
       el.onclick = function () { location.href = "/auth/google/start"; };
     } else if (st.connected) {
       el.hidden = true;

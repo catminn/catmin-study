@@ -2104,8 +2104,12 @@ function driveTools(){if(window.__SITE||!MCP)return null;const qe=t=>String(t).r
     {name:"calendar_add",description:"在 Catherine 的个人 Google 日历上添加一个日程。时间用美东时间，格式 YYYY-MM-DDTHH:MM；全天的设 allDay 为 true。只在她让你加日历时用。",inputSchema:{type:"object",properties:{summary:{type:"string"},startTime:{type:"string"},endTime:{type:"string"},description:{type:"string"},allDay:{type:"boolean"}},required:["summary","startTime","endTime"]},
       execute:async(a)=>{const r=await MCP.callTool(SM,"calendar_add",a,{cache:false});const v=smPayload(r,true);return v||"（没加上）"}},
     {name:"calendar_list",description:"查看 Catherine 个人 Google 日历某段时间里的日程（美东时间 YYYY-MM-DDTHH:MM），加之前可以先看有没有冲突。",inputSchema:{type:"object",properties:{startTime:{type:"string"},endTime:{type:"string"}},required:["startTime","endTime"]},
-      execute:async(a)=>{const r=await MCP.callTool(SM,"calendar_list",a,{cache:false});return smPayload(r,true)||"[]"}}]}
-const DRIVE_HINT="\n\n（你可以用 drive_search 和 drive_read 两个工具直接去她的 Google Drive 找文件、读内容。她说文件在 Drive 里时，自己去找，不要让她再发。她让你把什么加到日历（个人 Google 日历）时，用 calendar_add 直接加，不用再问一遍；时间不清楚才问。加完告诉她加了什么、几点。但只在真的需要一份还没读过的文件时才用：上面「已经读过的 Drive 文件」里有的内容直接用，不要再搜再读；普通的讲解、出题、批改不需要碰 Drive。）";
+      execute:async(a)=>{const r=await MCP.callTool(SM,"calendar_list",a,{cache:false});return smPayload(r,true)||"[]"}},
+    {name:"gmail_search",description:"搜 Catherine 的 Gmail 邮件，query 用 Gmail 搜索语法（比如 from:canvas newer_than:7d、subject:quiz、is:unread in:inbox）。返回邮件串的 id、主题、发件人、日期、摘要。要看全文用 gmail_read。",inputSchema:{type:"object",properties:{query:{type:"string"}},required:["query"]},
+      execute:async({query})=>{const r=await MCP.callTool("Gmail","search_threads",{query,pageSize:10,view:"THREAD_VIEW_SUMMARY"},{cache:false});return JSON.stringify(r&&r.payload!==undefined?r.payload:r).slice(0,12000)}},
+    {name:"gmail_read",description:"读一封邮件串的全文（参数是 gmail_search 给的 thread id）。",inputSchema:{type:"object",properties:{id:{type:"string"}},required:["id"]},
+      execute:async({id})=>{const r=await MCP.callTool("Gmail","get_thread",{threadId:id,messageFormat:"PLAIN_TEXT"},{cache:false});return JSON.stringify(r&&r.payload!==undefined?r.payload:r).slice(0,16000)}}]}
+const DRIVE_HINT="\n\n（你可以用 drive_search 和 drive_read 两个工具直接去她的 Google Drive 找文件、读内容。她说文件在 Drive 里时，自己去找，不要让她再发。她问邮件的事（有没有新邮件、某个老师/Canvas 发了什么、找某封邮件）时，用 gmail_search 和 gmail_read 自己去查；只读，不要替她发邮件。她让你把什么加到日历（个人 Google 日历）时，用 calendar_add 直接加，不用再问一遍；时间不清楚才问。加完告诉她加了什么、几点。但只在真的需要一份还没读过的文件时才用：上面「已经读过的 Drive 文件」里有的内容直接用，不要再搜再读；普通的讲解、出题、批改不需要碰 Drive。）";
 let DCACHE={};try{DCACHE=JSON.parse(localStorage.getItem("zs-drive-cache")||"{}")||{}}catch(e){}
 const DTITLE={};let DSUBJ="";
 function dcSave(){try{const ks=Object.keys(DCACHE).sort((a,b)=>DCACHE[b].at-DCACHE[a].at);let tot=0;for(const k of ks){tot+=DCACHE[k].text.length;if(tot>150000)delete DCACHE[k]}localStorage.setItem("zs-drive-cache",JSON.stringify(DCACHE))}catch(e){}}
@@ -2154,7 +2158,7 @@ function zwNowNote(){const now=new Date();return"（现在 "+pad(now.getHours())
 /* 日常模式（非学习）：零当随身助手，不带科目和教学规则 */
 const LIFE_RULES=`你是「零」，Catherine 的随身小助手，现在是日常模式（不是学习模式）。她是 Cornell 大一新生，在 Ithaca，美东时间。
 - 用中文，简洁、直接、像靠谱的朋友。不写剧情，不出题，不讲课，不提醒学习，除非她问。
-- 能帮她做的事：往她的个人 Google 日历加日程或查日程（calendar_add、calendar_list），在 Google Drive 里找文件、读内容，回答日常问题，帮她起草消息或邮件，帮她规划一天，记住事情。
+- 能帮她做的事：查她的 Gmail 邮件（gmail_search、gmail_read，只读），往她的个人 Google 日历加日程或查日程（calendar_add、calendar_list），在 Google Drive 里找文件、读内容，回答日常问题，帮她起草消息或邮件，帮她规划一天，记住事情。
 - 加日历：她说要加就直接加，不用再确认；时间不清楚才问一句。加完说清楚加了什么、哪天几点。
 - 她说「记住……」时，在回复最后单独写一行 [记住] 要记的内容（一句完整的话），会存进她的共享记忆。共享记忆里搜到的内容会附在下面，可以直接用。
 - 如果她问的明显是某门课的学习问题，回复第一行单独写 [科目] math（或 chem、engri、engl），然后正常回答。`;

@@ -18,6 +18,7 @@ const SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/drive.readonly",
   "https://www.googleapis.com/auth/drive.file",
+  "https://www.googleapis.com/auth/gmail.readonly",
 ].join(" ");
 // 第二个账号（Cornell）：存文件，也让 AI 读学校 Drive 里的作业（电脑上的 Cornell 文件夹同步在这里）
 const CORNELL_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive.readonly"].join(" ");
@@ -123,7 +124,7 @@ export async function googleStatus(env: SiteEnv) {
   const scope = (await env.OAUTH_KV.get("google:scope")) || "";
   const cornell = configured && !!(await env.OAUTH_KV.get("google:cornell:refresh"));
   return { configured, connected, email: connected ? (await env.OAUTH_KV.get(K_EMAIL)) || "" : "",
-    needsUpgrade: connected && !(scope.includes("calendar.events") && scope.includes("drive.file")),
+    needsUpgrade: connected && !(scope.includes("calendar.events") && scope.includes("drive.file") && scope.includes("gmail.readonly")),
     cornell, cornellEmail: cornell ? (await env.OAUTH_KV.get("google:cornell:email")) || "" : "",
     cornellRead: cornell && String((await env.OAUTH_KV.get("google:cornell:scope")) || "").includes("drive.readonly") };
 }
@@ -373,6 +374,31 @@ export async function aiDriveRead(env: SiteEnv, id: string, acct?: string) {
 }
 
 // ---------- 对外入口 ----------
+// ---------- Gmail（个人账号，只读） ----------
+function b64url(s: string) { try { const b = atob(s.replace(/-/g, "+").replace(/_/g, "/")); return new TextDecoder().decode(Uint8Array.from(b, (c) => c.charCodeAt(0))); } catch { return ""; } }
+function hdr(m: any, n: string) { return ((m?.payload?.headers || []).find((h: any) => String(h.name).toLowerCase() === n) || {}).value || ""; }
+function plainOf(part: any): string {
+  if (!part) return "";
+  if (part.mimeType === "text/plain" && part.body?.data) return b64url(part.body.data);
+  for (const p of part.parts || []) { const t = plainOf(p); if (t) return t; }
+  if (part.mimeType === "text/html" && part.body?.data) return b64url(part.body.data).replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  return "";
+}
+export async function gmailSearch(env: SiteEnv, query: string) {
+  const q = new URLSearchParams({ q: query, maxResults: "10" });
+  const o = await gjson(env, `https://gmail.googleapis.com/gmail/v1/users/me/threads?${q}`);
+  const out = [];
+  for (const t of (o.threads || []).slice(0, 10)) {
+    const d = await gjson(env, `https://gmail.googleapis.com/gmail/v1/users/me/threads/${t.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`);
+    const last = (d.messages || []).slice(-1)[0];
+    out.push({ id: t.id, subject: hdr(last, "subject"), from: hdr(last, "from"), date: hdr(last, "date"), snippet: last?.snippet || t.snippet || "", messages: (d.messages || []).length });
+  }
+  return out;
+}
+export async function gmailRead(env: SiteEnv, id: string) {
+  const d = await gjson(env, `https://gmail.googleapis.com/gmail/v1/users/me/threads/${encodeURIComponent(id)}?format=full`);
+  return (d.messages || []).map((m: any) => ({ from: hdr(m, "from"), to: hdr(m, "to"), date: hdr(m, "date"), subject: hdr(m, "subject"), body: plainOf(m.payload).slice(0, 6000) }));
+}
 export async function googleTool(env: SiteEnv, server: string, tool: string, input: Record<string, any>): Promise<unknown> {
   if (server === "Google Calendar" && tool === "list_events") return listEvents(env, input);
   if (server === "Google Calendar" && tool === "create_event") return createEvent(env, input);

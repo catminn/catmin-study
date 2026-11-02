@@ -133,6 +133,8 @@ const DRIVE_TOOLS = [
   { name: "drive_search", description: "在 Catherine 的 Google Drive 里按文件名搜索，返回文件 id、标题、类型、修改时间。关键词尽量短，比如 HW8、Quiz 3、Lab 8；搜不到就换个关键词再试。", input_schema: { type: "object", properties: { query: { type: "string", description: "文件名里包含的关键词" } }, required: ["query"] } },
   { name: "drive_read", description: "读出 Google Drive 里一个文件的文字内容（PDF、Google 文档、Word 等），参数是 drive_search 给的 id。", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
   { name: "calendar_add", description: "在 Catherine 的个人 Google 日历上添加一个日程。时间用美东时间，格式 YYYY-MM-DDTHH:MM；全天的设 allDay 为 true。只在她让你加日历时用。", input_schema: { type: "object", properties: { summary: { type: "string" }, startTime: { type: "string" }, endTime: { type: "string" }, description: { type: "string" }, allDay: { type: "boolean" } }, required: ["summary", "startTime", "endTime"] } },
+  { name: "gmail_search", description: "搜 Catherine 个人 Gmail 的邮件，query 用 Gmail 搜索语法（比如 from:canvas newer_than:7d、is:unread in:inbox）。返回 id、主题、发件人、日期、摘要。", input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+  { name: "gmail_read", description: "读一封邮件串的全文，参数是 gmail_search 给的 id。只读。", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
   { name: "calendar_list", description: "查看 Catherine 个人 Google 日历某段时间里的日程（美东时间 YYYY-MM-DDTHH:MM），加之前可以先看有没有冲突。", input_schema: { type: "object", properties: { startTime: { type: "string" }, endTime: { type: "string" } }, required: ["startTime", "endTime"] } },
 ];
 async function runDriveTool(env: SiteEnv, name: string, input: any, seen?: { titles: Record<string, string>; files: { id: string; title: string; text: string }[] }): Promise<string> {
@@ -148,6 +150,11 @@ async function runDriveTool(env: SiteEnv, name: string, input: any, seen?: { tit
       const t = String(r.fileContent || "").slice(0, 24000);
       if (seen && t) seen.files.push({ id, title: seen.titles[id] || r.title || id, text: t });
       return t || "（读不出文字）";
+    }
+    if (name === "gmail_search" || name === "gmail_read") {
+      const g = await import("./google");
+      if (name === "gmail_search") return JSON.stringify(await g.gmailSearch(env, String(input?.query || ""))).slice(0, 12000);
+      return JSON.stringify(await g.gmailRead(env, String(input?.id || ""))).slice(0, 16000);
     }
     if (name === "calendar_add" || name === "calendar_list") {
       const { googleTool } = await import("./google");
