@@ -1832,7 +1832,11 @@ function renderMd(text){const wrap=h("div");const maths=[],figs=[];const t=Strin
 /* 零画的图：```svg 直接显示，```plotly 用 Plotly 画（函数图、3D 曲面、数据图）；都能下载 PNG */
 const PLOTLY=["https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js","https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"];
 async function loadPlotly(){if(window.Plotly)return;for(const u of PLOTLY){try{await loadScript(u);if(window.Plotly)return}catch(e){}}throw new Error("画图组件没加载成功")}
-function figDownload(name,getUrl){return h("button",{class:"btn sm flat zw-figdl",onclick:async()=>{try{const url=await getUrl();const a=document.createElement("a");a.href=url;a.download=name;document.body.append(a);a.click();a.remove()}catch(e){toast("没下载成功")}}},"下载 PNG")}
+function figDownload(name,getUrl){return h("button",{class:"btn sm flat zw-figdl",onclick:async()=>{try{const url=await getUrl();
+  /* 在 Claude 里打开时，页面不能直接下载，要走 downloads */
+  const C=window.claude;const dl=!window.__SITE&&C&&C.use?await C.use("downloads"):null;
+  if(dl){const blob=await (await fetch(url)).blob();try{await dl.save({filename:name,data:blob})}catch(e){if(e&&e.code!=="declined")toast("没下载成功")}return}
+  const a=document.createElement("a");a.href=url;a.download=name;document.body.append(a);a.click();a.remove()}catch(e){toast("没下载成功")}}},"下载 PNG")}
 function svgToPng(svgEl){return new Promise((ok,no)=>{const xml=new XMLSerializer().serializeToString(svgEl);const vb=svgEl.viewBox&&svgEl.viewBox.baseVal;const w=(vb&&vb.width)||svgEl.clientWidth||600,hh=(vb&&vb.height)||svgEl.clientHeight||400,sc=Math.max(2,1200/w);
   const img=new Image();img.onload=()=>{const c=document.createElement("canvas");c.width=w*sc;c.height=hh*sc;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);ok(c.toDataURL("image/png"))};img.onerror=no;
   img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(xml.includes("xmlns=")?xml:xml.replace("<svg",'<svg xmlns="http://www.w3.org/2000/svg"'))})}
