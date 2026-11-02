@@ -94,9 +94,11 @@ function glassFor(win, on) {
 let labCfg = null, labTimer = null, labLog = [];
 async function labPoll() {
   try {
-    const r = await session.fromPartition(PART).fetch(SITE + "/glass-lab.json?t=" + Date.now(), { cache: "no-store" });
-    if (!r.ok) return;
-    const j = await r.json();
+    // 用待办页面去取（同源，带登录），比主进程直接请求可靠
+    const w = [todo, zero].find((x) => x && !x.isDestroyed());
+    if (!w) return;
+    const txt = await w.webContents.executeJavaScript(`fetch("/glass-lab.json?t=${Date.now()}",{cache:"no-store",credentials:"include"}).then(r=>r.ok?r.text():"").catch(()=>"")`);
+    let j; try { j = JSON.parse(txt); } catch (e) { if (!labPoll.warned) { labPoll.warned = true; dlog("lab fetch bad", String(txt).slice(0, 80)); } return; }
     const s = j.small || null;
     if (JSON.stringify(s) !== JSON.stringify(smallLab)) {
       const recreate = ((smallLab && smallLab.transparent) === false) !== ((s && s.transparent) === false);
