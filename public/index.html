@@ -1,9 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="apple-touch-icon" href="/icon-180.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="小助手"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
-/* iPhone 输入框字小于 16px 会自动放大页面 */
-@media (max-width:820px),(pointer:coarse){input,textarea,select{font-size:16px!important}}
-/* 副本聊天不显示头像 */
-.dg .chat .ln .face,.dg .chat .ln.zero .zface{display:none}
-</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="apple-touch-icon" href="/icon-180.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="小助手"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>学习空间</title>
 <link rel="apple-touch-icon" href="https://study.catmin.io/icon-180.png"><link rel="icon" href="https://study.catmin.io/icon-192.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="小助手"><meta name="theme-color" content="#141a35">
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -505,6 +500,24 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 .story p{margin:0;text-wrap:pretty}
 .fatebox{border:2px dashed var(--tint);border-radius:14px;padding:10px 14px;background:color-mix(in oklab,var(--tint) 8%,var(--panel));display:flex;flex-direction:column;gap:6px}
 .zfrag{border-left:5px solid var(--accent);background:var(--accent-soft);border-radius:0 12px 12px 0;padding:8px 14px;font-size:15px}
+
+/* ⋯ 面板：桌面上照常排在左栏；手机上像控制中心一样从顶上拉下来，盖在聊天上 */
+.dg-sheet{display:contents}
+.dg-sheet-res .dg-res{display:flex!important;margin:0}
+.sklist .skc{padding:8px 0;border-top:1px solid rgba(255,255,255,.1)}.sklist .skc:first-child{border-top:0}
+.sklist .skb{opacity:.85;margin-top:4px;font-size:14px;line-height:1.65}.sklist .skb .btn{margin-top:6px}
+@media (max-width:820px){
+  .dg-side{position:relative}
+  .dg-sheet{display:flex;flex-direction:column;gap:8px;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:30;max-height:min(70vh,560px);overflow-y:auto;padding:12px;border-radius:20px;background:rgba(14,17,34,.94);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.12);box-shadow:0 18px 48px rgba(0,0,0,.45);opacity:0;transform:translateY(-12px);pointer-events:none;transition:opacity .2s cubic-bezier(.22,1,.36,1),transform .2s cubic-bezier(.22,1,.36,1)}
+  body.dg-more .dg-sheet{opacity:1;transform:none;pointer-events:auto}
+  body:not(.dg-more) .dg .dg-sheet .fighters{display:flex!important}
+}
+/* iPhone 输入框字小于 16px 会自动放大页面 */
+@media (max-width:820px),(pointer:coarse){input,textarea,select{font-size:16px!important}}
+/* 副本聊天不显示头像 */
+.dg .chat .ln .face,.dg .chat .ln.zero .zface{display:none}
+
+.sklist .skc,.sklist .skc div{background:none;border:0;border-radius:0;padding:0}.sklist .skc{padding:8px 0 8px 10px;border-left:3px solid #f0c060;border-radius:6px;background:rgba(255,248,230,.08)}
 </style>
 
 <script>window.MathJax={tex:{inlineMath:[["$","$"],["\\(","\\)"]],displayMath:[["$$","$$"],["\\[","\\]"]]},svg:{fontCache:"global"},startup:{typeset:false,pageReady:()=>MathJax.startup.defaultPageReady().then(()=>{const c=document.getElementById("chat");return c?MathJax.typesetPromise([c]):null}).catch(()=>{})}};</script>
@@ -568,6 +581,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
       <aside class="dg-side">
         <div class="dg-tabrow"><div class="dg-tabs" id="dTabs"></div><button class="dg-more-btn" id="dgMore" type="button" aria-label="展开状态、专注和待处理" title="状态、专注、待处理">⋯</button></div>
         <div class="dg-loc"><div class="st-eye" id="dEyebrow"></div><h2 class="st-title" id="dWorld"></h2><div class="arcline" id="dArc"></div><div class="st-place" id="dPlace"></div></div>
+        <div class="dg-sheet" id="dgSheet">
         <div class="fighters">
           <div class="me" id="me"><div class="ava">C</div><div><b>Catherine</b><div class="hearts" id="hearts"></div></div></div>
           <div class="foe" id="foe"></div>
@@ -576,6 +590,8 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
         <div class="quest" id="questBar" hidden></div>
         <details class="duep" id="duePanel" hidden open><summary id="dueSum"></summary><div class="duelist" id="dueList"></div></details>
         <details class="duep" id="skillPanel" hidden style="border-color:rgba(240,192,96,.6)"><summary id="skillSum"></summary><div class="sklist" id="skillList"></div></details>
+        <div class="dg-sheet-res" id="dgSheetRes"></div>
+        </div>
         <div class="cast" id="cast"></div>
         <div class="row dg-tools"><button class="btn sm glass" id="deepBtn" title="复制当前进度，粘贴到 Claude 项目里继续">进项目深聊</button><button class="btn sm glass" id="smSaveBtn">存进共享记忆</button><button class="btn sm glass" id="clearBtn">清空记录</button></div>
       </aside>
@@ -946,7 +962,7 @@ const COMMON_RULES=`你在写一部和玩家实时互动的无限流小说，同
 - 每回合的格式（照这个顺序，每块单独起一行）：
   1. 她作答之后，第一行先判定。答对写「✅ 正确！」加半句剧情反馈；答错写「❌ 差一点！不扣血，再试一次。」，接着给一个具体提示（指出哪一步错了），然后把同一问再问一遍。
   2. 剧情推进：「旁白：」一两句写发生了什么；有角色需要说话时再加一两句台词，没有就不加。
-  3. 需要新知识时，单独起一行「📜 新技能解锁：名称」，下面用大白话讲：一个生活里的类比，最多一个公式，再用一句话说怎么用。不要一次讲两个技能。
+  3. 需要新知识时，单独起一行「📜 新技能解锁：名称」，紧接着在下一行开始讲解（不要加「零：」之类的前缀，不要只写个标题），用大白话讲：一个生活里的类比，最多一个公式，再用一句话说怎么用。不要一次讲两个技能。
   4. 最后只问一个小问题，单独一行写「第 N 问：……」，N 接着上一问往下编（答错重问时编号不变）。问题要小到她回一个数字、一个词或一句话就能答，可以在括号里给提示，比如（提示：GR = 输出齿数 ÷ 输入齿数）。
 - 大题拆成小步，一步一问。她跳步直接答对，就算「暴击」，跳过中间步骤往下走。
 - 这一步的答案正好是作业、模拟卷或课件原题的答案时，加一行「🏆 ……」告诉她。
@@ -1515,10 +1531,12 @@ function openPublicSheet(){const list=SIDE.filter(q=>!q.subj);sheet(null,h("h2",
 function dueItems(subj){const now=Date.now();return{tasks:occurrences().filter(o=>o.subj===subj&&isOpen(o)&&o.soft-now<2*DAY),mons:reviveDue(subj)}}
 function dueDot(subj,n){return h("span",{class:"dot",title:"两天内要做的"},n)}
 function renderSkills(){const p=$("#skillPanel");if(!p)return;const L=(S.skills||{})[CUR]||[];p.hidden=!L.length||CUR==="engl";if(p.hidden)return;$("#skillSum").textContent="技能卡 "+L.length;
-  $("#skillList").replaceChildren(...L.slice().reverse().map(x=>{const d=h("div",null,h("b",null,x.n),x.b?h("div",{style:{opacity:.8}},renderMd(x.b)):null);return d}));typeset($("#skillList"))}
+  $("#skillList").replaceChildren(...L.slice().reverse().map(x=>h("div",{class:"skc"},h("b",null,x.n),x.b&&x.b.length>=60?h("div",{class:"skb"},renderMd(x.b)):h("div",{class:"skb"},x.b?renderMd(x.b):null,h("button",{class:"btn sm glass",onclick:()=>explainSkill(x.n)},"让零讲一下")))));typeset($("#skillList"))}
+function explainSkill(n){document.body.classList.remove("dg-more");if(CTL||!SAMPLE){toast("等零说完这句");return}send("讲一下技能「"+n+"」：它是什么、什么时候用、标准步骤，再配一个最小的例子（带完整过程）。用「📜 新技能解锁："+n+"」开头，讲解直接写在下面。")}
 function harvest(subj,text){S.skills=S.skills||{};S.qn=S.qn||{};const arr=S.skills[subj]=S.skills[subj]||[];
-  for(const b of parseTurn(text)){if(b.k==="skill"){const lines=b.text.split("\n");const n=lines[0].replace(/^\s*(?:\*\*)?\s*📜\s*/,"").replace(/\*\*/g,"").replace(/^新技能解锁[：:]\s*/,"").slice(0,30);
-      const body=(lines.slice(1).find(l=>/[=＝]|\$/.test(l))||"").trim().slice(0,160);if(n&&!arr.some(x=>x.n===n))arr.push({n,b:body,at:Date.now()})}
+  const bl=parseTurn(text);for(let bi=0;bi<bl.length;bi++){const b=bl[bi];if(b.k==="skill"){const lines=b.text.split("\n");const n=lines[0].replace(/^\s*(?:\*\*)?\s*📜\s*/,"").replace(/\*\*/g,"").replace(/^新技能解锁[：:]\s*/,"").slice(0,30);
+      let body=lines.slice(1).join("\n").trim();if(!body&&bl[bi+1]&&/^say:零$/.test(bl[bi+1].k))body=bl[bi+1].text.trim();body=body.slice(0,900);
+      const ex=arr.find(x=>x.n===n);if(ex){if(body&&(!ex.b||ex.b.length<60))ex.b=body}else if(n)arr.push({n,b:body,at:Date.now()})}
     if(b.k==="q"){const m=b.text.match(/第\s*(\d+)\s*问/);if(m)S.qn[subj]=Math.max(+m[1],S.qn[subj]||0)}}
   if(arr.length>60)arr.splice(0,arr.length-60);
   const first=String(text).trim();return{ok:/^(?:\*\*)?\s*✅/.test(first),bad:/^(?:\*\*)?\s*❌/.test(first)}}
@@ -1838,7 +1856,7 @@ function aiTurnEl(t,reveal){const wrap=h("div",{class:"turn"});let lastK=null,la
     for(const b of parseTurn(t.content)){let el;const k=b.k;
     if(k==="ok"||k==="bad")el=h("div",{class:"ln vd "+k},renderMd(b.text.replace(/^\s*(✅|❌)\s*/,"")));
     else if(k==="skill"){const first=b.text.split("\n")[0].replace(/^\s*(?:\*\*)?\s*📜\s*/,"").replace(/\*\*/g,"");const rest=b.text.split("\n").slice(1).join("\n");
-      el=h("div",{class:"ln skill"},h("div",{class:"sk-h"},icon("book"),h("span",null,first.replace(/^新技能解锁[：:]\s*/,"新技能 · "))),rest?renderMd(rest):null)}
+      const nm=first.replace(/^新技能解锁[：:]\s*/,"").slice(0,30);el=h("div",{class:"ln skill"},h("div",{class:"sk-h"},icon("book"),h("span",null,"新技能 · "+nm)),rest.trim()?renderMd(rest):h("button",{class:"btn sm",style:{marginTop:"6px"},onclick:()=>explainSkill(nm)},"讲一下这个技能"))}
     else if(k==="q"){const mm=b.text.match(/^\s*(?:\*\*)?\s*(第\s*\d+\s*问)\s*(?:\*\*)?\s*[：:（(]?\s*/);const lab=mm?mm[1].replace(/\s+/g," "):"问题";
       el=h("div",{class:"ln qq2"},h("div",{class:"q-h"},lab),renderMd(mm?b.text.slice(mm[0].length):b.text))}
     else if(k==="achv")el=h("div",{class:"ln achv"},renderMd(b.text.replace(/^\s*🏆\s*/,"")));
@@ -1857,7 +1875,7 @@ function renderChat(){const box=$("#chat");box.replaceChildren();const turns=CHA
   if(!turns.length)box.append(h("div",{class:"ln hint"},SAMPLE?"直接说你想做什么":"需要在 Claude 里打开才能对话"));
   const lastIdx=turns.length-1;let revealEls=[];
   const tf=topicFrom(CUR);const tdiv=()=>h("div",{class:"ln topic-div"},"新话题");
-  turns.forEach((t,i)=>{if(i===tf&&tf>0)box.append(tdiv());if(t.quiz){box.append(quizSummary(t));return}
+  turns.forEach((t,i)=>{if(i===tf&&tf>0)box.append(tdiv());if(t.err){box.append(h("div",{class:"ln hint"},t.content));return}if(t.quiz){box.append(quizSummary(t));return}
     if(t.role==="user"){const el=h("div",{class:"ln me"});el.textContent=t.content;if(t.imgs)el.append(h("div",{style:{fontSize:"12px",opacity:.8}},"附了 "+t.imgs+" 张图"));box.append(el);return}
     const el=aiTurnEl(t,REVEAL&&i===lastIdx);box.append(el);if(REVEAL&&i===lastIdx)revealEls=[...el.children]});
   if(tf>0&&tf===turns.length)box.append(tdiv());
@@ -1957,7 +1975,7 @@ async function send(text){text=(text||$("#input").value).trim();if(!text||!SAMPL
   const subj=CUR;const turns=CHATS[subj];const imgs=IMGS.slice();turns.push({role:"user",content:text,imgs:imgs.length||undefined,at:Date.now()});IMGS=[];renderThumbs();
   CTL=new AbortController();renderDungeon();
   const box=$("#chat");const body=h("div",null,"思考中…");box.append(h("div",{class:"ln nar"},body));box.scrollTop=box.scrollHeight;
-  const hist=turns.slice(Math.max(topicFrom(subj),turns.length-16)).map(t=>({role:t.role,content:t.content||"（小测验）"}));while(hist.length&&hist[0].role!=="user")hist.shift();
+  const hist=turns.slice(Math.max(topicFrom(subj),turns.length-16)).filter(t=>!t.err).map(t=>({role:t.role,content:t.content||"（小测验）"}));while(hist.length&&hist[0].role!=="user")hist.shift();
   $("#stopBtn").hidden=false;$("#aiNote").textContent="";body.textContent="翻阅共享记忆…";
   if(SAGA[subj])syncTale(subj);
   const mem=await smSearch(subj,text);if(!CTL||CTL.signal.aborted){CTL=null;$("#stopBtn").hidden=true;renderDungeon();return}body.textContent="思考中…";
@@ -1968,7 +1986,7 @@ async function send(text){text=(text||$("#input").value).trim();if(!text||!SAMPL
   const dT=driveTools();if(dT||window.__SITE){const l=input[input.length-1];if(l&&typeof l.content==="string")l.content+=dcBlock(subj)+DRIVE_HINT}DSUBJ=subj;const opts={cache:false,modelTier:"complex",...(dT?{tools:dT}:{}),...(window.__SITE?{serverTools:["drive"],onFiles:fs=>fs.forEach(f=>{DTITLE[f.id]=f.title;dcPut(f.id,f.text,subj)})}:{}),signal:CTL.signal,onText:({text})=>{body.textContent=text.replace(TAG_RE,"").trim();box.scrollTop=box.scrollHeight}};
   if(imgs.length)opts.images=imgs.slice(0,5);
   try{const r=await SAMPLE(input,opts);PARSED_CHOICES=null;REVEAL=true;TAGFX=false;const clean=stripTags(subj,r.text);if(subj!=="engl")advanceBeat(subj,false);{const hv=harvest(subj,clean);if(!TAGFX&&S.battle[subj]){if(hv.ok)battleHit(subj);else if(hv.bad)battleMiss(subj)}}save();if(PARSED_CHOICES){PARSED_CHOICES=PARSED_CHOICES.map(x=>x.replace(/^[A-DＡ-Ｄ][.．、:：)]\s*/,""));for(let i=PARSED_CHOICES.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[PARSED_CHOICES[i],PARSED_CHOICES[j]]=[PARSED_CHOICES[j],PARSED_CHOICES[i]]}}turns.push({role:"assistant",at:Date.now(),content:clean||"（收到）",choices:PARSED_CHOICES||undefined,refs:pk.refs.length?pk.refs.slice(0,6):undefined});if(r.truncated)$("#aiNote").textContent="回答被截断了，可以说「继续」。"}
-  catch(e){if(e&&e.code!=="cancelled")$("#aiNote").textContent=sampleErr(e);if(e&&e.text)turns.push({role:"assistant",content:stripTags(subj,e.text)})}
+  catch(e){if(e&&e.code!=="cancelled"){$("#aiNote").textContent=sampleErr(e);if(!(e&&e.text))turns.push({role:"assistant",err:true,at:Date.now(),content:"（这句没回上来："+sampleErr(e)+(e&&e.code?" ["+e.code+"]":"")+"）"})}if(e&&e.text)turns.push({role:"assistant",content:stripTags(subj,e.text)})}
   finally{CTL=null;$("#stopBtn").hidden=true;CHATS[subj]=turns.slice(-30);saveChat(subj);if(curView()==="dungeon"&&CUR===subj)renderDungeon();renderHud()}}
 /* ---- 资料架 ---- */
 const LIB={math:[],chem:[],engri:[],engl:[]};const PART=20000;const LIB_BUDGET=36000;
@@ -2463,6 +2481,9 @@ document.addEventListener("copy",e=>{const sel=getSelection();if(!sel||sel.isCol
   const box=document.createElement("div");box.style.cssText="position:fixed;left:-9999px;white-space:pre-wrap";box.append(frag);document.body.append(box);let t=box.innerText;box.remove();
   if(!t.trim())t=sel.toString();t=t.normalize("NFKC").replace(/\u2061|\u2062|\u2063/g,"");e.clipboardData.setData("text/plain",t);e.preventDefault()});
 setTimeout(()=>{const b=$("#hSleep");if(b)b.onclick=()=>sleepAwake()?wakeUp():goodnight()},0);
+setTimeout(()=>{const sh=$("#dgSheetRes"),res=document.querySelector(".dg .dg-res"),stop=$("#stopBtn"),note=$("#aiNote"),send=$("#sendBtn");
+  {const comp=$("#composer");if(note&&comp)comp.append(note);if(stop&&send)send.before(stop)}if(sh&&res&&matchMedia("(max-width:820px)").matches)sh.append(res);
+  document.addEventListener("click",e=>{if(!document.body.classList.contains("dg-more")||!matchMedia("(max-width:820px)").matches)return;if(e.target.closest("#dgSheet,#dgMore,.sheet,.qz"))return;document.body.classList.remove("dg-more")},true)},0);
 setTimeout(()=>{const b=$("#dgMore");if(!b)return;b.onclick=()=>document.body.classList.toggle("dg-more");setInterval(()=>{const d=$("#duePanel");b.classList.toggle("dot",!!(d&&!d.hidden))},1500)},0);
 /* 网页版 ⇄ Claude 版：进度两边同步，零在 Claude 版走订阅额度 */
 setTimeout(()=>{const a=$("#hSwitch");if(!a)return;if(window.__SITE){a.href="https://claude.ai/artifact/3Ukw8PKz49H1GtFNNBVcGh";a.innerHTML="⇄<span class=swt> Claude 版</span>";a.title="在 Claude 里打开（零用订阅额度和最强模型）";a.hidden=false}
