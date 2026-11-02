@@ -662,7 +662,7 @@ const NS="http://www.w3.org/2000/svg";
 function icon(id){const s=document.createElementNS(NS,"svg");s.setAttribute("class","i");const u=document.createElementNS(NS,"use");u.setAttribute("href","#i-"+id);s.append(u);return s}
 const DAY=864e5,HOUR=36e5,MIN=6e4;
 /* 积分 = 美元。旧规则按 12 旧分 = 1 美元换算；经验值仍按旧分计，等级速度不变 */
-const USD=1.2,PER_USD=10,r1=x=>Math.round(x*10)/10,R=x=>x>0?Math.max(1,Math.round(x/USD)):0,fp=x=>String(Math.round(x)),PT=x=>R(x),CNY_PER_PT=0.4;
+const USD=0.8,XP_PER=1.2,PER_USD=10,r1=x=>Math.round(x*10)/10,R=x=>x>0?Math.max(1,Math.round(x/USD)):0,fp=x=>String(Math.round(x)),PT=x=>R(x),CNY_PER_PT=0.4;
 const pad=n=>String(n).padStart(2,"0");
 const localKey=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const dayKey=(t=Date.now())=>localKey(new Date(t-4*HOUR));
@@ -1028,11 +1028,26 @@ ${mem}
   catch(e){S.dynErr=(e&&e.code)==="no_mem"?SM_STATE:sampleErr(e);if(S.dyn)S.dyn.at=Date.now();save()}
   finally{SYNCING=false;renderSyncRow()}}
 function renderSyncRow(){const el=$("#syncNote");if(!el)return;el.textContent=SYNCING?"同步中…":S.dyn&&S.dyn.data?"上次同步 "+fmtDue(S.dyn.at):S.dynErr||"还没同步"}
-const SHOP_REAL=[
-  {id:"g30",name:"游戏 30 分钟",price:25,mins:30,ic:"game",desc:""},
-  {id:"g60",name:"游戏 1 小时",price:50,mins:60,ic:"game",desc:""},
-  {id:"g120",name:"游戏 2 小时",price:100,mins:120,ic:"game",desc:""}
-];
+const SHOP_REAL=[];
+/* 游戏：开始计时，玩完停止，按真实时长扣分。同一天累计越久，每分钟越贵（分段累进），拆成几次玩也一样 */
+const PLAY_TIERS=[[30,0.7],[60,0.9],[120,1.2],[1e9,1.6]];
+function playCost(before,dur){let c=0,t=before,end=before+dur,lo=0;for(const [hi,r] of PLAY_TIERS){if(t<hi&&end>lo){const a=Math.max(t,lo),b=Math.min(end,hi);if(b>a)c+=(b-a)*r}lo=hi}return Math.round(c)}
+function playedToday(){const d=dayKey();return (S.playLog||[]).filter(x=>x.day===d).reduce((s,x)=>s+x.min,0)}
+const playing=()=>!!(S.timer&&S.timer.meter);
+function playMin(){return S.timer&&S.timer.meter?Math.max(0,(Date.now()-S.timer.start)/MIN):0}
+function playNow(){const m=playMin();return{m,cost:S.timer&&S.timer.free?0:playCost(playedToday(),m)}}
+function startPlay(){if(S.timer&&S.timer.end>Date.now()){toast("已经在计时了");return}const free=isRestToday();
+  if(!free&&S.points<=0){toast("积分不够，先去做点作业");return}
+  S.timer={label:free?"游戏中（休息日免费）":"游戏中",start:Date.now(),end:Date.now()+6*HOUR,meter:1,free};save();renderAll();toast("开始计时，玩完记得点「玩完了」")}
+function stopPlay(){if(!playing())return;const {m,cost}=playNow(),min=Math.round(m);S.playLog=(S.playLog||[]).filter(x=>Date.now()-x.at<14*DAY);S.playLog.push({day:dayKey(),min:m,at:Date.now()});
+  const lab=S.timer.free;S.timer=null;if(cost>0)earn(-cost,"游戏 "+min+" 分钟");else S.ledger.push({at:Date.now(),d:0,t:"游戏 "+min+" 分钟"+(lab?"（休息日免费）":"")});
+  save();renderAll();if(DESK&&DESK.gameMode)DESK.gameMode(false,-1);toast("玩了 "+min+" 分钟"+(cost?"，扣 "+cost+" 分":""))}
+function affordMin(){if(isRestToday())return Infinity;const b=playedToday();let m=0;while(m<600&&playCost(b,m+1)<=S.points)m++;return m}
+function playCard(){const on=playing(),free=isRestToday(),b=playedToday(),am=affordMin();
+  return h("div",{class:"item"},h("div",{class:"row between"},h("div",{class:"ic"},icon("game")),h("span",{class:"price"},free?"免费":"按分钟")),h("h3",null,"玩游戏"),
+    h("p",null,free?"休息日，随便玩":"开始计时，玩完点停，按真实时长扣分。当天累计：前 30 分钟每分钟 0.7，30–60 分钟 0.9，1–2 小时 1.2，超过 2 小时 1.6。"),
+    h("div",{class:"dim small"},"今天已玩 "+Math.round(b)+" 分钟"+(free?"":" · 现在的积分够玩约 "+am+" 分钟")),
+    h("div",{class:"row"},on?h("button",{class:"btn sm go",onclick:stopPlay},"玩完了"):h("button",{class:"btn sm"+((free||am>0)?" go":""),onclick:startPlay},"开始玩")))}
 const CNY_TIERS=[["6",6],["15",15],["30",30],["60",60],["100",100],["180",180],["300",300],["600",600],["月卡",30],["战令",68],["战令",128]];
 const SHOP_ITEMS=[
   {id:"makeup",name:"补签卡",price:35,ic:"ticket",desc:"补上漏掉的一天签到"},
@@ -1075,7 +1090,7 @@ function flush(){if(!dirty)return;dirty=false;trimState();S.savedAt=Date.now();i
   saving=saving.then(async()=>{if(stateRef){try{await stateRef.set(body);if(DESK&&DESK.saved)DESK.saved();if($("#saveBanner").dataset.err)banner("")}catch(e){banner("存档没写进去（"+((e&&e.code)||"错误")+"），刷新后再试。",true)}}else{try{localStorage.setItem("zs-state",JSON.stringify(body))}catch(e){}}})}
 function banner(t,err){const b=$("#saveBanner");b.textContent=t;b.hidden=!t;if(err)b.dataset.err="1";else delete b.dataset.err}
 function smEvent(text,subj){S.smLog=S.smLog||[];S.smLog.push({at:Date.now(),s:subj||"",t:String(text).slice(0,160)});if(S.smLog.length>200)S.smLog.shift()}
-function earn(delta,text){delta=r1(delta);if(text&&!/^(兑换|购买|花费)/.test(text))smEvent(text+(delta?"（"+(delta>0?"+":"")+delta+" 分）":""));S.points=r1(S.points+delta);if(delta>0)S.xp+=Math.round(delta*USD);S.ledger.push({at:Date.now(),d:delta,t:text})}
+function earn(delta,text){delta=r1(delta);if(text&&!/^(兑换|购买|花费)/.test(text))smEvent(text+(delta?"（"+(delta>0?"+":"")+delta+" 分）":""));S.points=r1(S.points+delta);if(delta>0)S.xp+=Math.round(delta*XP_PER);S.ledger.push({at:Date.now(),d:delta,t:text})}
 function levelOf(xp){let L=1;while(xp>=60*L*(L+1)/2)L++;const lo=60*(L-1)*L/2,hi=60*L*(L+1)/2;return{L,lo,hi,title:LEVELS[Math.min(L-1,LEVELS.length-1)]}}
 
 /* ============ rewards ============ */
@@ -1192,7 +1207,7 @@ function ratingBlock(subj,w){const sg=sagaState(subj);sg.miss=sg.miss||{};sg.rat
     h("div",{class:hid?"":"dim"},h("b",null,"隐藏任务："),w.hidden+(hid?"，达成":"，没有达成")))}
 
 /* ============ saga: authored worlds and story ============ */
-const SG_FLAT={};const PREVIEW_PRICE=R(60);const AFTER=[];
+const SG_FLAT={};const PREVIEW_PRICE=50;const AFTER=[];
 function runAfter(){const f=AFTER.shift();if(f)setTimeout(f,250)}
 function sagaChapters(subj){return SG_FLAT[subj]||(SG_FLAT[subj]=SAGA[subj].flatMap((w,wi)=>w.ch.map((c,ci)=>({w,wi,ci,c}))).map((x,g)=>Object.assign(x,{g})))}
 function sagaState(subj){S.saga=S.saga||{};const s=S.saga[subj]||(S.saga[subj]={n:0});if(!s.seen)s.seen={};return s}
@@ -2133,9 +2148,10 @@ function spendBook(){const L=(S.spend||[]).slice().sort((a,b)=>b.at-a.at);if(!L.
     h("div",{class:"small dim",style:{margin:"6px 0"}},Object.entries(byCat).map(([k,v])=>k+" "+v).join(" · ")),
     h("div",{class:"log"},rows.map(x=>{const d=new Date(x.at);return h("div",null,h("span",{class:"num dim"},(d.getMonth()+1)+"/"+d.getDate()),h("span",null,x.cat+(x.note?" · "+x.note:"")+" · "+(x.cur==="cny"?"¥":"$")+x.amt),
       h("span",{class:"num minus"},"-"+fp(x.pts),h("button",{class:"btn sm flat",style:{marginLeft:"6px",padding:"0 6px"},onclick:()=>del(x),"aria-label":"删除"},"×")))})))}
-function renderShop(){renderSpend();$("#shopReal").replaceChildren(...SHOP_REAL.map(i=>itemCard(i,true)),...S.customRewards.map(i=>itemCard(Object.assign({custom:true,ic:"gift",desc:"自定义奖励"},i),true)));
+function renderShop(){renderSpend();$("#shopReal").replaceChildren(playCard(),...SHOP_REAL.map(i=>itemCard(i,true)),...S.customRewards.map(i=>itemCard(Object.assign({custom:true,ic:"gift",desc:"自定义奖励"},i),true)));
   $("#shopItems").replaceChildren(...SHOP_ITEMS.map(i=>itemCard(i,false)));$("#shopStory").replaceChildren(...storyShopCards());renderTimer()}
-function renderTimer(){const c=$("#timerCard");if(!S.timer){c.hidden=true;return}c.hidden=false;const left=S.timer.end-Date.now();$("#tLabel").textContent=S.timer.label;c.classList.toggle("over",left<=0);
+function renderTimer(){const c=$("#timerCard");if(!S.timer){c.hidden=true;return}c.hidden=false;
+  if(S.timer.meter){const {m,cost}=playNow();$("#tLabel").textContent=S.timer.label;c.classList.remove("over");$("#tLeft").textContent=pad(Math.floor(m))+":"+pad(Math.floor(m*60%60))+(S.timer.free?"":" · "+cost+" 分");$("#tStop").textContent="玩完了";return}const left=S.timer.end-Date.now();$("#tLabel").textContent=S.timer.label;c.classList.toggle("over",left<=0);
   if(left<=0){$("#tLeft").textContent="时间到";$("#tStop").textContent="收起"}else{$("#tLeft").textContent=pad(Math.floor(left/MIN))+":"+pad(Math.floor(left%MIN/1e3));$("#tStop").textContent="提前结束"}}
 function renderBag(){renderSyncRow();renderArchive();$("#scoreList").replaceChildren(scoresBlock());$("#bagSum").textContent="积分 "+fp(S.points)+" · 时间碎片 "+S.shards+"/3";
   const inv=[["makeup","补签卡","ticket",""],["rest","休息券","ticket",""]];
@@ -2275,12 +2291,12 @@ const comp=$("#composer");comp.addEventListener("dragover",e=>{e.preventDefault(
 comp.addEventListener("drop",e=>{e.preventDefault();comp.classList.remove("drag");addImgs([...(e.dataTransfer?e.dataTransfer.files:[])])});
 $("#img").onchange=e=>{addFiles([...e.target.files]);e.target.value=""};$("#driveBtn").onclick=openDrive;$("#libBtn").onclick=openLib;
 $("#clearBtn").onclick=()=>{CHATS[CUR]=[];QUEST[CUR]=null;delete S.battle[CUR];save();saveChat(CUR);renderDungeon()};
-$("#deepBtn").onclick=deepCopy;$("#tStop").onclick=()=>{S.timer=null;save();renderTimer();if(DESK&&DESK.gameMode)DESK.gameMode(false,-1)};
+$("#deepBtn").onclick=deepCopy;$("#tStop").onclick=()=>{if(playing()){stopPlay();return}S.timer=null;save();renderTimer();if(DESK&&DESK.gameMode)DESK.gameMode(false,-1)};
 $("#crAdd").onclick=()=>{const n=$("#crName").value.trim(),p=Math.round(+$("#crPrice").value*PER_USD);if(!n||!(p>0)){toast("写上名字和价格");return}S.customRewards.push({id:"c"+uid(),name:n.slice(0,30),price:p});$("#crName").value="";$("#crPrice").value="";save();renderAll()};
 $("#syncBtn").onclick=()=>syncCourses(true);
 if(window.__SITE){$("#bakRow").hidden=false;$("#bakBtn").onclick=openBackups}
 $("#smSaveBtn").onclick=()=>smFlushClick(CUR);$("#smNowBtn").onclick=()=>smFlushClick();$("#smToggle").onchange=e=>{S.sharedMem=e.target.checked;save();renderBag()};
-setInterval(()=>{tickFocus();if(S.timer){renderTimer();if(S.timer.end<=Date.now()&&!S.timer.rang){S.timer.rang=true;toast("游戏时间到");save()}}},1000);
+setInterval(()=>{tickFocus();if(S.timer){renderTimer();if(!S.timer.meter&&S.timer.end<=Date.now()&&!S.timer.rang){S.timer.rang=true;toast("游戏时间到");save()}}},1000);
 setInterval(()=>{if(document.querySelector(".scrim,.pop"))return;softRefresh()},60e3);
 window.addEventListener("pagehide",flush);
 let resizeT;window.addEventListener("resize",()=>{clearTimeout(resizeT);resizeT=setTimeout(()=>{if(curView()==="map")renderMap();if(curView()==="dungeon"){measureBars();drawStage()}},200)});
@@ -2664,6 +2680,7 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
   const wk=t=>{const d=new Date(t);const days=Math.round((keyToDate(localKey(d))-keyToDate(localKey(new Date(now))))/DAY);return days<=0?(t<now?"过期":pad(d.getHours())+":"+pad(d.getMinutes())):days===1?"明天":"周"+WD[d.getDay()]};
   const line=(text,when,soon,done,toggle,onDel,onStart,active,onDue)=>h("div",{class:"td-row"+(done?" done":"")+(soon&&!done?" soon":"")+(active?" active":""),onclick:e=>{if(e.target.closest(".x,.go2"))return;toggle()}},h("span",{class:"ck"}),h("span",{class:"t"},text),when!==null&&onDue?h("span",{class:"w","aria-label":"改截止时间",onclick:e=>{e.stopPropagation();editDue(e.currentTarget,onDue)}},when||"＋时间"):when?h("span",{class:"w"},when):null,onStart&&!done?h("button",{class:"go2"+(active?" on":""),"aria-label":active?"暂停":"开始做",onpointerdown:e=>{e.preventDefault();e.stopPropagation();if(active)pauseTask();else onStart()},onclick:e=>e.stopPropagation()},active?"❚❚":"▶"):null,onDel?h("button",{class:"x","aria-label":"删除",onclick:onDel},"×"):null);
   const recent=k=>S.done[k]&&now-S.done[k].at<12*HOUR;const rows=[];
+  if(playing()){const {m,cost}=playNow();rows.push(line("游戏中 "+Math.round(m)+" 分钟"+(S.timer.free?"":" · "+cost+" 分")+" · 点这里玩完了","",true,false,()=>stopPlay()))}
   if(!checkedToday())rows.push(line("签到","",false,false,()=>DESK?DESK.openZero("daily"):openDaily(suggestSubj())));
   const dueOf=o=>o.soft<now&&o.hard>now?o.hard:o.soft;
   const items=[...occurrences().filter(o=>!S.skipped[o.key]&&(!S.done[o.key]||recent(o.key))&&dueOf(o)<now+5*DAY).map(o=>{const t=SUBJ[o.subj].name+" "+o.title;return{t,due:dueOf(o),done:!!S.done[o.key],go:()=>S.done[o.key]?undoDone(o.key,t):completeTask(o),start:()=>beginTask("occ",o.key,o.subj,t),key:o.key,setDue:v=>setDueFix(o.key,v),due0:dueOf(o)}}),
