@@ -384,8 +384,14 @@ ipcMain.on("todo-resize", (e, dw, dh) => { if (!todo || todo.isDestroyed() || to
 ipcMain.handle("get-pin", () => conf.todoPinned !== false);
 ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(!!v); if (tab && !tab.isDestroyed()) tab.setAlwaysOnTop(!!v, "screen-saver"); refreshMenu(); });
 // 游戏计时开始：把小圆、待办、零藏起来（记住原来哪些开着），计时结束再放回来
-let gameHidden = null;
+let gameHidden = null, gameEndT = null, gameUntil = 0;
 ipcMain.on("game-mode", (e, on, end) => {
+  // 某个窗口的旧存档说“没在玩”时不算数，只认“点了结束计时”或到点（end = -1）
+  if (!on && end !== -1 && gameUntil > Date.now()) return;
+  gameUntil = on ? end : 0;
+  // 到点自己结束（不等页面里的计时器，隐藏的窗口里计时器会被放慢）
+  clearTimeout(gameEndT);
+  if (on && end > Date.now()) gameEndT = setTimeout(() => ipcMain.emit("game-mode", null, false, -1), Math.min(end - Date.now() + 500, 2 ** 31 - 1));
   if (on && !gameHidden) {
     gameHidden = [bubble, todo, zero, tab].filter((w) => w && !w.isDestroyed() && w.isVisible());
     for (const w of gameHidden) w.hide();

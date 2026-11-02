@@ -1063,7 +1063,7 @@ let DB=null,UID=null,stateRef=null,saveTimer=null,saving=Promise.resolve(),dirty
 function save(){dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,400)}
 function trimState(){S.checkins=[...new Set(S.checkins)].slice(-300);S.restDays=S.restDays.slice(-80);S.ledger=S.ledger.slice(-400);S.mistakes=S.mistakes.slice(-100);
   for(const k in S.progress)S.progress[k]=S.progress[k].slice(-15);const cut=Date.now()-90*DAY;for(const m of[S.started,S.skipped])for(const k in m)if(m[k]<cut)delete m[k]}
-function flush(){if(!dirty)return;dirty=false;trimState();S.savedAt=Date.now();const body=clone(S);cloudQueue("state",()=>clone(S));
+function flush(){if(!dirty)return;dirty=false;trimState();S.savedAt=Date.now();if(window.zsDesktop&&window.zsDesktop.gameMode&&S.timer&&S.timer.end>Date.now())window.zsDesktop.gameMode(true,S.timer.end); /* 买了游戏时间立刻告诉桌面程序藏起小圆和待办 */const body=clone(S);cloudQueue("state",()=>clone(S));
   saving=saving.then(async()=>{if(stateRef){try{await stateRef.set(body);if(DESK&&DESK.saved)DESK.saved();if($("#saveBanner").dataset.err)banner("")}catch(e){banner("存档没写进去（"+((e&&e.code)||"错误")+"），刷新后再试。",true)}}else{try{localStorage.setItem("zs-state",JSON.stringify(body))}catch(e){}}})}
 function banner(t,err){const b=$("#saveBanner");b.textContent=t;b.hidden=!t;if(err)b.dataset.err="1";else delete b.dataset.err}
 function smEvent(text,subj){S.smLog=S.smLog||[];S.smLog.push({at:Date.now(),s:subj||"",t:String(text).slice(0,160)});if(S.smLog.length>200)S.smLog.shift()}
@@ -2259,7 +2259,7 @@ const comp=$("#composer");comp.addEventListener("dragover",e=>{e.preventDefault(
 comp.addEventListener("drop",e=>{e.preventDefault();comp.classList.remove("drag");addImgs([...(e.dataTransfer?e.dataTransfer.files:[])])});
 $("#img").onchange=e=>{addFiles([...e.target.files]);e.target.value=""};$("#driveBtn").onclick=openDrive;$("#libBtn").onclick=openLib;
 $("#clearBtn").onclick=()=>{CHATS[CUR]=[];QUEST[CUR]=null;delete S.battle[CUR];save();saveChat(CUR);renderDungeon()};
-$("#deepBtn").onclick=deepCopy;$("#tStop").onclick=()=>{S.timer=null;save();renderTimer()};
+$("#deepBtn").onclick=deepCopy;$("#tStop").onclick=()=>{S.timer=null;save();renderTimer();if(DESK&&DESK.gameMode)DESK.gameMode(false,-1)};
 $("#crAdd").onclick=()=>{const n=$("#crName").value.trim(),p=Math.round(+$("#crPrice").value*PER_USD);if(!n||!(p>0)){toast("写上名字和价格");return}S.customRewards.push({id:"c"+uid(),name:n.slice(0,30),price:p});$("#crName").value="";$("#crPrice").value="";save();renderAll()};
 $("#syncBtn").onclick=()=>syncCourses(true);
 if(window.__SITE){$("#bakRow").hidden=false;$("#bakBtn").onclick=openBackups}
