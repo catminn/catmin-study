@@ -41,7 +41,7 @@ function smallApplyOne(w) {
   } catch (e) { out.push("err " + e.message); }
   smallLog = out;
 }
-function smallApply() { for (const w of [bubble, tab]) smallApplyOne(w); }
+function smallApply() { for (const w of [bubble, tab]) smallApplyOne(w); dlog("small lab", smallLab, smallLog); }
 function matWin(win, rects) {
   if (!win || win.isDestroyed() || !MAT()) return;
   shapeWin(win, rects);
@@ -155,6 +155,11 @@ app.setAppUserModelId("io.catmin.study");
 
 // ---------- 设置（窗口位置、开关） ----------
 const CONF = path.join(app.getPath("userData"), "desktop.json");
+// 排查用日志：userData\desktop.log（只记窗口状态和出错，不记内容）
+const LOGF = path.join(app.getPath("userData"), "desktop.log");
+function dlog(...a) { try { fs.appendFileSync(LOGF, new Date().toISOString() + " " + a.map((x) => typeof x === "string" ? x : JSON.stringify(x)).join(" ") + "\n"); } catch (e) {} }
+try { if (fs.existsSync(LOGF) && fs.statSync(LOGF).size > 512 * 1024) fs.writeFileSync(LOGF, ""); } catch (e) {}
+process.on("uncaughtException", (e) => dlog("uncaught", e && e.stack || String(e)));
 let conf = {};
 try { conf = JSON.parse(fs.readFileSync(CONF, "utf8")); } catch (e) { conf = {}; }
 let confTimer = null;
@@ -203,7 +208,10 @@ function createBubble() {
   });
   bubble.setAlwaysOnTop(true, "screen-saver");
   bubble.loadFile(path.join(__dirname, "bubble.html"));
-  bubble.once("ready-to-show", () => { if (conf.bubbleHidden !== true) bubble.showInactive(); });
+  dlog("bubble create", pos, smallOpts());
+  bubble.once("ready-to-show", () => { dlog("bubble ready", conf.bubbleHidden, bubble.getBounds()); if (conf.bubbleHidden !== true) bubble.showInactive(); setTimeout(() => dlog("bubble state", bubble && !bubble.isDestroyed() && bubble.isVisible(), bubble && !bubble.isDestroyed() && bubble.getBounds()), 3000); });
+  bubble.webContents.on("render-process-gone", (e, d) => dlog("bubble gone", d));
+  bubble.webContents.on("console-message", (e, lvl, msg) => { if (lvl >= 2) dlog("bubble console", msg); });
   matWin(bubble, circleRects(BUB / 2, BUB / 2, 26, 0));
   bubble.on("show", () => setTimeout(() => smallApplyOne(bubble), 100)); bubble.on("moved", () => smallApplyOne(bubble));
   bubble.webContents.on("did-finish-load", () => smallApplyOne(bubble));

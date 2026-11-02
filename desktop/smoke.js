@@ -5,6 +5,7 @@ module.exports = async (h) => {
   try {
     mv(10, 1000); await wait(5000);
     const tab = () => BrowserWindow.getAllWindows().find((w) => /tab\.html/.test(w.webContents.getURL()));
+    log("bubble", h.bubble && h.bubble.isVisible(), h.bubble && JSON.stringify(h.bubble.getBounds())); require("fs").writeFileSync("/tmp/claude-0/-home-claude/1248d994-2609-57fc-924a-dcc3cbf43a86/scratchpad/e-bub.png", (await h.bubble.webContents.capturePage()).toPNG());
     log("start: todo", h.todo.isVisible(), "tab", tab() && tab().isVisible(), tab() && JSON.stringify(tab().getBounds()));
     const tb = tab().getBounds(); mv(tb.x + 5, tb.y + 5); await wait(600);
     log("hover tab: todo", h.todo.isVisible(), JSON.stringify(h.todo.getBounds()), "tab", tab().isVisible());
