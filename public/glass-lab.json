@@ -1,1 +1,1 @@
-{"todoZero":false,"small":{"transparent":false,"material":"acrylic","shape":"rgn","rgnDelay":300,"nca":true,"corner":1,"v":2}}
+{"todoZero":false,"small":{"transparent":false,"material":"none","bg":"#ff0000","shape":"rgn","rgnDelay":300,"corner":1,"css":"html,body{background:#ff0000!important}","v":3}}
