@@ -1839,7 +1839,7 @@ Pre-lab：她先发这次实验的讲义（manual），再发 LabFlow 上 pre-la
 4. Tentative Procedure：用流程图（箭头连起来的简短步骤）写实验步骤，从 manual 提炼关键操作、试剂和用量；后面接 pre-lab 计算（公式、代入、结果，注意有效数字）和要用的反应方程式
 要短、分区清楚、带小标题，适合手写，用英文。Full procedure 和数据是她实验时在现场写的，不用你写。
 Report：她先发笔记本（实验记录和数据），再发 report 题目的截图，你用她笔记本里的数据逐题算、逐题答。`;
-const TAG_RE=/^\[(科目|错题|进度|委托完成|关卡完成|击败|选项|命中|失误|场景|人物|剧情摘要|惊喜|题目)[^\n]*$/gm;let PARSED_CHOICES=null;
+const TAG_RE=/^\[(图片|科目|错题|进度|委托完成|关卡完成|击败|选项|命中|失误|场景|人物|剧情摘要|惊喜|题目)[^\n]*$/gm;let PARSED_CHOICES=null;
 function stripTags(subj,text){const keep=[];let changed=false;
   for(const ln of String(text).split("\n")){const s=ln.trim();let m;
     if((m=s.match(/^\[错题\]\s*(.+)$/))){const[wrong,right]=m[1].split("||").map(x=>x.trim());const nm={id:"m"+uid().slice(0,4),subj,text:wrong.slice(0,160),fix:(right||"").slice(0,200),added:dayKey(),revive:addDays(dayKey(),3),killed:false};S.mistakes.push(nm);changed=true;syncMistake(nm);smEvent("做错一题，进了错题图鉴",subj);continue}
@@ -2001,7 +2001,7 @@ const ZERO_RULES=`你是「零」，Catherine 绑定的无限流系统，现在�
 let ZW={subj:"math",hist:{},imgs:[],ctl:null};
 Object.defineProperty(ZW,"turns",{get(){return ZW.hist[ZW.subj]||(ZW.hist[ZW.subj]=[])},set(v){ZW.hist[ZW.subj]=v}});
 const zwT=k=>ZW.hist[k]||(ZW.hist[k]=[]);
-function zwSave(){const hist={};for(const k of Object.keys(SUBJ))hist[k]=zwT(k).slice(-30).map(t=>({role:t.role,content:t.content,at:t.at||0}));const body={subj:ZW.subj,hist};
+function zwSave(){const hist={};for(const k of Object.keys(SUBJ))hist[k]=zwT(k).slice(-30).map(t=>{const o={role:t.role,content:t.content,at:t.at||0};if(t.docs)o.docs=t.docs;if(t.memo)o.memo=t.memo;return o});const body={subj:ZW.subj,hist};
   if(DB&&UID){DB.doc("data/users/"+UID+"/chat-zero").set(body).catch(()=>{})}else{try{localStorage.setItem("zs-chat-zero",JSON.stringify(body))}catch(e){}}}
 async function zwLoad(){try{let d=null;if(DB&&UID){const c=await DB.doc("data/users/"+UID+"/chat-zero").get();if(c.exists)d=clone(c.data())}else d=JSON.parse(localStorage.getItem("zs-chat-zero")||"null");
   if(d){if(d.subj&&SUBJ[d.subj])ZW.subj=d.subj;if(d.hist&&typeof d.hist==="object"){for(const k in d.hist)if(SUBJ[k]&&Array.isArray(d.hist[k]))ZW.hist[k]=d.hist[k]}else if(Array.isArray(d.turns))ZW.hist[ZW.subj]=d.turns}}catch(e){}zwRender()}
@@ -2009,7 +2009,7 @@ function zwContext(subj){const prog=(S.progress[subj]||[]).slice(-6).map(p=>"- "
   const mis=S.mistakes.filter(m=>m.subj===subj&&!m.killed).slice(-5).map(m=>"- "+m.text).join("\n")||"（无）";
   const dl=occurrences().filter(o=>o.subj===subj&&isOpen(o)).slice(0,4).map(o=>"- "+o.title+" 截止 "+fmtDue(o.soft)).join("\n")||"（无）";
   const ex=examInfo(subj);const now=new Date();
-  return ZERO_RULES+"\n\n"+PACK[subj]+(subj==="chem"?"\n\n"+LAB_RULES:"")+"\n\n她现在选的是「"+SUBJ[subj].name+"」。如果她这次发来的内容（文字、图片或附件）明显属于另一门课（数学=math，化学=chem，机械=engri，英文=engl），回复第一行单独写 [科目] chem 这样的标记，然后直接按那门课正常回答，不要说“这不是本科目的内容”。"+`\n\n现在：${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} 周${WD[now.getDay()]} ${pad(now.getHours())}:${pad(now.getMinutes())}\n她现在在网站的「${{now:"现在",map:"地图",cal:"日历",dungeon:"副本",shop:"商店",bag:"背包"}[curView()]}」页。${ex?"最近的考试："+ex.title+" "+fmtDue(ex.due)+"。":""}${S.cur&&S.cur.subj===subj?"\n她现在正在做「"+S.cur.title+"」。她发来的题都是这份作业里的：先在回复最后写 [题目] 行记下题目原文，"+(S.zwMode==="ddl"?"然后按下面的赶 DDL 模式直接给答案。":"再带她一步一步做，一步一问，不要直接给最终答案。"):""}${S.zwMode==="ddl"?"\n\n【现在是赶 DDL 模式，优先于上面所有关于教学、提问、讲解的要求】\n- 只给图（题目要求画图时）和最终公式或答案。\n- 不写说明，不附英文翻译，能跳的步骤都跳。\n- 不提问、不出小检查。\n- 做完一题直接报下一题的题号。":""}\n最近学的：\n${prog}\n没打败的错题：\n${mis}\n这一科的截止：\n${dl}`}
+  return ZERO_RULES+"\n\n"+PACK[subj]+(subj==="chem"?"\n\n"+LAB_RULES:"")+"\n\n她现在选的是「"+SUBJ[subj].name+"」。如果她这次发来的内容（文字、图片或附件）明显属于另一门课（数学=math，化学=chem，机械=engri，英文=engl），回复第一行单独写 [科目] chem 这样的标记，然后直接按那门课正常回答，不要说“这不是本科目的内容”。"+`\n\n现在：${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} 周${WD[now.getDay()]} ${pad(now.getHours())}:${pad(now.getMinutes())}\n她现在在网站的「${{now:"现在",map:"地图",cal:"日历",dungeon:"副本",shop:"商店",bag:"背包"}[curView()]}」页。${ex?"最近的考试："+ex.title+" "+fmtDue(ex.due)+"。":""}${S.cur&&S.cur.subj===subj?"\n她现在正在做「"+S.cur.title+"」。她发来的题都是这份作业里的：先在回复最后写 [题目] 行记下题目原文，"+(S.zwMode==="ddl"?"然后按下面的赶 DDL 模式直接给答案。":"再带她一步一步做，一步一问，不要直接给最终答案。"):""}${S.zwMode==="ddl"?"\n\n【现在是赶 DDL 模式，优先于上面所有关于教学、提问、讲解的要求】\n- 只给图（题目要求画图时）和最终公式或答案。\n- 不写说明，不附英文翻译，能跳的步骤都跳。\n- 不提问、不出小检查。\n- 做完一题直接报下一题的题号。\n- 需要的数据先在她之前发过的附件（讲义）和图片记录里找，找到就直接用，不要让她再发。\n- 不提截止时间、不估用时、不给学习建议。":""}\n最近学的：\n${prog}\n没打败的错题：\n${mis}\n这一科的截止：\n${dl}`}
 function zwOpen(subj,msg){if(subj&&SUBJ[subj]){ZW.subj=subj}$("#zwPanel").hidden=false;document.body.classList.add("zw-open");$("#zwFab").classList.remove("ping");zwRender();if(msg)setTimeout(()=>zwSend(msg),60);else setTimeout(()=>$("#zwInput").focus(),50)}
 function zwCloseP(){$("#zwPanel").hidden=true;document.body.classList.remove("zw-open")}
 function zwRender(){const sel=$("#zwSubj");if(!sel)return;{const mb=$("#zwMode");if(mb){const d=S.zwMode==="ddl";mb.textContent=d?"赶 DDL":"教学";mb.classList.toggle("ddl",d)}}renderTaskBar();sel.replaceChildren(...Object.keys(SUBJ).map(k=>h("option",{value:k,selected:k===ZW.subj},SUBJ[k].name)));
@@ -2018,14 +2018,20 @@ function zwRender(){const sel=$("#zwSubj");if(!sel)return;{const mb=$("#zwMode")
   $("#zwThumbs").replaceChildren(...ZW.imgs.map(f=>h("span",{class:"zw-th"},h("img",{src:URL.createObjectURL(f),alt:"附图"}),h("button",{class:"zw-thx","aria-label":"移除",onclick:()=>{ZW.imgs=ZW.imgs.filter(x=>x!==f);zwRender()}},"×"))),...(ZW.docs||[]).map(d=>h("span",{class:"lchip"},h("span",null,d.name),h("button",{onclick:()=>{ZW.docs=ZW.docs.filter(x=>x!==d);zwRender()},"aria-label":"移除"},"×"))));$("#zwClipL").hidden=false;$("#zwSend").disabled=!SAMPLE||!!ZW.ctl;
   typeset(log);log.scrollTop=log.scrollHeight}
 async function zwSend(text){text=(text||$("#zwInput").value).trim();const hasAtt=ZW.imgs.length||(ZW.docs||[]).length;if((!text&&!hasAtt)||!SAMPLE||ZW.ctl)return;const onlyAtt=!text;if(onlyAtt)text="（看附件）";$("#zwInput").value="";$("#zwInput").style.height="auto";focusAct();
-  const subj=ZW.subj;const imgs=ZW.imgs.slice();ZW.imgs=[];const docs=(ZW.docs||[]).slice();ZW.docs=[];ZW.turns.push({role:"user",content:(onlyAtt?"":text)+(imgs.length?"（附了 "+imgs.length+" 张图）":"")+(docs.length?"（附件："+docs.map(d=>d.name).join("、")+"）":""),at:Date.now()});ZW.ctl=new AbortController();zwRender();const T0=ZW.turns,uTurn=T0[T0.length-1];
+  const subj=ZW.subj;const imgs=ZW.imgs.slice();ZW.imgs=[];const docs=(ZW.docs||[]).slice();ZW.docs=[];ZW.turns.push({role:"user",content:(onlyAtt?"":text)+(imgs.length?"（附了 "+imgs.length+" 张图）":"")+(docs.length?"（附件："+docs.map(d=>d.name).join("、")+"）":""),at:Date.now(),...(docs.length?{docs:docs.map(d=>({name:d.name,text:d.text.slice(0,12000)}))}:{})});ZW.ctl=new AbortController();zwRender();const T0=ZW.turns,uTurn=T0[T0.length-1];
   const log=$("#zwLog");const bub=h("div",{class:"zw-m a"},"…");log.append(bub);log.scrollTop=log.scrollHeight;
-  const hist=ZW.turns.slice(-14).map(t=>({role:t.role,content:t.content}));while(hist.length&&hist[0].role!=="user")hist.shift();if(docs.length&&hist.length){const last=hist[hist.length-1];last.content+="\n\n"+docs.map(d=>"【附件 "+d.name+"】\n"+d.text).join("\n\n")}
+  /* 发过的附件（讲义、题目）和零从图片里记下的内容，后面每一轮都带着，不然零下一句就忘了 */
+  const recent=ZW.turns.slice(-14);let budget=40000;
+  const hist=recent.map(t=>{let c=t.content;if(t.docs&&budget>0)for(const d of t.docs){const x=d.text.slice(0,budget);budget-=x.length;c+="\n\n【附件 "+d.name+"】\n"+x}if(t.memo)c+="\n\n（你之前从她的图片里记下的内容）\n"+t.memo;return{role:t.role,content:c}});
+  while(hist.length&&hist[0].role!=="user")hist.shift();
+  for(const t of ZW.turns.slice(0,-14))if(t.docs&&budget>0&&hist.length){for(const d of t.docs){const x=d.text.slice(0,budget);budget-=x.length;hist[0].content="【她之前发过的附件 "+d.name+"】\n"+x+"\n\n"+hist[0].content}}
   const mem=await smSearch(subj,text);
   const input=[{role:"user",content:zwContext(subj)+(mem?"\n\n共享记忆里相关的内容（参考）：\n"+mem:"")},{role:"assistant",content:"收到。"},...hist];
-  const opts={cache:false,signal:ZW.ctl.signal,onText:({text})=>{bub.textContent=text.replace(TAG_RE,"").trim();log.scrollTop=log.scrollHeight}};if(imgs.length)opts.images=imgs.slice(0,5);
-  try{const r=await SAMPLE(input,opts);let raw=r.text,sw=null;raw=raw.replace(/^\s*\[科目\]\s*(math|chem|engri|engl)\s*$/m,(_,k)=>{sw=k;return""});
-    const tsubj=sw&&SUBJ[sw]?sw:subj;const clean=stripTags(tsubj,raw);if(sw&&sw!==subj&&SUBJ[sw]){const i=T0.lastIndexOf(uTurn);if(i>=0)T0.splice(i,1);zwT(sw).push(uTurn);ZW.subj=sw;toast("换到"+SUBJ[sw].name)}zwT(tsubj).push({role:"assistant",content:clean||"（收到）",at:Date.now()})}
+  const opts={cache:false,signal:ZW.ctl.signal,onText:({text})=>{bub.textContent=text.replace(TAG_RE,"").trim();log.scrollTop=log.scrollHeight}};ZW.imgMem=ZW.imgMem||{};const old=(ZW.imgMem[subj]||[]).filter(f=>!imgs.includes(f));const send=[...imgs,...old].slice(0,5);if(send.length){opts.images=send;if(send.length>imgs.length){const last=input[input.length-1];last.content+="\n\n（附带的图片里，"+(imgs.length?"前 "+imgs.length+" 张是这次发的，后面":"全部")+"是她之前发过的）"}}
+  if(imgs.length){const last=input[input.length-1];last.content+="\n\n（她这次发了图片。请在回复最后写一行 [图片]，把图里的题目文字、选项和数字原样记下来，看不清的写“?”。这行不会显示给她，是给你之后回看用的。）"}
+  ZW.imgMem[subj]=[...imgs,...(ZW.imgMem[subj]||[])].filter((f,i,a)=>a.indexOf(f)===i).slice(0,4);
+  try{const r=await SAMPLE(input,opts);let raw=r.text,sw=null;raw=raw.replace(/^\s*\[科目\]\s*(math|chem|engri|engl)\s*$/m,(_,k)=>{sw=k;return""});let memo="";raw=raw.replace(/^\s*\[图片\]\s*([\s\S]*)$/m,(_,x)=>{memo=x.trim().slice(0,4000);return""});
+    const tsubj=sw&&SUBJ[sw]?sw:subj;const clean=stripTags(tsubj,raw);if(sw&&sw!==subj&&SUBJ[sw]){const i=T0.lastIndexOf(uTurn);if(i>=0)T0.splice(i,1);zwT(sw).push(uTurn);ZW.subj=sw;toast("换到"+SUBJ[sw].name)}zwT(tsubj).push({role:"assistant",content:clean||"（收到）",at:Date.now(),...(memo?{memo}:{})})}
   catch(e){if(e&&e.code!=="cancelled")T0.push({role:"assistant",content:sampleErr(e),at:Date.now()})}
   finally{ZW.ctl=null;for(const k in ZW.hist)ZW.hist[k]=ZW.hist[k].slice(-30);zwSave();zwRender();if($("#zwPanel").hidden)$("#zwFab").classList.add("ping");if(DESK&&DESK.notify&&(document.hidden||!document.hasFocus()))DESK.notify()}}
 /* ---- 每日签到题（独立弹窗） ---- */
@@ -2647,7 +2653,7 @@ async function doAct(act,list){const files=deskFiles(list);if(!files.length)retu
     if(!hw){const cs=hwCands(subj);if(cs.length){const v=await zwChoose("这是哪份作业？",[...cs.map((c,i)=>({t:c.title.replace(/^(数学|化学|机械|英文)\s*/,""),v:c,go:i===0})),{t:"都不是",v:"none"}]);hw=v&&v!=="none"?v:null}}
     if(hw){S.hwFiles=S.hwFiles||{};S.hwFiles[hw.key]=[...new Set([...(S.hwFiles[hw.key]||[]),...files.map(f=>f.name)])].slice(-8);save()}
     const name=hw?"「"+hw.title+"」":"";
-    if(SAMPLE)await zwSend("这是"+(name||"一份作业")+"的作业清单。把里面每一道题在回复最后各写一行 [题目]（只给了教材题号的，按题号写出原题内容；找不到原题就写题号和要求）。正文只说：一共几道、哪天截止、按我的速度大概要多久、建议从哪道开始。先不要讲题。");
+    if(SAMPLE)await zwSend(S.zwMode==="ddl"?"这是"+(name||"一份作业")+"的题目。按赶 DDL 模式直接给每题答案，每题在回复最后写一行 [题目] 记下原题。":"这是"+(name||"一份作业")+"的作业清单。把里面每一道题在回复最后各写一行 [题目]（只给了教材题号的，按题号写出原题内容；找不到原题就写题号和要求）。正文只说：一共几道、哪天截止、按我的速度大概要多久、建议从哪道开始。先不要讲题。");
     if(hw&&!(S.cur&&S.cur.key===hw.key)){const go=await zwChoose("现在开始做"+name+"吗？",[{t:"开始做",v:1,go:true},{t:"先不",v:0}]);if(go)beginTask(hw.kind,hw.key,hw.subj,hw.title,true)}
     return}
   if(act==="lab"){const kind=await zwChoose("这是什么？",[{t:"实验讲义（manual）",v:"manual",go:true},{t:"我的实验笔记",v:"notes"},{t:"题目截图",v:"q"},{t:"其他",v:"other"}]);
@@ -2655,10 +2661,10 @@ async function doAct(act,list){const files=deskFiles(list);if(!files.length)retu
     const pre=open.find(o=>o.r.id==="chem-prelab"),rpt=open.find(o=>o.r.id==="chem-lab3");
     const offer=async o=>{if(o&&!(S.cur&&S.cur.key===o.key)){const go=await zwChoose("现在开始做「"+o.title+"」吗？",[{t:"开始做",v:1,go:true},{t:"先不",v:0}]);if(go)beginTask("occ",o.key,o.subj,SUBJ[o.subj].name+" "+o.title,true)}};
     if(!kind||kind==="other"){ZW.imgs=[];ZW.docs=[];zwRender();toast("已存到 "+COURSE[subj]);return}
-    if(kind==="manual"){if(SAMPLE)await zwSend("这是这次实验的讲义（manual）。先读懂它。正文只用两三句话说：这个实验做什么、测什么、用什么方法；然后请我发 pre-lab 题目的截图。不要列题目，不要写 [题目]。");return offer(pre)}
+    if(kind==="manual"){if(SAMPLE)await zwSend(S.zwMode==="ddl"?"这是这次实验的讲义（manual），记住内容，只回一句「讲义收到」。":"这是这次实验的讲义（manual）。先读懂它。正文只用两三句话说：这个实验做什么、测什么、用什么方法；然后请我发 pre-lab 题目的截图。不要列题目，不要写 [题目]。");return offer(pre)}
     if(kind==="notes"){if(SAMPLE)await zwSend("这是我这次实验的笔记本（实验记录和数据）。把里面的关键数据整理成一个小表（看不清的写“?”），然后请我发 report 题目的截图。不要写 [题目]。");return offer(rpt)}
     const cur=S.cur&&/^chem-(prelab|lab3)@/.test(S.cur.key)?S.cur.title:"";
-    if(SAMPLE)await zwSend("这是"+(cur?"「"+cur+"」":"这次实验")+"的题目截图。按实验流程逐题做，每题在回复最后写一行 [题目] 记下原题。");return}
+    if(SAMPLE)await zwSend(S.zwMode==="ddl"?"（看附件，直接给答案）":"这是"+(cur?"「"+cur+"」":"这次实验")+"的题目截图。按实验流程逐题做，每题在回复最后写一行 [题目] 记下原题。");return}
   const msg={review:"这是复习资料 / 模拟卷。按考点整理：每个考点一句话，后面列出对应的题号；标出最可能考的 3 个；最后问我想先练哪一个。先不要讲题。"}[act];
   if(msg&&SAMPLE)zwSend(msg);else setTimeout(()=>$("#zwInput")&&$("#zwInput").focus(),50)}
 function pickTarget(list){const box=h("div",{class:"box"},h("b",null,(S.cur?"正在做 "+S.cur.title+" · ":"")+list.map(f=>f.name).join("、").slice(0,50)),
