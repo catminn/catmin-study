@@ -58,6 +58,20 @@ function routeLedgerConsistent(s, p) {
     let entry;
     try { entry = JSON.parse(raw); } catch { return false; }
     if (!record(entry) || !equalScope(entry.scope, p.scope)) return false;
+    // A persisted fingerprint may contain only the fields that the committed
+    // event writer actually records. Otherwise unreviewed payload can be
+    // smuggled into an apparently valid narrative evidence ledger.
+    const fields = {
+      route_committed: ['type', 'scope', 'route', 'next'],
+      scene_entered: ['type', 'scope', 'next'],
+      availability_changed: ['type', 'scope', 'next'],
+      player_told_npc: ['type', 'scope', 'factId'],
+      npc_told_player: ['type', 'scope', 'factId'],
+      fact_verified: ['type', 'scope', 'factId', 'subject']
+    };
+    if (typeof entry.type !== 'string' || !own(fields, entry.type) ||
+        Object.keys(entry).length !== fields[entry.type].length ||
+        !fields[entry.type].every(k => own(entry, k))) return false;
     switch (entry.type) {
       case 'route_committed':
         if (routeKey !== null || joined || !own(p.routes, entry.route) ||
