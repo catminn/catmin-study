@@ -1409,9 +1409,7 @@ function openTaskSheet(o){const d=S.done[o.key];const early=(o.soft-Date.now())>
       h("button",{class:"btn flat",onclick:()=>{closeSheet();goDungeon(o.subj,taskPrompt(o))}},"进副本让系统帮忙"),
       disc?h("button",{class:"btn flat",onclick:()=>{if(S.cur&&S.cur.key===o.key){S.cur=null}S.skipped[o.key]={at:Date.now(),pass:1};save();closeSheet();renderAll();toast("跳过「"+o.title+"」")}},"跳过这篇"):
       h("button",{class:"btn flat",onclick:()=>skipTask(o)},"这次没有")):null,
-    disc?(()=>{const n=discCount(),inp=h("input",{type:"number",min:"0",max:String(DISC_NEED),value:String(n),style:{width:"64px"}});
-      return h("div",{class:"row small"},h("span",{class:n>=DISC_NEED?"":"dim"},"这学期已写 "+n+" / "+DISC_NEED+" 篇"+(n>=DISC_NEED?"，写够了，剩下的不再出现":"，还差 "+(DISC_NEED-n)+" 篇，可以自己挑")),
-        h("span",{class:"dim"},"不对？"),inp,h("button",{class:"btn sm flat",onclick:()=>{const v=Math.max(0,Math.round(+inp.value||0));S.discAdj=v-cnt(S.done);save();renderAll();openTaskSheet(o)}},"改"))})():null,
+    disc?(()=>{const n=discCount();return h("div",{class:"small "+(n>=DISC_NEED?"":"dim")},"这学期已写 "+n+" / "+DISC_NEED+" 篇"+(n>=DISC_NEED?"，写够了，剩下的不再出现":"，还差 "+(DISC_NEED-n)+" 篇，可以自己挑"))})():null,
     o.r.num?h("div",{class:"row"},h("span",{class:"dim small"},"编号不对？"),(()=>{const inp=h("input",{type:"number",min:"1",value:String(seqNum(o.r.num,o.day)),style:{width:"80px"}});return[inp,h("button",{class:"btn sm flat",onclick:()=>{setNum(o,Math.round(+inp.value));openTaskSheet(occOnDay(o.day).find(x=>x.key===o.key)||o)}},"改")]})()):null)}
 function openNodeSheet(subj,n,idx){const done=nodeIsDone(subj,n);const cur=idx===curIndex(subj);const name=nodeName(subj,n);
   const nameIn=n.edit?h("input",{type:"text",id:"nodeName",value:S.nodeNames[subj+":"+n.id]||"",placeholder:"按这节课的内容改名",style:{flex:"1"}}):null;
