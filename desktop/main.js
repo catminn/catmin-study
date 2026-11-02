@@ -267,9 +267,11 @@ function animateBounds(win, to, ms) {
 }
 
 // ---------- 零的聊天框 ----------
-const ZW = 380, ZH = 560;
+// 零的窗口可以拖边框调大小，记住大小（位置还是跟着小圆）
+const zSize = () => { const z = conf.zeroSize || {}; return { w: Math.max(300, Math.min(1000, z.w || 380)), h: Math.max(360, Math.min(1200, z.h || 560)) }; };
 function placeZero() {
   if (!zero || !bubble) return;
+  const { w: ZW, h: ZH } = zSize();
   const [bx, by] = bubble.getPosition();
   const d = screen.getDisplayNearestPoint({ x: bx, y: by }).workArea;
   let x = bx + BUB - 16 - ZW, y = by + 16 - ZH - 6;
@@ -280,7 +282,9 @@ function placeZero() {
 }
 function ensureZero() {
   if (zero && !zero.isDestroyed()) return zero;
-  zero = pageWin(Object.assign({ width: ZW, height: ZH, alwaysOnTop: true, resizable: false, thickFrame: false }, glassOpts()), SITE + "?embed=zero");
+  zero = pageWin(Object.assign({ width: zSize().w, height: zSize().h, minWidth: 300, minHeight: 360, alwaysOnTop: true, resizable: true, thickFrame: false }, glassOpts()), SITE + "?embed=zero");
+  let rz = null;
+  zero.on("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (!zero || zero.isDestroyed() || !zero.isVisible()) return; const b = zero.getBounds(); conf.zeroSize = { w: b.width, h: b.height }; saveConf(); }, 400); });
   glassFor(zero, true);
   zero.setAlwaysOnTop(true, "floating");
   zero.on("closed", () => { zero = null; });
@@ -341,6 +345,13 @@ ipcMain.on("ready", (e) => {
 ipcMain.on("hide", (e) => { const w = winOf(e); if (w) w.hide(); if (w === todo) { if (tab && !tab.isDestroyed()) tab.hide(); conf.todoShown = false; saveConf(); refreshMenu(); } });
 ipcMain.on("open-main", (e, hash) => openMain(typeof hash === "string" ? hash : ""));
 ipcMain.on("open-zero", (e, cmd) => showZero(typeof cmd === "string" ? cmd : ""));
+// 页面里拖左上角调零的窗口大小：右下角不动
+ipcMain.on("zero-size", (e, w, h, done) => {
+  if (!zero || zero.isDestroyed() || winOf(e) !== zero) return;
+  const b = zero.getBounds(), W = Math.round(Math.max(300, Math.min(1000, w))), H = Math.round(Math.max(360, Math.min(1200, h)));
+  zero.setBounds({ x: b.x + b.width - W, y: b.y + b.height - H, width: W, height: H });
+  if (done) { conf.zeroSize = { w: W, h: H }; saveConf(); }
+});
 ipcMain.on("to-main", (e, subj, list) => { const w = openMain("#dungeon"); send(w, "files", String(subj), list); });
 // 待办两种样子：full 展开的列表（todo 窗口）；收起来是一枚燕尾书签（单独的 tab 小窗口，不加任何系统效果）。
 // 贴着上、左、右边收起就是贴边书签，不贴边就是原地一枚小书签；鼠标移上去展开，移开 0.6 秒收起。

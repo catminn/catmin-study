@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("zsDesktop", {
   hide: () => ipcRenderer.send("hide"),
   openMain: (hash) => ipcRenderer.send("open-main", String(hash || "")),
   openZero: (cmd) => ipcRenderer.send("open-zero", String(cmd || "")),
+  zeroSize: (w, h, done) => ipcRenderer.send("zero-size", Number(w) || 0, Number(h) || 0, !!done),
   toMain: (subj, list) => ipcRenderer.send("to-main", String(subj), list),
   saved: () => ipcRenderer.send("saved"),
   ready: () => ipcRenderer.send("ready"),

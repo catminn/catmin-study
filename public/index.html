@@ -447,13 +447,13 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 .zw-m{max-width:92%;border-radius:14px;padding:8px 12px;font-size:15px;line-height:1.75;overflow-wrap:anywhere}
 .zw-m.a{align-self:flex-start;background:var(--panel2);border-radius:4px 14px 14px 14px}
 .zw-m.u{align-self:flex-end;background:var(--fg);color:var(--panel);border-radius:14px 4px 14px 14px;white-space:pre-wrap}
-.zw-m p{margin:.35em 0}.zw-m p:first-child{margin-top:0}.zw-m p:last-child{margin-bottom:0}.zw-m mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%}
+.zw-m p{margin:.35em 0}.zw-m p:first-child{margin-top:0}.zw-m p:last-child{margin-bottom:0}.zw-m table{display:block;overflow-x:auto;max-width:100%;border-collapse:collapse;font-size:13px;line-height:1.5;margin:.4em 0}.zw-m th,.zw-m td{padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left;overflow-wrap:normal;word-break:normal;min-width:6em}.zw-m th:first-child,.zw-m td:first-child{white-space:nowrap;min-width:0}.zw-m mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%}
 .zw-choose{align-self:stretch;display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:12px;background:var(--gl-card,var(--panel2))}.zw-choose .q{font-size:13px;color:var(--dim)}.zw-choose .row{display:flex;flex-wrap:wrap;gap:6px}
 .zw-hint{align-self:center;font-size:13px;color:var(--dim);text-align:center;padding:20px 8px}
 .zw-in{display:flex;gap:6px;align-items:flex-end;padding:8px;border-top:1px solid var(--line)}
 .zw-in textarea{flex:1;min-width:0;resize:none;max-height:120px;background:var(--panel2);color:var(--fg);border:0;border-radius:12px;padding:8px 10px;font-size:15px;line-height:1.5}
 .zw-clip{display:grid;place-items:center;width:34px;height:36px;color:var(--dim);cursor:pointer;flex:none}
-#zwPanel.drag{outline:3px dashed var(--early,#e0a43a);outline-offset:-6px}.zw-thumbs{display:flex;flex-wrap:wrap;gap:6px;padding:0 8px}.zw-thumbs:empty{display:none}.zw-th{position:relative;display:inline-flex}.zw-thx{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:0;background:rgba(20,22,34,.75);color:#fff;font-size:12px;line-height:18px;padding:0;cursor:pointer}.zw-thumbs img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.zw-panel{position:relative}.zw-grip{position:absolute;left:0;top:0;width:18px;height:18px;cursor:nwse-resize;z-index:5;touch-action:none}.zw-grip::before{content:"";position:absolute;left:5px;top:5px;width:7px;height:7px;border-left:2px solid var(--dim);border-top:2px solid var(--dim);border-radius:3px 0 0 0;opacity:.45}.zw-grip:hover::before{opacity:.9}#zwPanel.drag{outline:3px dashed var(--early,#e0a43a);outline-offset:-6px}.zw-thumbs{display:flex;flex-wrap:wrap;gap:6px;padding:0 8px}.zw-thumbs:empty{display:none}.zw-th{position:relative;display:inline-flex}.zw-thx{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:0;background:rgba(20,22,34,.75);color:#fff;font-size:12px;line-height:18px;padding:0;cursor:pointer}.zw-thumbs img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 .zw-thumbs .lchip{background:var(--panel2);border-color:var(--line)}
 #zwTask{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:13px;background:var(--panel2)}#zwTask[hidden]{display:none}
 #zwTask .tt{font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#zwTask .dim{font-size:12px;white-space:nowrap}#zwTask .btn{padding:2px 10px;font-size:12px}
@@ -604,7 +604,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 
 <button class="guideFab" id="guideFab" hidden><span class="lamp">灯</span><span class="gtxt" id="guideTxt">下一步</span></button>
 <div class="zw" id="zw">
-  <section class="zw-panel" id="zwPanel" hidden aria-label="零">
+  <section class="zw-panel" id="zwPanel" hidden aria-label="零"><div class="zw-grip" id="zwGrip" title="拖动调整大小" aria-hidden="true"></div>
     <header class="zw-head"><div class="zface"><svg class="i"><use href="#i-zero"/></svg></div><div class="zw-t"><select id="zwSubj" aria-label="科目"></select></div><button class="zw-x" id="zwMode" title="切换：教学（一步一步带）/ 赶 DDL（只给答案）">教学</button><button class="zw-x" id="zwHw" title="把这次收集的作业题目整理成 PDF">作业</button><button class="zw-x" id="zwClear" title="清空对话">清空</button><button class="zw-x" id="zwClose" aria-label="收起">×</button></header>
     <div class="zw-log" id="zwLog" aria-live="polite"></div>
     <div class="zw-thumbs" id="zwThumbs"></div>
@@ -2001,7 +2001,7 @@ const ZERO_RULES=`你是「零」，Catherine 绑定的无限流系统，现在�
 let ZW={subj:"math",hist:{},imgs:[],ctl:null};
 Object.defineProperty(ZW,"turns",{get(){return ZW.hist[ZW.subj]||(ZW.hist[ZW.subj]=[])},set(v){ZW.hist[ZW.subj]=v}});
 const zwT=k=>ZW.hist[k]||(ZW.hist[k]=[]);
-function zwSave(){const hist={};for(const k of Object.keys(SUBJ))hist[k]=zwT(k).slice(-30).map(t=>{const o={role:t.role,content:t.content,at:t.at||0};if(t.docs)o.docs=t.docs;if(t.memo)o.memo=t.memo;return o});const body={subj:ZW.subj,hist};
+function zwSave(){const hist={};for(const k of Object.keys(SUBJ))hist[k]=zwT(k).slice(-30).map(t=>{const o={role:t.role,content:t.content,at:t.at||0};if(t.docs)o.docs=t.docs;if(t.memo)o.memo=t.memo;if(t.ask)o.ask=t.ask;return o});const body={subj:ZW.subj,hist};
   if(DB&&UID){DB.doc("data/users/"+UID+"/chat-zero").set(body).catch(()=>{})}else{try{localStorage.setItem("zs-chat-zero",JSON.stringify(body))}catch(e){}}}
 async function zwLoad(){try{let d=null;if(DB&&UID){const c=await DB.doc("data/users/"+UID+"/chat-zero").get();if(c.exists)d=clone(c.data())}else d=JSON.parse(localStorage.getItem("zs-chat-zero")||"null");
   if(d){if(d.subj&&SUBJ[d.subj])ZW.subj=d.subj;if(d.hist&&typeof d.hist==="object"){for(const k in d.hist)if(SUBJ[k]&&Array.isArray(d.hist[k]))ZW.hist[k]=d.hist[k]}else if(Array.isArray(d.turns))ZW.hist[ZW.subj]=d.turns}}catch(e){}zwRender()}
@@ -2017,12 +2017,12 @@ function zwRender(){const sel=$("#zwSubj");if(!sel)return;{const mb=$("#zwMode")
   for(const t of ZW.turns){if(t.role==="user")log.append(h("div",{class:"zw-m u"},t.content));else log.append(h("div",{class:"zw-m a"},renderMd(t.content)))}
   $("#zwThumbs").replaceChildren(...ZW.imgs.map(f=>h("span",{class:"zw-th"},h("img",{src:URL.createObjectURL(f),alt:"附图"}),h("button",{class:"zw-thx","aria-label":"移除",onclick:()=>{ZW.imgs=ZW.imgs.filter(x=>x!==f);zwRender()}},"×"))),...(ZW.docs||[]).map(d=>h("span",{class:"lchip"},h("span",null,d.name),h("button",{onclick:()=>{ZW.docs=ZW.docs.filter(x=>x!==d);zwRender()},"aria-label":"移除"},"×"))));$("#zwClipL").hidden=false;$("#zwSend").disabled=!SAMPLE||!!ZW.ctl;
   typeset(log);log.scrollTop=log.scrollHeight}
-async function zwSend(text){text=(text||$("#zwInput").value).trim();const hasAtt=ZW.imgs.length||(ZW.docs||[]).length;if((!text&&!hasAtt)||!SAMPLE||ZW.ctl)return;const onlyAtt=!text;if(onlyAtt)text="（看附件）";$("#zwInput").value="";$("#zwInput").style.height="auto";focusAct();
-  const subj=ZW.subj;const imgs=ZW.imgs.slice();ZW.imgs=[];const docs=(ZW.docs||[]).slice();ZW.docs=[];ZW.turns.push({role:"user",content:(onlyAtt?"":text)+(imgs.length?"（附了 "+imgs.length+" 张图）":"")+(docs.length?"（附件："+docs.map(d=>d.name).join("、")+"）":""),at:Date.now(),...(docs.length?{docs:docs.map(d=>({name:d.name,text:d.text.slice(0,12000)}))}:{})});ZW.ctl=new AbortController();zwRender();const T0=ZW.turns,uTurn=T0[T0.length-1];
+async function zwSend(text,show){text=(text||$("#zwInput").value).trim();const hasAtt=ZW.imgs.length||(ZW.docs||[]).length;if((!text&&!hasAtt)||!SAMPLE||ZW.ctl)return;const onlyAtt=!text;if(onlyAtt)text="（看附件）";$("#zwInput").value="";$("#zwInput").style.height="auto";focusAct();
+  const subj=ZW.subj;const imgs=ZW.imgs.slice();ZW.imgs=[];const docs=(ZW.docs||[]).slice();ZW.docs=[];ZW.turns.push({role:"user",...(show?{ask:text}:{}),content:(show||(onlyAtt?"":text))+(imgs.length?"（附了 "+imgs.length+" 张图）":"")+(docs.length?"（附件："+docs.map(d=>d.name).join("、")+"）":""),at:Date.now(),...(docs.length?{docs:docs.map(d=>({name:d.name,text:d.text.slice(0,12000)}))}:{})});ZW.ctl=new AbortController();zwRender();const T0=ZW.turns,uTurn=T0[T0.length-1];
   const log=$("#zwLog");const bub=h("div",{class:"zw-m a"},"…");log.append(bub);log.scrollTop=log.scrollHeight;
   /* 发过的附件（讲义、题目）和零从图片里记下的内容，后面每一轮都带着，不然零下一句就忘了 */
   const recent=ZW.turns.slice(-14);let budget=40000;
-  const hist=recent.map(t=>{let c=t.content;if(t.docs&&budget>0)for(const d of t.docs){const x=d.text.slice(0,budget);budget-=x.length;c+="\n\n【附件 "+d.name+"】\n"+x}if(t.memo)c+="\n\n（你之前从她的图片里记下的内容）\n"+t.memo;return{role:t.role,content:c}});
+  const hist=recent.map(t=>{let c=t.ask?t.content.replace(/^[^（]*/,t.ask):t.content;if(t.docs&&budget>0)for(const d of t.docs){const x=d.text.slice(0,budget);budget-=x.length;c+="\n\n【附件 "+d.name+"】\n"+x}if(t.memo)c+="\n\n（你之前从她的图片里记下的内容）\n"+t.memo;return{role:t.role,content:c}});
   while(hist.length&&hist[0].role!=="user")hist.shift();
   for(const t of ZW.turns.slice(0,-14))if(t.docs&&budget>0&&hist.length){for(const d of t.docs){const x=d.text.slice(0,budget);budget-=x.length;hist[0].content="【她之前发过的附件 "+d.name+"】\n"+x+"\n\n"+hist[0].content}}
   const mem=await smSearch(subj,text);
@@ -2309,6 +2309,16 @@ $("#input").addEventListener("input",e=>{focusTouch();const t=e.target;t.style.h
 $("#input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();send()}});
 function pastedImages(e){const out=[];const dt=e.clipboardData;if(!dt)return out;for(const it of dt.items||[]){if(it.kind==="file"&&it.type.startsWith("image/")){const f=it.getAsFile();if(f)out.push(f)}}if(!out.length)for(const f of dt.files||[])if(f.type.startsWith("image/"))out.push(f);return out}
 document.addEventListener("paste",e=>{if(curView()!=="dungeon"||e.target&&e.target.id==="zwInput")return;const dt=e.clipboardData;const other=dt?[...(dt.files||[])].filter(f=>!f.type.startsWith("image/")):[];const fs=pastedImages(e);if(fs.length||other.length){e.preventDefault();addFiles([...fs,...other])}});
+/* 拖左上角调零的大小：网页上改面板大小，桌面版改窗口大小；都记住 */
+setTimeout(()=>{const g=$("#zwGrip"),pn=$("#zwPanel");if(!g||!pn)return;
+  const apply=(w,h)=>{pn.style.width=w+"px";pn.style.height=h+"px"};
+  if(EMBED!=="zero"){try{const z=JSON.parse(localStorage.getItem("zs-zw-size")||"null");if(z&&z.w&&z.h)apply(Math.min(z.w,innerWidth-24),Math.min(z.h,innerHeight-170))}catch(e){}}
+  let st=null;
+  g.addEventListener("pointerdown",e=>{e.preventDefault();g.setPointerCapture(e.pointerId);const r=pn.getBoundingClientRect();st={x:e.screenX,y:e.screenY,w:EMBED==="zero"?innerWidth:r.width,h:EMBED==="zero"?innerHeight:r.height}});
+  const calc=e=>({w:Math.round(Math.max(300,Math.min(EMBED==="zero"?1000:innerWidth-24,st.w+(st.x-e.screenX)))),h:Math.round(Math.max(360,Math.min(EMBED==="zero"?1200:innerHeight-170,st.h+(st.y-e.screenY))))});
+  g.addEventListener("pointermove",e=>{if(!st)return;const {w,h}=calc(e);if(EMBED==="zero"&&DESK&&DESK.zeroSize)DESK.zeroSize(w,h,false);else apply(w,h)});
+  const end=e=>{if(!st)return;const {w,h}=calc(e);st=null;if(EMBED==="zero"&&DESK&&DESK.zeroSize)DESK.zeroSize(w,h,true);else{apply(w,h);try{localStorage.setItem("zs-zw-size",JSON.stringify({w,h}))}catch(x){}}};
+  g.addEventListener("pointerup",end);g.addEventListener("pointercancel",end)},0);
 /* 文件直接拖到零的窗口上（桌面版零窗口整个都算） */
 const zwDropZone=e=>{const pn=$("#zwPanel");return pn&&!pn.hidden&&(EMBED==="zero"||pn.contains(e.target))};
 document.addEventListener("dragover",e=>{if(zwDropZone(e)){e.preventDefault();e.stopPropagation();if(e.dataTransfer)e.dataTransfer.dropEffect="copy";$("#zwPanel").classList.add("drag");return}const pn=$("#zwPanel");if(pn)pn.classList.remove("drag")},true);
@@ -2658,7 +2668,7 @@ async function doAct(act,list){const files=deskFiles(list);if(!files.length)retu
     if(!hw){const cs=hwCands(subj);if(cs.length){const v=await zwChoose("这是哪份作业？",[...cs.map((c,i)=>({t:c.title.replace(/^(数学|化学|机械|英文)\s*/,""),v:c,go:i===0})),{t:"都不是",v:"none"}]);hw=v&&v!=="none"?v:null}}
     if(hw){S.hwFiles=S.hwFiles||{};S.hwFiles[hw.key]=[...new Set([...(S.hwFiles[hw.key]||[]),...files.map(f=>f.name)])].slice(-8);save()}
     const name=hw?"「"+hw.title+"」":"";
-    if(SAMPLE)await zwSend(S.zwMode==="ddl"?"这是"+(name||"一份作业")+"的题目。按赶 DDL 模式直接给每题答案，每题在回复最后写一行 [题目] 记下原题。":"这是"+(name||"一份作业")+"的作业清单。把里面每一道题在回复最后各写一行 [题目]（只给了教材题号的，按题号写出原题内容；找不到原题就写题号和要求）。正文只说：一共几道、哪天截止、按我的速度大概要多久、建议从哪道开始。先不要讲题。");
+    if(SAMPLE)await zwSend(S.zwMode==="ddl"?"这是"+(name||"一份作业")+"的题目。按赶 DDL 模式直接给每题答案，每题在回复最后写一行 [题目] 记下原题。":"这是"+(name||"一份作业")+"的作业清单。把里面每一道题在回复最后各写一行 [题目]（只给了教材题号的，按题号写出原题内容；找不到原题就写题号和要求）。正文只说：一共几道、哪天截止、按我的速度大概要多久、建议从哪道开始。先不要讲题。",(name?name.replace(/[「」]/g,""):"作业")+" 题目");
     if(hw&&!(S.cur&&S.cur.key===hw.key)){const go=await zwChoose("现在开始做"+name+"吗？",[{t:"开始做",v:1,go:true},{t:"先不",v:0}]);if(go)beginTask(hw.kind,hw.key,hw.subj,hw.title,true)}
     return}
   if(act==="lab"){const kind=await zwChoose("这是什么？",[{t:"实验讲义（manual）",v:"manual",go:true},{t:"我的实验笔记",v:"notes"},{t:"题目截图",v:"q"},{t:"其他",v:"other"}]);
@@ -2666,12 +2676,12 @@ async function doAct(act,list){const files=deskFiles(list);if(!files.length)retu
     const pre=open.find(o=>o.r.id==="chem-prelab"),rpt=open.find(o=>o.r.id==="chem-lab3");
     const offer=async o=>{if(o&&!(S.cur&&S.cur.key===o.key)){const go=await zwChoose("现在开始做「"+o.title+"」吗？",[{t:"开始做",v:1,go:true},{t:"先不",v:0}]);if(go)beginTask("occ",o.key,o.subj,SUBJ[o.subj].name+" "+o.title,true)}};
     if(!kind||kind==="other"){ZW.imgs=[];ZW.docs=[];zwRender();toast("已存到 "+COURSE[subj]);return}
-    if(kind==="manual"){if(SAMPLE)await zwSend(S.zwMode==="ddl"?"这是这次实验的讲义（manual），记住内容，只回一句「讲义收到」。":"这是这次实验的讲义（manual）。先读懂它。正文只用两三句话说：这个实验做什么、测什么、用什么方法；然后请我发 pre-lab 题目的截图。不要列题目，不要写 [题目]。");return offer(pre)}
-    if(kind==="notes"){if(SAMPLE)await zwSend("这是我这次实验的笔记本（实验记录和数据）。把里面的关键数据整理成一个小表（看不清的写“?”），然后请我发 report 题目的截图。不要写 [题目]。");return offer(rpt)}
+    if(kind==="manual"){if(SAMPLE)await zwSend(S.zwMode==="ddl"?"这是这次实验的讲义（manual），记住内容，只回一句「讲义收到」。":"这是这次实验的讲义（manual）。先读懂它。正文只用两三句话说：这个实验做什么、测什么、用什么方法；然后请我发 pre-lab 题目的截图。不要列题目，不要写 [题目]。","实验讲义");return offer(pre)}
+    if(kind==="notes"){if(SAMPLE)await zwSend("这是我这次实验的笔记本（实验记录和数据）。把里面的关键数据整理成一个小表（看不清的写“?”），然后请我发 report 题目的截图。不要写 [题目]。","我的实验笔记");return offer(rpt)}
     const cur=S.cur&&/^chem-(prelab|lab3)@/.test(S.cur.key)?S.cur.title:"";
-    if(SAMPLE)await zwSend(S.zwMode==="ddl"?"（看附件，直接给答案）":"这是"+(cur?"「"+cur+"」":"这次实验")+"的题目截图。按实验流程逐题做，每题在回复最后写一行 [题目] 记下原题。");return}
+    if(SAMPLE)await zwSend(S.zwMode==="ddl"?"（看附件，直接给答案）":"这是"+(cur?"「"+cur+"」":"这次实验")+"的题目截图。按实验流程逐题做，每题在回复最后写一行 [题目] 记下原题。",(cur||"实验")+" 题目");return}
   const msg={review:"这是复习资料 / 模拟卷。按考点整理：每个考点一句话，后面列出对应的题号；标出最可能考的 3 个；最后问我想先练哪一个。先不要讲题。"}[act];
-  if(msg&&SAMPLE)zwSend(msg);else setTimeout(()=>$("#zwInput")&&$("#zwInput").focus(),50)}
+  if(msg&&SAMPLE)zwSend(msg,"复习资料");else setTimeout(()=>$("#zwInput")&&$("#zwInput").focus(),50)}
 function pickTarget(list){const box=h("div",{class:"box"},h("b",null,(S.cur?"正在做 "+S.cur.title+" · ":"")+list.map(f=>f.name).join("、").slice(0,50)),
     h("div",{class:"row"},...Object.keys(ACTS).map(k=>h("button",{class:"btn"+(k==="hw"?" go":""),onclick:()=>{wrap.remove();doAct(k,list)}},ACTS[k]))),
     h("button",{class:"btn flat sm",onclick:()=>wrap.remove()},"算了"));const wrap=h("div",{class:"zw-pick"},box);document.body.append(wrap)}
