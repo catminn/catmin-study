@@ -356,6 +356,9 @@ body.dg-on{overflow:hidden}
   body:not(.dg-more) .dg .fighters,body:not(.dg-more) #focusPill,body:not(.dg-more) #duePanel,body:not(.dg-more) #skillPanel,body:not(.dg-more) #questBar{display:none!important}
   body.dg-more .dg-more-btn{background:rgba(240,192,96,.25)}
   .dg .choices .qcard,.dg .choices>div{max-height:32vh;overflow:auto}
+  .dg .choices{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:24vh;margin-top:4px}
+  .dg .choice{padding:5px 10px;font-size:14px;line-height:1.35;border-width:1px;border-radius:10px;box-shadow:0 2px 0 var(--tint);min-height:0;align-self:stretch}
+  .dg .choice .katex{font-size:1em}
   /* 手机上聊天区再挤出地方：输入区、题目卡都收紧，资料/Drive 那一排也收进 ⋯ */
   body:not(.dg-more) .dg .dg-res{display:none!important}
   .dg .composer{padding:6px 8px;gap:5px;border-radius:14px}
