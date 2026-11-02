@@ -966,8 +966,9 @@ engl:[["写 Discussion","【Discussion】帮我写今晚的 reading response dis
 const WEEKLY=[
   {id:"engl-disc",subj:"engl",num:"engl-disc",fmt:n=>"Discussion "+n,dow:[1,3],base:10},
   {id:"chem-ps",subj:"chem",num:"chem-ps",fmt:n=>"PS "+n,dow:[3],base:15},
-  {id:"math-hw",subj:"math",dates:{"2026-10-22":8,"2026-10-29":9,"2026-11-05":10,"2026-11-19":11,"2026-11-24":12,"2026-12-03":13},fmt:n=>"HW "+n,dow:[0,1,2,3,4,5,6],base:15,grace:3,note:"可拖到周日，每拖一天倍率下降。"},
-  {id:"chem-lab3",subj:"chem",num:"chem-lab",fmt:n=>"Lab "+n+" report + Pre-lab",dow:[0],base:15},
+  {id:"math-hw",subj:"math",dates:{"2026-10-22":8,"2026-10-29":9,"2026-11-05":10,"2026-11-19":11,"2026-11-24":12,"2026-12-03":13},fmt:n=>"HW "+n,dow:[0,1,2,3,4,5,6],base:15,target:3,note:"截止是三天后的完全截止；在原定 ddl 前交 = 提前 3 天，拿 ×3。"},
+  {id:"chem-lab3",subj:"chem",num:"chem-lab",fmt:n=>"Lab "+n+" report",dow:[0],base:10},
+  {id:"chem-prelab",subj:"chem",num:"chem-lab",fmt:n=>"Pre-lab "+(n+1),dow:[0],base:8},
   {id:"engri-hw",subj:"engri",num:"engri-hw",fmt:n=>"HW "+n,dow:[0],base:15}
 ];
 const BASE_MAIN={
@@ -1051,6 +1052,10 @@ function mergeState(raw){const x=raw?clone(raw):{};const o=Object.assign(default
   for(const k of["done","started","skipped","chests","weekEarly","nodeNames","battle","trainLog","quizLog","tale","saga","fate"])if(!o[k]||typeof o[k]!=="object"||Array.isArray(o[k]))o[k]={};
   for(const k of["checkins","restDays","ledger","mistakes","customRewards","customWorlds","scores","spend","sleepLog","todos","hwArchive"])if(!Array.isArray(o[k]))o[k]=[];if(!o.hwDraft||typeof o.hwDraft!=="object"||Array.isArray(o.hwDraft))o.hwDraft={};
   delete o.story;
+  /* 一次性：HW 9 实际用时 90 分钟；11/1 的 lab report 和 pre-lab 截止延后 30 分钟 */
+  if(!o.mig1101){o.timeLog=Array.isArray(o.timeLog)?o.timeLog:[];for(const e of o.timeLog)if(e.subj==="math"&&/HW 9\b/.test(e.title||"")&&e.min>100)e.min=90;
+    if(o.cur&&o.cur.subj==="math"&&/HW 9\b/.test(o.cur.title||"")){o.cur.spent=90*60000;o.cur.start=null}
+    o.dueFix=Object.assign({},o.dueFix||{});o.dueFix["chem-lab3@2026-11-01"]=o.dueFix["chem-prelab@2026-11-01"]=at(2026,11,2,0,29);o.mig1101=1}
   if(typeof x.xp!=="number")o.xp=o.ledger.reduce((s,e)=>s+(e.d>0?e.d:0),0);
   if(x.bossDone){for(const k in x.bossDone)o.done["boss:"+k]=x.bossDone[k];delete o.bossDone}
   for(const sd of SEED_SCORES)if(!o.scores.some(x=>x.id===sd.id))o.scores.push(Object.assign({bonus:null},sd));
@@ -1383,7 +1388,8 @@ function rewardBox(base,due,grace){const p=preview(base,due,grace);
     h("div",{class:"calc"},p.mf?R(base)+" 基础 "+p.mf.label+" = "+p.total:R(base)+" 基础"),p.extra.length?h("div",{class:"small"},"另外："+p.extra.join("，")):null,p.mf?ladder(due,grace):null)}
 function doneBox(text){return h("div",{class:"reward"},h("div",{class:"big"},text))}
 function taskPrompt(o){const id=o.r.id,t=o.title;
-  if(id==="chem-lab3")return"【Lab report】这周要交「"+t+"」，lab report 和 pre-lab 一起交。我很难集中注意力，只带我做第一小步：先问我这次是哪个实验、手上有什么数据和要求（我可以拍照，或者放进资料架），然后一段一段推进。";
+  if(id==="chem-prelab")return"【Pre-lab】这周要交「"+t+"」（下周实验的预习）。我很难集中注意力，只带我做第一小步：先问我 pre-lab 的题目或要求（我可以拍照），然后一题一题推进。";
+  if(id==="chem-lab3")return"【Lab report】这周要交「"+t+"」。我很难集中注意力，只带我做第一小步：先问我这次是哪个实验、手上有什么数据和要求（我可以拍照，或者放进资料架），然后一段一段推进。";
   if(id==="chem-ps")return"【作业】我要做化学「"+t+"」。只带我做第一小步：先问我第一题是什么（我可以拍照），按考试题型一步步带我做，题目保持英文。";
   if(id==="engl-disc")return"【Discussion】帮我写「"+t+"」。先问我这次读或看的材料和要求，一次只问一个问题。";
   return"【作业】我要开始做"+SUBJ[o.subj].name+"「"+t+"」了，但我很难集中注意力。只让我做第一小步：先问我第一题是什么（我可以拍照），然后一次只带我走一步。"}
