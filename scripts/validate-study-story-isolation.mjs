@@ -45,7 +45,10 @@ export function initialState(m) {
 const stateKeys = ['worldId', 'revision', 'frontier', 'committedChapters', 'committedEvents', 'storyCursor', 'studySelection', 'verifiedPractices', 'studyVisits'];
 export function validateState(m, s) {
   if (!validateManifest(m).ok) return false;
-  if (!exactKeys(s, stateKeys) || s.worldId !== m.worldId || s.revision !== m.revision) return false;
+  // A persisted state must contain exactly the reviewed fields. An extra
+  // field would otherwise survive structuredClone on every accepted action.
+  if (!exactKeys(s, stateKeys) || Object.keys(s).length !== stateKeys.length ||
+      s.worldId !== m.worldId || s.revision !== m.revision) return false;
   if (![null, ...m.chapters.map(c => c.id)].includes(s.frontier)) return false;
   if (![null, ...m.chapters.map(c => c.storyEntry)].includes(s.storyCursor)) return false;
   if (![null, ...m.dungeons.map(d => d.id)].includes(s.studySelection)) return false;
