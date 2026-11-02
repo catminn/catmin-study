@@ -25,6 +25,11 @@ export function validateManifest(m) {
     if (c?.predecessor !== (i === 0 ? null : m.chapters[i - 1]?.id)) errors.add('STORY_CHAIN');
   }
   if (!distinct(m.chapters.map(c => c?.storyEntry)) || !distinct(m.chapters.map(c => c?.publicCopySlot))) errors.add('CHAPTER_REF_REUSE');
+  // Public free-study references must never alias a story-only reference.
+  // Otherwise a valid study projection can disclose a future chapter/entry/copy ID.
+  const storyRefs = m.chapters.flatMap(c => [c?.id, c?.storyEntry, c?.publicCopySlot]);
+  const studyRefs = new Set(m.dungeons.flatMap(d => [d?.id, d?.practiceId, d?.conceptId]).filter(isId));
+  if (storyRefs.some(ref => isId(ref) && studyRefs.has(ref))) errors.add('CROSS_MODE_REF_COLLISION');
   return { ok: errors.size === 0, codes: [...errors].sort(), errorCount: errors.size };
 }
 
