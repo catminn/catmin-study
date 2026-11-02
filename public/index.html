@@ -447,7 +447,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 .zw-m{max-width:92%;border-radius:14px;padding:8px 12px;font-size:15px;line-height:1.75;overflow-wrap:anywhere}
 .zw-m.a{align-self:flex-start;background:var(--panel2);border-radius:4px 14px 14px 14px}
 .zw-m.u{align-self:flex-end;background:var(--fg);color:var(--panel);border-radius:14px 4px 14px 14px;white-space:pre-wrap}
-.zw-m p{margin:.35em 0}.zw-m p:first-child{margin-top:0}.zw-m p:last-child{margin-bottom:0}.zw-m table{display:block;overflow-x:auto;max-width:100%;border-collapse:collapse;font-size:13px;line-height:1.5;margin:.4em 0}.zw-m th,.zw-m td{padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left;overflow-wrap:normal;word-break:normal;min-width:6em}.zw-m th:first-child,.zw-m td:first-child{white-space:nowrap;min-width:0}.zw-fig{margin:.5em 0;background:#fff;border-radius:10px;padding:6px;border:1px solid var(--line)}.zw-svg svg{display:block;width:100%;height:auto;max-height:420px}.zw-plot{width:100%;height:320px}.zw-figdl{margin-top:4px;font-size:12px}.zw-figerr{white-space:pre-wrap;font-size:12px;color:var(--dim);margin:0}.zw-m mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%}
+.zw-m p{margin:.35em 0}.zw-m p:first-child{margin-top:0}.zw-m p:last-child{margin-bottom:0}.zw-m table{display:block;overflow-x:auto;max-width:100%;border-collapse:collapse;font-size:13px;line-height:1.5;margin:.4em 0}.zw-m th,.zw-m td{padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left;overflow-wrap:normal;word-break:normal;min-width:6em}.zw-m th:first-child,.zw-m td:first-child{white-space:nowrap;min-width:0}.zw-fig{margin:.5em 0;background:#fff;border-radius:10px;padding:6px;border:1px solid var(--line)}.zw-svg svg{display:block;width:100%;height:auto;max-height:420px}.zw-plot{width:100%;height:320px}.zw-figdl{margin-top:4px;font-size:12px}.zw-figerr{white-space:pre-wrap;font-size:12px;color:var(--dim);margin:0}.zw-m.a{position:relative}.zw-copy{position:absolute;top:4px;right:6px;border:0;background:var(--panel);color:var(--dim);font-size:11px;padding:2px 6px;border-radius:6px;cursor:pointer;opacity:0;transition:opacity .15s}.zw-m.a:hover .zw-copy{opacity:.9}@media (hover:none){.zw-copy{opacity:.6}}.zw-m mjx-container{cursor:copy;overflow-x:auto;overflow-y:hidden;max-width:100%}
 .zw-choose{align-self:stretch;display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:12px;background:var(--gl-card,var(--panel2))}.zw-choose .q{font-size:13px;color:var(--dim)}.zw-choose .row{display:flex;flex-wrap:wrap;gap:6px}
 .zw-hint{align-self:center;font-size:13px;color:var(--dim);text-align:center;padding:20px 8px}
 .zw-in{display:flex;gap:6px;align-items:flex-end;padding:8px;border-top:1px solid var(--line)}
@@ -2033,7 +2033,7 @@ function zwOpen(subj,msg){if(subj&&SUBJ[subj]){ZW.subj=subj}$("#zwPanel").hidden
 function zwCloseP(){$("#zwPanel").hidden=true;document.body.classList.remove("zw-open")}
 function zwRender(){const sel=$("#zwSubj");if(!sel)return;{const cl=$("#zwClaude");if(cl)cl.hidden=!window.__SITE}{const mb=$("#zwMode");if(mb){const d=S.zwMode==="ddl";mb.textContent=d?"赶 DDL":"教学";mb.classList.toggle("ddl",d)}}renderTaskBar();sel.replaceChildren(...Object.keys(SUBJ).map(k=>h("option",{value:k,selected:k===ZW.subj},SUBJ[k].name)));
   const log=$("#zwLog");const atB=zwAtBottom(),prev=log.scrollTop,nTurns=ZW.turns.length,subjChanged=ZW.shownSubj!==ZW.subj,grew=!subjChanged&&nTurns>(ZW.shownN||0);ZW.shownSubj=ZW.subj;ZW.shownN=nTurns;log.replaceChildren();if(!ZW.turns.length)log.append(h("div",{class:"zw-hint"},SAMPLE?"有什么不会的，直接问。":"需要在 Claude 里打开才能对话"));
-  for(const t of ZW.turns){if(t.role==="user")log.append(h("div",{class:"zw-m u"},t.content));else log.append(h("div",{class:"zw-m a"},renderMd(t.content)))}
+  for(const t of ZW.turns){if(t.role==="user")log.append(h("div",{class:"zw-m u"},t.content));else log.append(h("div",{class:"zw-m a"},renderMd(t.content),h("button",{class:"zw-copy",title:"复制这条（公式保留成 LaTeX）",onclick:()=>copyText(t.content.replace(/```(svg|plotly)[\s\S]*?```/g,"[图]").trim(),"已复制")},"复制")))}
   $("#zwThumbs").replaceChildren(...ZW.imgs.map(f=>h("span",{class:"zw-th"},h("img",{src:URL.createObjectURL(f),alt:"附图"}),h("button",{class:"zw-thx","aria-label":"移除",onclick:()=>{ZW.imgs=ZW.imgs.filter(x=>x!==f);zwRender()}},"×"))),...(ZW.docs||[]).map(d=>h("span",{class:"lchip"},h("span",null,d.name),h("button",{onclick:()=>{ZW.docs=ZW.docs.filter(x=>x!==d);zwRender()},"aria-label":"移除"},"×"))));$("#zwClipL").hidden=false;$("#zwSend").disabled=!SAMPLE||!!ZW.ctl;
   typeset(log);
   /* 停在她离开的地方；刚发消息、换科目、本来就在最底下时才跳到最新 */
@@ -2346,6 +2346,10 @@ setTimeout(()=>{const g=$("#zwGrip"),pn=$("#zwPanel");if(!g||!pn)return;
   const end=e=>{if(!st)return;const {w,h}=calc(e);st=null;if(EMBED==="zero"&&DESK&&DESK.zeroSize)DESK.zeroSize(w,h,true);else{apply(w,h);try{localStorage.setItem("zs-zw-size",JSON.stringify({w,h}))}catch(x){}}};
   g.addEventListener("pointerup",end);g.addEventListener("pointercancel",end)},0);
 setTimeout(()=>{const l=$("#zwLog"),b=$("#zwJump");if(l)l.addEventListener("scroll",zwJumpBtn,{passive:true});if(b)b.onclick=()=>{l.scrollTo({top:l.scrollHeight,behavior:"smooth"});ZW.unread=false}},0);
+/* 公式是画出来的，选不中；点一下公式就复制它的 LaTeX，每条回复右上角也能整条复制 */
+async function copyText(t,msg){try{await navigator.clipboard.writeText(t)}catch(e){const ta=document.createElement("textarea");ta.value=t;document.body.append(ta);ta.select();try{document.execCommand("copy")}catch(x){}ta.remove()}toast(msg||"已复制")}
+document.addEventListener("click",e=>{const c=e.target.closest&&e.target.closest(".zw-m mjx-container");if(!c||!window.MathJax||!MathJax.startup||!MathJax.startup.document)return;
+  try{const it=MathJax.startup.document.getMathItemsWithin(c)[0];if(it&&it.math)copyText(it.math.trim(),"已复制公式（LaTeX）")}catch(x){}});
 /* 文件直接拖到零的窗口上（桌面版零窗口整个都算） */
 const zwDropZone=e=>{const pn=$("#zwPanel");return pn&&!pn.hidden&&(EMBED==="zero"||pn.contains(e.target))};
 document.addEventListener("dragover",e=>{if(zwDropZone(e)){e.preventDefault();e.stopPropagation();if(e.dataTransfer)e.dataTransfer.dropEffect="copy";$("#zwPanel").classList.add("drag");return}const pn=$("#zwPanel");if(pn)pn.classList.remove("drag")},true);
@@ -2423,7 +2427,7 @@ body.embed-zero .zw{inset:0;right:0;bottom:0}
 body.embed-zero .zw-fab{display:none}
 body.embed-zero .zw-panel{width:100vw!important;height:100vh!important;border-radius:0;border:0}
 .embed .zw-head,.embed .td-head{-webkit-app-region:drag;user-select:none}
-.embed .zw-head button,.embed .zw-head select,.embed .td-head button{-webkit-app-region:no-drag}
+.embed .zw-head button,.embed .zw-head select,.embed .zw-head a,.embed .zw-grip,.embed .td-head button{-webkit-app-region:no-drag}
 #todoEmbed{position:fixed;inset:0;display:flex;flex-direction:column;background:color-mix(in oklab,var(--panel) 58%,transparent);border:1px solid color-mix(in oklab,var(--fg) 10%,transparent);border-radius:12px;color:var(--fg);-webkit-app-region:drag;padding:10px 12px;font-size:14px;overflow:hidden}
 body.embed.glass #todoEmbed{background:color-mix(in oklab,var(--panel) 30%,transparent);border-color:transparent;border-radius:8px}
 html.embed-root,body.embed-todo{background:transparent!important}
