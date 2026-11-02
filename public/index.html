@@ -1036,14 +1036,14 @@ function playedToday(){const d=dayKey();return (S.playLog||[]).filter(x=>x.day==
 const playing=()=>!!(S.timer&&S.timer.meter);
 function playMin(){return S.timer&&S.timer.meter?Math.max(0,(Date.now()-S.timer.start)/MIN):0}
 function playNow(){const m=playMin();return{m,cost:S.timer&&S.timer.free?0:playCost(playedToday(),m)}}
-function startPlay(){if(S.timer&&S.timer.end>Date.now()){toast("已经在计时了");return}const free=isRestToday();
-  if(!free&&S.points<=0){toast("积分不够，先去做点作业");return}
+function startPlay(){if(S.timer&&S.timer.end>Date.now()){toast("已经在计时了");return}const free=false;
+  if(S.points<=0){toast("积分不够，先去做点作业");return}
   S.timer={label:free?"游戏中（休息日免费）":"游戏中",start:Date.now(),end:Date.now()+6*HOUR,meter:1,free};save();renderAll();toast("开始计时，玩完记得点「玩完了」")}
 function stopPlay(){if(!playing())return;const {m,cost}=playNow(),min=Math.round(m);S.playLog=(S.playLog||[]).filter(x=>Date.now()-x.at<14*DAY);S.playLog.push({day:dayKey(),min:m,at:Date.now()});
   const lab=S.timer.free;S.timer=null;if(cost>0)earn(-cost,"游戏 "+min+" 分钟");else S.ledger.push({at:Date.now(),d:0,t:"游戏 "+min+" 分钟"+(lab?"（休息日免费）":"")});
   save();renderAll();if(DESK&&DESK.gameMode)DESK.gameMode(false,-1);toast("玩了 "+min+" 分钟"+(cost?"，扣 "+cost+" 分":""))}
-function affordMin(){if(isRestToday())return Infinity;const b=playedToday();let m=0;while(m<600&&playCost(b,m+1)<=S.points)m++;return m}
-function playCard(){const on=playing(),free=isRestToday(),b=playedToday(),am=affordMin();
+function affordMin(){const b=playedToday();let m=0;while(m<600&&playCost(b,m+1)<=S.points)m++;return m}
+function playCard(){const on=playing(),free=false,b=playedToday(),am=affordMin();
   return h("div",{class:"item"},h("div",{class:"row between"},h("div",{class:"ic"},icon("game")),h("span",{class:"price"},free?"免费":"按分钟")),h("h3",null,"玩游戏"),
     h("p",null,free?"休息日，随便玩":"开始计时，玩完点停，按真实时长扣分。当天累计：前 30 分钟每分钟 0.7，30–60 分钟 0.9，1–2 小时 1.2，超过 2 小时 1.6。"),
     h("div",{class:"dim small"},"今天已玩 "+Math.round(b)+" 分钟"+(free?"":" · 现在的积分够玩约 "+am+" 分钟")),
@@ -1051,7 +1051,7 @@ function playCard(){const on=playing(),free=isRestToday(),b=playedToday(),am=aff
 const CNY_TIERS=[["6",6],["15",15],["30",30],["60",60],["100",100],["180",180],["300",300],["600",600],["月卡",30],["战令",68],["战令",128]];
 const SHOP_ITEMS=[
   {id:"makeup",name:"补签卡",price:35,ic:"ticket",desc:"补上漏掉的一天签到"},
-  {id:"rest",name:"休息券",price:65,ic:"ticket",desc:"当天不断签，游戏免费"},
+  {id:"rest",name:"休息券",price:65,ic:"ticket",desc:"当天不做任务也不断签"},
 ];
 
 /* ============ state ============ */
@@ -1118,7 +1118,7 @@ const isRestToday=()=>S.restDays.includes(dayKey());
 function doCheckin(why){if(checkedToday())return;S.checkins.push(dayKey());const n=streak();const lines=["连续签到 "+n+" 天"];
   if(n>0&&n%7===0){S.cards.makeup++;lines.push("连续 7 天奖励：补签卡 +1")}
   const r=ckReward(n);if(n>1)lines.push("连签加成 +"+fp(r-R(30)));const before=levelOf(S.xp).L;earn(r,"每日委托"+(why?" · "+why:""));save();closeSheet();showReward(r,"签到成功",lines,levelOf(S.xp).L>before?levelOf(S.xp).L:0)}
-function useRest(){if(checkedToday()||S.cards.rest<1)return;S.cards.rest--;S.checkins.push(dayKey());S.restDays.push(dayKey());S.ledger.push({at:Date.now(),d:0,t:"使用休息券"});save();closeSheet();toast("今天放假，商店里的游戏时长免费");renderAll()}
+function useRest(){if(checkedToday()||S.cards.rest<1)return;S.cards.rest--;S.checkins.push(dayKey());S.restDays.push(dayKey());S.ledger.push({at:Date.now(),d:0,t:"使用休息券"});save();closeSheet();toast("今天放假，签到不断");renderAll()}
 function useMakeup(k){if(S.checkins.includes(k)||S.cards.makeup<1)return;S.cards.makeup--;S.checkins.push(k);S.ledger.push({at:Date.now(),d:0,t:"补签 "+k});save();toast("已补签 "+k.slice(5));renderHud();openCheckin()}
 
 /* ============ weekly side quests ============ */
