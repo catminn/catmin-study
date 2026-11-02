@@ -511,8 +511,8 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
   body:not(.dg-more) .dg .dg-sheet .fighters{display:flex!important}
 }
 /* 副本页不显示顶上的等级/积分栏，科目切换顶到最上面，聊天区更长 */
-body.dg-on .hud{display:none!important}
-body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset-top,0px))}
+@media (max-width:820px){body.dg-on .hud{display:none!important}
+body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset-top,0px))}}
 /* iPhone 输入框字小于 16px 会自动放大页面 */
 @media (max-width:820px),(pointer:coarse){input,textarea,select{font-size:16px!important}}
 /* 副本聊天不显示头像 */
@@ -2486,7 +2486,7 @@ document.addEventListener("copy",e=>{const sel=getSelection();if(!sel||sel.isCol
   if(!t.trim())t=sel.toString();t=t.normalize("NFKC").replace(/\u2061|\u2062|\u2063/g,"");e.clipboardData.setData("text/plain",t);e.preventDefault()});
 setTimeout(()=>{const b=$("#hSleep");if(b)b.onclick=()=>sleepAwake()?wakeUp():goodnight()},0);
 setTimeout(()=>{const sh=$("#dgSheetRes"),res=document.querySelector(".dg .dg-res"),stop=$("#stopBtn"),note=$("#aiNote"),send=$("#sendBtn");
-  {const comp=$("#composer");if(note&&comp)comp.append(note);if(stop&&send)send.before(stop)}if(sh&&res&&matchMedia("(max-width:820px)").matches)sh.append(res);
+  {const comp=$("#composer");if(note&&comp)comp.append(note);if(stop&&send)send.before(stop)}if(sh&&res&&matchMedia("(max-width:820px)").matches)sh.append(res);else if(res){const lb=$("#libBtn"),inp=$("#input");if(lb&&inp)inp.before(lb);res.style.display="none"}
   document.addEventListener("click",e=>{if(!document.body.classList.contains("dg-more")||!matchMedia("(max-width:820px)").matches)return;if(e.target.closest("#dgSheet,#dgMore,.sheet,.qz"))return;document.body.classList.remove("dg-more")},true)},0);
 setTimeout(()=>{const b=$("#dgMore");if(!b)return;b.onclick=()=>document.body.classList.toggle("dg-more");setInterval(()=>{const d=$("#duePanel");b.classList.toggle("dot",!!(d&&!d.hidden))},1500)},0);
 /* 网页版 ⇄ Claude 版：进度两边同步，零在 Claude 版走订阅额度 */
