@@ -2102,8 +2102,12 @@ function driveTools(){if(window.__SITE||!MCP)return null;const qe=t=>String(t).r
         const r=await MCP.callTool(DRIVE,"search_files",{query:"title contains '"+qe(query)+"'",pageSize:12,excludeContentSnippets:true},{cache:false});return(drivePayload(r).files||[]).map(f=>({id:f.id,title:f.title,mimeType:f.mimeType,modified:f.modifiedTime}))}},
     {name:"drive_read",description:"读出 Google Drive 里一个文件的文字内容（PDF、Google 文档、Word 等），参数是 drive_search 给的 id（和 account）。",inputSchema:{type:"object",properties:{id:{type:"string"},account:{type:"string"}},required:["id"]},
       execute:async({id,account})=>{const sj=DSUBJ;if(DCACHE[id])return DCACHE[id].text;try{const r=await MCP.callTool(SM,"drive_read",{id,...(account?{account}:{})},{cache:false});const v=smPayload(r,true);if(typeof v==="string"&&v){dcPut(id,v,sj);return v.slice(0,24000)}}catch(e){}
-        const t=await driveRead({id});if(t)dcPut(id,t,sj);return String(t||"（这个文件读不出文字，可能是扫描件）").slice(0,24000)}}]}
-const DRIVE_HINT="\n\n（你可以用 drive_search 和 drive_read 两个工具直接去她的 Google Drive 找文件、读内容。她说文件在 Drive 里时，自己去找，不要让她再发。但只在真的需要一份还没读过的文件时才用：上面「已经读过的 Drive 文件」里有的内容直接用，不要再搜再读；普通的讲解、出题、批改不需要碰 Drive。）";
+        const t=await driveRead({id});if(t)dcPut(id,t,sj);return String(t||"（这个文件读不出文字，可能是扫描件）").slice(0,24000)}},
+    {name:"calendar_add",description:"在 Catherine 的个人 Google 日历上添加一个日程。时间用美东时间，格式 YYYY-MM-DDTHH:MM；全天的设 allDay 为 true。只在她让你加日历时用。",inputSchema:{type:"object",properties:{summary:{type:"string"},startTime:{type:"string"},endTime:{type:"string"},description:{type:"string"},allDay:{type:"boolean"}},required:["summary","startTime","endTime"]},
+      execute:async(a)=>{const r=await MCP.callTool(SM,"calendar_add",a,{cache:false});const v=smPayload(r,true);return v||"（没加上）"}},
+    {name:"calendar_list",description:"查看 Catherine 个人 Google 日历某段时间里的日程（美东时间 YYYY-MM-DDTHH:MM），加之前可以先看有没有冲突。",inputSchema:{type:"object",properties:{startTime:{type:"string"},endTime:{type:"string"}},required:["startTime","endTime"]},
+      execute:async(a)=>{const r=await MCP.callTool(SM,"calendar_list",a,{cache:false});return smPayload(r,true)||"[]"}}]}
+const DRIVE_HINT="\n\n（你可以用 drive_search 和 drive_read 两个工具直接去她的 Google Drive 找文件、读内容。她说文件在 Drive 里时，自己去找，不要让她再发。她让你把什么加到日历（个人 Google 日历）时，用 calendar_add 直接加，不用再问一遍；时间不清楚才问。加完告诉她加了什么、几点。但只在真的需要一份还没读过的文件时才用：上面「已经读过的 Drive 文件」里有的内容直接用，不要再搜再读；普通的讲解、出题、批改不需要碰 Drive。）";
 let DCACHE={};try{DCACHE=JSON.parse(localStorage.getItem("zs-drive-cache")||"{}")||{}}catch(e){}
 const DTITLE={};let DSUBJ="";
 function dcSave(){try{const ks=Object.keys(DCACHE).sort((a,b)=>DCACHE[b].at-DCACHE[a].at);let tot=0;for(const k of ks){tot+=DCACHE[k].text.length;if(tot>150000)delete DCACHE[k]}localStorage.setItem("zs-drive-cache",JSON.stringify(DCACHE))}catch(e){}}

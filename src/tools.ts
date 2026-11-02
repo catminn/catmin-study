@@ -462,6 +462,28 @@ TOOLS.push(
       return String(r.fileContent || "(no text could be extracted)").slice(0, 30000);
     },
   } as Tool,
+  {
+    name: "calendar_add",
+    description: "Add an event to Catherine's personal Google Calendar (primary calendar). Times are America/New_York, format 'YYYY-MM-DDTHH:MM'. For an all-day item set allDay true and give the date. Only call this when she asks to add something to her calendar.",
+    inputSchema: { type: "object", properties: { summary: { type: "string" }, startTime: { type: "string", description: "e.g. 2026-11-05T19:30" }, endTime: { type: "string", description: "e.g. 2026-11-05T21:00; for all-day, the date" }, description: { type: "string" }, location: { type: "string" }, allDay: { type: "boolean" } }, required: ["summary", "startTime", "endTime"] },
+    async run(env, a) {
+      const g = await import("./google");
+      const r: any = await g.googleTool(env as any, "Google Calendar", "create_event", a);
+      return JSON.stringify({ ok: true, id: r?.id, summary: r?.summary, start: r?.start, end: r?.end, link: r?.htmlLink });
+    },
+  } as Tool,
+  {
+    name: "calendar_list",
+    description: "List events on Catherine's personal Google Calendar between two times (America/New_York, 'YYYY-MM-DDTHH:MM'). Use to check for conflicts before adding.",
+    inputSchema: { type: "object", properties: { startTime: { type: "string" }, endTime: { type: "string" } }, required: ["startTime", "endTime"] },
+    annotations: { readOnlyHint: true },
+    async run(env, a) {
+      const g = await import("./google");
+      const r: any = await g.googleTool(env as any, "Google Calendar", "list_events", { ...a, pageSize: 50 });
+      const ev = (r?.events || r?.items || []).map((e: any) => ({ summary: e.summary, start: e.start, end: e.end }));
+      return JSON.stringify(ev);
+    },
+  } as Tool,
 );
 
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));

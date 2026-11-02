@@ -132,6 +132,8 @@ async function recordUsage(env: SiteEnv, model: string, inTok: number, outTok: n
 const DRIVE_TOOLS = [
   { name: "drive_search", description: "在 Catherine 的 Google Drive 里按文件名搜索，返回文件 id、标题、类型、修改时间。关键词尽量短，比如 HW8、Quiz 3、Lab 8；搜不到就换个关键词再试。", input_schema: { type: "object", properties: { query: { type: "string", description: "文件名里包含的关键词" } }, required: ["query"] } },
   { name: "drive_read", description: "读出 Google Drive 里一个文件的文字内容（PDF、Google 文档、Word 等），参数是 drive_search 给的 id。", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+  { name: "calendar_add", description: "在 Catherine 的个人 Google 日历上添加一个日程。时间用美东时间，格式 YYYY-MM-DDTHH:MM；全天的设 allDay 为 true。只在她让你加日历时用。", input_schema: { type: "object", properties: { summary: { type: "string" }, startTime: { type: "string" }, endTime: { type: "string" }, description: { type: "string" }, allDay: { type: "boolean" } }, required: ["summary", "startTime", "endTime"] } },
+  { name: "calendar_list", description: "查看 Catherine 个人 Google 日历某段时间里的日程（美东时间 YYYY-MM-DDTHH:MM），加之前可以先看有没有冲突。", input_schema: { type: "object", properties: { startTime: { type: "string" }, endTime: { type: "string" } }, required: ["startTime", "endTime"] } },
 ];
 async function runDriveTool(env: SiteEnv, name: string, input: any, seen?: { titles: Record<string, string>; files: { id: string; title: string; text: string }[] }): Promise<string> {
   try {
@@ -146,6 +148,12 @@ async function runDriveTool(env: SiteEnv, name: string, input: any, seen?: { tit
       const t = String(r.fileContent || "").slice(0, 24000);
       if (seen && t) seen.files.push({ id, title: seen.titles[id] || r.title || id, text: t });
       return t || "（读不出文字）";
+    }
+    if (name === "calendar_add" || name === "calendar_list") {
+      const { googleTool } = await import("./google");
+      const r: any = await googleTool(env, "Google Calendar", name === "calendar_add" ? "create_event" : "list_events", name === "calendar_list" ? { ...input, pageSize: 50 } : input);
+      if (name === "calendar_add") return JSON.stringify({ ok: true, summary: r?.summary, start: r?.start, end: r?.end });
+      return JSON.stringify((r?.events || r?.items || []).map((e: any) => ({ summary: e.summary, start: e.start, end: e.end })));
     }
     return "没有这个工具";
   } catch (e: any) {
