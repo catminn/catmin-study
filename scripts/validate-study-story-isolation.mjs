@@ -95,7 +95,11 @@ export function applySyntheticAction(m, s, a) {
   } else {
     if (!['ask', 'preview', 'enter', 'commit'].includes(a.type)) return fail('MODE_ACTION_INVALID');
     if (a.type === 'ask') {
-      if (a.chapterId !== undefined && a.chapterId !== s.frontier) return fail('STORY_LOCKED');
+      // A finished saga has no chapter-scoped ASK target. An omitted chapter
+      // or explicit null must not reopen the completed story through a
+      // seemingly read-only path. Free study remains independent.
+      if (s.frontier === null ||
+          (a.chapterId !== undefined && a.chapterId !== s.frontier)) return fail('STORY_LOCKED');
       return success(next);
     }
     if (a.type === 'preview') {
