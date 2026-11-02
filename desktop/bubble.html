@@ -74,6 +74,6 @@
   b.addEventListener("contextmenu", (e) => { e.preventDefault(); window.bubble.menu(); });
   document.addEventListener("dragover", (e) => { e.preventDefault(); b.classList.add("over"); });
   document.addEventListener("dragleave", () => b.classList.remove("over"));
-  document.addEventListener("drop", (e) => { e.preventDefault(); b.classList.remove("over"); if (e.dataTransfer.files.length) window.bubble.drop(e.dataTransfer.files); });
+  document.addEventListener("drop", (e) => { e.preventDefault(); b.classList.remove("over"); try { window.bubble.drop(e.dataTransfer.files); } catch (err) { window.bubble.err && window.bubble.err(String(err)); } });
 </script>
 </body></html>

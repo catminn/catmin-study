@@ -241,7 +241,7 @@ ipcMain.on("bubble-moved", () => {
 });
 ipcMain.on("bubble-click", () => toggleZero());
 ipcMain.on("bubble-menu", () => { menu().popup({ window: bubble }); });
-ipcMain.on("bubble-drop", (e, paths) => deliverPaths(paths));
+ipcMain.on("bubble-drop", (e, paths) => { dlog("bubble-drop", (paths || []).length, (paths || []).map((p) => path.basename(String(p)))); deliverPaths(paths); });
 
 // 平滑改变窗口位置大小（像拉出展板）
 const anims = new WeakMap();
@@ -467,6 +467,7 @@ ipcMain.on("game-mode", (e, on, end) => {
 ipcMain.on("badge", (e, n) => { const h = Number(n) || 0; if (h !== todoHot) { todoHot = h; tabSend(); } });
 let bubbleDotOn = false;
 function bubbleDot(on) { bubbleDotOn = !!on; if (bubble && !bubble.isDestroyed()) bubble.webContents.send("badge", on ? 1 : 0); }
+ipcMain.on("dlog", (e, ...a) => dlog("page", ...a));
 ipcMain.on("notify", () => { if (!(zero && !zero.isDestroyed() && zero.isVisible() && zero.isFocused())) bubbleDot(true); });
 ipcMain.on("saved", (e) => {
   for (const w of [zero, todo, main]) if (w && !w.isDestroyed() && w.webContents.id !== e.sender.id) send(w, "pull");
@@ -491,6 +492,7 @@ function readFiles(paths) {
   return out;
 }
 function deliverPaths(paths) {
+  dlog("deliverPaths", (paths || []).length);
   const list = readFiles((paths || []).filter((p) => typeof p === "string"));
   if (!list.length) { showZero(); return; }
   const w = ensureZero();
@@ -506,7 +508,8 @@ function explorerSelection() {
   return new Promise((resolve) => {
     let script = path.join(__dirname, "selected.ps1");
     if (script.includes("app.asar")) script = script.replace("app.asar", "app.asar.unpacked");
-    execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script], { windowsHide: true, timeout: 6000, encoding: "utf8" }, (err, stdout) => {
+    execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script], { windowsHide: true, timeout: 6000, encoding: "utf8" }, (err, stdout, stderr) => {
+      dlog("explorerSelection", err ? "err " + (err.code || err.message) : "ok", String(stdout || "").split(/\r?\n/).filter(Boolean).length, String(stderr || "").slice(0, 200));
       if (err) return resolve([]);
       resolve(String(stdout || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean));
     });
@@ -610,6 +613,7 @@ function createRing() {
 }
 function toDip(x, y) { return process.platform === "win32" ? screen.screenToDipPoint({ x, y }) : { x, y }; }
 function showRing(x, y) {
+  dlog("ring show", x, y);
   if (!ring || ring.isDestroyed() || conf.ringOff) return;
   const p = toDip(x, y);
   ring.setBounds({ x: Math.round(p.x - RING / 2), y: Math.round(p.y - RING / 2), width: RING, height: RING });
@@ -642,6 +646,7 @@ function startRingHook() {
     if (!ringShown) return;
     // 松手在哪一格由鼠标位置算（不靠 Windows 的拖放，那个在你电脑上收不到）；文件是开始拖时资源管理器里选中的那些
     const k = ringSector(e.x, e.y) || ringHoverKey, t0 = Date.now(), sel = ringSel;
+    dlog("ring mouseup", k, e.x, e.y, ringCenter);
     hideRing(120);
     if (!k) return;
     setTimeout(async () => {
@@ -665,10 +670,12 @@ function ringSector(px, py) {
 }
 ipcMain.on("ring-hover", (e, k) => { ringHoverKey = String(k || ""); });
 ipcMain.on("ring-drop", (e, target, paths) => {
+  dlog("ring-drop", target, (paths || []).length);
   hideRing(0); ringDropAt = Date.now();
   handleRingDrop(target, paths);
 });
 function handleRingDrop(target, paths) {
+  dlog("handleRingDrop", target, (paths || []).length);
   if (!target || !paths || !paths.length) return;
   const list = readFiles(paths);
   if (!list.length) return;

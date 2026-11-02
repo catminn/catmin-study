@@ -2694,7 +2694,7 @@ let PULLING=false;
 async function pullState(){if(!stateRef||PULLING||dirty)return;PULLING=true;try{const s=await stateRef.get();if(s.exists){const n=s.data();if(n&&(n.savedAt||0)>(S.savedAt||0)){S=mergeState(n);applyDyn();renderAll()}}}catch(e){}finally{PULLING=false}
   if(EMBED==="zero"||DESK)zwLoad()}
 window.addEventListener("focus",()=>pullState());
-if(DESK){DESK.onPull&&DESK.onPull(()=>pullState());DESK.onFiles&&DESK.onFiles((target,list)=>{if(target==="ask")pickTarget(list);else deskDeliver(target,list)});DESK.onCommand&&DESK.onCommand(c=>{if(c==="#task"&&S.cur){zwOpen(S.cur.subj);if(!ZW.turns.length||!/^开始做「/.test(ZW.turns[ZW.turns.length-1].content))zwSay("开始做「"+S.cur.title+"」。把第一题截图发给我（拖到小圆上、按快捷键，或者直接贴进来都行）。");return}if(c==="daily"){if(checkedToday())toast("今天已经签过了");else openDaily(suggestSubj())}else if(c&&c[0]==="#")location.hash=c});DESK.ready&&DESK.ready()}
+if(DESK){DESK.onPull&&DESK.onPull(()=>pullState());DESK.onFiles&&DESK.onFiles((target,list)=>{if(DESK.log)DESK.log("files",target,(list||[]).length);if(target==="ask")pickTarget(list);else deskDeliver(target,list)});DESK.onCommand&&DESK.onCommand(c=>{if(c==="#task"&&S.cur){zwOpen(S.cur.subj);if(!ZW.turns.length||!/^开始做「/.test(ZW.turns[ZW.turns.length-1].content))zwSay("开始做「"+S.cur.title+"」。把第一题截图发给我（拖到小圆上、按快捷键，或者直接贴进来都行）。");return}if(c==="daily"){if(checkedToday())toast("今天已经签过了");else openDaily(suggestSubj())}else if(c&&c[0]==="#")location.hash=c});DESK.ready&&DESK.ready()}
 
 route();
 (async()=>{

@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("zsDesktop", {
   getPin: () => ipcRenderer.invoke("get-pin"),
   gameMode: (on, end) => ipcRenderer.send("game-mode", !!on, Number(end) || 0),
   onWall: (cb) => ipcRenderer.on("wall", (e, m) => cb(m)),
+  log: (...a) => ipcRenderer.send("dlog", ...a.map(String)),
   notify: () => ipcRenderer.send("notify"),
   onSaver: (cb) => ipcRenderer.on("saver", (e, v) => cb(!!v)),
   badge: (n) => ipcRenderer.send("badge", Number(n) || 0),
