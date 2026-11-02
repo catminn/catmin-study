@@ -1045,8 +1045,8 @@ const WEEKLY=[
   {id:"engl-disc",subj:"engl",hh:9,mm:0,dates:{"2026-10-27":[17,"D&D 与 Le Guin"],"2026-10-29":[18,"BG3 鹦鹉螺教程"],"2026-11-03":[19,"BG3 Goblin Camp"],"2026-11-05":[20,"BG3 庆功宴与 Risen Road"],"2026-11-10":[21,"BG3 Crèche 与第一幕结局"],"2026-11-12":[22,"House of the Dragon S1E1"],"2026-11-17":[23,"Rogue One"],"2026-11-19":[24,"The Uses of Fantasy"],"2026-12-01":[25,"Spirited Away"]},fmt:v=>"Discussion "+v[0]+" · "+v[1],dow:[0,1,2,3,4,5,6],base:24},
   {id:"chem-ps",subj:"chem",num:"chem-ps",fmt:n=>"PS "+n,dow:[3],base:48},
   {id:"math-hw",subj:"math",dates:{"2026-10-22":8,"2026-10-29":9,"2026-11-05":10,"2026-11-19":11,"2026-11-24":12,"2026-12-03":13},fmt:n=>"HW "+n,dow:[0,1,2,3,4,5,6],base:48,target:3,note:"截止是三天后的完全截止；在原定 ddl 前交 = 提前 3 天，拿 ×2.5。"},
-  {id:"chem-lab3",subj:"chem",num:"chem-lab",fmt:n=>"Lab "+n+" report",dow:[0],base:40},
-  {id:"chem-prelab",subj:"chem",num:"chem-lab",fmt:n=>"Pre-lab "+(n+1),dow:[0],base:16},
+  {id:"chem-lab3",subj:"chem",num:"chem-lab",fmt:n=>"Lab "+n+" report",dow:[0],base:40,real:[1,13,25],self:[1,0,29]},
+  {id:"chem-prelab",subj:"chem",num:"chem-lab",fmt:n=>"Pre-lab "+(n+1),dow:[0],base:16,real:[1,13,25],self:[1,0,29]},
   {id:"engri-hw",subj:"engri",num:"engri-hw",fmt:n=>"HW "+n,dow:[0],base:48}
 ];
 const BASE_MAIN={
@@ -1173,15 +1173,15 @@ function earn(delta,text){delta=r1(delta);if(text&&!/^(兑换|购买|花费)/.te
 function levelOf(xp){let L=1;while(xp>=60*L*(L+1)/2)L++;const lo=60*(L-1)*L/2,hi=60*L*(L+1)/2;return{L,lo,hi,title:LEVELS[Math.min(L-1,LEVELS.length-1)]}}
 
 /* ============ rewards ============ */
-function multFor(due,grace=0,now=Date.now()){const hrs=(due-now)/HOUR;
+function multFor(due,grace=0,now=Date.now(),self){const hrs=(due-now)/HOUR;if(self&&now<=self&&hrs<48)return{m:1.5,cls:"early",label:"×1.5 自定 ddl 前",step:2};
   if(hrs>=72)return{m:2.5,cls:"early",label:"×2.5 提前 3 天+",step:0};if(hrs>=48)return{m:2,cls:"early",label:"×2 提前 2 天",step:1};if(hrs>=24)return{m:1.5,cls:"early",label:"×1.5 提前 1 天",step:2};
   if(hrs>=0)return{m:1,cls:"ontime",label:"×1 当天",step:3};
   const late=Math.ceil(-hrs/24);if(grace&&late<=grace)return{m:0.8,cls:"late",label:"×0.8 迟交第 "+late+" 天",step:4};
   const lg=late-(grace||0);const m=lg<=1?0.7:lg<=3?0.6:0.5;return{m,cls:"late",label:"×"+m+" 超时 "+late+" 天",step:4}}
-function preview(base,due,grace){if(!due)return{m:1,total:R(base),mf:null,extra:[]};const mf=multFor(due,grace);const total=R(base*mf.m);const extra=[];
+function preview(base,due,grace,self){if(!due)return{m:1,total:R(base),mf:null,extra:[]};const mf=multFor(due,grace,Date.now(),self);const total=R(base*mf.m);const extra=[];
   if(mf.m>1){const sh=Math.floor((due-Date.now())/HOUR/24);if(sh>0)extra.push("时间碎片 +"+sh);if(S.combo>=2)extra.push("提前连击 +"+R(10))}
   return{m:mf.m,total,mf,extra}}
-function award(base,due,grace,label){const p=preview(base,due,grace);let pts=p.total;const lines=[R(base)+" 基础"+(p.mf?" "+p.mf.label:"")];
+function award(base,due,grace,label,self){const p=preview(base,due,grace,self);let pts=p.total;const lines=[R(base)+" 基础"+(p.mf?" "+p.mf.label:"")];
   if(p.mf){const early=Math.max(0,(due-Date.now())/HOUR);
     if(p.m>1){S.combo++;if(S.combo>=3){pts=r1(pts+R(10));lines.push("提前连击 "+S.combo+"，+"+R(10))}const sh=Math.floor(early/24);if(sh>0){S.shards+=sh;lines.push("时间碎片 +"+sh)}}else S.combo=0;
     const wk=weekKey();S.weekEarly[wk]=(S.weekEarly[wk]||0)+early;
@@ -1201,8 +1201,11 @@ function useMakeup(k){if(S.checkins.includes(k)||S.cards.makeup<1)return;S.cards
 /* ============ weekly side quests ============ */
 const NUM_DEF={"engl-disc":{a:"2026-10-26",n:18,lead:"engl-disc"},"chem-ps":{a:"2026-10-28",n:8,lead:"chem-ps"},"chem-lab":{a:"2026-10-25",n:8,lead:"chem-lab3"},"engri-hw":{a:"2026-10-25",n:7,lead:"engri-hw"}};
 function rawOcc(k){const out=[];const d=keyToDate(k);for(const r of WEEKLY){if(r.dates?!(k in r.dates):!r.dow.includes(d.getDay()))continue;
-  const fin=r.dates&&k==="2026-11-24"?at(2026,11,24):at(d.getFullYear(),d.getMonth()+1,d.getDate(),r.hh??23,r.mm??59);const plusDays=(t,n)=>{const d=new Date(t);d.setDate(d.getDate()+n);return d.getTime()};let soft=r.target?plusDays(fin,r.target):fin;let hard=r.grace?plusDays(soft,r.grace):soft;const fx=(S.dueFix||{})[r.id+"@"+k];if(fx){hard=fx+(hard-soft);soft=fx}
-  out.push({key:r.id+"@"+k,day:k,r,subj:r.subj,soft,hard,week:weekKey(fin)})}return out}
+  const fin=r.dates&&k==="2026-11-24"?at(2026,11,24):at(d.getFullYear(),d.getMonth()+1,d.getDate(),r.hh??23,r.mm??59);const plusDays=(t,n)=>{const d=new Date(t);d.setDate(d.getDate()+n);return d.getTime()};let soft=r.target?plusDays(fin,r.target):fin;let hard=r.grace?plusDays(soft,r.grace):soft;const fx=(S.dueFix||{})[r.id+"@"+k];let self;
+  /* 系统上的真实截止（比如化学是第二天上课前 13:25）当完全截止；她自己定的 ddl 之前交有额外倍率 */
+  if(r.real){const dd=(a)=>at(d.getFullYear(),d.getMonth()+1,d.getDate()+a[0],a[1],a[2]);soft=hard=dd(r.real);self=fx||dd(r.self)}
+  else if(fx){hard=fx+(hard-soft);soft=fx}
+  out.push({key:r.id+"@"+k,day:k,r,subj:r.subj,soft,hard,self,week:weekKey(fin)})}return out}
 const NUMC=new Map();
 function seqNum(grp,k){const def=Object.assign({},NUM_DEF[grp],(S.nums||{})[grp]||{});const ck=grp+k+JSON.stringify(def)+Object.keys(S.skipped).length;if(NUMC.has(ck))return NUMC.get(ck);
   const lead=def.lead;let n=def.n;const has=day=>rawOcc(day).some(o=>o.r.id===lead);const sk=day=>{const v=S.skipped[lead+"@"+day];return !!v&&!v.pass};
@@ -1220,7 +1223,7 @@ function occurrences(){const out=[];const discFull=discCount()>=DISC_NEED;const 
   return out.sort((a,b)=>a.soft-b.soft)}
 const weekOcc=wk=>{const o=[];for(let i=0;i<7;i++)o.push(...occOnDay(addDays(wk,i)));return o};
 const isOpen=o=>!S.done[o.key]&&!S.skipped[o.key];
-function completeTask(o){if(S.done[o.key])return;focusAct();closeSheet();const pts=award(o.r.base,o.soft,o.r.grace||0,SUBJ[o.subj].name+" "+o.title);S.done[o.key]={at:Date.now(),pts};save();renderAll()}
+function completeTask(o){if(S.done[o.key])return;focusAct();closeSheet();const pts=award(o.r.base,o.soft,o.r.grace||0,SUBJ[o.subj].name+" "+o.title,o.self);S.done[o.key]={at:Date.now(),pts};save();renderAll()}
 function startTask(o){if(S.started[o.key])return;S.started[o.key]=Date.now();
   if((o.soft-Date.now())/HOUR>=48){S.cards.makeup++;S.ledger.push({at:Date.now(),d:0,t:"开荒奖励 · "+SUBJ[o.subj].name+" "+o.title+" · 补签卡 +1"});toast("开荒奖励：补签卡 +1")}else toast("已开始，做完回来领奖励");
   save();renderAll();openTaskSheet(o)}
@@ -1483,10 +1486,10 @@ function showReward(pts,title,lines,lvup){if(typeof EMBED!=="undefined"&&EMBED==
 function closeSheet(){document.querySelectorAll(".scrim").forEach(s=>s.remove())}
 function sheet(subj,...kids){closeSheet();const sh=h("div",{class:"sheet"},h("div",{class:"grab"}),kids);if(subj)sh.style.setProperty("--tint",worldOf(subj).tint);
   const s=h("div",{class:"scrim",role:"dialog","aria-modal":"true"},sh);s.addEventListener("click",e=>{if(e.target===s)s.remove()});document.body.append(s);return sh}
-function ladder(due,grace){const mf=multFor(due,grace);return h("div",{class:"ladder"},["×2.5","×2","×1.5","×1","迟交 ×0.5+"].map((s,i)=>h("div",{class:i===mf.step?"on":""},s)))}
-function rewardBox(base,due,grace){const p=preview(base,due,grace);
+function ladder(due,grace,self){const mf=multFor(due,grace,Date.now(),self);return h("div",{class:"ladder"},["×2.5","×2","×1.5","×1","迟交 ×0.5+"].map((s,i)=>h("div",{class:i===mf.step?"on":""},s)))}
+function rewardBox(base,due,grace,self){const p=preview(base,due,grace,self);
   return h("div",{class:"reward"},h("div",{class:"eyebrow"},"现在完成可得"),h("div",{class:"big"},"+"+p.total+" 积分"),
-    h("div",{class:"calc"},p.mf?R(base)+" 基础 "+p.mf.label+" = "+p.total:R(base)+" 基础"),p.extra.length?h("div",{class:"small"},"另外："+p.extra.join("，")):null,p.mf?ladder(due,grace):null)}
+    h("div",{class:"calc"},p.mf?R(base)+" 基础 "+p.mf.label+" = "+p.total:R(base)+" 基础"),p.extra.length?h("div",{class:"small"},"另外："+p.extra.join("，")):null,p.mf?ladder(due,grace,self):null)}
 function doneBox(text){return h("div",{class:"reward"},h("div",{class:"big"},text))}
 function taskPrompt(o){const id=o.r.id,t=o.title;
   if(id==="chem-prelab")return"【Pre-lab】这周要交「"+t+"」。按实验流程来：先请我把这次实验的讲义（manual）拖到转盘「实验」格，再发 pre-lab 题目截图。";
@@ -1506,7 +1509,7 @@ function openTaskSheet(o){const d=S.done[o.key];const early=(o.soft-Date.now())>
   sheet(o.subj,h("div",{class:"row",style:{justifyContent:"space-between"}},h("span",{class:"kind side"},icon("scroll"),"支线 · "+SUBJ[o.subj].name),
       !d&&!passed?h("button",{class:"btn sm"+(act?" go":""),"aria-label":act?"暂停":"开始做",style:{minWidth:"44px"},onclick:()=>{if(act)pauseTask();else beginTask("occ",o.key,o.subj,SUBJ[o.subj].name+" "+o.title);openTaskSheet(o)}},act?"❚❚":"▶"):null),h("h2",null,o.title),
     h("div",null,"截止 "+fmtDue(o.soft)+" · ",h("b",null,fmtLeft(o.soft-Date.now())),o.r.grace?h("div",{class:"dim small"},"最终截止 "+fmtDue(o.hard)+"。"+(o.r.note||"")):null),
-    d?doneBox("已完成 +"+d.pts):rewardBox(o.r.base,o.soft,o.r.grace||0),
+    d?doneBox("已完成 +"+d.pts):rewardBox(o.r.base,o.soft,o.r.grace||0,o.self),
     passed?h("div",{class:"row"},h("span",{class:"dim"},"这篇跳过了"),h("button",{class:"btn sm flat",onclick:()=>{delete S.skipped[o.key];save();renderAll();openTaskSheet(o)}},"撤销")):
     !d?h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>completeTask(o)},"完成，领奖励"),
       h("button",{class:"btn flat",onclick:()=>{closeSheet();goDungeon(o.subj,taskPrompt(o))}},"进副本让系统帮忙"),
@@ -1574,13 +1577,13 @@ function renderDuePanel(){const p=$("#duePanel");if(!p)return;const subj=CUR;con
   $("#dueSum").textContent="待处理 "+n+" 项";
   if(matchMedia("(max-width:820px)").matches&&!p.dataset.touched)p.open=false;p.ontoggle=()=>{p.dataset.touched="1"};
   $("#dueList").replaceChildren(...tasks.map(o=>h("div",{class:"duerow"},h("div",{class:"t"},h("b",null,o.title),h("div",null,fmtDue(o.soft)+" · "+fmtLeft(o.soft-Date.now()))),
-      h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>completeTask(o)},"完成 +"+preview(o.r.base,o.soft,o.r.grace||0).total),h("button",{class:"btn sm glass",onclick:()=>{S.skipped[o.key]=Date.now();save();renderAll()}},"这次没有")))),
+      h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>completeTask(o)},"完成 +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total),h("button",{class:"btn sm glass",onclick:()=>{S.skipped[o.key]=Date.now();save();renderAll()}},"这次没有")))),
     ...mons.map(m=>h("div",{class:"duerow"},h("div",{class:"t"},h("b",null,"错题怪"),h("div",{class:"mtext"},renderMd(m.text))),h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>fightMistake(m)},"去打"),h("button",{class:"btn sm glass",onclick:()=>{m.killed=true;save();renderAll()}},"已经会了")))))}
 function openDueSheet(subj){const{tasks,mons}=dueItems(subj);
   sheet(subj,h("h2",null,SUBJ[subj].name+" · 待处理"),
     tasks.length||mons.length?h("div",{class:"list"},
       tasks.map(o=>h("div",{class:"li"},h("div",{class:"t"},h("b",null,o.title),h("div",{class:"dim small"},fmtDue(o.soft)+" · "+fmtLeft(o.soft-Date.now()))),
-        h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>completeTask(o)},"完成 +"+preview(o.r.base,o.soft,o.r.grace||0).total),h("button",{class:"btn sm flat",onclick:()=>{S.skipped[o.key]=Date.now();save();renderAll();openDueSheet(subj)}},"这次没有")))),
+        h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>completeTask(o)},"完成 +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total),h("button",{class:"btn sm flat",onclick:()=>{S.skipped[o.key]=Date.now();save();renderAll();openDueSheet(subj)}},"这次没有")))),
       mons.map(m=>h("div",{class:"li"},h("div",{class:"t"},h("b",null,"错题怪"),h("div",{class:"dim small mtext"},renderMd(m.text))),h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>{closeSheet();fightMistake(m)}},"去打"),h("button",{class:"btn sm flat",onclick:()=>{m.killed=true;save();renderAll();openDueSheet(subj)}},"已经会了")))))
       :h("div",{class:"dim"},"都处理完了。"))}
 
@@ -1652,9 +1655,9 @@ function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.
     const b=h("div",{class:"wbanner"+(mw.lock?" lock":""),style:{top:((yOf(i-1)+yOf(i))/2)+"px"}},icon(mw.lock?"lock":"portal"),mw.lock?"未知世界":mw.w.name,h("small",null,mw.lock?"通关前面的关卡后解锁":mw.w.desc));
     if(!mw.lock)b.style.setProperty("--tint",mw.w.tint);map.append(b)}});
   sides.forEach((s,k)=>{const[x,y]=pos[k];let el;
-    if(s.kind==="task"){const o=s.o;const d=S.done[o.key];const mf=multFor(o.soft,o.r.grace||0);
+    if(s.kind==="task"){const o=s.o;const d=S.done[o.key];const mf=multFor(o.soft,o.r.grace||0,Date.now(),o.self);
       el=h("button",{class:"node side "+(d?"done":mf.cls),onclick:()=>openTaskSheet(o),"aria-label":o.title},h("span",{class:"disc"},icon(d?"star":"scroll")),
-        h("span",{class:"cap"},o.title,h("span",{class:"sub"},d?"已完成":fmtDue(o.soft).replace(/ \d\d:\d\d$/,"")+" · "+fmtLeft(o.soft-now).replace("还剩 ","剩 "))),h("span",{class:"rw"},d?"+"+d.pts:"+"+preview(o.r.base,o.soft,o.r.grace||0).total+" "+mf.label.split(" ")[0]))}
+        h("span",{class:"cap"},o.title,h("span",{class:"sub"},d?"已完成":fmtDue(o.soft).replace(/ \d\d:\d\d$/,"")+" · "+fmtLeft(o.soft-now).replace("还剩 ","剩 "))),h("span",{class:"rw"},d?"+"+d.pts:"+"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total+" "+mf.label.split(" ")[0]))}
     else if(s.kind==="canvas"){const q=s.q;const d=S.done["cv-"+q.id];const mf=multFor(q.due,0);
       el=h("button",{class:"node side "+(d?"done":mf.cls),onclick:()=>openSideQuestSheet(q)},h("span",{class:"disc"},icon(d?"star":"scroll")),h("span",{class:"cap"},q.title,h("span",{class:"sub"},"Canvas · "+fmtLeft(q.due-now).replace("还剩 ","剩 "))),h("span",{class:"rw"},d?"+"+d.pts:"+"+preview(SIDE_PTS,q.due,0).total))}
     else if(s.kind==="monster"){const m=s.m;el=h("button",{class:"node side monster",onclick:()=>openMonsterSheet(m)},h("span",{class:"disc"},icon("skull")),h("span",{class:"cap"},"错题怪",h("span",{class:"sub"},m.text.slice(0,16)+(m.text.length>16?"…":""))),h("span",{class:"rw"},"+15"))}
@@ -1666,8 +1669,8 @@ function scrollToCur(){const y=$("#youMark");if(!y||curView()!=="map")return;con
 /* ============ calendar ============ */
 let CV="week",CANCHOR=dayKey();const EVC=new Map();let calSeq=0;
 function calItemsOn(k){const items=[];
-  for(const o of occOnDay(k)){if(S.skipped[o.key]||localKey(new Date(o.soft))!==k)continue;const d=S.done[o.key];items.push({t:SUBJ[o.subj].name+" "+o.title,cls:d?"done":multFor(o.soft,o.r.grace||0).cls,click:()=>openTaskSheet(o),time:o.soft})}
-  for(const o of occOnDay(addDays(k,1)).concat(occOnDay(addDays(k,2))))if(o.r.target&&localKey(new Date(o.soft))===k&&!S.skipped[o.key]){const d=S.done[o.key];items.push({t:SUBJ[o.subj].name+" "+o.title,cls:d?"done":multFor(o.soft,o.r.grace||0).cls,click:()=>openTaskSheet(o),time:o.soft})}
+  for(const o of occOnDay(k)){if(S.skipped[o.key]||localKey(new Date(o.soft))!==k)continue;const d=S.done[o.key];items.push({t:SUBJ[o.subj].name+" "+o.title,cls:d?"done":multFor(o.soft,o.r.grace||0,Date.now(),o.self).cls,click:()=>openTaskSheet(o),time:o.soft})}
+  for(const o of occOnDay(addDays(k,1)).concat(occOnDay(addDays(k,2))))if(o.r.target&&localKey(new Date(o.soft))===k&&!S.skipped[o.key]){const d=S.done[o.key];items.push({t:SUBJ[o.subj].name+" "+o.title,cls:d?"done":multFor(o.soft,o.r.grace||0,Date.now(),o.self).cls,click:()=>openTaskSheet(o),time:o.soft})}
   const B=BOSSES();for(const id in B){const b=B[id];if(b.due&&localKey(new Date(b.due))===k)items.push({t:b.title,cls:bossDone(id)?"done":"boss",click:()=>openBossSheet(id),time:b.due})}
   for(const subj in MAIN)MAIN[subj].forEach((n,i)=>{if(n.due&&localKey(new Date(n.due))===k)items.push({t:SUBJ[subj].name+" "+nodeName(subj,n),cls:nodeIsDone(subj,n)?"done":multFor(n.due,0).cls,click:()=>openNodeSheet(subj,n,i),time:n.due})});
   for(const q of SIDE)if(localKey(new Date(q.due))===k)items.push({t:q.course+" "+q.title,cls:S.done["cv-"+q.id]?"done":"canvas",click:()=>openSideQuestSheet(q),time:q.due});
@@ -2391,7 +2394,7 @@ function nextSteps(){const out=[];const now=Date.now();
     out.push({ic:"moon",title:"晚安",meta:ok?"00:30 前点 · 明早 +"+(sleepStreak()>=2?SLEEP_STREAK_PTS:SLEEP_PTS):"现在点也会记下来，比平时早有进步奖励",btn:"晚安",label:"晚安打卡",say:"准备睡了就点晚安。之后别再用电脑，明早打开自动记起床、发奖励。",go:goodnight,sleep:late?0.5:8})}}
   if(!checkedToday()){const sg=suggestSubj();out.push({subj:sg,ic:"flame",title:"签到题",meta:SUBJ[sg].name+" · 3 分钟 · +"+ckReward(streak()+1),label:"做一道签到题",say:"今天还没签到。做一道"+SUBJ[sg].name+"小题，大约 3 分钟，+"+ckReward(streak()+1)+" 分。",go:()=>openDaily(sg)})}
   const urgent=occurrences().filter(o=>isOpen(o)&&o.soft>now-HOUR&&o.soft-now<40*HOUR);
-  for(const o of urgent.slice(0,2))out.push({subj:o.subj,ic:"scroll",title:o.title,meta:SUBJ[o.subj].name+" · "+fmtLeft(o.soft-now)+" · +"+preview(o.r.base,o.soft,o.r.grace||0).total,label:SUBJ[o.subj].name+" "+o.title,say:SUBJ[o.subj].name+"的「"+o.title+"」"+fmtLeft(o.soft-now).replace("还剩","还剩")+"。先做第一步：把第一题发进来。",go:()=>{startBattle(o.subj,"hw",FOES.hw);goDungeon(o.subj,taskPrompt(o))}});
+  for(const o of urgent.slice(0,2))out.push({subj:o.subj,ic:"scroll",title:o.title,meta:SUBJ[o.subj].name+" · "+fmtLeft(o.soft-now)+" · +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total,label:SUBJ[o.subj].name+" "+o.title,say:SUBJ[o.subj].name+"的「"+o.title+"」"+fmtLeft(o.soft-now).replace("还剩","还剩")+"。先做第一步：把第一题发进来。",go:()=>{startBattle(o.subj,"hw",FOES.hw);goDungeon(o.subj,taskPrompt(o))}});
   const mons=reviveDue();if(mons.length)out.push({subj:mons[0].subj,ic:"skull",title:"错题怪",meta:SUBJ[mons[0].subj].name+" · "+(/[$\\]/.test(mons[0].text)?"上次做错的题":mons[0].text.slice(0,24))+" · +"+R(15),label:"打一只错题怪",say:"有 "+mons.length+" 只错题怪复活了。打一只，+"+R(15)+" 分。",go:()=>{fightMistake(mons[0])}});
   for(const k of["math","chem","engri"]){const arr=MAIN[k];const i=curIndex(k);const n=arr[i];if(!n||n.boss||nodeIsDone(k,n))continue;const debt=n.lec&&n.lec<now;
     out.push({subj:k,ic:"book",title:nodeName(k,n),meta:SUBJ[k].name+" 主线"+(debt?" · 课上已讲":"")+" · +"+R(NODE_PTS),label:SUBJ[k].name+"主线 · "+nodeName(k,n),say:(debt?"课上已经讲过「"+nodeName(k,n)+"」了，":"")+"进"+worldOf(k).name+"打这一关。每段只答一个小问题，打空守关者血条通关，+"+R(NODE_PTS)+" 分。",go:()=>startNode(k,n),pri:debt?1:0})}
