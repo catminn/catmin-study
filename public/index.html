@@ -1875,8 +1875,8 @@ function aiTurnEl(t,reveal){const wrap=h("div",{class:"turn"});let lastK=null,la
   if(t.refs&&t.refs.length)wrap.append(h("div",{class:"refs"},"参考："+t.refs.join("、")));
   return wrap}
 let REVEAL=false;
-function topicFrom(subj){const v=(S.topicFrom||{})[subj]||0;return v>(CHATS[subj]||[]).length?0:v}
-function newTopic(){if(CTL)return;S.topicFrom={...(S.topicFrom||{}),[CUR]:CHATS[CUR].length};if(S.qn)S.qn[CUR]=0;dcClear(CUR);QUEST[CUR]=null;delete S.battle[CUR];save();renderDungeon();setTimeout(()=>{const c=$("#chat");c.scrollTop=c.scrollHeight;$("#input").focus()},0)}
+function topicFrom(subj){const T=CHATS[subj]||[];const ts=(S.topicAt||{})[subj];if(ts){const i=T.findIndex(t=>(t.at||0)>=ts);return i<0?T.length:i}const v=(S.topicFrom||{})[subj]||0;return v>T.length?0:v}
+function newTopic(){if(CTL)return;S.topicFrom={...(S.topicFrom||{}),[CUR]:CHATS[CUR].length};S.topicAt={...(S.topicAt||{}),[CUR]:Date.now()};if(S.qn)S.qn[CUR]=0;dcClear(CUR);QUEST[CUR]=null;delete S.battle[CUR];save();renderDungeon();setTimeout(()=>{const c=$("#chat");c.scrollTop=c.scrollHeight;$("#input").focus()},0)}
 function renderChat(){const box=$("#chat");box.replaceChildren();const turns=CHATS[CUR];
   if(!turns.length)box.append(h("div",{class:"ln hint"},SAMPLE?"直接说你想做什么":"需要在 Claude 里打开才能对话"));
   const lastIdx=turns.length-1;let revealEls=[];
@@ -1981,7 +1981,7 @@ async function send(text){text=(text||$("#input").value).trim();if(!text||!SAMPL
   const subj=CUR;const turns=CHATS[subj];const imgs=IMGS.slice();turns.push({role:"user",content:text,imgs:imgs.length||undefined,at:Date.now()});IMGS=[];renderThumbs();
   CTL=new AbortController();renderDungeon();
   const box=$("#chat");const body=h("div",null,"思考中…");box.append(h("div",{class:"ln nar"},body));box.scrollTop=box.scrollHeight;
-  const hist=turns.slice(Math.max(topicFrom(subj),turns.length-16)).filter(t=>!t.err).map(t=>({role:t.role,content:t.content||"（小测验）"}));while(hist.length&&hist[0].role!=="user")hist.shift();
+  const hist=turns.slice(Math.max(topicFrom(subj),turns.length-16)).filter(t=>!t.err).map(t=>({role:t.role,content:t.content||"（小测验）"})).reduce((a,m)=>{const l=a[a.length-1];if(l&&l.role===m.role)l.content+="\n\n"+m.content;else a.push({...m});return a},[]);while(hist.length&&hist[0].role!=="user")hist.shift();
   $("#stopBtn").hidden=false;$("#aiNote").textContent="";body.textContent="翻阅共享记忆…";
   if(SAGA[subj])syncTale(subj);
   const mem=await smSearch(subj,text);if(!CTL||CTL.signal.aborted){CTL=null;$("#stopBtn").hidden=true;renderDungeon();return}body.textContent="思考中…";
@@ -1991,7 +1991,7 @@ async function send(text){text=(text||$("#input").value).trim();if(!text||!SAMPL
   const input=[{role:"user",content:contextTurn(subj)+lib+(mem?"\n\n共享记忆里和这次相关的内容（她在别的对话里和 Claude、ChatGPT 记下的，作参考）：\n"+mem:"")},{role:"assistant",content:"已读取玩家档案。"},...hist];
   const dT=driveTools();if(dT||window.__SITE){const l=input[input.length-1];if(l&&typeof l.content==="string")l.content+=dcBlock(subj)+DRIVE_HINT}DSUBJ=subj;const opts={cache:false,modelTier:"complex",...(dT?{tools:dT}:{}),...(window.__SITE?{serverTools:["drive"],onFiles:fs=>fs.forEach(f=>{DTITLE[f.id]=f.title;dcPut(f.id,f.text,subj)})}:{}),signal:CTL.signal,onText:({text})=>{body.textContent=text.replace(TAG_RE,"").trim();box.scrollTop=box.scrollHeight}};
   if(imgs.length)opts.images=imgs.slice(0,5);
-  try{const r=await SAMPLE(input,opts);PARSED_CHOICES=null;REVEAL=true;TAGFX=false;const clean=stripTags(subj,r.text);if(subj!=="engl")advanceBeat(subj,false);{const hv=harvest(subj,clean);if(!TAGFX&&S.battle[subj]){if(hv.ok)battleHit(subj);else if(hv.bad)battleMiss(subj)}}save();if(PARSED_CHOICES){PARSED_CHOICES=PARSED_CHOICES.map(x=>x.replace(/^[A-DＡ-Ｄ][.．、:：)]\s*/,""));for(let i=PARSED_CHOICES.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[PARSED_CHOICES[i],PARSED_CHOICES[j]]=[PARSED_CHOICES[j],PARSED_CHOICES[i]]}}turns.push({role:"assistant",at:Date.now(),content:clean||"（收到）",choices:PARSED_CHOICES||undefined,refs:pk.refs.length?pk.refs.slice(0,6):undefined});if(r.truncated)$("#aiNote").textContent="回答被截断了，可以说「继续」。"}
+  try{let r;try{r=await SAMPLE(input,opts)}catch(e1){if(!e1||!/upstream|overload|server/.test(String(e1.code))||CTL.signal.aborted)throw e1;body.textContent="出了点岔子，再试一次…";await new Promise(z=>setTimeout(z,1500));const o2={...opts};delete o2.tools;delete o2.modelTier;r=await SAMPLE(input,o2)}PARSED_CHOICES=null;REVEAL=true;TAGFX=false;const clean=stripTags(subj,r.text);if(subj!=="engl")advanceBeat(subj,false);{const hv=harvest(subj,clean);if(!TAGFX&&S.battle[subj]){if(hv.ok)battleHit(subj);else if(hv.bad)battleMiss(subj)}}save();if(PARSED_CHOICES){PARSED_CHOICES=PARSED_CHOICES.map(x=>x.replace(/^[A-DＡ-Ｄ][.．、:：)]\s*/,""));for(let i=PARSED_CHOICES.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[PARSED_CHOICES[i],PARSED_CHOICES[j]]=[PARSED_CHOICES[j],PARSED_CHOICES[i]]}}turns.push({role:"assistant",at:Date.now(),content:clean||"（收到）",choices:PARSED_CHOICES||undefined,refs:pk.refs.length?pk.refs.slice(0,6):undefined});if(r.truncated)$("#aiNote").textContent="回答被截断了，可以说「继续」。"}
   catch(e){if(e&&e.code!=="cancelled"){$("#aiNote").textContent=sampleErr(e);if(!(e&&e.text))turns.push({role:"assistant",err:true,at:Date.now(),content:"（这句没回上来："+sampleErr(e)+(e&&e.code?" ["+e.code+"]":"")+"）"})}if(e&&e.text)turns.push({role:"assistant",content:stripTags(subj,e.text)})}
   finally{CTL=null;$("#stopBtn").hidden=true;CHATS[subj]=turns.slice(-30);saveChat(subj);if(curView()==="dungeon"&&CUR===subj)renderDungeon();renderHud()}}
 /* ---- 资料架 ---- */
