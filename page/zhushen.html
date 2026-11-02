@@ -1987,7 +1987,7 @@ ${subj!=="engl"?sagaContext(subj):""}
 主线关卡（✓ 已通关）：${main}
 ${q?"她现在在打主线关卡："+q.t:"现在不在主线关卡里。"}
 最近的学习笔记：\n${prog}\n没打败的错题（编号在前，只有和她现在聊的话题直接相关，或者她没有在聊具体东西时才提，不要把话题拉走）：\n${mis}\n这一科最近的截止：\n${dl}\n${bs?"Boss：\n"+bs:""}
-考试成绩：${S.scores.filter(e=>e.subj===subj).map(e=>e.name+" "+e.got+"/"+e.max).join("，")||"（无）"}
+考试成绩：${S.scores.filter(e=>e.subj===subj).map(e=>e.name+" "+e.got+"/"+e.max).join("，")||"（无）"}${(()=>{const L=(S.dqDone||[]).filter(d=>d.subj===subj&&d.world===w.name).slice(-6);return L.length?"\n她在这个世界完成过的每日委托：\n"+L.map(d=>"- "+d.day+" "+(d.client?d.client+"：":"")+d.brief).join("\n")+"\n这些委托人可以在主线里再出现。偶尔（不要每回合）让她以前完成的某次委托在主线里带来意想不到的回报或影响，比如那个人后来帮了她一把、递来一条线索、在关键时刻出现，让她觉得当初帮的忙有了回响。":""})()}
 ${S.qn&&S.qn[subj]?"上一问是第 "+S.qn[subj]+" 问，新问题接着往下编号。":"这一科还没出过题，从第 1 问开始编号。"}
 今天${checkedToday()?"已经签到":"还没签到"}。${BUSY.length?"今天她还有别的安排，题量放轻。":""}`}
 function sampleErr(e){const c=e&&e.code;return{not_granted:"你没有允许这个页面使用 Claude，刷新后可以重新允许。",sampling_disabled:"这个账号现在用不了 Claude。",rate_limited:"调用太频繁或者额度到了，过一会儿再试。",session_expired:"登录过期了，重新登录 Claude 再回来。",refused:"这个请求被拒绝了，换个说法试试。",prompt_too_large:"对话太长了，点「清空对话」再继续。",image_rejected:"图片有问题，换一张试试。",images_unavailable:"这里不能发图片，先用文字描述。"}[c]||"出错了，再点一次发送试试。"}
@@ -2212,7 +2212,7 @@ ${(()=>{const pt=planToday(subj);return pt?"今天考前计划里的知识点是
     catch(e){if(e&&e.code==="cancelled")return;card.replaceChildren(head(),swap,h("div",{class:"muted"},e&&e.code==="invalid_json"?"题目没生成好。":sampleErr(e)),h("button",{class:"btn go",onclick:()=>{close();openDaily(subj)}},"再出一道"));return}
     finally{DQ_CTL=null}}
   draw();
-  function finish(ok,fb){dq.done={ok,fb:fb||""};focusAct();save();
+  function finish(ok,fb){dq.done={ok,fb:fb||""};if(dq.client||dq.brief){S.dqDone=[...(S.dqDone||[]),{subj,world:worldOf(subj).name,client:dq.client||"",brief:dq.brief||"",day:dayKey()}].slice(-20)}focusAct();save();
     if(!ok){const nm={id:"m"+uid().slice(0,4),subj,text:dq.q.replace(/\s+/g," ").slice(0,160),fix:(dq.type==="choice"?"正确答案："+dq.options[dq.answer]+"。":"标准答案："+dq.answer+"。")+dq.explain.slice(0,150),added:dayKey(),at:Date.now(),revive:addDays(dayKey(),3),killed:false};S.mistakes.push(nm);syncMistake(nm)}
     smEvent("签到题"+(ok?"做对":"做错"),subj);draw()}
   function teach(){zwOpen(subj,"【签到题】题目："+dq.q+(dq.type==="choice"?"\n选项："+dq.options.map((o,k)=>String.fromCharCode(65+k)+". "+o).join("  "):"")+"\n我不会做，教我怎么做。先讲需要的知识，再带我做第一步，一步一问，先别告诉我答案。")}
