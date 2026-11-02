@@ -818,7 +818,7 @@ function menu() {
     { label: "开机启动", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
     { label: hotkey ? "设置快捷键…（现在是 " + keyName(hotkey) + "）" : "设置快捷键…（现在没有）", click: openHotkeyWin },
     ...(updateReady ? [{ label: "重启并更新到 " + updateReady, click: () => { app.isQuitting = true; app.releaseSingleInstanceLock(); setImmediate(() => updater.quitAndInstall(true, true)); } }] : []), // 先放开单实例锁，否则装好后新版一启动就以为旧的还在、自己退出
-    ...(updateReady ? [] : [{ label: updateState || "检查更新（现在 " + app.getVersion() + "）", enabled: !updateState, click: () => checkUpdate(true) }]),
+    { label: updateState || "检查更新（现在 " + app.getVersion() + "）", enabled: !updateState, click: () => checkUpdate(true) }, // 下载好了也留着：可能还有更新的版本
     { type: "separator" },
     { label: "退出", click: () => { app.isQuitting = true; app.quit(); } },
   ]);
