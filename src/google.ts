@@ -250,7 +250,8 @@ async function deleteEvent(env: SiteEnv, input: Record<string, any>) {
 }
 
 // ---------- 往 Drive 里存文件（Cornell 账号连上了就存那边，否则存个人账号） ----------
-async function uploadAcct(env: SiteEnv): Promise<Acct> { return (await env.OAUTH_KV.get("google:cornell:refresh")) ? "cornell" : "main"; }
+// 文件只存 Cornell 账号的 Drive；没连上就不存（不再退回个人 Drive）
+async function uploadAcct(env: SiteEnv): Promise<Acct> { if (await env.OAUTH_KV.get("google:cornell:refresh")) return "cornell"; throw new GErr("no_cornell", "还没连 Cornell Drive，文件没有上传。点页面顶上的「连 Cornell Drive」"); }
 const qEsc = (s: string) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 async function ensureFolder(env: SiteEnv, acct: Acct, path: string[]): Promise<string> {
   let parent = "root";
