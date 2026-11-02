@@ -1435,6 +1435,10 @@ function taskPrompt(o){const id=o.r.id,t=o.title;
   if(id==="chem-ps")return"【作业】我要做化学「"+t+"」。只带我做第一小步：先问我第一题是什么（我可以拍照），按考试题型一步步带我做，题目保持英文。";
   if(id==="engl-disc")return"【Discussion】帮我写「"+t+"」。先问我这次读或看的材料和要求，一次只问一个问题。";
   return"【作业】我要开始做"+SUBJ[o.subj].name+"「"+t+"」了，但我很难集中注意力。只让我做第一小步：先问我第一题是什么（我可以拍照），然后一次只带我走一步。"}
+function reviewPrompt(subj,t){const now=Date.now();const B=BOSSES();
+  const e=Object.values(B).filter(b=>b.subj===subj&&b.exam&&b.due>now-2*HOUR).sort((a,b)=>a.due-b.due)[0];if(!e)return t;
+  const d=new Date(e.due);const when=(d.getMonth()+1)+"/"+d.getDate()+" "+["周日","周一","周二","周三","周四","周五","周六"][d.getDay()]+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+  return"【考前复习】最近的考试是 "+e.title+"（"+when+(e.where?"，"+e.where:"")+"），范围："+(e.scope||"不确定，先问我")+"。只复习这一场，别跳到后面的考试。先问我哪里没把握，然后从最薄弱的地方开始，每块一个典型题。"}
 function helpMode(subj,re){return(MODES[subj].find(m=>re.test(m[0]))||MODES[subj][0])[1]}
 function openTaskSheet(o){const d=S.done[o.key];const early=(o.soft-Date.now())>=48*HOUR;
   const act=!!(S.cur&&S.cur.key===o.key),disc=o.r.id==="engl-disc",passed=S.skipped[o.key]&&S.skipped[o.key].pass;
@@ -1706,7 +1710,7 @@ function renderDungeon(){const w=worldOf(CUR);{const b=S.battle[CUR];if(!QUEST[C
   if(q){const n=MAIN[CUR].find(x=>x.id===q.id);qb.replaceChildren(h("div",null,h("div",{class:"eyebrow"},"主线关卡"),h("b",null,q.t)),
     n&&!nodeIsDone(CUR,n)?h("button",{class:"btn sm ok",onclick:()=>completeNode(CUR,n)},"学完了 +"+preview(n.pts||NODE_PTS,n.due||null,0).total):h("span",{class:"small"},"已通关"))}
   $("#modes").replaceChildren(...MODES[CUR].map(([l,t],i)=>h("button",{class:"btn sm"+(i===0?" go":""),onclick:()=>{if(/签到/.test(l)){openDaily(CUR);return}if(CUR!=="engl"){const k=/复习/.test(l)?"review":/作业|Lab/.test(l)?"hw":/签到/.test(l)?"daily":/剧情/.test(l)?"quest":"train";
-      if(k!=="quest")startBattle(CUR,k,FOES[k]);else if(!QUEST[CUR]){const ci=curIndex(CUR);const n=MAIN[CUR][ci];if(n&&!n.boss){startNode(CUR,n);return}startBattle(CUR,"train",FOES.train)}}send(t)},disabled:!SAMPLE||!!CTL},l)),
+      if(k!=="quest")startBattle(CUR,k,FOES[k]);else if(!QUEST[CUR]){const ci=curIndex(CUR);const n=MAIN[CUR][ci];if(n&&!n.boss){startNode(CUR,n);return}startBattle(CUR,"train",FOES.train)}}send(/复习/.test(l)?reviewPrompt(CUR,t):t)},disabled:!SAMPLE||!!CTL},l)),
     h("button",{class:"btn sm",onclick:()=>openHwSheet(CUR),title:"把这次收集的作业题目整理成 PDF"},"整理作业"+(((S.hwDraft||{})[CUR]||[]).length?" "+S.hwDraft[CUR].length:"")),
     CUR!=="engl"?h("button",{class:"btn sm ok",onclick:startQuiz,disabled:!SAMPLE||!!CTL,title:"5 道单选，每天前 3 次有奖励"},"小测验 · 最多 +"+R(40)+(quizzesToday()>=QUIZ_CAP?"（今日奖励已满）":"")):"");
   $("#imgLabel").hidden=!SAMPLE;$("#driveBtn").hidden=!MCP;renderLib();$("#sendBtn").disabled=!SAMPLE||!!CTL;
