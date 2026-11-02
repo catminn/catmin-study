@@ -11,6 +11,7 @@ function load() {
     const user32 = koffi.load("user32.dll"), dwm = koffi.load("dwmapi.dll"), gdi = koffi.load("gdi32.dll");
     const ACCENT = koffi.struct("XK_ACCENT", { AccentState: "int", AccentFlags: "int", GradientColor: "uint32", AnimationId: "int" });
     koffi.struct("XK_MARGINS", { l: "int", r: "int", t: "int", b: "int" });
+    koffi.struct("XK_SPS", { ac: "uint8", bflag: "uint8", pct: "uint8", sflag: "uint8", t1: "uint32", t2: "uint32" });
     const WCAD = koffi.struct("XK_WCAD", { Attribute: "int", Data: "void *", SizeOfData: "size_t" });
     api = {
       koffi, ACCENT, WCAD,
@@ -22,6 +23,7 @@ function load() {
       setRgn: user32.func("int __stdcall SetWindowRgn(intptr_t hwnd, intptr_t rgn, bool redraw)"),
       poly: gdi.func("intptr_t __stdcall CreatePolygonRgn(_In_ int *pts, int n, int mode)"),
       extend: dwm.func("long __stdcall DwmExtendFrameIntoClientArea(intptr_t hwnd, _In_ XK_MARGINS *m)"),
+      sps: koffi.load("kernel32.dll").func("bool __stdcall GetSystemPowerStatus(_Out_ XK_SPS *s)"),
       post: user32.func("bool __stdcall PostMessageW(intptr_t hwnd, uint32_t msg, uintptr_t w, intptr_t l)"),
     };
   } catch (e) { api = null; }
@@ -102,4 +104,6 @@ function keepActive(win) { const a = load(); if (!a || !win || win.isDestroyed()
 function accentRaw(win, state, flags, color) { const a = load(); if (!a || !win || win.isDestroyed()) return false; try { const mem = a.koffi.alloc(a.ACCENT, 1); a.koffi.encode(mem, a.ACCENT, { AccentState: state | 0, AccentFlags: flags | 0, GradientColor: (color >>> 0), AnimationId: 0 }); return !!a.setWCA(hwndOf(win), { Attribute: 19, Data: mem, SizeOfData: a.koffi.sizeof(a.ACCENT) }); } catch (e) { return false; } }
 function dwmAttr(win, attr, val) { const a = load(); if (!a || !win || win.isDestroyed()) return -1; try { return a.dwmSet(hwndOf(win), attr, [val | 0], 4); } catch (e) { return -2; } }
 function extendFrame(win, v) { const a = load(); if (!a || !win || win.isDestroyed()) return -1; try { return a.extend(hwndOf(win), { l: v, r: v, t: v, b: v }); } catch (e) { return -2; } }
-module.exports = { accentRaw, dwmAttr, extendFrame, keepActive, applyGlass, clearGlass, shapeWin, circleRects, ribbonRects };
+// Windows 节能模式开着吗（开着时系统会关掉所有模糊）
+function powerSaver() { const a = load(); if (!a) return false; try { const s = {}; a.sps(s); return (s.sflag & 1) === 1; } catch (e) { return false; } }
+module.exports = { powerSaver, accentRaw, dwmAttr, extendFrame, keepActive, applyGlass, clearGlass, shapeWin, circleRects, ribbonRects };

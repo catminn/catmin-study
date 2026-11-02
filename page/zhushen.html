@@ -1979,7 +1979,7 @@ async function zwSend(text){text=(text||$("#zwInput").value).trim();if(!text||!S
   const opts={cache:false,signal:ZW.ctl.signal,onText:({text})=>{bub.textContent=text.replace(TAG_RE,"").trim();log.scrollTop=log.scrollHeight}};if(imgs.length)opts.images=imgs.slice(0,5);
   try{const r=await SAMPLE(input,opts);const clean=stripTags(subj,r.text);ZW.turns.push({role:"assistant",content:clean||"（收到）",at:Date.now()})}
   catch(e){if(e&&e.code!=="cancelled")ZW.turns.push({role:"assistant",content:sampleErr(e),at:Date.now()})}
-  finally{ZW.ctl=null;ZW.turns=ZW.turns.slice(-30);zwSave();zwRender();if($("#zwPanel").hidden)$("#zwFab").classList.add("ping")}}
+  finally{ZW.ctl=null;ZW.turns=ZW.turns.slice(-30);zwSave();zwRender();if($("#zwPanel").hidden)$("#zwFab").classList.add("ping");if(DESK&&DESK.notify&&(document.hidden||!document.hasFocus()))DESK.notify()}}
 /* ---- 每日签到题（独立弹窗） ---- */
 let DQ_CTL=null;
 async function openDaily(subj){if(checkedToday()){openCheckin();return}subj=subj||(planToday()||{b:{}}).b.subj||suggestSubj();if(subj==="engl")subj="math";closeSheet();
@@ -2340,7 +2340,7 @@ html.embed-root,body.embed-todo{background:transparent!important}
 .td-row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .td-row .w{font-size:12px;opacity:.55;flex:none}.td-row.soon .w{opacity:1;color:var(--late)}
 .td-row .x{opacity:0;border:0;background:none;color:inherit;cursor:pointer;padding:0 2px}.td-row:hover .x{opacity:.5}
-.td-row .go2{border:0;background:none;color:inherit;opacity:0;cursor:pointer;font-size:10px;padding:0 3px}.td-row:hover .go2{opacity:.6}.td-row .go2:hover{opacity:1}.td-row.active .go2{opacity:1;color:var(--early)}.td-row.active .t{font-weight:600}
+.td-row .go2{border:0;background:none;color:inherit;opacity:0;cursor:pointer;font-size:10px;padding:0 3px}.td-row:hover .go2{opacity:.6}.td-row .go2:hover{opacity:1}.td-row.active .go2{opacity:1;color:var(--early);font-size:9px;letter-spacing:-1px}.td-row .go2{-webkit-app-region:no-drag;padding:2px 5px}.td-row.active .t{font-weight:600}
 .td-row .w{cursor:pointer}.td-row .w:hover{text-decoration:underline}.td-due{font:inherit;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:inherit;padding:1px 4px;width:150px}
 .checklist button.today{outline:2px solid var(--early);outline-offset:-2px}
 /* ===== 桌面版：毛玻璃（窗口后面是系统模糊，这里只铺一层很淡的白 + 亮边 + 顶部高光）===== */
@@ -2372,6 +2372,10 @@ body.td-collapsed #todoEmbed>.td-tab,body.td-docked #todoEmbed>.td-tab{display:b
 body.embed-todo:not(.glass) #todoEmbed{background:rgba(255,255,255,.74);border:1px solid rgba(255,255,255,.85);box-shadow:inset 0 1px 0 #fff}
 body.embed-zero:not(.glass){background:transparent!important}
 body.embed-zero:not(.glass) .zw-panel{background:rgba(255,255,255,.82);border:1px solid rgba(255,255,255,.9);border-radius:8px!important}
+/* Windows 节能模式会关掉模糊：这时用纯白底 */
+body.embed.saver #todoEmbed,body.embed.saver .zw-panel{background:#fff!important;border-color:rgba(29,32,48,.1)!important}
+body.embed.saver .zw-m.a,body.embed.saver .zw-in textarea{background:#f3f4f7!important}
+.td-add input::placeholder{color:color-mix(in oklab,var(--fg) 60%,transparent)}
 #fg{display:none;position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0;border-radius:8px}
 #fg i{position:absolute;inset:-40px;background-repeat:no-repeat;background-color:#a0a0a0;filter:blur(22px) saturate(1.3)}
 body.embed.wall #fg{display:block}
@@ -2524,7 +2528,7 @@ function beginTask(kind,key,subj,title,quiet){
   S.cur={key,kind,subj:SUBJ[subj]?subj:(ZW.subj||"math"),title,start:Date.now(),spent:old?old.spent||0:(S.pausedTasks||{})[key]||0};
   if(S.pausedTasks)delete S.pausedTasks[key];save();
   ZW.subj=S.cur.subj;
-  if(DESK&&EMBED!=="zero"){DESK.openZero("#task");return}
+  if(DESK&&EMBED!=="zero"){renderAll();DESK.openZero("#task");return}
   zwOpen(S.cur.subj);if(!quiet)zwSay("开始做「"+title+"」。把第一题截图发给我（拖到小圆上、按快捷键，或者直接贴进来都行）。");renderAll()}
 function pauseTask(silent){const c=S.cur;if(!c)return;S.pausedTasks=S.pausedTasks||{};S.pausedTasks[c.key]=(c.spent||0)+(Date.now()-c.start);S.cur=null;save();if(!silent){zwSay("先放下「"+c.title+"」，已经做了 "+Math.round(S.pausedTasks[c.key]/MIN)+" 分钟，下次接着算。");renderAll()}}
 async function finishTask(){const c=S.cur;if(!c)return;const min=curMinutes();const it=curItem();
@@ -2627,7 +2631,7 @@ function planBlock(id,b){const left=b.due-Date.now();if(left>10*DAY||left<0)retu
 function undoDone(key,label){const d=S.done[key];if(!d)return;delete S.done[key];if(d.pts)earn(-d.pts,"撤销 · "+label);save();renderAll()}
 function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEmbed"});document.body.append(el)}const now=Date.now();
   const wk=t=>{const d=new Date(t);const days=Math.round((keyToDate(localKey(d))-keyToDate(localKey(new Date(now))))/DAY);return days<=0?(t<now?"过期":pad(d.getHours())+":"+pad(d.getMinutes())):days===1?"明天":"周"+WD[d.getDay()]};
-  const line=(text,when,soon,done,toggle,onDel,onStart,active,onDue)=>h("div",{class:"td-row"+(done?" done":"")+(soon&&!done?" soon":"")+(active?" active":""),onclick:e=>{if(e.target.closest(".x,.go2"))return;toggle()}},h("span",{class:"ck"}),h("span",{class:"t"},text),when!==null&&onDue?h("span",{class:"w","aria-label":"改截止时间",onclick:e=>{e.stopPropagation();editDue(e.currentTarget,onDue)}},when||"＋时间"):when?h("span",{class:"w"},when):null,onStart&&!done?h("button",{class:"go2","aria-label":active?"正在做":"开始做",onclick:onStart},active?"●":"▶"):null,onDel?h("button",{class:"x","aria-label":"删除",onclick:onDel},"×"):null);
+  const line=(text,when,soon,done,toggle,onDel,onStart,active,onDue)=>h("div",{class:"td-row"+(done?" done":"")+(soon&&!done?" soon":"")+(active?" active":""),onclick:e=>{if(e.target.closest(".x,.go2"))return;toggle()}},h("span",{class:"ck"}),h("span",{class:"t"},text),when!==null&&onDue?h("span",{class:"w","aria-label":"改截止时间",onclick:e=>{e.stopPropagation();editDue(e.currentTarget,onDue)}},when||"＋时间"):when?h("span",{class:"w"},when):null,onStart&&!done?h("button",{class:"go2"+(active?" on":""),"aria-label":active?"暂停":"开始做",onpointerdown:e=>{e.preventDefault();e.stopPropagation();if(active)pauseTask();else onStart()},onclick:e=>e.stopPropagation()},active?"❚❚":"▶"):null,onDel?h("button",{class:"x","aria-label":"删除",onclick:onDel},"×"):null);
   const recent=k=>S.done[k]&&now-S.done[k].at<12*HOUR;const rows=[];
   if(!checkedToday())rows.push(line("签到","",false,false,()=>DESK?DESK.openZero("daily"):openDaily(suggestSubj())));
   const dueOf=o=>o.soft<now&&o.hard>now?o.hard:o.soft;
@@ -2674,6 +2678,7 @@ if(DESK&&DESK.onWall&&(EMBED==="todo"||EMBED==="zero")){let W=null;
   DESK.onWall(m=>{W=Object.assign(W||{},m);let el=document.getElementById("fg");if(!el){el=document.createElement("div");el.id="fg";el.appendChild(document.createElement("i"));document.body.prepend(el)}
     if(m.src){const im=new Image();im.onload=()=>{W.iw=im.naturalWidth;W.ih=im.naturalHeight;el.firstChild.style.backgroundImage="url("+m.src+")";document.body.classList.add("glass","wall");place()};im.src=m.src}else place()});
   window.addEventListener("resize",()=>requestAnimationFrame(()=>{if(W)place()}))}
+if(DESK&&DESK.onSaver)DESK.onSaver(v=>document.body.classList.toggle("saver",!!v));
 let S_PIN=true;if(DESK&&DESK.getPin)DESK.getPin().then(v=>{S_PIN=!!v;if(EMBED==="todo")renderTodoEmbed()}).catch(()=>{});
 if(EMBED==="todo"){setInterval(()=>{if(!document.hidden)renderTodoEmbed()},60000)}
 /* 桌面小圆的小红点：24 小时内有没交的作业 */

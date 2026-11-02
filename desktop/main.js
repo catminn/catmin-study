@@ -8,7 +8,17 @@ const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const os = require("os");
-const { applyGlass, clearGlass, keepActive, accentRaw, dwmAttr, extendFrame } = require("./glass");
+const { applyGlass, clearGlass, keepActive, accentRaw, dwmAttr, extendFrame, powerSaver, shapeWin, circleRects, ribbonRects } = require("./glass");
+// 小圆、书签、转盘也用 Windows 11 材质：窗口不透明 + 系统亚克力，再用 setShape 裁成自己的形状
+const MAT = () => process.platform === "win32" && WIN11;
+function smallOpts() { return MAT() ? { transparent: false, backgroundColor: "#00000000", backgroundMaterial: "acrylic" } : { transparent: true }; }
+function matWin(win, rects) {
+  if (!win || win.isDestroyed() || !MAT()) return;
+  shapeWin(win, rects);
+  keepActive(win);
+  if (!win._matHooked) { win._matHooked = true; win.on("show", () => setTimeout(() => keepActive(win), 30)); win.on("blur", () => setTimeout(() => keepActive(win), 30)); win.webContents.on("did-finish-load", () => win.webContents.send("glass", "mat")); }
+  win.webContents.send("glass", "mat");
+}
 // 毛玻璃：用 Windows 自己的模糊，底下有什么就透出什么（需要 Windows 设置里“透明效果”开着）。
 // 只给方形的待办（展开时）和零的窗口用；小圆、书签、转盘是自己画的半透明形状，不加系统模糊（否则会多出一个方框）。
 let transOn = null;
@@ -145,15 +155,14 @@ function createBubble() {
   const a = workArea();
   const pos = conf.bubble && onScreen({ x: conf.bubble.x, y: conf.bubble.y }) ? conf.bubble : { x: a.x + a.width - BUB - 2, y: a.y + a.height - BUB - 2 };
   bubble = new BrowserWindow({
-    x: pos.x, y: pos.y, width: BUB, height: BUB, frame: false, transparent: true, resizable: false, maximizable: false, minimizable: false,
+    x: pos.x, y: pos.y, width: BUB, height: BUB, frame: false, ...smallOpts(), resizable: false, maximizable: false, minimizable: false, thickFrame: false,
     skipTaskbar: true, alwaysOnTop: true, hasShadow: false, focusable: true, show: false, icon: ICON,
     webPreferences: { preload: path.join(__dirname, "bubble-preload.js"), contextIsolation: true, sandbox: false },
   });
   bubble.setAlwaysOnTop(true, "screen-saver");
   bubble.loadFile(path.join(__dirname, "bubble.html"));
   bubble.once("ready-to-show", () => { if (conf.bubbleHidden !== true) bubble.showInactive(); });
-  bubble.webContents.on("did-finish-load", () => sendWall(bubble, true));
-  watchWall(bubble);
+  matWin(bubble, circleRects(BUB / 2, BUB / 2, 26, 0));
 }
 // 小圆：窗口裁成直径 52 的圆，圆里是毛玻璃
 // 小圆：拖动时限制在屏幕内；松手时离左右边很近就贴过去（整颗球留在屏幕里）
@@ -217,6 +226,7 @@ function ensureZero() {
   return zero;
 }
 function showZero(cmd) {
+  bubbleDot(false);
   const w = ensureZero();
   placeZero();
   const go = () => { w.show(); w.focus(); if (cmd) send(w, "cmd", cmd); };
@@ -292,10 +302,10 @@ function dockRect(d) {
 }
 function ensureTab() {
   if (tab && !tab.isDestroyed()) return tab;
-  tab = new BrowserWindow({ width: MINI.width, height: MINI.height, frame: false, transparent: true, resizable: false, movable: false, focusable: false, thickFrame: false,
+  tab = new BrowserWindow({ width: MINI.width, height: MINI.height, frame: false, ...smallOpts(), resizable: false, movable: false, focusable: false, thickFrame: false,
     skipTaskbar: true, alwaysOnTop: true, hasShadow: false, show: false, minWidth: 10, minHeight: 10,
     webPreferences: { preload: path.join(__dirname, "tab-preload.js"), contextIsolation: true, sandbox: false } });
-  tab.setAlwaysOnTop(true, "floating");
+  tab.setAlwaysOnTop(conf.todoPinned !== false, "screen-saver"); // 置顶时书签也一直在最上面
   tab.loadFile(path.join(__dirname, "tab.html"));
   tab.on("closed", () => { tab = null; });
   return tab;
@@ -306,7 +316,12 @@ function tabRect() {
   const right = f.x + f.width / 2 > d.x + d.width / 2;
   return { x: right ? f.x + f.width - MINI.width - 14 : f.x + 14, y: f.y, width: MINI.width, height: MINI.height };
 }
-function tabSend() { if (tab && !tab.isDestroyed()) tab.webContents.send("tab", { edge: conf.todoDock ? conf.todoDock.edge : "top", hot: todoHot }); }
+function tabSend() {
+  if (!tab || tab.isDestroyed()) return;
+  const edge = conf.todoDock ? conf.todoDock.edge : "top", side = edge === "left" || edge === "right";
+  tab.webContents.send("tab", { edge, hot: todoHot });
+  matWin(tab, ribbonRects(side ? DOCK : DOCK_LEN, side ? DOCK_LEN : DOCK, 7, edge));
+}
 function fullRect() {
   const f = fullSize(), d = screen.getDisplayMatching(conf.todo || f).workArea;
   let x = f.x, y = f.y;
@@ -367,7 +382,7 @@ function todoMoved() {
 ipcMain.handle("is-glass", (e) => { const w = BrowserWindow.fromWebContents(e.sender); return !!(w && w._glass); });
 ipcMain.on("todo-resize", (e, dw, dh) => { if (!todo || todo.isDestroyed() || todoState !== "full") return; const b = todo.getBounds(); todo.setBounds({ x: b.x, y: b.y, width: Math.max(180, Math.round(b.width + dw)), height: Math.max(120, Math.round(b.height + dh)) }); conf.todo = todo.getBounds(); saveConf(); });
 ipcMain.handle("get-pin", () => conf.todoPinned !== false);
-ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(!!v); refreshMenu(); });
+ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(!!v); if (tab && !tab.isDestroyed()) tab.setAlwaysOnTop(!!v, "screen-saver"); refreshMenu(); });
 // 游戏计时开始：把小圆、待办、零藏起来（记住原来哪些开着），计时结束再放回来
 let gameHidden = null;
 ipcMain.on("game-mode", (e, on, end) => {
@@ -382,7 +397,11 @@ ipcMain.on("game-mode", (e, on, end) => {
   }
   refreshMenu();
 });
-ipcMain.on("badge", (e, n) => { if (bubble && !bubble.isDestroyed()) bubble.webContents.send("badge", n); todoHot = Number(n) || 0; tabSend(); });
+// 作业红点只在待办书签上；小圆的红点留给通知（零回复了、新版本、下载收纳了文件），打开零就清掉
+ipcMain.on("badge", (e, n) => { const h = Number(n) || 0; if (h !== todoHot) { todoHot = h; tabSend(); } });
+let bubbleDotOn = false;
+function bubbleDot(on) { bubbleDotOn = !!on; if (bubble && !bubble.isDestroyed()) bubble.webContents.send("badge", on ? 1 : 0); }
+ipcMain.on("notify", () => { if (!(zero && !zero.isDestroyed() && zero.isVisible() && zero.isFocused())) bubbleDot(true); });
 ipcMain.on("saved", (e) => {
   for (const w of [zero, todo, main]) if (w && !w.isDestroyed() && w.webContents.id !== e.sender.id) send(w, "pull");
 });
@@ -516,12 +535,12 @@ function registerHotkey(pref) {
 let ring = null, hook = null, ringDown = null, ringShown = false, ringHideT = null;
 const RING = 300;
 function createRing() {
-  ring = new BrowserWindow({ width: RING, height: RING, frame: false, transparent: true, resizable: false, movable: false, focusable: false,
+  ring = new BrowserWindow({ width: RING, height: RING, frame: false, ...smallOpts(), resizable: false, movable: false, focusable: false, thickFrame: false,
     skipTaskbar: true, alwaysOnTop: true, hasShadow: false, show: false,
     webPreferences: { preload: path.join(__dirname, "ring-preload.js"), contextIsolation: true, sandbox: false } });
   ring.setAlwaysOnTop(true, "screen-saver");
   ring.loadFile(path.join(__dirname, "ring.html"));
-  ring.webContents.once("did-finish-load", () => ring.webContents.send("glass", true)); // 转盘只是半透明（一闪而过，不做模糊）
+  matWin(ring, circleRects(RING / 2, RING / 2, RING * 141 / 300, 0));
 }
 function toDip(x, y) { return process.platform === "win32" ? screen.screenToDipPoint({ x, y }) : { x, y }; }
 function showRing(x, y) {
@@ -627,7 +646,7 @@ ipcMain.handle("inbox-place", (e, src, course, name) => {
     let dest = freeName(dir, name || path.basename(src), size);
     if (!dest) { fs.unlinkSync(src); dest = path.join(dir, name || path.basename(src)); } // 课程文件夹里已经有同一个文件
     else { try { fs.renameSync(src, dest); } catch (err) { fs.copyFileSync(src, dest); fs.unlinkSync(src); } }
-    lastInbox = { from: src, to: dest };
+    lastInbox = { from: src, to: dest }; bubbleDot(true);
     try { new Notification({ title: "已收纳到 " + course, body: path.basename(dest), icon: ICON, silent: true }).show(); } catch (err) {}
     refreshMenu();
     return dest;
@@ -657,6 +676,7 @@ function startUpdater() {
   updater.on("update-not-available", () => { if (manualCheck) note("学习空间", "已经是最新版 " + app.getVersion()); updateState = ""; manualCheck = false; refreshMenu(); });
   updater.on("download-progress", (p) => { updateState = "正在下载新版 " + Math.round((p && p.percent) || 0) + "%"; refreshMenu(); });
   updater.on("update-downloaded", (info) => {
+    bubbleDot(true);
     updateReady = info && info.version || "新版本"; updateState = ""; refreshMenu();
     note("新版本下载好了", updateReady + " 已经准备好：点托盘里的「重启并更新」马上换上，或者下次启动自动换上。");
   });
@@ -672,7 +692,6 @@ function menu() {
     { label: "签到", click: () => showZero("daily") },
     { label: "待办", type: "checkbox", checked: conf.todoShown !== false, click: toggleTodo },
     { label: "待办置顶", type: "checkbox", checked: conf.todoPinned !== false, click: (i) => { conf.todoPinned = i.checked; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(i.checked); } },
-    { label: "玻璃效果：" + GLASS_MODES[glassMode()], submenu: [...Object.entries(GLASS_MODES).map(([k, t]) => ({ label: t, type: "radio", checked: glassMode() === k, click: () => setGlassMode(k) })), ...(glassMode() === "lab" ? [{ type: "separator" }, { label: "实验 " + ((labCfg && labCfg.name) || "等待参数") + " · " + labLog.join(" ").slice(0, 60), enabled: false }] : [])] },
     { label: "打开学习空间", click: () => openMain() },
     { type: "separator" },
     { label: "显示零的小圆", type: "checkbox", checked: conf.bubbleHidden !== true, click: (i) => { conf.bubbleHidden = !i.checked; saveConf(); if (bubble) { if (i.checked) bubble.showInactive(); else bubble.hide(); } } },
@@ -712,7 +731,12 @@ app.whenReady().then(async () => {
   transOn = await readTransparency();
   if (!transOn && !conf.transWarned) { conf.transWarned = true; saveConf(); setTimeout(() => note("毛玻璃需要打开 Windows 的“透明效果”", "设置 → 个性化 → 颜色 → 透明效果。打开后退出学习空间再打开。现在先用普通半透明。"), 4000); }
   setInterval(async () => { const t = await readTransparency(); if (t !== transOn) { transOn = t; glassFor(zero, true); glassFor(todo, todoState === "full"); } }, 10 * 60 * 1000);
-  if (conf.glassMode === "lab") { delete conf.glassMode; saveConf(); } // 实验模式只在排查时用，重启后回到默认
+  if (conf.glassMode) { delete conf.glassMode; saveConf(); } // 玻璃效果固定用默认（Windows 11 材质），菜单已去掉
+  // 节能模式：系统关掉模糊时，各个窗口改成纯白底
+  let saver = null;
+  const checkSaver = () => { const v = powerSaver(); if (v === saver) return; saver = v; for (const w of [todo, zero]) if (w && !w.isDestroyed()) send(w, "saver", v); for (const w of [bubble, tab, ring]) if (w && !w.isDestroyed()) w.webContents.send("saver", v); };
+  setInterval(checkSaver, 15000); setTimeout(checkSaver, 4000);
+  app.on("browser-window-created", (e, w) => w.webContents.on("did-finish-load", () => { if (saver) setTimeout(() => { if (w.isDestroyed()) return; if (w === todo || w === zero) send(w, "saver", true); else w.webContents.send("saver", true); }, 300); }));
   if (!conf.setupDone) { app.setLoginItemSettings({ openAtLogin: true }); conf.setupDone = true; conf.todoShown = true; saveConf(); }
   tray = new Tray(nativeImage.createFromPath(TRAY_ICON));
   tray.setToolTip("学习空间");

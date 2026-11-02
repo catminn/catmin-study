@@ -10,4 +10,5 @@ contextBridge.exposeInMainWorld("bubble", {
   onWall: (cb) => ipcRenderer.on("wall", (e, m) => cb(m)),
   onBadge: (cb) => ipcRenderer.on("badge", (e, n) => cb(n)),
   drop: (files) => ipcRenderer.send("bubble-drop", Array.from(files).map((f) => webUtils.getPathForFile(f)).filter(Boolean)),
+  onSaver: (cb) => ipcRenderer.on("saver", (e, v) => cb(!!v)),
 });

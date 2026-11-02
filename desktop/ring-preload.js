@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld("ring", {
   onHl: (cb) => ipcRenderer.on("ring-hl", (e, k) => cb(String(k || ""))),
   onFiles: (cb) => ipcRenderer.on("ring-files", (e, f) => cb(f)),
   onShow: (cb) => ipcRenderer.on("ring-show", () => cb()),
+  onSaver: (cb) => ipcRenderer.on("saver", (e, v) => cb(!!v)),
 });

@@ -11,17 +11,22 @@
   // 收起来的待办：一枚燕尾书签，不写字；有 24 小时内要交的，中间一个小红点
   const s = document.getElementById("s");
   function draw(st) {
+    last = st;
     const e = st.edge || "top", side = e === "left" || e === "right", W = side ? 34 : 22, H = side ? 22 : 34, n = 7;
     const pts = e === "left" ? [[0, 0], [W, 0], [W - n, H / 2], [W, H], [0, H]] : e === "right" ? [[0, 0], [W, 0], [W, H], [0, H], [n, H / 2]] : [[0, 0], [W, 0], [W, H], [W / 2, H - n], [0, H]];
     const d = "M" + pts.map((p) => p.join(" ")).join("L") + "Z";
     const dot = st.hot ? (e === "left" ? [W - 16, H / 2] : e === "right" ? [16, H / 2] : [W / 2, H - 16]) : null;
     s.setAttribute("viewBox", `-1 -1 ${W + 2} ${H + 2}`);
-    s.innerHTML = `<defs><linearGradient id="g" x1="0" y1="0" x2="${side ? 1 : 0}" y2="${side ? 0 : 1}"><stop offset="0" stop-color="rgba(255,255,255,.92)"/><stop offset="1" stop-color="rgba(244,246,250,.86)"/></linearGradient></defs>`
-      + `<path d="${d}" fill="url(#g)" stroke="rgba(20,24,40,.22)" stroke-width="1" stroke-linejoin="round"/>`
+    s.innerHTML = `<defs><linearGradient id="g" x1="0" y1="0" x2="${side ? 1 : 0}" y2="${side ? 0 : 1}"><stop offset="0" stop-color="${fills()[0]}"/><stop offset="1" stop-color="${fills()[1]}"/></linearGradient></defs>`
+      + `<path d="${d}" fill="url(#g)" stroke="${mat && !saver ? "rgba(255,255,255,.6)" : "rgba(20,24,40,.22)"}" stroke-width="1" stroke-linejoin="round"/>`
       + (dot ? `<circle cx="${dot[0]}" cy="${dot[1]}" r="2.4" fill="#e5484d"/>` : "");
   }
+  let mat = false, saver = false, last = {};
+  const fills = () => saver ? ["#ffffff", "#ffffff"] : mat ? ["rgba(255,255,255,.34)", "rgba(255,255,255,.14)"] : ["rgba(255,255,255,.92)", "rgba(244,246,250,.86)"];
   draw({});
   window.tab.onState(draw);
+  window.tab.onGlass && window.tab.onGlass((v) => { mat = !!v; draw(last); });
+  window.tab.onSaver && window.tab.onSaver((v) => { saver = v; draw(last); });
   document.addEventListener("click", () => window.tab.click());
 </script>
 </body></html>

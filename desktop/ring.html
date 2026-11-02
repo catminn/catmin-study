@@ -16,6 +16,8 @@
   .ct{fill:var(--fg);font-size:15px;font-weight:700;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
   .cs{fill:var(--dim);font-size:11px;text-anchor:middle;dominant-baseline:middle;pointer-events:none;transition:fill .1s}
   .cs.on{fill:var(--red)}
+  body.mat .tiles{opacity:.62}
+  body.mat.saver .tiles{opacity:1}
   .ring{transform-origin:50% 50%;animation:in .14s ease-out}@keyframes in{from{transform:scale(.88);opacity:0}}
 </style></head><body>
 <svg viewBox="0 0 300 300" id="svg"><g class="ring" id="g"></g></svg>
@@ -56,6 +58,8 @@
   window.ring.onHl && window.ring.onHl((k) => mark(SEG.findIndex((s) => s.k === k)));
   // 中间显示拖的是什么：1 个 PDF / 3 个文件
   window.ring.onFiles && window.ring.onFiles((f) => { ct.textContent = f && f.n ? f.n + " 个" + (f.ext ? " " + f.ext : "文件") : ""; cs.setAttribute("y", ct.textContent ? C + 13 : C); });
+  window.ring.onGlass && window.ring.onGlass((v) => document.body.classList.toggle("mat", !!v));
+  window.ring.onSaver && window.ring.onSaver((v) => document.body.classList.toggle("saver", v));
   window.ring.onShow(() => { mark(-1); ct.textContent = ""; cs.setAttribute("y", C); g.style.animation = "none"; void g.offsetWidth; g.style.animation = ""; });
 </script>
 </body></html>
