@@ -926,6 +926,11 @@ const COMMON_RULES=`你在写一部和玩家实时互动的无限流小说，同
 - 剧情要真的往前走：每个世界有自己的悬念和主线（见下面的世界大纲），每回合都要发生一点新的事情，推进当前这一幕。不要原地打转，不要只换一句描写就算剧情。
 - 角色要活起来，但不用每回合都让每个人说话：只有剧情需要、或者这个角色真有话要说时才让他开口，一回合一两个人发言就够，很多回合只有旁白和零也完全可以。角色之间可以有冲突、误会、玩笑和秘密。
 - 页面上没有模式按钮了，她想干什么都是直接打字说（复习某场考试、发作业照片、学新东西、刷题、随便问）。从她的话里判断她要什么，直接开始做，不要反问她要选哪个模式。她说复习但没说哪场，就复习「Boss」列表里最近的那一场（看清楚它的范围），不要跳到更远的考试。她只打了个招呼或者没说清，就看最近的截止和考试，用一句话建议现在最该做的一件事，然后直接开始。
+- 考前复习的流程（她说复习、或者从「Boss」里挑了一场考试时都按这个来）：
+  1. 第一回合不出题，先给一张考点地图：按小节列出这场考试要考的知识点，每块一行，写清这块考什么题型（比如「换积分次序：给一个积不出来的积分，画区域再换序」）。看她的学习笔记和错题，标出她学过的、错过的、还没碰过的。
+  2. 推荐一块从哪开始（说一句为什么，比如明天先考、错题最多、分值最大），然后用 [选项] 让她选从哪块开始，选项就是这几块的名字。
+  3. 每进一块新的，先用三五行把这块的核心讲一遍：是什么、什么时候用、标准步骤，配一个最小的例子（带完整过程）。然后再出一道典型题让她做。她说不会、没学过，就当零基础从头教，不要直接出题。
+  4. 每块做完，说一句这块掌握得怎么样，然后提示地图上的下一块。
 - 功能性的对话不走剧情：她问的是现实里的事（找文件、搜 Drive、截止时间、积分、怎么用这个页面、要你整理或解释什么），或者明显是在跟你本人说话，就只由零直接回答，像平时的 Claude 一样把事办好，不写旁白，不让任何角色插话，不推进剧情，也不出「第 N 问」。办完了她回到做题，再接着剧情走。
 - 无限流的基调：这是一场会死人的副本，不是游学。每回合都要有一个紧迫的压力：倒计时、追击、陷阱、规则反噬、竞争玩家抢先、同伴突然失踪或背叛的苗头。体力和队友的命都是真的，写得紧张一点，可以有惊险的瞬间和死里逃生，但不要真的杀死她。零偶尔以主神广播的口吻通报时间、任务和规则。关键的题就是门、锁、刀、绳，答对才能过去，答错就要付出一点代价（给她提示，剧情出一个小麻烦）。
 - 排版规则，页面靠它把每个人分进不同的对话框，必须严格遵守：
@@ -1008,7 +1013,7 @@ const ckReward=n=>R(30+2*Math.min(Math.max(n-1,0),10));
 function BASE_BOSSES(){return{
   "engri-p2":{subj:"engri",title:"ENGRI Prelim 2",due:at(2026,10,26,9,5),where:"Upson Hall",exam:true,stages:[{k:"r",t:"考前过一遍考点",pts:30,due:at(2026,10,26,8,0)}]},
   "engl-a3r":{subj:"engl",title:"Assignment 3 初稿",due:at(2026,10,30),where:"Canvas，周五午夜。那天傍晚有万圣夜，目标周四写完。",submit:true,stages:[]},
-  "math-q3":{subj:"math",title:"MATH Quiz 3",due:at(2026,11,3,9,5),where:"Discussion · 范围 HW 7、HW 8",scope:"HW 7、HW 8 的内容",exam:true,stages:[]},
+  "math-q3":{subj:"math",title:"MATH Quiz 3",due:at(2026,11,3,9,5),where:"Discussion",scope:"HW 8、HW 9：§16.1 二重积分、§16.2 一般区域与换积分次序、§16.3 三重积分、§16.4 极/柱/球坐标、§16.5 积分应用",exam:true,stages:[]},
   "math-p2":{subj:"math",title:"MATH Prelim 2",due:at(2026,11,12,19,30),where:"Statler 185",exam:true,stages:[{k:"sweep",t:"错题清扫：打完所有复活的错题怪",pts:30},{k:"speed",t:"考点速通：每节一道题",pts:40,due:at(2026,11,9)},{k:"mock",t:"做一套模拟卷",pts:40,due:at(2026,11,10)}]},
   "engl-a3f":{subj:"engl",title:"Assignment 3 终稿",due:at(2026,11,13),where:"Canvas，周五午夜",submit:true,stages:[]},
   "chem-p2":{subj:"chem",title:"CHEM Prelim 2",due:at(2026,10,22,19,30),where:"已考，出分后录入成绩",exam:true,stages:[]},
@@ -1444,7 +1449,7 @@ function taskPrompt(o){const id=o.r.id,t=o.title;
 function reviewPrompt(subj,t){const now=Date.now();const B=BOSSES();
   const e=Object.values(B).filter(b=>b.subj===subj&&b.exam&&b.due>now-2*HOUR).sort((a,b)=>a.due-b.due)[0];if(!e)return t;
   const d=new Date(e.due);const when=(d.getMonth()+1)+"/"+d.getDate()+" "+["周日","周一","周二","周三","周四","周五","周六"][d.getDay()]+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
-  return"【考前复习】最近的考试是 "+e.title+"（"+when+(e.where?"，"+e.where:"")+"），范围："+(e.scope||"不确定，先问我")+"。只复习这一场，别跳到后面的考试。先问我哪里没把握，然后从最薄弱的地方开始，每块一个典型题。"}
+  return"【考前复习】最近的考试是 "+e.title+"（"+when+(e.where?"，"+e.where:"")+"），范围："+(e.scope||"不确定，先问我")+"。只复习这一场，别跳到后面的考试。按「考前复习」的流程来：先给我一张考点地图，让我选从哪块开始。"}
 function intentOf(t,img){if(/复习|quiz|小测|考试|prelim|exam|期中|期末|模拟卷/i.test(t))return"review";if(img||/作业|hw\s*\d|homework|problem\s*set|\bps\s*\d|gradescope|lab|pre-?lab|实验报告/i.test(t))return"hw";if(/刷题|练习|出.{0,3}题|来.{0,2}道/.test(t))return"train";if(/学新|新课|新知识|下一节|往下学/.test(t))return"quest";return null}
 function helpMode(subj,re){return(MODES[subj].find(m=>re.test(m[0]))||MODES[subj][0])[1]}
 function openTaskSheet(o){const d=S.done[o.key];const early=(o.soft-Date.now())>=48*HOUR;
