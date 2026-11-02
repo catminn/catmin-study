@@ -1108,7 +1108,7 @@ function rawOcc(k){const out=[];const d=keyToDate(k);for(const r of WEEKLY){if(r
   out.push({key:r.id+"@"+k,day:k,r,subj:r.subj,soft,hard,week:weekKey(fin)})}return out}
 const NUMC=new Map();
 function seqNum(grp,k){const def=Object.assign({},NUM_DEF[grp],(S.nums||{})[grp]||{});const ck=grp+k+JSON.stringify(def)+Object.keys(S.skipped).length;if(NUMC.has(ck))return NUMC.get(ck);
-  const lead=def.lead;let n=def.n;const has=day=>rawOcc(day).some(o=>o.r.id===lead);const sk=day=>!!S.skipped[lead+"@"+day];
+  const lead=def.lead;let n=def.n;const has=day=>rawOcc(day).some(o=>o.r.id===lead);const sk=day=>{const v=S.skipped[lead+"@"+day];return !!v&&!v.pass};
   if(k>=def.a){let day=def.a,g=0;while(day<k&&g++<400){if(has(day)&&!sk(day))n++;day=addDays(day,1)}}
   else{let day=addDays(def.a,-1),g=0;while(day>=k&&g++<400){if(has(day)&&!sk(day))n--;day=addDays(day,-1)}}
   n=Math.max(1,n);NUMC.set(ck,n);return n}
@@ -1395,13 +1395,18 @@ function taskPrompt(o){const id=o.r.id,t=o.title;
   return"【作业】我要开始做"+SUBJ[o.subj].name+"「"+t+"」了，但我很难集中注意力。只让我做第一小步：先问我第一题是什么（我可以拍照），然后一次只带我走一步。"}
 function helpMode(subj,re){return(MODES[subj].find(m=>re.test(m[0]))||MODES[subj][0])[1]}
 function openTaskSheet(o){const d=S.done[o.key];const early=(o.soft-Date.now())>=48*HOUR;
-  sheet(o.subj,h("div",{class:"row"},h("span",{class:"kind side"},icon("scroll"),"支线 · "+SUBJ[o.subj].name)),h("h2",null,o.title),
+  const act=!!(S.cur&&S.cur.key===o.key),disc=o.r.id==="engl-disc",passed=S.skipped[o.key]&&S.skipped[o.key].pass;
+  const cnt=k=>Object.keys(k).filter(x=>x.startsWith("engl-disc@")).length;
+  sheet(o.subj,h("div",{class:"row",style:{justifyContent:"space-between"}},h("span",{class:"kind side"},icon("scroll"),"支线 · "+SUBJ[o.subj].name),
+      !d&&!passed?h("button",{class:"btn sm"+(act?" go":""),"aria-label":act?"暂停":"开始做",style:{minWidth:"44px"},onclick:()=>{if(act)pauseTask();else beginTask("occ",o.key,o.subj,SUBJ[o.subj].name+" "+o.title);openTaskSheet(o)}},act?"❚❚":"▶"):null),h("h2",null,o.title),
     h("div",null,"截止 "+fmtDue(o.soft)+" · ",h("b",null,fmtLeft(o.soft-Date.now())),o.r.grace?h("div",{class:"dim small"},"最终截止 "+fmtDue(o.hard)+"。"+(o.r.note||"")):null),
     d?doneBox("已完成 +"+d.pts):rewardBox(o.r.base,o.soft,o.r.grace||0),
+    passed?h("div",{class:"row"},h("span",{class:"dim"},"这篇跳过了"),h("button",{class:"btn sm flat",onclick:()=>{delete S.skipped[o.key];save();renderAll();openTaskSheet(o)}},"撤销")):
     !d?h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>completeTask(o)},"完成，领奖励"),
-      !S.started[o.key]?h("button",{class:"btn",onclick:()=>startTask(o)},"开始做了"):h("span",{class:"dim small"},"已开荒"),
       h("button",{class:"btn flat",onclick:()=>{closeSheet();goDungeon(o.subj,taskPrompt(o))}},"进副本让系统帮忙"),
+      disc?h("button",{class:"btn flat",onclick:()=>{if(S.cur&&S.cur.key===o.key){S.cur=null}S.skipped[o.key]={at:Date.now(),pass:1};save();closeSheet();renderAll();toast("跳过「"+o.title+"」")}},"跳过这篇"):
       h("button",{class:"btn flat",onclick:()=>skipTask(o)},"这次没有")):null,
+    disc?h("div",{class:"dim small"},"这学期写了 "+cnt(S.done)+" 篇，跳过 "+Object.keys(S.skipped).filter(x=>x.startsWith("engl-disc@")&&S.skipped[x]&&S.skipped[x].pass).length+" 篇。只要写够规定篇数，可以自己挑。"):null,
     o.r.num?h("div",{class:"row"},h("span",{class:"dim small"},"编号不对？"),(()=>{const inp=h("input",{type:"number",min:"1",value:String(seqNum(o.r.num,o.day)),style:{width:"80px"}});return[inp,h("button",{class:"btn sm flat",onclick:()=>{setNum(o,Math.round(+inp.value));openTaskSheet(occOnDay(o.day).find(x=>x.key===o.key)||o)}},"改")]})()):null)}
 function openNodeSheet(subj,n,idx){const done=nodeIsDone(subj,n);const cur=idx===curIndex(subj);const name=nodeName(subj,n);
   const nameIn=n.edit?h("input",{type:"text",id:"nodeName",value:S.nodeNames[subj+":"+n.id]||"",placeholder:"按这节课的内容改名",style:{flex:"1"}}):null;
