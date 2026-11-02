@@ -175,6 +175,8 @@ async function upstream(env: SiteEnv, model: string, r: AiReq, signal: AbortSign
   const msgs = r.messages.map((m) => ({ role: m.role, content: String(m.content ?? "") }));
   const imgs = (r.images || []).slice(0, 5);
   if (p.provider === "anthropic") {
+    // 提示缓存：第一条（固定的背景说明）和倒数第二条（之前的对话）打缓存点，下一轮这部分按 1/10 计价
+    const cacheAt = new Set([0, msgs.length - 2].filter((i) => i >= 0 && i < msgs.length - 1 && msgs[i].content.length > 200));
     const content = msgs.map((m, idx) => {
       if (idx === msgs.length - 1 && m.role === "user" && imgs.length)
         return {
@@ -184,6 +186,7 @@ async function upstream(env: SiteEnv, model: string, r: AiReq, signal: AbortSign
             { type: "text", text: m.content },
           ],
         };
+      if (cacheAt.has(idx)) return { role: m.role, content: [{ type: "text", text: m.content, cache_control: { type: "ephemeral" } }] };
       return m;
     });
     return fetch("https://api.anthropic.com/v1/messages", {
@@ -242,7 +245,7 @@ async function completeOnce(env: SiteEnv, tier: string, provider: string, text: 
       let ev: any;
       try { ev = JSON.parse(data); } catch { continue; }
       if (prov === "anthropic") {
-        if (ev.type === "message_start") inTok = ev.message?.usage?.input_tokens ?? 0;
+        if (ev.type === "message_start") { const u = ev.message?.usage ?? {}; inTok = Math.round((u.input_tokens ?? 0) + 1.25 * (u.cache_creation_input_tokens ?? 0) + 0.1 * (u.cache_read_input_tokens ?? 0)); } // 按缓存折算后的输入量计费
         else if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") out += ev.delta.text;
         else if (ev.type === "message_delta") outTok = ev.usage?.output_tokens ?? outTok;
       } else {
@@ -312,7 +315,7 @@ async function aiHandler(req: Request, env: SiteEnv, ctx: ExecutionContext) {
           continue;
         }
         if (prov === "anthropic") {
-          if (ev.type === "message_start") inTok = ev.message?.usage?.input_tokens ?? 0;
+          if (ev.type === "message_start") { const u = ev.message?.usage ?? {}; inTok = Math.round((u.input_tokens ?? 0) + 1.25 * (u.cache_creation_input_tokens ?? 0) + 0.1 * (u.cache_read_input_tokens ?? 0)); } // 按缓存折算后的输入量计费
           else if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") await send({ d: ev.delta.text });
           else if (ev.type === "message_delta") {
             outTok = ev.usage?.output_tokens ?? outTok;
