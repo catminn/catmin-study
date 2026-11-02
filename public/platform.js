@@ -89,7 +89,7 @@
     sel.style.cssText = "border:0;background:transparent;font:inherit;color:inherit;padding:0;max-width:150px";
     av.forEach(function (m) {
       var o = document.createElement("option");
-      o.value = m.id; o.textContent = m.label;
+      o.value = m.id; o.textContent = String(m.label).replace(/^Claude\s+/, "");
       o.title = "每百万 token：输入 $" + m.in + " / 输出 $" + m.out;
       sel.appendChild(o);
     });
@@ -98,9 +98,10 @@
     var cost = document.createElement("span");
     cost.className = "num";
     cost.style.cssText = "font-size:12px;color:var(--dim)";
-    cost.textContent = "今天 " + money(STATUS.spent.today) + " / " + money(STATUS.limits.daily);
-    cost.title = "本月 " + money(STATUS.spent.month) + " / " + money(STATUS.limits.monthly);
-    box.append(sel, cost);
+    cost.textContent = money(STATUS.spent.today);
+    box.title = "今天 " + money(STATUS.spent.today) + " / " + money(STATUS.limits.daily) + "，本月 " + money(STATUS.spent.month) + " / " + money(STATUS.limits.monthly);
+    /* 顶栏只放模型名；花费快到上限（80%）时才显示出来 */
+    if (STATUS.spent.today >= 0.8 * STATUS.limits.daily) box.append(sel, cost); else box.append(sel);
   }
 
   // ---------- Google 连接（日历 / Drive，只读） ----------
@@ -124,15 +125,18 @@
       cu.style.cssText = el.style.cssText; host.appendChild(cu);
     }
     if (cu) {
+      cu.hidden = !!(st.cornell && st.cornellRead); /* 连好了就不占顶栏，只有需要操作时才出现 */
       if (st.cornell && st.cornellRead) { cu.textContent = "Cornell Drive ✓"; cu.title = (st.cornellEmail || "") + "：AI 能读这里的作业，交给零的文件也存在这里"; cu.onclick = null; }
       else if (st.cornell) { cu.textContent = "Cornell Drive 加读权限"; cu.title = "让 AI 能读学校 Drive 里的作业：点一下重新授权，勾选查看文件的权限"; cu.onclick = function () { location.href = "/auth/google/start?acct=cornell"; }; }
       else { cu.textContent = "连 Cornell Drive"; cu.title = "把文件存到 Cornell 账号的 Drive（学校可能不允许，不行就存个人 Drive）"; cu.onclick = function () { location.href = "/auth/google/start?acct=cornell"; }; }
     }
     if (st.connected && st.needsUpgrade) {
+      el.hidden = false;
       el.textContent = "Google 需更新授权";
       el.title = "加了写日历和存文件的权限，点一下重新授权";
       el.onclick = function () { location.href = "/auth/google/start"; };
     } else if (st.connected) {
+      el.hidden = true;
       el.textContent = "Google ✓";
       el.title = (st.email || "已连接") + "（只读）。点一下可以断开。";
       el.onclick = async function () {
@@ -141,6 +145,7 @@
         renderGoogle();
       };
     } else {
+      el.hidden = false;
       el.textContent = "连接 Google";
       el.title = "授权网站只读你的 Google 日历和 Drive";
       el.onclick = function () { location.href = "/auth/google/start"; };
