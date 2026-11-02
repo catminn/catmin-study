@@ -27,7 +27,11 @@ function readTransparency() {
 //   material Windows 11 的亚克力材质（backgroundMaterial），窗口不透明，失去焦点时用“保持激活”的办法留住效果
 //   clear    不模糊，只是半透明
 const GLASS_MODES = { blur: "模糊", acrylic: "亚克力", material: "Windows 11 材质", clear: "只半透明", lab: "实验（排查用）" };
-const glassMode = () => (GLASS_MODES[conf.glassMode] ? conf.glassMode : "blur");
+// 默认用 Windows 11 材质（Catherine 电脑上试下来效果最好）；Windows 10 没有这个，退回模糊
+const WIN11 = process.platform === "win32" && Number((require("os").release().split(".")[2]) || 0) >= 22000;
+const glassMode = () => (GLASS_MODES[conf.glassMode] ? conf.glassMode : WIN11 ? "material" : "blur");
+// 材质本身已经有一层淡色，页面上的白色衬底要更淡，不然显得不透明
+const MATERIAL_CSS = "html body.embed.glass{--gl-bg:linear-gradient(165deg,rgba(255,255,255,.14),rgba(255,255,255,.04));--gl-card:rgba(255,255,255,.4);--gl-line:rgba(255,255,255,.35)}";
 function glassOpts() {
   if (glassMode() === "material" && process.platform === "win32") return { transparent: false, backgroundColor: "#00000000", backgroundMaterial: "acrylic" };
   return { transparent: true, backgroundColor: "#00000000" };
@@ -37,7 +41,13 @@ function glassFor(win, on) {
   const m = glassMode();
   if (!on || !transOn || m === "clear") { win._glass = false; return; }
   if (m === "lab") { win._glass = true; setTimeout(labApply, 500); return; }
-  if (m === "material") { win._glass = true; keepActive(win); win.on("blur", () => setTimeout(() => keepActive(win), 30)); return; }
+  if (m === "material") {
+    win._glass = true; keepActive(win); dwmAttr(win, 33, 2); // 圆角
+    win.on("blur", () => setTimeout(() => keepActive(win), 30));
+    const css = () => win.webContents.insertCSS(MATERIAL_CSS).catch(() => {});
+    win.webContents.on("did-finish-load", css); css();
+    return;
+  }
   win._glass = applyGlass(win, false, 2, m === "acrylic" ? 4 : 3);
 }
 // 实验模式：每 10 秒读一次网站上的 glass-lab.json，按里面的参数给待办和零的窗口设效果，方便远程排查
@@ -702,7 +712,7 @@ app.whenReady().then(async () => {
   transOn = await readTransparency();
   if (!transOn && !conf.transWarned) { conf.transWarned = true; saveConf(); setTimeout(() => note("毛玻璃需要打开 Windows 的“透明效果”", "设置 → 个性化 → 颜色 → 透明效果。打开后退出学习空间再打开。现在先用普通半透明。"), 4000); }
   setInterval(async () => { const t = await readTransparency(); if (t !== transOn) { transOn = t; glassFor(zero, true); glassFor(todo, todoState === "full"); } }, 10 * 60 * 1000);
-  if (glassMode() === "lab") { labTimer = setInterval(labPoll, 10000); setTimeout(labPoll, 5000); }
+  if (conf.glassMode === "lab") { delete conf.glassMode; saveConf(); } // 实验模式只在排查时用，重启后回到默认
   if (!conf.setupDone) { app.setLoginItemSettings({ openAtLogin: true }); conf.setupDone = true; conf.todoShown = true; saveConf(); }
   tray = new Tray(nativeImage.createFromPath(TRAY_ICON));
   tray.setToolTip("学习空间");
