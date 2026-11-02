@@ -1987,11 +1987,14 @@ const ZERO_RULES=`你是「零」，Catherine 绑定的无限流系统，现在�
 - 她答错或卡住时，可以在回复最后单独一行写「[错题] 这道题考什么、她错在哪 || 正确的思路」，页面会收进错题图鉴，她看不到这一行。
 - 她发来一道作业题（截图或文字）时，在回复最后单独一行写「[题目] 题号 || 题目原文」，原文完整照抄，公式用 LaTeX，图里有图表就用一句话描述，题号看不出来写「?」。同一道题只写一次。页面会把这些题收进作业档案。
 - 不要写其他方括号标记。`;
-let ZW={subj:"math",turns:[],imgs:[],ctl:null};
-function zwSave(){const body={subj:ZW.subj,turns:ZW.turns.slice(-30).map(t=>({role:t.role,content:t.content,at:t.at||0}))};
+/* 每门课各一份聊天记录：ZW.turns 永远指向当前科目那一份 */
+let ZW={subj:"math",hist:{},imgs:[],ctl:null};
+Object.defineProperty(ZW,"turns",{get(){return ZW.hist[ZW.subj]||(ZW.hist[ZW.subj]=[])},set(v){ZW.hist[ZW.subj]=v}});
+const zwT=k=>ZW.hist[k]||(ZW.hist[k]=[]);
+function zwSave(){const hist={};for(const k of Object.keys(SUBJ))hist[k]=zwT(k).slice(-30).map(t=>({role:t.role,content:t.content,at:t.at||0}));const body={subj:ZW.subj,hist};
   if(DB&&UID){DB.doc("data/users/"+UID+"/chat-zero").set(body).catch(()=>{})}else{try{localStorage.setItem("zs-chat-zero",JSON.stringify(body))}catch(e){}}}
 async function zwLoad(){try{let d=null;if(DB&&UID){const c=await DB.doc("data/users/"+UID+"/chat-zero").get();if(c.exists)d=clone(c.data())}else d=JSON.parse(localStorage.getItem("zs-chat-zero")||"null");
-  if(d&&Array.isArray(d.turns)){ZW.turns=d.turns;if(d.subj&&SUBJ[d.subj])ZW.subj=d.subj}}catch(e){}zwRender()}
+  if(d){if(d.subj&&SUBJ[d.subj])ZW.subj=d.subj;if(d.hist&&typeof d.hist==="object"){for(const k in d.hist)if(SUBJ[k]&&Array.isArray(d.hist[k]))ZW.hist[k]=d.hist[k]}else if(Array.isArray(d.turns))ZW.hist[ZW.subj]=d.turns}}catch(e){}zwRender()}
 function zwContext(subj){const prog=(S.progress[subj]||[]).slice(-6).map(p=>"- "+p.t).join("\n")||"（还没有记录）";
   const mis=S.mistakes.filter(m=>m.subj===subj&&!m.killed).slice(-5).map(m=>"- "+m.text).join("\n")||"（无）";
   const dl=occurrences().filter(o=>o.subj===subj&&isOpen(o)).slice(0,4).map(o=>"- "+o.title+" 截止 "+fmtDue(o.soft)).join("\n")||"（无）";
@@ -2005,16 +2008,16 @@ function zwRender(){const sel=$("#zwSubj");if(!sel)return;{const mb=$("#zwMode")
   $("#zwThumbs").replaceChildren(...ZW.imgs.map(f=>h("span",{class:"zw-th"},h("img",{src:URL.createObjectURL(f),alt:"附图"}),h("button",{class:"zw-thx","aria-label":"移除",onclick:()=>{ZW.imgs=ZW.imgs.filter(x=>x!==f);zwRender()}},"×"))),...(ZW.docs||[]).map(d=>h("span",{class:"lchip"},h("span",null,d.name),h("button",{onclick:()=>{ZW.docs=ZW.docs.filter(x=>x!==d);zwRender()},"aria-label":"移除"},"×"))));$("#zwClipL").hidden=false;$("#zwSend").disabled=!SAMPLE||!!ZW.ctl;
   typeset(log);log.scrollTop=log.scrollHeight}
 async function zwSend(text){text=(text||$("#zwInput").value).trim();const hasAtt=ZW.imgs.length||(ZW.docs||[]).length;if((!text&&!hasAtt)||!SAMPLE||ZW.ctl)return;const onlyAtt=!text;if(onlyAtt)text="（看附件）";$("#zwInput").value="";$("#zwInput").style.height="auto";focusAct();
-  const subj=ZW.subj;const imgs=ZW.imgs.slice();ZW.imgs=[];const docs=(ZW.docs||[]).slice();ZW.docs=[];ZW.turns.push({role:"user",content:(onlyAtt?"":text)+(imgs.length?"（附了 "+imgs.length+" 张图）":"")+(docs.length?"（附件："+docs.map(d=>d.name).join("、")+"）":""),at:Date.now()});ZW.ctl=new AbortController();zwRender();
+  const subj=ZW.subj;const imgs=ZW.imgs.slice();ZW.imgs=[];const docs=(ZW.docs||[]).slice();ZW.docs=[];ZW.turns.push({role:"user",content:(onlyAtt?"":text)+(imgs.length?"（附了 "+imgs.length+" 张图）":"")+(docs.length?"（附件："+docs.map(d=>d.name).join("、")+"）":""),at:Date.now()});ZW.ctl=new AbortController();zwRender();const T0=ZW.turns,uTurn=T0[T0.length-1];
   const log=$("#zwLog");const bub=h("div",{class:"zw-m a"},"…");log.append(bub);log.scrollTop=log.scrollHeight;
   const hist=ZW.turns.slice(-14).map(t=>({role:t.role,content:t.content}));while(hist.length&&hist[0].role!=="user")hist.shift();if(docs.length&&hist.length){const last=hist[hist.length-1];last.content+="\n\n"+docs.map(d=>"【附件 "+d.name+"】\n"+d.text).join("\n\n")}
   const mem=await smSearch(subj,text);
   const input=[{role:"user",content:zwContext(subj)+(mem?"\n\n共享记忆里相关的内容（参考）：\n"+mem:"")},{role:"assistant",content:"收到。"},...hist];
   const opts={cache:false,signal:ZW.ctl.signal,onText:({text})=>{bub.textContent=text.replace(TAG_RE,"").trim();log.scrollTop=log.scrollHeight}};if(imgs.length)opts.images=imgs.slice(0,5);
   try{const r=await SAMPLE(input,opts);let raw=r.text,sw=null;raw=raw.replace(/^\s*\[科目\]\s*(math|chem|engri|engl)\s*$/m,(_,k)=>{sw=k;return""});
-    const tsubj=sw&&SUBJ[sw]?sw:subj;const clean=stripTags(tsubj,raw);if(sw&&sw!==subj&&SUBJ[sw]){ZW.subj=sw;zwSave();toast("换到"+SUBJ[sw].name)}ZW.turns.push({role:"assistant",content:clean||"（收到）",at:Date.now()})}
-  catch(e){if(e&&e.code!=="cancelled")ZW.turns.push({role:"assistant",content:sampleErr(e),at:Date.now()})}
-  finally{ZW.ctl=null;ZW.turns=ZW.turns.slice(-30);zwSave();zwRender();if($("#zwPanel").hidden)$("#zwFab").classList.add("ping");if(DESK&&DESK.notify&&(document.hidden||!document.hasFocus()))DESK.notify()}}
+    const tsubj=sw&&SUBJ[sw]?sw:subj;const clean=stripTags(tsubj,raw);if(sw&&sw!==subj&&SUBJ[sw]){const i=T0.lastIndexOf(uTurn);if(i>=0)T0.splice(i,1);zwT(sw).push(uTurn);ZW.subj=sw;toast("换到"+SUBJ[sw].name)}zwT(tsubj).push({role:"assistant",content:clean||"（收到）",at:Date.now()})}
+  catch(e){if(e&&e.code!=="cancelled")T0.push({role:"assistant",content:sampleErr(e),at:Date.now()})}
+  finally{ZW.ctl=null;for(const k in ZW.hist)ZW.hist[k]=ZW.hist[k].slice(-30);zwSave();zwRender();if($("#zwPanel").hidden)$("#zwFab").classList.add("ping");if(DESK&&DESK.notify&&(document.hidden||!document.hasFocus()))DESK.notify()}}
 /* ---- 每日签到题（独立弹窗） ---- */
 let DQ_CTL=null;
 async function openDaily(subj){if(checkedToday()){openCheckin();return}subj=subj||(planToday()||{b:{}}).b.subj||suggestSubj();if(subj==="engl")subj="math";closeSheet();
@@ -2274,7 +2277,7 @@ window.addEventListener("hashchange",route);
 $("#guideFab").onclick=()=>{GI=0;openGuide(false)};
 $("#zwFab").onclick=()=>{if($("#zwPanel").hidden)zwOpen();else zwCloseP()};$("#zwHw").onclick=()=>openHwSheet(ZW.subj);$("#zwClose").onclick=()=>{if(EMBED==="zero"&&DESK)DESK.hide();else zwCloseP()};
 $("#zwClear").onclick=()=>{if(ZW.ctl)ZW.ctl.abort();ZW.turns=[];zwSave();zwRender()};
-$("#zwSubj").onchange=e=>{ZW.subj=e.target.value;zwSave()};$("#zwMode").onclick=()=>{S.zwMode=S.zwMode==="ddl"?"teach":"ddl";save();zwRender();toast(S.zwMode==="ddl"?"赶 DDL 模式：只给答案":"教学模式：一步一步带")};$("#zwSend").onclick=()=>zwSend();
+$("#zwSubj").onchange=e=>{ZW.subj=e.target.value;zwSave();zwRender()};$("#zwMode").onclick=()=>{S.zwMode=S.zwMode==="ddl"?"teach":"ddl";save();zwRender();toast(S.zwMode==="ddl"?"赶 DDL 模式：只给答案":"教学模式：一步一步带")};$("#zwSend").onclick=()=>zwSend();
 $("#zwInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();zwSend()}});
 $("#zwInput").addEventListener("input",e=>{focusTouch();const t=e.target;t.style.height="auto";t.style.height=Math.min(120,t.scrollHeight)+"px"});
 $("#zwImg").onchange=e=>{const fs=[...e.target.files];e.target.value="";zwAddFiles(fs)};
