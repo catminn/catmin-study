@@ -497,7 +497,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
     <div class="res">
       <span class="pill gold" title="积分"><svg class="i"><use href="#i-coin"/></svg><span id="hPts">0</span></span>
       <button class="pill fire" id="hStreak" title="签到日历"><svg class="i"><use href="#i-flame"/></svg><span id="hStreakN">0</span></button>
-      <span class="pill" title="补签卡 · 休息券"><svg class="i"><use href="#i-ticket"/></svg><span id="hCards">0·0</span></span>
+      <span class="pill" title="补签卡"><svg class="i"><use href="#i-ticket"/></svg><span id="hCards">0</span></span>
       <button class="themebtn" id="themeBtn" title="切换浅色 / 深色"></button>
     </div>
   </div>
@@ -1051,7 +1051,6 @@ function playCard(){const on=playing(),free=false,b=playedToday(),am=affordMin()
 const CNY_TIERS=[["6",6],["15",15],["30",30],["60",60],["100",100],["180",180],["300",300],["600",600],["月卡",30],["战令",68],["战令",128]];
 const SHOP_ITEMS=[
   {id:"makeup",name:"补签卡",price:35,ic:"ticket",desc:"补上漏掉的一天签到"},
-  {id:"rest",name:"休息券",price:65,ic:"ticket",desc:"当天不做任务也不断签"},
 ];
 
 /* ============ state ============ */
@@ -1070,6 +1069,8 @@ function mergeState(raw){const x=raw?clone(raw):{};const o=Object.assign(default
   for(const k of["done","started","skipped","chests","weekEarly","nodeNames","battle","trainLog","quizLog","tale","saga","fate"])if(!o[k]||typeof o[k]!=="object"||Array.isArray(o[k]))o[k]={};
   for(const k of["checkins","restDays","ledger","mistakes","customRewards","customWorlds","scores","spend","sleepLog","todos","hwArchive"])if(!Array.isArray(o[k]))o[k]=[];if(!o.hwDraft||typeof o.hwDraft!=="object"||Array.isArray(o.hwDraft))o.hwDraft={};
   delete o.story;
+  /* 休息券取消：手上剩的换成补签卡 */
+  if(o.cards&&o.cards.rest>0){o.cards.makeup=(o.cards.makeup||0)+o.cards.rest;o.cards.rest=0}
   /* 一次性：数学 HW 9 按新规则补到 60 */
   if(!o.mig1102){const d=o.done["math-hw@2026-10-29"];if(d&&typeof d.pts==="number"&&d.pts<60){const add=60-d.pts;o.points=r1((o.points||0)+add);o.xp=(o.xp||0)+Math.round(add*XP_PER);o.ledger.push({at:Date.now(),d:add,t:"补发 · 数学 HW 9（按新规则 60 分）"});d.pts=60}o.mig1102=1}
   /* 一次性：HW 9 实际用时 90 分钟；11/1 的 lab report 和 pre-lab 截止延后 30 分钟 */
@@ -1108,7 +1109,7 @@ function award(base,due,grace,label){const p=preview(base,due,grace);let pts=p.t
   if(p.mf){const early=Math.max(0,(due-Date.now())/HOUR);
     if(p.m>1){S.combo++;if(S.combo>=3){pts=r1(pts+R(10));lines.push("提前连击 "+S.combo+"，+"+R(10))}const sh=Math.floor(early/24);if(sh>0){S.shards+=sh;lines.push("时间碎片 +"+sh)}}else S.combo=0;
     const wk=weekKey();S.weekEarly[wk]=(S.weekEarly[wk]||0)+early;
-    while(S.shards>=3){S.shards-=3;S.cards.rest++;lines.push("3 块碎片合成了一张休息券")}}
+    while(S.shards>=3){S.shards-=3;S.cards.makeup++;lines.push("3 块碎片合成了一张补签卡")}}
   const before=levelOf(S.xp).L;earn(pts,label);const after=levelOf(S.xp).L;save();showReward(pts,label,lines,after>before?after:0);return pts}
 
 /* ============ check-in ============ */
@@ -1515,7 +1516,7 @@ function openCheckin(){const today=dayKey();if(!CK_MONTH)CK_MONTH=today.slice(0,
       :h("div",{class:"list"},h("div",null,"签到 +"+ckReward(streak()+1)),
         h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();openDaily(sugg)}},"开始今日委托 · "+SUBJ[sugg].name),
           h("button",{class:"btn flat",onclick:()=>doCheckin("在别处学了")},"今天在别处学过了"),
-          S.cards.rest>0?h("button",{class:"btn",onclick:useRest},"用休息券（"+S.cards.rest+"）"):null)))}
+          null)))}
 function shiftMonth(ym,n){const[y,m]=ym.split("-").map(Number);const d=new Date(y,m-1+n,1);return d.getFullYear()+"-"+pad(d.getMonth()+1)}
 function examInfo(subj){const now=Date.now();return Object.values(BOSSES()).filter(b=>b.subj===subj&&b.exam&&b.due>now).sort((a,b)=>a.due-b.due)[0]||null}
 function subjWeight(subj){const b=examInfo(subj);if(!b)return 1;const d=(b.due-Date.now())/DAY;const w=d<=3?6:d<=7?4:d<=14?2.5:d<=21?1.6:1;const k=[0.4,1,2.2][S.examBias==null?1:S.examBias];return 1+(w-1)*k}
@@ -2156,7 +2157,7 @@ function renderTimer(){const c=$("#timerCard");if(!S.timer){c.hidden=true;return
   if(S.timer.meter){const {m,cost}=playNow();$("#tLabel").textContent=S.timer.label;c.classList.remove("over");$("#tLeft").textContent=pad(Math.floor(m))+":"+pad(Math.floor(m*60%60))+(S.timer.free?"":" · "+cost+" 分");$("#tStop").textContent="玩完了";return}const left=S.timer.end-Date.now();$("#tLabel").textContent=S.timer.label;c.classList.toggle("over",left<=0);
   if(left<=0){$("#tLeft").textContent="时间到";$("#tStop").textContent="收起"}else{$("#tLeft").textContent=pad(Math.floor(left/MIN))+":"+pad(Math.floor(left%MIN/1e3));$("#tStop").textContent="提前结束"}}
 function renderBag(){renderSyncRow();renderArchive();$("#scoreList").replaceChildren(scoresBlock());$("#bagSum").textContent="积分 "+fp(S.points)+" · 时间碎片 "+S.shards+"/3";
-  const inv=[["makeup","补签卡","ticket",""],["rest","休息券","ticket",""]];
+  const inv=[["makeup","补签卡","ticket",""]];
   $("#bagItems").replaceChildren(...inv.map(([k,n,ic,d])=>h("div",{class:"item"},h("div",{class:"row between"},h("div",{class:"ic"},icon(ic)),h("span",{class:"price"},"×"+S.cards[k])),h("h3",null,n),h("p",null,d))));
   const ml=$("#mistakeList");ml.replaceChildren();const ms=S.mistakes.slice().reverse();if(!ms.length)ml.append(h("div",{class:"dim"},"暂无"));
   for(const m of ms)ml.append(h("div",{class:"li"},h("div",{class:"t"},h("div",{class:"mtext"},h("span",{class:"tag"},SUBJ[m.subj].name),renderMd(m.text)),h("div",{class:"dim small"},(m.killed?"已击败":"复活日 "+m.revive)+" · "+(m.sm?"已存进共享记忆":m.smBusy?"上传中…":"未上传"))),m.killed?null:h("div",{class:"row",style:{flex:"none",gap:"6px"}},h("button",{class:"btn sm",style:{whiteSpace:"nowrap"},title:"上传到共享记忆",onclick:()=>{if(!syncMistake(m,true))toast("共享记忆没连上");renderBag()}},m.sm?"再传":"上传"),h("button",{class:"btn sm",style:{whiteSpace:"nowrap",flex:"none"},onclick:()=>fightMistake(m)},"现在打"))));
@@ -2245,7 +2246,7 @@ window.addEventListener("pagehide",()=>{if(FOCUS){S.focusLive={start:FOCUS.start
 /* ============ HUD / routing ============ */
 function renderHud(){renderGuideFab();const lv=levelOf(S.xp);$("#hLv").textContent=lv.L;$("#hTitle").textContent=lv.title;$("#hXp").textContent=(S.xp-lv.lo)+" / "+(lv.hi-lv.lo)+" XP";
   $("#hXpBar").style.width=Math.round((S.xp-lv.lo)/(lv.hi-lv.lo)*100)+"%";$("#hPts").textContent=fp(S.points);$("#hStreakN").textContent=streak()+(checkedToday()?"":" · 未签");
-  $("#hStreak").title=checkedToday()?"今天已签到":"今天还没签到，点开签到日历";$("#hCards").textContent=S.cards.makeup+"·"+S.cards.rest}
+  $("#hStreak").title=checkedToday()?"今天已签到":"今天还没签到，点开签到日历";$("#hCards").textContent=S.cards.makeup}
 const VIEWS=["now","map","cal","dungeon","shop","bag"];
 function curView(){const v=(location.hash||"#now").slice(1);return VIEWS.includes(v)?v:"now"}
 let NI=0;
