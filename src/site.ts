@@ -80,7 +80,7 @@ async function validSession(req: Request, env: SiteEnv) {
 
 // ---------- 登录页 ----------
 const LOGIN_HTML = `<!doctype html><html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>学习空间</title><meta name="robots" content="noindex">
+<title>学习空间</title><meta name="robots" content="noindex"><link rel="apple-touch-icon" href="/icon-180.png"><link rel="icon" href="/icon-192.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="小助手">
 <style>
 :root{--bg:#e7eaf4;--panel:#fff;--line:#c3cae0;--fg:#1b1f3b;--dim:#565d82;--accent:#c4861a;--ink:#2e1f02;--late:#c93a3a;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#11131e;--panel:#1d2032;--line:#353a58;--fg:#eeedf6;--dim:#a9a8c4;--accent:#f0c060;--ink:#2a1d04;--late:#f07a7a;color-scheme:dark}}
@@ -577,6 +577,13 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     }
     if (p === "/api/mcp" && req.method === "POST") return mcpHandler(req, env);
     return err("not_found", "没有这个接口", 404);
+  }
+  // 主屏幕图标和 manifest 不用登录也能取（iOS 取图标时不带登录状态）
+  if (/^\/(icon-\d+\.png|manifest\.webmanifest)$/.test(p)) {
+    const r = await env.ASSETS.fetch(req);
+    const hh = new Headers(r.headers); hh.set("Cache-Control", "public, max-age=86400");
+    if (p.endsWith(".webmanifest")) hh.set("Content-Type", "application/manifest+json");
+    return new Response(r.body, { status: r.status, headers: hh });
   }
   if (!authed)
     return new Response(LOGIN_HTML, {
