@@ -241,7 +241,14 @@ ipcMain.on("bubble-moved", () => {
 });
 ipcMain.on("bubble-click", () => toggleZero());
 ipcMain.on("bubble-menu", () => { menu().popup({ window: bubble }); });
-ipcMain.on("bubble-drop", (e, paths) => { dlog("bubble-drop", (paths || []).length, (paths || []).map((p) => path.basename(String(p)))); deliverPaths(paths); });
+ipcMain.on("bubble-drop", async (e, paths) => {
+  dlog("bubble-drop", (paths || []).length);
+  if (paths && paths.length) return deliverPaths(paths);
+  // 拿不到路径时，用资源管理器里选中的文件
+  const ps = process.platform === "win32" ? await explorerSelection() : [];
+  dlog("bubble-drop fallback", ps.length);
+  if (ps.length) deliverPaths(ps); else showZero();
+});
 
 // 平滑改变窗口位置大小（像拉出展板）
 const anims = new WeakMap();
@@ -671,8 +678,12 @@ function ringSector(px, py) {
 ipcMain.on("ring-hover", (e, k) => { ringHoverKey = String(k || ""); });
 ipcMain.on("ring-drop", (e, target, paths) => {
   dlog("ring-drop", target, (paths || []).length);
-  hideRing(0); ringDropAt = Date.now();
-  handleRingDrop(target, paths);
+  hideRing(0);
+  if (paths && paths.length) { ringDropAt = Date.now(); handleRingDrop(target, paths); return; }
+  // 拖放到了，但拿不到文件路径（你电脑上就是这样）：用开始拖时记下的资源管理器选中文件
+  ringDropAt = Date.now();
+  const sel = ringSel;
+  if (target && sel) sel.then((ps) => { dlog("ring-drop fallback", ps.length); if (ps.length) handleRingDrop(target, ps); else note("没拿到文件", "转盘目前只支持从文件夹窗口里拖文件。"); });
 });
 function handleRingDrop(target, paths) {
   dlog("handleRingDrop", target, (paths || []).length);
