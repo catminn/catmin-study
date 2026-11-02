@@ -1733,7 +1733,7 @@ async function connectCalendar(fromClick){if(!MCP)return;const now=Date.now();
 /* ============ shared memory (共享记忆 connector) ============ */
 const SM="共享记忆";let SM_STATE="unknown";
 async function smSearch(subj,text){if(!MCP||S.sharedMem===false)return"";
-  try{const r=await MCP.callTool(SM,"memory_search",{query:(SUBJ[subj].full+" "+text).slice(0,300),limit:4,max_response_chars:4000},{cache:{staleTime:10*MIN,gcTime:HOUR},signal:AbortSignal.timeout?AbortSignal.timeout(8000):undefined});
+  try{const r=await MCP.callTool(SM,"memory_search",{query:((SUBJ[subj]?SUBJ[subj].full+" ":"")+text).slice(0,300),limit:4,max_response_chars:4000},{cache:{staleTime:10*MIN,gcTime:HOUR},signal:AbortSignal.timeout?AbortSignal.timeout(8000):undefined});
     SM_STATE="ok";const p=r.payload;const t=typeof p==="string"?p:p==null?"":JSON.stringify(p);return t.replace(/\nHash: [0-9a-f]+/g,"").slice(0,4000)}
   catch(e){SM_STATE=smCopy(e);return""}}
 function smCopy(e){const c=e&&e.code;return{server_not_connected:"没找到叫「共享记忆」的连接器",needs_reauth:"共享记忆需要在 claude.ai 设置里重新连接",not_in_manifest:"你没有允许这个页面使用共享记忆",approval_required:"共享记忆需要你点允许",server_unavailable:"共享记忆连不上（电脑可能关机了）",cancelled:"共享记忆响应太慢，这次先跳过"}[c]||"共享记忆暂时不可用"}
@@ -1743,7 +1743,7 @@ function plainTex(t){return String(t).replace(/\$+/g,"").replace(/\\(d?frac)\{([
 function syncMistake(m,force){if(!m||(m.sm&&!force))return false;m.smBusy=1;
   return smWrite("mistake_note_add",{error_pattern:plainTex(m.text).slice(0,300),context_signature:SUBJ[m.subj].full+" · 学习空间 · "+(m.added||dayKey()),incorrect_action:"做错："+plainTex(m.text).slice(0,280),correct_action:(m.fix?plainTex(m.fix):"复习时再确认正确做法").slice(0,300)},
     ()=>{m.sm=dayKey();delete m.smBusy;save();if(curView()==="bag")renderBag()},()=>{delete m.smBusy;if(curView()==="bag")renderBag()})}
-let SMF=false;const smTag=k=>SUBJ[k].full.split("/")[0].replace(/\s/g,"").toLowerCase();
+let SMF=false;const smTag=k=>SUBJ[k]?SUBJ[k].full.split("/")[0].replace(/\s/g,"").toLowerCase():"daily";
 async function smFlush(manual,only){if(SMF||!MCP||S.sharedMem===false)return -1;SMF=true;let n=0;S.smSeen=S.smSeen||{};
   try{const ev=(S.smLog||[]).filter(e=>e.at>(S.smEvAt||0)&&(!only||!e.s||e.s===only));
     if(ev.length&&(manual||ev.length>=3)){const lastEv=Math.max(...ev.map(e=>e.at));
@@ -2148,18 +2148,27 @@ const zwT=k=>ZW.hist[k]||(ZW.hist[k]=[]);
 function zwSave(){const hist={};for(const k of Object.keys(SUBJ))hist[k]=zwT(k).slice(-30).map(t=>{const o={role:t.role,content:t.content,at:t.at||0};if(t.docs)o.docs=t.docs;if(t.memo)o.memo=t.memo;if(t.ask)o.ask=t.ask;return o});const body={subj:ZW.subj,hist};
   if(DB&&UID){DB.doc("data/users/"+UID+"/chat-zero").set(body).catch(()=>{})}else{try{localStorage.setItem("zs-chat-zero",JSON.stringify(body))}catch(e){}}}
 async function zwLoad(){try{let d=null;if(DB&&UID){const c=await DB.doc("data/users/"+UID+"/chat-zero").get();if(c.exists)d=clone(c.data())}else d=JSON.parse(localStorage.getItem("zs-chat-zero")||"null");
-  if(d){if(d.subj&&SUBJ[d.subj])ZW.subj=d.subj;if(d.hist&&typeof d.hist==="object"){for(const k in d.hist)if(SUBJ[k]&&Array.isArray(d.hist[k]))ZW.hist[k]=d.hist[k]}else if(Array.isArray(d.turns))ZW.hist[ZW.subj]=d.turns}}catch(e){}zwRender()}
+  if(d){if(d.subj&&(SUBJ[d.subj]||d.subj==="life"))ZW.subj=d.subj;if(d.hist&&typeof d.hist==="object"){for(const k in d.hist)if((SUBJ[k]||k==="life")&&Array.isArray(d.hist[k]))ZW.hist[k]=d.hist[k]}else if(Array.isArray(d.turns))ZW.hist[ZW.subj]=d.turns}}catch(e){}zwRender()}
 /* 每轮都变的东西（几点、在哪页、共享记忆搜到的）放在最后一条消息里，前面的背景说明保持不变，才能命中提示缓存 */
 function zwNowNote(){const now=new Date();return"（现在 "+pad(now.getHours())+":"+pad(now.getMinutes())+"，她在网站的「"+({now:"现在",map:"地图",cal:"日历",dungeon:"副本",shop:"商店",bag:"背包"}[curView()]||"")+"」页）"}
-function zwContext(subj){const prog=(S.progress[subj]||[]).slice(-6).map(p=>"- "+p.t).join("\n")||"（还没有记录）";
+/* 日常模式（非学习）：零当随身助手，不带科目和教学规则 */
+const LIFE_RULES=`你是「零」，Catherine 的随身小助手，现在是日常模式（不是学习模式）。她是 Cornell 大一新生，在 Ithaca，美东时间。
+- 用中文，简洁、直接、像靠谱的朋友。不写剧情，不出题，不讲课，不提醒学习，除非她问。
+- 能帮她做的事：往她的个人 Google 日历加日程或查日程（calendar_add、calendar_list），在 Google Drive 里找文件、读内容，回答日常问题，帮她起草消息或邮件，帮她规划一天，记住事情。
+- 加日历：她说要加就直接加，不用再确认；时间不清楚才问一句。加完说清楚加了什么、哪天几点。
+- 她说「记住……」时，在回复最后单独写一行 [记住] 要记的内容（一句完整的话），会存进她的共享记忆。共享记忆里搜到的内容会附在下面，可以直接用。
+- 如果她问的明显是某门课的学习问题，回复第一行单独写 [科目] math（或 chem、engri、engl），然后正常回答。`;
+function zwLife(){const now=new Date();const dl=occurrences().filter(o=>isOpen(o)).slice(0,6).map(o=>"- "+SUBJ[o.subj].name+" "+o.title+" 截止 "+fmtDue(o.soft)).join("\n")||"（无）";
+  return LIFE_RULES+`\n\n今天：${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} 周${WD[now.getDay()]}。\n最近的截止（她问起才提）：\n${dl}`}
+function zwContext(subj){if(subj==="life")return zwLife();const prog=(S.progress[subj]||[]).slice(-6).map(p=>"- "+p.t).join("\n")||"（还没有记录）";
   const mis=S.mistakes.filter(m=>m.subj===subj&&!m.killed).slice(-5).map(m=>"- "+m.text).join("\n")||"（无）";
   const dl=occurrences().filter(o=>o.subj===subj&&isOpen(o)).slice(0,4).map(o=>"- "+o.title+" 截止 "+fmtDue(o.soft)).join("\n")||"（无）";
   const ex=examInfo(subj);const now=new Date();
   return ZERO_RULES+"\n\n"+PACK[subj]+(subj==="chem"?"\n\n"+LAB_RULES:"")+"\n\n你可以画图，不要说你不能画图或生成不了图片：函数图、二维区域、三维曲面、数据图用 ```plotly 代码块，里面是 Plotly.js 的 JSON {\"data\":[...],\"layout\":{...}}（3D 用 surface / scatter3d，数据点直接算好写成数组）；示意图、积分区域草图、实验装置图用 ```svg 代码块，写完整的 <svg viewBox=...>，白底黑线、坐标轴和关键点要标注。页面会把它画出来，她可以点「下载 PNG」。题目要求画图或她要图时就画，代码块外只写必要的文字。\n\n她说「记住……」（或让你记下某件事）时，在回复最后单独写一行 [记住] 要记的内容：写成一句完整的话，说清是哪门课、关于什么，这行会存进她的共享记忆，Claude 和 ChatGPT 都能看到。共享记忆里搜到的内容会附在下面，回答时可以直接用。"+"\n\n她现在选的是「"+SUBJ[subj].name+"」。如果她这次发来的内容（文字、图片或附件）明显属于另一门课（数学=math，化学=chem，机械=engri，英文=engl），回复第一行单独写 [科目] chem 这样的标记，然后直接按那门课正常回答，不要说“这不是本科目的内容”。"+`\n\n今天：${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} 周${WD[now.getDay()]}。${ex?"最近的考试："+ex.title+" "+fmtDue(ex.due)+"。":""}${S.cur&&S.cur.subj===subj?"\n她现在正在做「"+S.cur.title+"」。她发来的题都是这份作业里的：先在回复最后写 [题目] 行记下题目原文，"+(S.zwMode==="ddl"?"然后按下面的赶 DDL 模式直接给答案。":"再带她一步一步做，一步一问，不要直接给最终答案。"):""}${S.zwMode==="ddl"?"\n\n【现在是赶 DDL 模式，优先于上面所有关于教学、提问、讲解的要求】\n- 只给图（题目要求画图时）和最终公式或答案。\n- 不写说明，不附英文翻译，能跳的步骤都跳。\n- 不提问、不出小检查。\n- 做完一题直接报下一题的题号。\n- 需要的数据先在她之前发过的附件（讲义）和图片记录里找，找到就直接用，不要让她再发。\n- 不提截止时间、不估用时、不给学习建议。\n- 按她给的数据照算照填：结果看起来不合理（比如负数）也先把算出的数字给她，再用一句话说可能的原因；绝不因为结果怪就不给数字、也不要求她先去核对。\n- 她说「数据就是这个」时就按这个算，不再质疑。":""}\n最近学的：\n${prog}\n没打败的错题：\n${mis}\n这一科的截止：\n${dl}`}
 function zwOpen(subj,msg){if(subj&&SUBJ[subj]){ZW.subj=subj}$("#zwPanel").hidden=false;document.body.classList.add("zw-open");$("#zwFab").classList.remove("ping");zwRender();if(msg)setTimeout(()=>zwSend(msg),60);else setTimeout(()=>$("#zwInput").focus(),50)}
 function zwCloseP(){$("#zwPanel").hidden=true;document.body.classList.remove("zw-open")}
-function zwRender(){const sel=$("#zwSubj");if(!sel)return;{const cl=$("#zwClaude");if(cl)cl.hidden=!window.__SITE}{const mb=$("#zwMode");if(mb){const d=S.zwMode==="ddl";mb.textContent=d?"赶 DDL":"教学";mb.classList.toggle("ddl",d)}}renderTaskBar();sel.replaceChildren(...Object.keys(SUBJ).map(k=>h("option",{value:k,selected:k===ZW.subj},SUBJ[k].name)));
-  const log=$("#zwLog");const atB=zwAtBottom(),prev=log.scrollTop,nTurns=ZW.turns.length,subjChanged=ZW.shownSubj!==ZW.subj,grew=!subjChanged&&nTurns>(ZW.shownN||0);ZW.shownSubj=ZW.subj;ZW.shownN=nTurns;log.replaceChildren();if(!ZW.turns.length)log.append(h("div",{class:"zw-hint"},SAMPLE?"有什么不会的，直接问。":"需要在 Claude 里打开才能对话"));
+function zwRender(){const sel=$("#zwSubj");if(!sel)return;{const cl=$("#zwClaude");if(cl)cl.hidden=!window.__SITE}{const mb=$("#zwMode");if(mb){const d=S.zwMode==="ddl";mb.textContent=d?"赶 DDL":"教学";mb.classList.toggle("ddl",d)}}renderTaskBar();sel.replaceChildren(h("option",{value:"life",selected:ZW.subj==="life"},"日常"),...Object.keys(SUBJ).map(k=>h("option",{value:k,selected:k===ZW.subj},SUBJ[k].name)));{const mb=$("#zwMode");if(mb)mb.hidden=ZW.subj==="life"}
+  const log=$("#zwLog");const atB=zwAtBottom(),prev=log.scrollTop,nTurns=ZW.turns.length,subjChanged=ZW.shownSubj!==ZW.subj,grew=!subjChanged&&nTurns>(ZW.shownN||0);ZW.shownSubj=ZW.subj;ZW.shownN=nTurns;log.replaceChildren();if(!ZW.turns.length)log.append(h("div",{class:"zw-hint"},SAMPLE?(ZW.subj==="life"?"想让我做什么，直接说。加日历、找文件、记事情都行。":"有什么不会的，直接问。"):"需要在 Claude 里打开才能对话"));
   for(const t of ZW.turns){if(t.role==="user")log.append(h("div",{class:"zw-m u"},t.content));else log.append(h("div",{class:"zw-m a"},renderMd(t.content),h("button",{class:"zw-copy",title:"复制这条（公式保留成 LaTeX）",onclick:()=>copyText(t.content.replace(/```(svg|plotly)[\s\S]*?```/g,"[图]").trim(),"已复制")},"复制")))}
   $("#zwThumbs").replaceChildren(...ZW.imgs.map(f=>h("span",{class:"zw-th"},h("img",{src:URL.createObjectURL(f),alt:"附图"}),h("button",{class:"zw-thx","aria-label":"移除",onclick:()=>{ZW.imgs=ZW.imgs.filter(x=>x!==f);zwRender()}},"×"))),...(ZW.docs||[]).map(d=>h("span",{class:"lchip"},h("span",null,d.name),h("button",{onclick:()=>{ZW.docs=ZW.docs.filter(x=>x!==d);zwRender()},"aria-label":"移除"},"×"))));$("#zwClipL").hidden=false;$("#zwSend").disabled=!SAMPLE||!!ZW.ctl;
   typeset(log);
@@ -2184,7 +2193,7 @@ async function zwSend(text,show){text=(text||$("#zwInput").value).trim();const h
   try{const r=await SAMPLE(input,opts);let raw=r.text,sw=null;raw=raw.replace(/^\s*\[科目\]\s*(math|chem|engri|engl)\s*$/m,(_,k)=>{sw=k;return""});const keep=[];raw=raw.replace(/^\s*\[记住\]\s*(.+)$/gm,(_,x)=>{keep.push(x.trim());return""});
     for(const x of keep)smWrite("memory_store",{content:"【学习网站·零】"+dayKey()+" "+x.slice(0,800),metadata:{tags:"study-site,zero,remember,"+smTag(subj),type:"note"}},()=>toast("已记进共享记忆"),()=>toast("共享记忆没连上，没记成"));
     let memo="";raw=raw.replace(/^\s*\[图片\]\s*([\s\S]*)$/m,(_,x)=>{memo=x.trim().slice(0,4000);return""});
-    const tsubj=sw&&SUBJ[sw]?sw:subj;const clean=stripTags(tsubj,raw);if(sw&&sw!==subj&&SUBJ[sw]){const i=T0.lastIndexOf(uTurn);if(i>=0)T0.splice(i,1);zwT(sw).push(uTurn);ZW.subj=sw;toast("换到"+SUBJ[sw].name)}zwT(tsubj).push({role:"assistant",content:clean||"（收到）",at:Date.now(),...(memo?{memo}:{})})}
+    const tsubj=sw&&SUBJ[sw]?sw:subj;const clean=tsubj==="life"?raw.replace(TAG_RE,"").trim():stripTags(tsubj,raw);if(sw&&sw!==subj&&SUBJ[sw]){const i=T0.lastIndexOf(uTurn);if(i>=0)T0.splice(i,1);zwT(sw).push(uTurn);ZW.subj=sw;toast("换到"+SUBJ[sw].name)}zwT(tsubj).push({role:"assistant",content:clean||"（收到）",at:Date.now(),...(memo?{memo}:{})})}
   catch(e){if(e&&e.code!=="cancelled")T0.push({role:"assistant",content:sampleErr(e),at:Date.now()})}
   finally{ZW.ctl=null;for(const k in ZW.hist)ZW.hist[k]=ZW.hist[k].slice(-30);zwSave();zwRender();if($("#zwPanel").hidden)$("#zwFab").classList.add("ping");if(DESK&&DESK.notify&&(document.hidden||!document.hasFocus()))DESK.notify()}}
 /* ---- 每日签到题（独立弹窗） ---- */
