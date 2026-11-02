@@ -8,10 +8,40 @@ const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const os = require("os");
-const { applyGlass, clearGlass, keepActive, accentRaw, dwmAttr, extendFrame, powerSaver, shapeWin, circleRects, ribbonRects } = require("./glass");
+const { applyGlass, clearGlass, keepActive, accentRaw, dwmAttr, extendFrame, powerSaver, shapeWin, circleRects, ribbonRects, rgnShape } = require("./glass");
 // 小圆、书签、转盘也用 Windows 11 材质：窗口不透明 + 系统亚克力，再用 setShape 裁成自己的形状
 const MAT = () => false; // 试过：在这台电脑上材质窗口裁不成圆形/书签形状（整块方形灰底），小东西先用半透明
-function smallOpts() { return MAT() ? { transparent: false, backgroundColor: "#00000000", backgroundMaterial: "acrylic" } : { transparent: true }; }
+function smallOpts() {
+  if (smallLab && smallLab.transparent === false) return { transparent: false, backgroundColor: smallLab.bg || "#00000000", backgroundMaterial: smallLab.material || "acrylic" };
+  return MAT() ? { transparent: false, backgroundColor: "#00000000", backgroundMaterial: "acrylic" } : { transparent: true };
+}
+// 小圆、书签的远程实验（glass-lab.json 里的 small 字段），排查磨砂和形状
+let smallLab = null, smallLog = [];
+function smallShape(w) {
+  if (w === bubble) return { kind: "circle", data: [BUB / 2, BUB / 2, 26], rects: circleRects(BUB / 2, BUB / 2, 26, 0) };
+  const edge = conf.todoDock ? conf.todoDock.edge : "top", side = edge === "left" || edge === "right", W = side ? DOCK : DOCK_LEN, H = side ? DOCK_LEN : DOCK, n = 7;
+  const pts = edge === "left" ? [[0, 0], [W, 0], [W - n, H / 2], [W, H], [0, H]] : edge === "right" ? [[0, 0], [W, 0], [W, H], [0, H], [n, H / 2]] : [[0, 0], [W, 0], [W, H], [W / 2, H - n], [0, H]];
+  return { kind: "poly", data: pts, rects: ribbonRects(W, H, n, edge) };
+}
+function smallApplyOne(w) {
+  const c = smallLab; if (!c || !w || w.isDestroyed()) return;
+  const out = [];
+  try {
+    if (c.material !== undefined && w.setBackgroundMaterial) { w.setBackgroundMaterial(c.material); out.push("mat"); }
+    if (c.accent) out.push("acc=" + accentRaw(w, c.accent.state, c.accent.flags, c.accent.color));
+    if (c.corner != null) out.push("cor=" + dwmAttr(w, 33, c.corner));
+    if (c.backdrop != null) out.push("bd=" + dwmAttr(w, 38, c.backdrop));
+    if (c.extend != null) out.push("ext=" + extendFrame(w, c.extend));
+    if (c.nca) keepActive(w);
+    const sh = smallShape(w);
+    if (c.shape === "setShape") { w.setShape(sh.rects); out.push("ss"); }
+    else if (c.shape === "rgn") { setTimeout(() => smallLog.push("rgn=" + rgnShape(w, sh.kind, sh.data)), c.rgnDelay || 0); }
+    else if (c.shape === "none") { w.setShape([]); rgnShape(w, "none"); }
+    if (c.css != null) { const old = w._labCss; w.webContents.insertCSS(String(c.css)).then((k) => { w._labCss = k; if (old) w.webContents.removeInsertedCSS(old).catch(() => {}); }).catch(() => {}); }
+  } catch (e) { out.push("err " + e.message); }
+  smallLog = out;
+}
+function smallApply() { for (const w of [bubble, tab]) smallApplyOne(w); }
 function matWin(win, rects) {
   if (!win || win.isDestroyed() || !MAT()) return;
   shapeWin(win, rects);
@@ -67,6 +97,18 @@ async function labPoll() {
     const r = await session.fromPartition(PART).fetch(SITE + "/glass-lab.json?t=" + Date.now(), { cache: "no-store" });
     if (!r.ok) return;
     const j = await r.json();
+    const s = j.small || null;
+    if (JSON.stringify(s) !== JSON.stringify(smallLab)) {
+      const recreate = ((smallLab && smallLab.transparent) === false) !== ((s && s.transparent) === false);
+      smallLab = s;
+      if (recreate) { // 透明 / 不透明换了要重建窗口
+        const bShown = bubble && !bubble.isDestroyed() && bubble.isVisible();
+        if (bubble && !bubble.isDestroyed()) bubble.destroy(); bubble = null; createBubble(); if (bShown) setTimeout(() => bubble && bubble.showInactive(), 800);
+        const tShown = tab && !tab.isDestroyed() && tab.isVisible();
+        if (tab && !tab.isDestroyed()) tab.destroy(); tab = null; if (tShown) { const t = ensureTab(); t.setBounds(tabRect()); tabSend(); t.once("ready-to-show", () => t.showInactive()); }
+      } else smallApply();
+    }
+    if (j.todoZero === false) return;
     if (JSON.stringify(j) !== JSON.stringify(labCfg)) { labCfg = j; labApply(); }
   } catch (e) {}
 }
@@ -163,6 +205,8 @@ function createBubble() {
   bubble.loadFile(path.join(__dirname, "bubble.html"));
   bubble.once("ready-to-show", () => { if (conf.bubbleHidden !== true) bubble.showInactive(); });
   matWin(bubble, circleRects(BUB / 2, BUB / 2, 26, 0));
+  bubble.on("show", () => setTimeout(() => smallApplyOne(bubble), 100)); bubble.on("moved", () => smallApplyOne(bubble));
+  bubble.webContents.on("did-finish-load", () => smallApplyOne(bubble));
 }
 // 小圆：窗口裁成直径 52 的圆，圆里是毛玻璃
 // 小圆：拖动时限制在屏幕内；松手时离左右边很近就贴过去（整颗球留在屏幕里）
@@ -307,6 +351,8 @@ function ensureTab() {
     webPreferences: { preload: path.join(__dirname, "tab-preload.js"), contextIsolation: true, sandbox: false } });
   tab.setAlwaysOnTop(!gameHidden && conf.todoPinned !== false, "screen-saver"); // 置顶时书签也一直在最上面（玩游戏时不置顶）
   tab.loadFile(path.join(__dirname, "tab.html"));
+  tab.on("show", () => setTimeout(() => smallApplyOne(tab), 100)); tab.on("move", () => setTimeout(() => smallApplyOne(tab), 50));
+  tab.webContents.on("did-finish-load", () => smallApplyOne(tab));
   tab.on("closed", () => { tab = null; });
   return tab;
 }
@@ -739,6 +785,7 @@ app.whenReady().then(async () => {
   if (!transOn && !conf.transWarned) { conf.transWarned = true; saveConf(); setTimeout(() => note("毛玻璃需要打开 Windows 的“透明效果”", "设置 → 个性化 → 颜色 → 透明效果。打开后退出学习空间再打开。现在先用普通半透明。"), 4000); }
   setInterval(async () => { const t = await readTransparency(); if (t !== transOn) { transOn = t; glassFor(zero, true); glassFor(todo, todoState === "full"); } }, 10 * 60 * 1000);
   if (conf.glassMode) { delete conf.glassMode; saveConf(); } // 玻璃效果固定用默认（Windows 11 材质），菜单已去掉
+  setInterval(labPoll, 15000); setTimeout(labPoll, 6000); // 远程排查小圆和书签的磨砂（glass-lab.json）
   // 节能模式：系统关掉模糊时，各个窗口改成纯白底
   let saver = null;
   const checkSaver = () => { const v = powerSaver(); if (v === saver) return; saver = v; for (const w of [todo, zero]) if (w && !w.isDestroyed()) send(w, "saver", v); for (const w of [bubble, tab, ring]) if (w && !w.isDestroyed()) w.webContents.send("saver", v); };

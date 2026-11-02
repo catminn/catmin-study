@@ -106,4 +106,16 @@ function dwmAttr(win, attr, val) { const a = load(); if (!a || !win || win.isDes
 function extendFrame(win, v) { const a = load(); if (!a || !win || win.isDestroyed()) return -1; try { return a.extend(hwndOf(win), { l: v, r: v, t: v, b: v }); } catch (e) { return -2; } }
 // Windows 节能模式开着吗（开着时系统会关掉所有模糊）
 function powerSaver() { const a = load(); if (!a) return false; try { const s = {}; a.sps(s); return (s.sflag & 1) === 1; } catch (e) { return false; } }
-module.exports = { powerSaver, accentRaw, dwmAttr, extendFrame, keepActive, applyGlass, clearGlass, shapeWin, circleRects, ribbonRects };
+// 直接用系统区域裁窗口（实验）：pts 是窗口里的逻辑坐标；circle = [cx, cy, r]
+function rgnShape(win, kind, data) {
+  const a = load(); if (!a || !win || win.isDestroyed()) return -1;
+  try {
+    const s = require("electron").screen.getDisplayMatching(win.getBounds()).scaleFactor || 1, P = (v) => Math.round(v * s);
+    let h;
+    if (kind === "circle") { const [cx, cy, r] = data; h = a.ellipse(P(cx - r), P(cy - r), P(cx + r) + 1, P(cy + r) + 1); }
+    else if (kind === "poly") { const flat = []; for (const [x, y] of data) flat.push(P(x), P(y)); h = a.poly(flat, data.length, 2); }
+    else h = 0;
+    return a.setRgn(hwndOf(win), h, true);
+  } catch (e) { return "err " + e.message; }
+}
+module.exports = { rgnShape, powerSaver, accentRaw, dwmAttr, extendFrame, keepActive, applyGlass, clearGlass, shapeWin, circleRects, ribbonRects };
