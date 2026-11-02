@@ -1534,7 +1534,7 @@ function inTopic(subj){return(CHATS[subj]||[]).length>topicFrom(subj)}
 /* 正在聊一个话题时，只列这个话题里新出的错题；空白对话时才把所有到期错题当推荐列出来 */
 function dueItems(subj){const now=Date.now();const ts=inTopic(subj)?topicStart(subj):-1;return{tasks:occurrences().filter(o=>o.subj===subj&&isOpen(o)&&o.soft-now<2*DAY),mons:reviveDue(subj).filter(m=>ts<0||(m.at&&m.at>=ts))}}
 function dueDot(subj,n){return h("span",{class:"dot",title:"两天内要做的"},n)}
-function renderSkills(){const p=$("#skillPanel");if(!p)return;const L=(S.skills||{})[CUR]||[];p.hidden=!L.length||CUR==="engl";if(p.hidden)return;$("#skillSum").textContent="技能卡 "+L.length;
+function renderSkills(){const p=$("#skillPanel");if(!p)return;const ts=inTopic(CUR)?topicStart(CUR):-1;const L=((S.skills||{})[CUR]||[]).filter(x=>ts<0||(x.at&&x.at>=ts));p.hidden=!L.length||CUR==="engl";if(p.hidden)return;$("#skillSum").textContent="技能卡 "+L.length;
   $("#skillList").replaceChildren(...L.slice().reverse().map(x=>h("div",{class:"skc"},h("b",null,x.n),x.b&&x.b.length>=60?h("div",{class:"skb"},renderMd(x.b)):h("div",{class:"skb"},x.b?renderMd(x.b):null,h("button",{class:"btn sm glass",onclick:()=>explainSkill(x.n)},"让零讲一下")))));typeset($("#skillList"))}
 function explainSkill(n){document.body.classList.remove("dg-more");if(CTL||!SAMPLE){toast("等零说完这句");return}send("讲一下技能「"+n+"」：它是什么、什么时候用、标准步骤，再配一个最小的例子（带完整过程）。用「📜 新技能解锁："+n+"」开头，讲解直接写在下面。")}
 function harvest(subj,text){S.skills=S.skills||{};S.qn=S.qn||{};const arr=S.skills[subj]=S.skills[subj]||[];
