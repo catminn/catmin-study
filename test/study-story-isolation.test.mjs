@@ -81,10 +81,41 @@ test('old chapter preview is denied after advancing',()=>{
   const s=commit(enter(baseline(),0),0);
   fail(run(s,story('preview',{chapterId:chapter(0)})),'STORY_LOCKED');
 });
-test('completed story cannot preview a chapter',()=>{
+test('completed story locks all ASK and preview scopes without mutating state',()=>{
   let s=baseline();for(let i=0;i<m.chapters.length;i++)s=commit(enter(s,i),i);
-  fail(run(s,story('preview',{chapterId:chapter(2)})),'STORY_LOCKED');
-  assert.deepEqual(success(run(s,story('ask'))),s);
+  const before=JSON.stringify(s);
+  for(const type of ['ask','preview'])
+    for(const payload of [{},{chapterId:chapter(0)},{chapterId:chapter(2)},{chapterId:null}])
+      fail(run(s,story(type,payload)),'STORY_LOCKED');
+  assert.equal(JSON.stringify(s),before);
+  assert.deepEqual(projectEntrySurface(m,s,'story').view,
+    {mode:'story',currentChapterId:null,canContinue:false,resumeActive:false});
+});
+test('completed saga stays ASK-locked after independent free-study verification',()=>{
+  let s=baseline();for(let i=0;i<m.chapters.length;i++)s=commit(enter(s,i),i);
+  s=success(run(s,study('select',{dungeonId:m.dungeons[2].id})));
+  s=success(run(s,study('practice_verified',
+    {practiceId:m.dungeons[2].practiceId,source:'trusted-demo'})));
+  const before=JSON.stringify(s);
+  for(const payload of [{},{chapterId:null},{chapterId:chapter(2)}])
+    fail(run(s,story('ask',payload)),'STORY_LOCKED');
+  assert.equal(JSON.stringify(s),before);
+  assert.deepEqual(projectEntrySurface(m,s,'study').view.verifiedPracticeIds,
+    [m.dungeons[2].practiceId]);
+});
+test('ASK remains read-only on each active frontier after chapter transitions',()=>{
+  let s=baseline();
+  for(let i=0;i<m.chapters.length;i++){
+    const before=JSON.stringify(s);
+    for(const payload of [{},{chapterId:chapter(i)}]){
+      const response=run(s,story('ask',payload));
+      assert.equal(response.ok,true);
+      assert.deepEqual(response.state,s);
+      assert.notStrictEqual(response.state,s);
+      assert.equal(JSON.stringify(s),before);
+    }
+    s=commit(enter(s,i),i);
+  }
 });
 test('cannot enter chapter 2 before chapter 1 committed',()=>fail(run(baseline(),story('enter',{chapterId:chapter(1)})),'STORY_LOCKED'));
 test('cannot commit chapter without entering it',()=>fail(run(baseline(),story('commit',{chapterId:chapter(0),eventId:'demo.event.one',source:'trusted-demo'})),'COMMIT_NOT_VERIFIED'));
