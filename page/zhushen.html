@@ -1749,7 +1749,7 @@ function renderDungeon(){const w=worldOf(CUR);{const b=S.battle[CUR];if(!QUEST[C
       if(k!=="quest")startBattle(CUR,k,FOES[k]);else if(!QUEST[CUR]){const ci=curIndex(CUR);const n=MAIN[CUR][ci];if(n&&!n.boss){startNode(CUR,n);return}startBattle(CUR,"train",FOES.train)}}send(/复习/.test(l)?reviewPrompt(CUR,t):t)},disabled:!SAMPLE||!!CTL},l)),
     h("button",{class:"btn sm",onclick:()=>openHwSheet(CUR),title:"把这次收集的作业题目整理成 PDF"},"整理作业"+(((S.hwDraft||{})[CUR]||[]).length?" "+S.hwDraft[CUR].length:"")),
     CUR!=="engl"?h("button",{class:"btn sm ok",onclick:startQuiz,disabled:!SAMPLE||!!CTL,title:"5 道单选，每天前 3 次有奖励"},"小测验 · 最多 +"+R(40)+(quizzesToday()>=QUIZ_CAP?"（今日奖励已满）":"")):"");
-  $("#imgLabel").hidden=!SAMPLE;$("#driveBtn").hidden=!MCP;renderLib();$("#sendBtn").disabled=!SAMPLE||!!CTL;
+  $("#imgLabel").hidden=!SAMPLE;$("#driveBtn").hidden=true;renderLib();$("#sendBtn").disabled=!SAMPLE||!!CTL;
   renderDuePanel();renderSkills();renderChat();{const last=CHATS[CUR][CHATS[CUR].length-1];const m=last&&last.role==="assistant"&&String(last.content).match(/第\s*(\d+)\s*问/g);$("#input").placeholder=m?"回答"+m[m.length-1].replace(/\s+/g," "):"想做什么直接说"}renderFocus();startAmbient();drainFx()}
 function drainFx(){let d=80;while(FXQ.length){const f=FXQ.shift();if(f.subj&&f.subj!==CUR)continue;setTimeout(()=>playFx(f),d);d+=f.t==="loc"?1900:f.t==="ko"?1500:550}}
 const FACE_COLORS=["#c4473b","#3f8fd6","#2fa865","#8b5cf6","#d9772b","#0ea5a0","#d1559a","#b8902a"];
