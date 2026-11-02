@@ -784,14 +784,14 @@ function checkUpdate(manual) {
 function startUpdater() {
   if (!app.isPackaged) return;
   try { ({ autoUpdater: updater } = require("electron-updater")); } catch (e) { updater = null; return; }
-  updater.autoDownload = true; updater.autoInstallOnAppQuit = true;
+  updater.autoDownload = true; updater.autoInstallOnAppQuit = false; // 退出时不偷偷装（被安全软件打断会把程序弄没），只在点「重启并更新」时装
   updater.on("update-available", (info) => { updateState = "正在下载新版 " + ((info && info.version) || ""); refreshMenu(); note("学习空间有新版本", "正在后台下载 " + ((info && info.version) || "") + "，好了会再提醒你"); });
   updater.on("update-not-available", () => { if (manualCheck) note("学习空间", "已经是最新版 " + app.getVersion()); updateState = ""; manualCheck = false; refreshMenu(); });
   updater.on("download-progress", (p) => { updateState = "正在下载新版 " + Math.round((p && p.percent) || 0) + "%"; refreshMenu(); });
   updater.on("update-downloaded", (info) => {
     bubbleDot(true);
     updateReady = info && info.version || "新版本"; updateState = ""; refreshMenu();
-    note("新版本下载好了", updateReady + " 已经准备好：点托盘里的「重启并更新」马上换上，或者下次启动自动换上。");
+    note("新版本下载好了", updateReady + " 已经准备好：点托盘里的「重启并更新」换上。");
   });
   updater.on("error", (e) => { if (manualCheck) note("更新没成功", String((e && e.message) || e).slice(0, 120)); updateState = ""; manualCheck = false; refreshMenu(); });
   setTimeout(() => checkUpdate(false), 15000); setInterval(() => checkUpdate(false), 3600 * 1000);
