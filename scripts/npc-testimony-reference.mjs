@@ -148,6 +148,9 @@ export function applyCommitted(state, event, p = policy) {
   if (!state || !event || !equalScope(state.scope, p.scope) || !equalScope(event.scope, state.scope)) return { ok: false, code: 'scope_invalid', state };
   if (!validState(state, p)) return { ok: false, code: 'state_invalid', state };
   if (event.mode === 'ask' || event.mode === 'preview') return { ok: true, committed: false, state };
+  // An unknown mode is never a committed world event. An omitted mode is
+  // accepted for legacy synthetic fixtures; explicit commits use 'commit'.
+  if (event.mode !== undefined && event.mode !== 'commit') return { ok: false, code: 'not_committed', state };
   if (event.source !== 'server' || event.status !== 'committed' || !validEventId(event.id)) return { ok: false, code: 'not_committed', state };
   const fingerprint = JSON.stringify({ type: event.type, scope: event.scope, route: event.route, factId: event.factId, next: event.next, subject: event.subject });
   if (own(state.commits, event.id)) {
