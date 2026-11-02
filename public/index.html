@@ -1139,7 +1139,9 @@ function seqNum(grp,k){const def=Object.assign({},NUM_DEF[grp],(S.nums||{})[grp]
 function occOnDay(k){return rawOcc(k).map(o=>{o.title=o.r.dates?o.r.fmt(o.r.dates[k]):o.r.fmt(seqNum(o.r.num,k));return o})}
 function setNum(o,n){if(!o.r.num||!(n>0))return;S.nums=S.nums||{};S.nums[o.r.num]={a:o.day,n,manual:true};NUMC.clear();save();renderAll()}
 const DISC_NEED=9;
-function discCount(){return (S.discAdj||0)+Object.keys(S.done).filter(x=>x.startsWith("engl-disc@")).length}
+/* 截至 11/2 早上已写 6 篇（她亲口说的），之后每完成一篇 +1 */
+const DISC_BASE={n:6,at:at(2026,11,2,9,0)};
+function discCount(){return DISC_BASE.n+Object.keys(S.done).filter(x=>x.startsWith("engl-disc@")&&S.done[x]&&(S.done[x].at||0)>DISC_BASE.at).length}
 function occurrences(){const out=[];const discFull=discCount()>=DISC_NEED;const today=dayKey();const now=Date.now();
   for(let i=-7;i<=8;i++)for(const o of occOnDay(addDays(today,i))){if(o.hard<now-7*DAY&&!S.done[o.key])continue;if(discFull&&o.r.id==="engl-disc"&&!S.done[o.key])continue;if(o.soft>now+7.5*DAY)continue;out.push(o)}
   return out.sort((a,b)=>a.soft-b.soft)}
