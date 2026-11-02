@@ -964,7 +964,8 @@ engl:[["写 Discussion","【Discussion】帮我写今晚的 reading response dis
 };
 
 const WEEKLY=[
-  {id:"engl-disc",subj:"engl",num:"engl-disc",fmt:n=>"Discussion "+n,dow:[1,3],base:10},
+  /* ENGL 1111 Discussion：按 Canvas 的实际日期（上课当天 9:00 前），编号按 Canvas 顺序；一学期写够 9 篇即可 */
+  {id:"engl-disc",subj:"engl",hh:9,mm:0,dates:{"2026-10-27":[17,"D&D 与 Le Guin"],"2026-10-29":[18,"BG3 鹦鹉螺教程"],"2026-11-03":[19,"BG3 Goblin Camp"],"2026-11-05":[20,"BG3 庆功宴与 Risen Road"],"2026-11-10":[21,"BG3 Crèche 与第一幕结局"],"2026-11-12":[22,"House of the Dragon S1E1"],"2026-11-17":[23,"Rogue One"],"2026-11-19":[24,"The Uses of Fantasy"],"2026-12-01":[25,"Spirited Away"]},fmt:v=>"Discussion "+v[0]+" · "+v[1],dow:[0,1,2,3,4,5,6],base:10},
   {id:"chem-ps",subj:"chem",num:"chem-ps",fmt:n=>"PS "+n,dow:[3],base:15},
   {id:"math-hw",subj:"math",dates:{"2026-10-22":8,"2026-10-29":9,"2026-11-05":10,"2026-11-19":11,"2026-11-24":12,"2026-12-03":13},fmt:n=>"HW "+n,dow:[0,1,2,3,4,5,6],base:15,target:3,note:"截止是三天后的完全截止；在原定 ddl 前交 = 提前 3 天，拿 ×3。"},
   {id:"chem-lab3",subj:"chem",num:"chem-lab",fmt:n=>"Lab "+n+" report",dow:[0],base:10},
@@ -1104,7 +1105,7 @@ function useMakeup(k){if(S.checkins.includes(k)||S.cards.makeup<1)return;S.cards
 /* ============ weekly side quests ============ */
 const NUM_DEF={"engl-disc":{a:"2026-10-26",n:18,lead:"engl-disc"},"chem-ps":{a:"2026-10-28",n:8,lead:"chem-ps"},"chem-lab":{a:"2026-10-25",n:8,lead:"chem-lab3"},"engri-hw":{a:"2026-10-25",n:7,lead:"engri-hw"}};
 function rawOcc(k){const out=[];const d=keyToDate(k);for(const r of WEEKLY){if(r.dates?!(k in r.dates):!r.dow.includes(d.getDay()))continue;
-  const fin=r.dates&&k==="2026-11-24"?at(2026,11,24):at(d.getFullYear(),d.getMonth()+1,d.getDate());const plusDays=(t,n)=>{const d=new Date(t);d.setDate(d.getDate()+n);return d.getTime()};let soft=r.target?plusDays(fin,r.target):fin;let hard=r.grace?plusDays(soft,r.grace):soft;const fx=(S.dueFix||{})[r.id+"@"+k];if(fx){hard=fx+(hard-soft);soft=fx}
+  const fin=r.dates&&k==="2026-11-24"?at(2026,11,24):at(d.getFullYear(),d.getMonth()+1,d.getDate(),r.hh??23,r.mm??59);const plusDays=(t,n)=>{const d=new Date(t);d.setDate(d.getDate()+n);return d.getTime()};let soft=r.target?plusDays(fin,r.target):fin;let hard=r.grace?plusDays(soft,r.grace):soft;const fx=(S.dueFix||{})[r.id+"@"+k];if(fx){hard=fx+(hard-soft);soft=fx}
   out.push({key:r.id+"@"+k,day:k,r,subj:r.subj,soft,hard,week:weekKey(fin)})}return out}
 const NUMC=new Map();
 function seqNum(grp,k){const def=Object.assign({},NUM_DEF[grp],(S.nums||{})[grp]||{});const ck=grp+k+JSON.stringify(def)+Object.keys(S.skipped).length;if(NUMC.has(ck))return NUMC.get(ck);
