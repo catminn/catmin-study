@@ -440,7 +440,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 .zw-head .zface{background:var(--panel2);box-shadow:none;color:var(--fg)}
 .zw-t{flex:1;min-width:0;display:flex;align-items:center;gap:8px}.zw-t b{letter-spacing:.12em}
 .zw-t select{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:2px 6px;font-size:13px}
-.zw-x{border:0;background:none;color:var(--dim);font-size:13px;padding:4px 6px;cursor:pointer}.zw-x:last-child{font-size:20px;line-height:1}
+.zw-x{border:0;background:none;color:var(--dim);font-size:13px;padding:4px 6px;cursor:pointer}.zw-x.ddl{color:#fff;background:#d9534f;border-radius:6px;font-weight:700}.zw-x:last-child{font-size:20px;line-height:1}
 .zw-log{flex:1;min-height:0;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
 .zw-m{max-width:92%;border-radius:14px;padding:8px 12px;font-size:15px;line-height:1.75;overflow-wrap:anywhere}
 .zw-m.a{align-self:flex-start;background:var(--panel2);border-radius:4px 14px 14px 14px}
@@ -603,7 +603,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 <button class="guideFab" id="guideFab" hidden><span class="lamp">灯</span><span class="gtxt" id="guideTxt">下一步</span></button>
 <div class="zw" id="zw">
   <section class="zw-panel" id="zwPanel" hidden aria-label="零">
-    <header class="zw-head"><div class="zface"><svg class="i"><use href="#i-zero"/></svg></div><div class="zw-t"><select id="zwSubj" aria-label="科目"></select></div><button class="zw-x" id="zwHw" title="把这次收集的作业题目整理成 PDF">作业</button><button class="zw-x" id="zwClear" title="清空对话">清空</button><button class="zw-x" id="zwClose" aria-label="收起">×</button></header>
+    <header class="zw-head"><div class="zface"><svg class="i"><use href="#i-zero"/></svg></div><div class="zw-t"><select id="zwSubj" aria-label="科目"></select></div><button class="zw-x" id="zwMode" title="切换：教学（一步一步带）/ 赶 DDL（只给答案）">教学</button><button class="zw-x" id="zwHw" title="把这次收集的作业题目整理成 PDF">作业</button><button class="zw-x" id="zwClear" title="清空对话">清空</button><button class="zw-x" id="zwClose" aria-label="收起">×</button></header>
     <div class="zw-log" id="zwLog" aria-live="polite"></div>
     <div class="zw-thumbs" id="zwThumbs"></div>
     <div class="zw-in"><label class="zw-clip" id="zwClipL" title="附件（图片、PDF、Word、文本…）"><svg class="i"><use href="#i-camera"/></svg><input type="file" id="zwImg" multiple hidden></label><textarea id="zwInput" rows="1" placeholder="问零"></textarea><button class="btn go sm" id="zwSend">发送</button></div>
@@ -1996,10 +1996,10 @@ function zwContext(subj){const prog=(S.progress[subj]||[]).slice(-6).map(p=>"- "
   const mis=S.mistakes.filter(m=>m.subj===subj&&!m.killed).slice(-5).map(m=>"- "+m.text).join("\n")||"（无）";
   const dl=occurrences().filter(o=>o.subj===subj&&isOpen(o)).slice(0,4).map(o=>"- "+o.title+" 截止 "+fmtDue(o.soft)).join("\n")||"（无）";
   const ex=examInfo(subj);const now=new Date();
-  return ZERO_RULES+"\n\n"+PACK[subj]+"\n\n她现在选的是「"+SUBJ[subj].name+"」。如果她这次发来的内容（文字、图片或附件）明显属于另一门课（数学=math，化学=chem，机械=engri，英文=engl），回复第一行单独写 [科目] chem 这样的标记，然后直接按那门课正常回答，不要说“这不是本科目的内容”。"+`\n\n现在：${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} 周${WD[now.getDay()]} ${pad(now.getHours())}:${pad(now.getMinutes())}\n她现在在网站的「${{now:"现在",map:"地图",cal:"日历",dungeon:"副本",shop:"商店",bag:"背包"}[curView()]}」页。${ex?"最近的考试："+ex.title+" "+fmtDue(ex.due)+"。":""}${S.cur&&S.cur.subj===subj?"\n她现在正在做「"+S.cur.title+"」。她发来的题都是这份作业里的：先在回复最后写 [题目] 行记下题目原文，再带她一步一步做，一步一问，不要直接给最终答案。":""}\n最近学的：\n${prog}\n没打败的错题：\n${mis}\n这一科的截止：\n${dl}`}
+  return ZERO_RULES+"\n\n"+PACK[subj]+"\n\n她现在选的是「"+SUBJ[subj].name+"」。如果她这次发来的内容（文字、图片或附件）明显属于另一门课（数学=math，化学=chem，机械=engri，英文=engl），回复第一行单独写 [科目] chem 这样的标记，然后直接按那门课正常回答，不要说“这不是本科目的内容”。"+`\n\n现在：${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} 周${WD[now.getDay()]} ${pad(now.getHours())}:${pad(now.getMinutes())}\n她现在在网站的「${{now:"现在",map:"地图",cal:"日历",dungeon:"副本",shop:"商店",bag:"背包"}[curView()]}」页。${ex?"最近的考试："+ex.title+" "+fmtDue(ex.due)+"。":""}${S.cur&&S.cur.subj===subj?"\n她现在正在做「"+S.cur.title+"」。她发来的题都是这份作业里的：先在回复最后写 [题目] 行记下题目原文，"+(S.zwMode==="ddl"?"然后按下面的赶 DDL 模式直接给答案。":"再带她一步一步做，一步一问，不要直接给最终答案。"):""}${S.zwMode==="ddl"?"\n\n【现在是赶 DDL 模式，优先于上面所有关于教学、提问、讲解的要求】\n- 只给图（题目要求画图时）和最终公式或答案。\n- 不写说明，不附英文翻译，能跳的步骤都跳。\n- 不提问、不出小检查。\n- 做完一题直接报下一题的题号。":""}\n最近学的：\n${prog}\n没打败的错题：\n${mis}\n这一科的截止：\n${dl}`}
 function zwOpen(subj,msg){if(subj&&SUBJ[subj]){ZW.subj=subj}$("#zwPanel").hidden=false;document.body.classList.add("zw-open");$("#zwFab").classList.remove("ping");zwRender();if(msg)setTimeout(()=>zwSend(msg),60);else setTimeout(()=>$("#zwInput").focus(),50)}
 function zwCloseP(){$("#zwPanel").hidden=true;document.body.classList.remove("zw-open")}
-function zwRender(){const sel=$("#zwSubj");if(!sel)return;renderTaskBar();sel.replaceChildren(...Object.keys(SUBJ).map(k=>h("option",{value:k,selected:k===ZW.subj},SUBJ[k].name)));
+function zwRender(){const sel=$("#zwSubj");if(!sel)return;{const mb=$("#zwMode");if(mb){const d=S.zwMode==="ddl";mb.textContent=d?"赶 DDL":"教学";mb.classList.toggle("ddl",d)}}renderTaskBar();sel.replaceChildren(...Object.keys(SUBJ).map(k=>h("option",{value:k,selected:k===ZW.subj},SUBJ[k].name)));
   const log=$("#zwLog");log.replaceChildren();if(!ZW.turns.length)log.append(h("div",{class:"zw-hint"},SAMPLE?"有什么不会的，直接问。":"需要在 Claude 里打开才能对话"));
   for(const t of ZW.turns){if(t.role==="user")log.append(h("div",{class:"zw-m u"},t.content));else log.append(h("div",{class:"zw-m a"},renderMd(t.content)))}
   $("#zwThumbs").replaceChildren(...ZW.imgs.map(f=>h("span",{class:"zw-th"},h("img",{src:URL.createObjectURL(f),alt:"附图"}),h("button",{class:"zw-thx","aria-label":"移除",onclick:()=>{ZW.imgs=ZW.imgs.filter(x=>x!==f);zwRender()}},"×"))),...(ZW.docs||[]).map(d=>h("span",{class:"lchip"},h("span",null,d.name),h("button",{onclick:()=>{ZW.docs=ZW.docs.filter(x=>x!==d);zwRender()},"aria-label":"移除"},"×"))));$("#zwClipL").hidden=false;$("#zwSend").disabled=!SAMPLE||!!ZW.ctl;
@@ -2274,7 +2274,7 @@ window.addEventListener("hashchange",route);
 $("#guideFab").onclick=()=>{GI=0;openGuide(false)};
 $("#zwFab").onclick=()=>{if($("#zwPanel").hidden)zwOpen();else zwCloseP()};$("#zwHw").onclick=()=>openHwSheet(ZW.subj);$("#zwClose").onclick=()=>{if(EMBED==="zero"&&DESK)DESK.hide();else zwCloseP()};
 $("#zwClear").onclick=()=>{if(ZW.ctl)ZW.ctl.abort();ZW.turns=[];zwSave();zwRender()};
-$("#zwSubj").onchange=e=>{ZW.subj=e.target.value;zwSave()};$("#zwSend").onclick=()=>zwSend();
+$("#zwSubj").onchange=e=>{ZW.subj=e.target.value;zwSave()};$("#zwMode").onclick=()=>{S.zwMode=S.zwMode==="ddl"?"teach":"ddl";save();zwRender();toast(S.zwMode==="ddl"?"赶 DDL 模式：只给答案":"教学模式：一步一步带")};$("#zwSend").onclick=()=>zwSend();
 $("#zwInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();zwSend()}});
 $("#zwInput").addEventListener("input",e=>{focusTouch();const t=e.target;t.style.height="auto";t.style.height=Math.min(120,t.scrollHeight)+"px"});
 $("#zwImg").onchange=e=>{const fs=[...e.target.files];e.target.value="";zwAddFiles(fs)};
