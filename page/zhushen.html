@@ -241,7 +241,7 @@ input[type=text],input[type=number],input[type=datetime-local],textarea.plain,se
 .score-row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}
 .rank{font-family:var(--display);font-size:22px;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;color:#fff}
 .rank.S{background:#d9a21b}.rank.A{background:#2fa865}.rank.B{background:#3f8fd6}.rank.C{background:#8b5cf6}.rank.D{background:#8a8fa8}
-.modes{display:flex;gap:8px;flex-wrap:wrap;padding:2px 2px 6px}.modes[hidden]{display:none!important}
+.modes{display:flex;gap:8px;flex-wrap:wrap;padding:2px 2px 6px}.ln.topic-div{align-self:stretch;text-align:center;font-size:12px;opacity:.6;display:flex;align-items:center;gap:10px;background:none!important;border:0!important;box-shadow:none!important;padding:4px 0}.ln.topic-div::before,.ln.topic-div::after{content:"";flex:1;border-top:1px dashed currentColor}#topicBtn{white-space:nowrap;flex:none}.modes[hidden]{display:none!important}
 .modes .btn{white-space:nowrap}
 .composer{display:flex;flex-direction:column;gap:8px}
 .composer textarea{width:100%;min-height:84px;resize:vertical;background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:10px 12px;font-size:16px;line-height:1.6}
@@ -576,8 +576,8 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
           <div class="modes" id="modes" hidden></div>
           <div class="lib" id="lib"></div><div class="thumbs" id="thumbs"></div>
           <div class="inrow">
-            <label class="btn sm glass" id="imgLabel" style="cursor:pointer" title="上传图片、PDF、Word、文本"><svg class="i"><use href="#i-clip"/></svg><input type="file" id="img" accept="image/*,.pdf,.docx,.txt,.md,.csv,.json,.tex" multiple hidden></label>
-            <textarea id="input" rows="1" placeholder="想做什么直接说：复习 quiz、发作业照片、学新课…"></textarea>
+            <button class="btn sm glass" id="topicBtn" title="开始新话题：之前的对话保留，但零不再接着它聊">新话题</button><label class="btn sm glass" id="imgLabel" style="cursor:pointer" title="上传图片、PDF、Word、文本"><svg class="i"><use href="#i-clip"/></svg><input type="file" id="img" accept="image/*,.pdf,.docx,.txt,.md,.csv,.json,.tex" multiple hidden></label>
+            <textarea id="input" rows="1" placeholder="想做什么直接说"></textarea>
             <button class="btn go" id="sendBtn">发送</button>
           </div>
           <div class="row between dg-res" style="gap:6px;flex-wrap:wrap"><div class="row" style="gap:6px"><button class="btn sm glass" id="libBtn" title="资料架">资料 0</button><button class="btn sm glass" id="driveBtn" title="从 Google Drive 添加">Drive</button><button class="btn sm glass" id="stopBtn" hidden>停止</button></div><div class="aiNote" id="aiNote"></div></div>
@@ -1716,7 +1716,7 @@ function renderDungeon(){const w=worldOf(CUR);{const b=S.battle[CUR];if(!QUEST[C
     h("button",{class:"btn sm",onclick:()=>openHwSheet(CUR),title:"把这次收集的作业题目整理成 PDF"},"整理作业"+(((S.hwDraft||{})[CUR]||[]).length?" "+S.hwDraft[CUR].length:"")),
     CUR!=="engl"?h("button",{class:"btn sm ok",onclick:startQuiz,disabled:!SAMPLE||!!CTL,title:"5 道单选，每天前 3 次有奖励"},"小测验 · 最多 +"+R(40)+(quizzesToday()>=QUIZ_CAP?"（今日奖励已满）":"")):"");
   $("#imgLabel").hidden=!SAMPLE;$("#driveBtn").hidden=!MCP;renderLib();$("#sendBtn").disabled=!SAMPLE||!!CTL;
-  renderDuePanel();renderSkills();renderChat();{const last=CHATS[CUR][CHATS[CUR].length-1];const m=last&&last.role==="assistant"&&String(last.content).match(/第\s*(\d+)\s*问/g);$("#input").placeholder=m?"回答"+m[m.length-1].replace(/\s+/g," "):"想做什么直接说：复习 quiz、发作业照片…"}renderFocus();startAmbient();drainFx()}
+  renderDuePanel();renderSkills();renderChat();{const last=CHATS[CUR][CHATS[CUR].length-1];const m=last&&last.role==="assistant"&&String(last.content).match(/第\s*(\d+)\s*问/g);$("#input").placeholder=m?"回答"+m[m.length-1].replace(/\s+/g," "):"想做什么直接说"}renderFocus();startAmbient();drainFx()}
 function drainFx(){let d=80;while(FXQ.length){const f=FXQ.shift();if(f.subj&&f.subj!==CUR)continue;setTimeout(()=>playFx(f),d);d+=f.t==="loc"?1900:f.t==="ko"?1500:550}}
 const FACE_COLORS=["#c4473b","#3f8fd6","#2fa865","#8b5cf6","#d9772b","#0ea5a0","#d1559a","#b8902a"];
 function face(name){let x=0;for(const ch of name)x=(x*31+ch.charCodeAt(0))>>>0;return h("div",{class:"face",style:{background:npcColor(name)}},name.slice(0,1))}
@@ -1835,12 +1835,16 @@ function aiTurnEl(t,reveal){const wrap=h("div",{class:"turn"});
   if(t.refs&&t.refs.length)wrap.append(h("div",{class:"refs"},"参考："+t.refs.join("、")));
   return wrap}
 let REVEAL=false;
+function topicFrom(subj){const v=(S.topicFrom||{})[subj]||0;return v>(CHATS[subj]||[]).length?0:v}
+function newTopic(){if(CTL)return;S.topicFrom={...(S.topicFrom||{}),[CUR]:CHATS[CUR].length};QUEST[CUR]=null;delete S.battle[CUR];save();renderDungeon();setTimeout(()=>{const c=$("#chat");c.scrollTop=c.scrollHeight;$("#input").focus()},0)}
 function renderChat(){const box=$("#chat");box.replaceChildren();const turns=CHATS[CUR];
-  if(!turns.length)box.append(h("div",{class:"ln hint"},SAMPLE?"选一个行动":"需要在 Claude 里打开才能对话"));
+  if(!turns.length)box.append(h("div",{class:"ln hint"},SAMPLE?"直接说你想做什么":"需要在 Claude 里打开才能对话"));
   const lastIdx=turns.length-1;let revealEls=[];
-  turns.forEach((t,i)=>{if(t.quiz){box.append(quizSummary(t));return}
+  const tf=topicFrom(CUR);const tdiv=()=>h("div",{class:"ln topic-div"},"新话题");
+  turns.forEach((t,i)=>{if(i===tf&&tf>0)box.append(tdiv());if(t.quiz){box.append(quizSummary(t));return}
     if(t.role==="user"){const el=h("div",{class:"ln me"});el.textContent=t.content;if(t.imgs)el.append(h("div",{style:{fontSize:"12px",opacity:.8}},"附了 "+t.imgs+" 张图"));box.append(el);return}
     const el=aiTurnEl(t,REVEAL&&i===lastIdx);box.append(el);if(REVEAL&&i===lastIdx)revealEls=[...el.children]});
+  if(tf>0&&tf===turns.length)box.append(tdiv());
   typeset(box);box.scrollTop=box.scrollHeight;
   const showChoices=()=>{const last=turns[lastIdx];const ch=$("#choices");ch.replaceChildren();
     if(last&&last.role==="assistant"&&last.choices&&last.choices.length&&!CTL){ch.append(...last.choices.map(o=>h("button",{class:"choice",onclick:()=>send(o)},renderMd(o))));typeset(ch)}};
@@ -1937,7 +1941,7 @@ async function send(text){text=(text||$("#input").value).trim();if(!text||!SAMPL
   const subj=CUR;const turns=CHATS[subj];const imgs=IMGS.slice();turns.push({role:"user",content:text,imgs:imgs.length||undefined,at:Date.now()});IMGS=[];renderThumbs();
   CTL=new AbortController();renderDungeon();
   const box=$("#chat");const body=h("div",null,"思考中…");box.append(h("div",{class:"ln nar"},body));box.scrollTop=box.scrollHeight;
-  const hist=turns.slice(-16).map(t=>({role:t.role,content:t.content||"（小测验）"}));while(hist.length&&hist[0].role!=="user")hist.shift();
+  const hist=turns.slice(Math.max(topicFrom(subj),turns.length-16)).map(t=>({role:t.role,content:t.content||"（小测验）"}));while(hist.length&&hist[0].role!=="user")hist.shift();
   $("#stopBtn").hidden=false;$("#aiNote").textContent="";body.textContent="翻阅共享记忆…";
   if(SAGA[subj])syncTale(subj);
   const mem=await smSearch(subj,text);if(!CTL||CTL.signal.aborted){CTL=null;$("#stopBtn").hidden=true;renderDungeon();return}body.textContent="思考中…";
@@ -2436,6 +2440,7 @@ document.addEventListener("dragover",e=>{if(curView()==="dungeon")e.preventDefau
 const comp=$("#composer");comp.addEventListener("dragover",e=>{e.preventDefault();comp.classList.add("drag")});comp.addEventListener("dragleave",()=>comp.classList.remove("drag"));
 comp.addEventListener("drop",e=>{e.preventDefault();comp.classList.remove("drag");addImgs([...(e.dataTransfer?e.dataTransfer.files:[])])});
 $("#img").onchange=e=>{addFiles([...e.target.files]);e.target.value=""};$("#driveBtn").onclick=openDrive;$("#libBtn").onclick=openLib;
+$("#topicBtn").onclick=newTopic;
 $("#clearBtn").onclick=()=>{CHATS[CUR]=[];QUEST[CUR]=null;delete S.battle[CUR];save();saveChat(CUR);renderDungeon()};
 $("#deepBtn").onclick=deepCopy;$("#tStop").onclick=()=>{if(playing()){stopPlay();return}S.timer=null;save();renderTimer();if(DESK&&DESK.gameMode)DESK.gameMode(false,-1)};
 $("#crAdd").onclick=()=>{const n=$("#crName").value.trim(),p=Math.round(+$("#crPrice").value*PER_USD);if(!n||!(p>0)){toast("写上名字和价格");return}S.customRewards.push({id:"c"+uid(),name:n.slice(0,30),price:p});$("#crName").value="";$("#crPrice").value="";save();renderAll()};
