@@ -115,3 +115,47 @@ test('unreachable optional payoff fails before cross-contract binding',() => {
   const x=fixture();x.proof.routes[0].worldFrom='demo.entry';
   reject(x,'payoff_contract_invalid');
 });
+
+test('64 synthetic route/trace/commit permutations agree with independent binding oracle', () => {
+  let accepted = 0, rejected = 0;
+  for (let mask = 0; mask < 64; mask++) {
+    const x = fixture();
+    if (mask & 1) x.bridge.routeBindings.reverse();
+    if (mask & 2) [x.bridge.routeBindings[0].routeCommitId, x.bridge.routeBindings[1].routeCommitId] =
+      [x.bridge.routeBindings[1].routeCommitId, x.bridge.routeBindings[0].routeCommitId];
+    if (mask & 4) [x.proof.routes[0].entrySceneId, x.proof.routes[1].entrySceneId] =
+      [x.proof.routes[1].entrySceneId, x.proof.routes[0].entrySceneId];
+    if (mask & 8) [x.bridge.routeBindings[0].traceRef, x.bridge.routeBindings[1].traceRef] =
+      [x.bridge.routeBindings[1].traceRef, x.bridge.routeBindings[0].traceRef];
+    if (mask & 16) [x.proof.routes[0].traceRef, x.proof.routes[1].traceRef] =
+      [x.proof.routes[1].traceRef, x.proof.routes[0].traceRef];
+    if (mask & 32) x.causal.routeCommits.reverse();
+
+    // Independent identity oracle: a DM route, its committed world branch,
+    // and the declared trace must agree. These are invented demo IDs only.
+    const commits = new Map(x.causal.routeCommits.map(c => [c.id, c]));
+    const routes = new Map(x.proof.routes.map(r => [r.routeBeatId, r]));
+    const dm = new Map(x.flow.beats.filter(b => b.type === 'route').map(b => [b.id, b]));
+    const expected = x.bridge.routeBindings.every(b => {
+      const c = commits.get(b.routeCommitId);
+      const r = routes.get(b.routeBeatId);
+      const d = dm.get(b.routeBeatId);
+      return !!(c && r && d && b.traceRef === r.traceRef &&
+        d.traceRef === r.traceRef && r.entrySceneId === c.to);
+    });
+    const before = JSON.stringify(x);
+    const result = run(x);
+    assert.equal(result.ok, expected, 'route permutation ' + mask);
+    if (expected) {
+      assert.deepEqual(result, {ok:true,validatedRoutes:2});
+      accepted++;
+    } else {
+      assert.equal(typeof result.code, 'string');
+      assert.doesNotMatch(JSON.stringify(result), /demo|private|secret/i);
+      rejected++;
+    }
+    assert.equal(JSON.stringify(x), before, 'validator mutated permutation ' + mask);
+  }
+  assert.equal(accepted, 8);
+  assert.equal(rejected, 56);
+});
