@@ -453,7 +453,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 .zw-in{display:flex;gap:6px;align-items:flex-end;padding:8px;border-top:1px solid var(--line)}
 .zw-in textarea{flex:1;min-width:0;resize:none;max-height:120px;background:var(--panel2);color:var(--fg);border:0;border-radius:12px;padding:8px 10px;font-size:15px;line-height:1.5}
 .zw-clip{display:grid;place-items:center;width:34px;height:36px;color:var(--dim);cursor:pointer;flex:none}
-.zw-thumbs{display:flex;flex-wrap:wrap;gap:6px;padding:0 8px}.zw-thumbs:empty{display:none}.zw-thumbs img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.zw-thumbs{display:flex;flex-wrap:wrap;gap:6px;padding:0 8px}.zw-thumbs:empty{display:none}.zw-th{position:relative;display:inline-flex}.zw-thx{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:0;background:rgba(20,22,34,.75);color:#fff;font-size:12px;line-height:18px;padding:0;cursor:pointer}.zw-thumbs img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 .zw-thumbs .lchip{background:var(--panel2);border-color:var(--line)}
 #zwTask{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:13px;background:var(--panel2)}#zwTask[hidden]{display:none}
 #zwTask .tt{font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#zwTask .dim{font-size:12px;white-space:nowrap}#zwTask .btn{padding:2px 10px;font-size:12px}
@@ -608,7 +608,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
     <header class="zw-head"><div class="zface"><svg class="i"><use href="#i-zero"/></svg></div><div class="zw-t"><select id="zwSubj" aria-label="科目"></select></div><button class="zw-x" id="zwHw" title="把这次收集的作业题目整理成 PDF">作业</button><button class="zw-x" id="zwClear" title="清空对话">清空</button><button class="zw-x" id="zwClose" aria-label="收起">×</button></header>
     <div class="zw-log" id="zwLog" aria-live="polite"></div>
     <div class="zw-thumbs" id="zwThumbs"></div>
-    <div class="zw-in"><label class="zw-clip" id="zwClipL" title="附图片"><svg class="i"><use href="#i-camera"/></svg><input type="file" id="zwImg" accept="image/*" multiple hidden></label><textarea id="zwInput" rows="1" placeholder="问零"></textarea><button class="btn go sm" id="zwSend">发送</button></div>
+    <div class="zw-in"><label class="zw-clip" id="zwClipL" title="附件（图片、PDF、Word、文本…）"><svg class="i"><use href="#i-camera"/></svg><input type="file" id="zwImg" multiple hidden></label><textarea id="zwInput" rows="1" placeholder="问零"></textarea><button class="btn go sm" id="zwSend">发送</button></div>
   </section>
   <button class="zw-fab" id="zwFab" aria-label="打开零"><span class="zface"><svg class="i"><use href="#i-zero"/></svg></span></button>
 </div>
@@ -1069,6 +1069,8 @@ function mergeState(raw){const x=raw?clone(raw):{};const o=Object.assign(default
   for(const k of["done","started","skipped","chests","weekEarly","nodeNames","battle","trainLog","quizLog","tale","saga","fate"])if(!o[k]||typeof o[k]!=="object"||Array.isArray(o[k]))o[k]={};
   for(const k of["checkins","restDays","ledger","mistakes","customRewards","customWorlds","scores","spend","sleepLog","todos","hwArchive"])if(!Array.isArray(o[k]))o[k]=[];if(!o.hwDraft||typeof o.hwDraft!=="object"||Array.isArray(o.hwDraft))o.hwDraft={};
   delete o.story;
+  /* 只有题号、没认出题目的旧汇总删掉 */
+  if(Array.isArray(o.hwArchive))o.hwArchive=o.hwArchive.filter(a=>!(a&&Array.isArray(a.items)&&a.items.length&&a.items.every(q=>/无法辨认|仅有题号/.test((q&&q.text)||""))));
   /* 休息券取消：手上剩的换成补签卡 */
   if(o.cards&&o.cards.rest>0){o.cards.makeup=(o.cards.makeup||0)+o.cards.rest;o.cards.rest=0}
   /* 一次性：数学 HW 9 按新规则补到 60 */
@@ -1829,7 +1831,7 @@ function renderMd(text){const wrap=h("div");const maths=[];const t=String(text).
   if(html==null)html=esc(t).replace(/\n/g,"<br>");wrap.innerHTML=html.replace(/@@M(\d+)@@/g,(_,i)=>esc(maths[+i]));return wrap}
 let MT_T;new MutationObserver(()=>{clearTimeout(MT_T);MT_T=setTimeout(()=>{const els=[...document.querySelectorAll(".mtext:not([data-ts])")];els.forEach(e=>e.dataset.ts=1);if(els.length&&window.MathJax&&MathJax.typesetPromise)MathJax.typesetPromise(els).catch(()=>{})},60)}).observe(document.documentElement,{childList:true,subtree:true});
 function typeset(el){if(window.MathJax&&MathJax.typesetPromise)MathJax.typesetPromise([el]).catch(()=>{})}
-const TAG_RE=/^\[(错题|进度|委托完成|关卡完成|击败|选项|命中|失误|场景|人物|剧情摘要|惊喜|题目)[^\n]*$/gm;let PARSED_CHOICES=null;
+const TAG_RE=/^\[(科目|错题|进度|委托完成|关卡完成|击败|选项|命中|失误|场景|人物|剧情摘要|惊喜|题目)[^\n]*$/gm;let PARSED_CHOICES=null;
 function stripTags(subj,text){const keep=[];let changed=false;
   for(const ln of String(text).split("\n")){const s=ln.trim();let m;
     if((m=s.match(/^\[错题\]\s*(.+)$/))){const[wrong,right]=m[1].split("||").map(x=>x.trim());const nm={id:"m"+uid().slice(0,4),subj,text:wrong.slice(0,160),fix:(right||"").slice(0,200),added:dayKey(),revive:addDays(dayKey(),3),killed:false};S.mistakes.push(nm);changed=true;syncMistake(nm);smEvent("做错一题，进了错题图鉴",subj);continue}
@@ -1996,22 +1998,23 @@ function zwContext(subj){const prog=(S.progress[subj]||[]).slice(-6).map(p=>"- "
   const mis=S.mistakes.filter(m=>m.subj===subj&&!m.killed).slice(-5).map(m=>"- "+m.text).join("\n")||"（无）";
   const dl=occurrences().filter(o=>o.subj===subj&&isOpen(o)).slice(0,4).map(o=>"- "+o.title+" 截止 "+fmtDue(o.soft)).join("\n")||"（无）";
   const ex=examInfo(subj);const now=new Date();
-  return ZERO_RULES+"\n\n"+PACK[subj]+`\n\n现在：${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} 周${WD[now.getDay()]} ${pad(now.getHours())}:${pad(now.getMinutes())}\n她现在在网站的「${{now:"现在",map:"地图",cal:"日历",dungeon:"副本",shop:"商店",bag:"背包"}[curView()]}」页。${ex?"最近的考试："+ex.title+" "+fmtDue(ex.due)+"。":""}${S.cur&&S.cur.subj===subj?"\n她现在正在做「"+S.cur.title+"」。她发来的题都是这份作业里的：先在回复最后写 [题目] 行记下题目原文，再带她一步一步做，一步一问，不要直接给最终答案。":""}\n最近学的：\n${prog}\n没打败的错题：\n${mis}\n这一科的截止：\n${dl}`}
+  return ZERO_RULES+"\n\n"+PACK[subj]+"\n\n她现在选的是「"+SUBJ[subj].name+"」。如果她这次发来的内容（文字、图片或附件）明显属于另一门课（数学=math，化学=chem，机械=engri，英文=engl），回复第一行单独写 [科目] chem 这样的标记，然后直接按那门课正常回答，不要说“这不是本科目的内容”。"+`\n\n现在：${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} 周${WD[now.getDay()]} ${pad(now.getHours())}:${pad(now.getMinutes())}\n她现在在网站的「${{now:"现在",map:"地图",cal:"日历",dungeon:"副本",shop:"商店",bag:"背包"}[curView()]}」页。${ex?"最近的考试："+ex.title+" "+fmtDue(ex.due)+"。":""}${S.cur&&S.cur.subj===subj?"\n她现在正在做「"+S.cur.title+"」。她发来的题都是这份作业里的：先在回复最后写 [题目] 行记下题目原文，再带她一步一步做，一步一问，不要直接给最终答案。":""}\n最近学的：\n${prog}\n没打败的错题：\n${mis}\n这一科的截止：\n${dl}`}
 function zwOpen(subj,msg){if(subj&&SUBJ[subj]){ZW.subj=subj}$("#zwPanel").hidden=false;document.body.classList.add("zw-open");$("#zwFab").classList.remove("ping");zwRender();if(msg)setTimeout(()=>zwSend(msg),60);else setTimeout(()=>$("#zwInput").focus(),50)}
 function zwCloseP(){$("#zwPanel").hidden=true;document.body.classList.remove("zw-open")}
 function zwRender(){const sel=$("#zwSubj");if(!sel)return;renderTaskBar();sel.replaceChildren(...Object.keys(SUBJ).map(k=>h("option",{value:k,selected:k===ZW.subj},SUBJ[k].name)));
   const log=$("#zwLog");log.replaceChildren();if(!ZW.turns.length)log.append(h("div",{class:"zw-hint"},SAMPLE?"有什么不会的，直接问。":"需要在 Claude 里打开才能对话"));
   for(const t of ZW.turns){if(t.role==="user")log.append(h("div",{class:"zw-m u"},t.content));else log.append(h("div",{class:"zw-m a"},renderMd(t.content)))}
-  $("#zwThumbs").replaceChildren(...ZW.imgs.map(f=>h("img",{src:URL.createObjectURL(f),alt:"附图"})),...(ZW.docs||[]).map(d=>h("span",{class:"lchip"},h("span",null,d.name),h("button",{onclick:()=>{ZW.docs=ZW.docs.filter(x=>x!==d);zwRender()},"aria-label":"移除"},"×"))));$("#zwClipL").hidden=!IMG_OK;$("#zwSend").disabled=!SAMPLE||!!ZW.ctl;
+  $("#zwThumbs").replaceChildren(...ZW.imgs.map(f=>h("span",{class:"zw-th"},h("img",{src:URL.createObjectURL(f),alt:"附图"}),h("button",{class:"zw-thx","aria-label":"移除",onclick:()=>{ZW.imgs=ZW.imgs.filter(x=>x!==f);zwRender()}},"×"))),...(ZW.docs||[]).map(d=>h("span",{class:"lchip"},h("span",null,d.name),h("button",{onclick:()=>{ZW.docs=ZW.docs.filter(x=>x!==d);zwRender()},"aria-label":"移除"},"×"))));$("#zwClipL").hidden=false;$("#zwSend").disabled=!SAMPLE||!!ZW.ctl;
   typeset(log);log.scrollTop=log.scrollHeight}
-async function zwSend(text){text=(text||$("#zwInput").value).trim();if(!text||!SAMPLE||ZW.ctl)return;$("#zwInput").value="";$("#zwInput").style.height="auto";focusAct();
-  const subj=ZW.subj;const imgs=ZW.imgs.slice();ZW.imgs=[];const docs=(ZW.docs||[]).slice();ZW.docs=[];ZW.turns.push({role:"user",content:text+(imgs.length?"（附了 "+imgs.length+" 张图）":"")+(docs.length?"（附件："+docs.map(d=>d.name).join("、")+"）":""),at:Date.now()});ZW.ctl=new AbortController();zwRender();
+async function zwSend(text){text=(text||$("#zwInput").value).trim();const hasAtt=ZW.imgs.length||(ZW.docs||[]).length;if((!text&&!hasAtt)||!SAMPLE||ZW.ctl)return;const onlyAtt=!text;if(onlyAtt)text="（看附件）";$("#zwInput").value="";$("#zwInput").style.height="auto";focusAct();
+  const subj=ZW.subj;const imgs=ZW.imgs.slice();ZW.imgs=[];const docs=(ZW.docs||[]).slice();ZW.docs=[];ZW.turns.push({role:"user",content:(onlyAtt?"":text)+(imgs.length?"（附了 "+imgs.length+" 张图）":"")+(docs.length?"（附件："+docs.map(d=>d.name).join("、")+"）":""),at:Date.now()});ZW.ctl=new AbortController();zwRender();
   const log=$("#zwLog");const bub=h("div",{class:"zw-m a"},"…");log.append(bub);log.scrollTop=log.scrollHeight;
   const hist=ZW.turns.slice(-14).map(t=>({role:t.role,content:t.content}));while(hist.length&&hist[0].role!=="user")hist.shift();if(docs.length&&hist.length){const last=hist[hist.length-1];last.content+="\n\n"+docs.map(d=>"【附件 "+d.name+"】\n"+d.text).join("\n\n")}
   const mem=await smSearch(subj,text);
   const input=[{role:"user",content:zwContext(subj)+(mem?"\n\n共享记忆里相关的内容（参考）：\n"+mem:"")},{role:"assistant",content:"收到。"},...hist];
   const opts={cache:false,signal:ZW.ctl.signal,onText:({text})=>{bub.textContent=text.replace(TAG_RE,"").trim();log.scrollTop=log.scrollHeight}};if(imgs.length)opts.images=imgs.slice(0,5);
-  try{const r=await SAMPLE(input,opts);const clean=stripTags(subj,r.text);ZW.turns.push({role:"assistant",content:clean||"（收到）",at:Date.now()})}
+  try{const r=await SAMPLE(input,opts);let raw=r.text,sw=null;raw=raw.replace(/^\s*\[科目\]\s*(math|chem|engri|engl)\s*$/m,(_,k)=>{sw=k;return""});
+    const tsubj=sw&&SUBJ[sw]?sw:subj;const clean=stripTags(tsubj,raw);if(sw&&sw!==subj&&SUBJ[sw]){ZW.subj=sw;zwSave();toast("换到"+SUBJ[sw].name)}ZW.turns.push({role:"assistant",content:clean||"（收到）",at:Date.now()})}
   catch(e){if(e&&e.code!=="cancelled")ZW.turns.push({role:"assistant",content:sampleErr(e),at:Date.now()})}
   finally{ZW.ctl=null;ZW.turns=ZW.turns.slice(-30);zwSave();zwRender();if($("#zwPanel").hidden)$("#zwFab").classList.add("ping");if(DESK&&DESK.notify&&(document.hidden||!document.hasFocus()))DESK.notify()}}
 /* ---- 每日签到题（独立弹窗） ---- */
@@ -2276,7 +2279,7 @@ $("#zwClear").onclick=()=>{if(ZW.ctl)ZW.ctl.abort();ZW.turns=[];zwSave();zwRende
 $("#zwSubj").onchange=e=>{ZW.subj=e.target.value;zwSave()};$("#zwSend").onclick=()=>zwSend();
 $("#zwInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();zwSend()}});
 $("#zwInput").addEventListener("input",e=>{focusTouch();const t=e.target;t.style.height="auto";t.style.height=Math.min(120,t.scrollHeight)+"px"});
-$("#zwImg").onchange=e=>{for(const f of e.target.files)if(f.type.startsWith("image/")&&ZW.imgs.length<5)ZW.imgs.push(f);e.target.value="";zwRender()};
+$("#zwImg").onchange=e=>{const fs=[...e.target.files];e.target.value="";zwAddFiles(fs)};
 $("#zwInput").addEventListener("paste",e=>{const fs=pastedImages(e);if(fs.length&&IMG_OK){e.preventDefault();e.stopPropagation();for(const f of fs)if(ZW.imgs.length<5)ZW.imgs.push(f);zwRender()}});
 $("#hStreak").onclick=()=>{CK_MONTH=null;openCheckin()};
 $("#toCur").onclick=scrollToCur;$("#pubBtn").onclick=openPublicSheet;
@@ -2447,7 +2450,10 @@ async function zwAddFiles(files){for(const f of files){const nm=f.name||"文件"
     try{if(f.type.startsWith("image/")){if(ZW.imgs.length<5)ZW.imgs.push(f);continue}
       let t="";if(ext==="pdf"||f.type==="application/pdf"){const doc=await pdfDoc(f);t=await pdfText(doc);if(t.replace(/\s/g,"").length<40&&IMG_OK){const ps=await pdfImages(doc,4);ps.forEach((b,i)=>ZW.imgs.length<5&&ZW.imgs.push(new File([b],nm+"-p"+(i+1)+".jpg",{type:"image/jpeg"})));continue}}
       else if(ext==="docx"){await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");t=(await window.mammoth.extractRawText({arrayBuffer:await f.arrayBuffer()})).value}
-      else if(/^(txt|md|csv|json|tex|py|js|ts|c|cpp|java|m)$/.test(ext)||f.type.startsWith("text/"))t=await f.text();
+      else if(ext==="pptx"||ext==="xlsx"){await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");const z=await window.JSZip.loadAsync(await f.arrayBuffer());
+        const names=Object.keys(z.files).filter(n=>ext==="pptx"?/^ppt\/slides\/slide\d+\.xml$/.test(n):/^xl\/(sharedStrings|worksheets\/sheet\d+)\.xml$/.test(n)).sort((x,y)=>(+(x.match(/\d+/)||[0])[0])-(+(y.match(/\d+/)||[0])[0]));
+        for(const n of names){const x=await z.file(n).async("string");const parts=[...x.matchAll(ext==="pptx"?/<a:t>([^<]*)<\/a:t>/g:/<(?:t|v)[^>]*>([^<]*)<\/(?:t|v)>/g)].map(m=>m[1]);t+=(ext==="pptx"?"【"+n.match(/slide\d+/)[0]+"】":"")+parts.join(" ")+"\n"}}
+      else if(/^(txt|md|csv|json|tex|py|js|ts|c|cpp|java|m|html|xml|rtf)$/.test(ext)||f.type.startsWith("text/"))t=await f.text();
       else{toast(nm+"：这种格式读不了，可以导出成 PDF 再传");continue}
       ZW.docs.push({name:nm,text:t.slice(0,15000)})}
     catch(e){toast(nm+" 没读成功")}}
@@ -2494,7 +2500,7 @@ function todoForm(dayK){const ti=h("input",{type:"text",placeholder:"加一个�
 const COURSE={math:"MATH 1920",chem:"CHEM 2090",engri:"ENGRI 1170",engl:"ENGL 1111"};
 function hwAdd(subj,raw){const[no,...rest]=String(raw).split("||");const text=rest.join("||").trim();if(!text)return;S.hwDraft=S.hwDraft||{};const L=S.hwDraft[subj]=S.hwDraft[subj]||[];
   const key=text.replace(/\s+/g,"").slice(0,60);if(L.some(x=>x.text.replace(/\s+/g,"").slice(0,60)===key))return;L.push({no:(no||"?").trim().slice(0,20),text:text.slice(0,4000),at:Date.now()});if(L.length>60)L.shift()}
-function hwGuessTitle(subj){const now=Date.now();const o=occurrences().filter(x=>x.subj===subj).sort((a,b)=>Math.abs(a.soft-now)-Math.abs(b.soft-now))[0];return o?o.title:"Homework"}
+function hwGuessTitle(subj){if(S.cur&&S.cur.subj===subj)return S.cur.title.replace(/^(数学|化学|机械|英文)\s*/,"");const o=occurrences().filter(x=>x.subj===subj&&isOpen(x)).sort((a,b)=>a.soft-b.soft)[0];return o?o.title:"Homework"}
 function hwHtml(a){const esc=x=>String(x).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[c]);
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(COURSE[a.subj]+" "+a.title)}</title>
 <script>window.MathJax={tex:{inlineMath:[["$","$"],["\\\\(","\\\\)"]],displayMath:[["$$","$$"],["\\\\[","\\\\]"]]},svg:{fontCache:"global"}};<\/script>
@@ -2515,11 +2521,11 @@ async function hwExport(a){const name=COURSE[a.subj]+" "+a.title.replace(/[\\/:*
   const w=window.open("","_blank");if(w){w.document.write(hwHtml(a).replace("</body>","<script>window.onload=()=>setTimeout(()=>print(),1200)<\/script></body>"));w.document.close()}}
 function openHwSheet(subj){subj=subj||ZW.subj||CUR||"math";const draft=((S.hwDraft||{})[subj]||[]);const title=h("input",{type:"text",value:hwGuessTitle(subj),style:{flex:"1 1 160px"}});
   const list=h("div",{class:"list"},draft.length?draft.map((q,i)=>h("div",{class:"li",style:{display:"block"}},h("b",null,q.no&&q.no!=="?"?q.no:"第 "+(i+1)+" 题"),h("div",{class:"small",style:{whiteSpace:"pre-wrap"}},q.text.slice(0,300)),
-      h("button",{class:"btn sm flat",onclick:()=>{draft.splice(i,1);save();closeSheet();openHwSheet(subj)}},"删掉"))):[h("div",{class:"dim"},"这一科还没收到作业题。做作业时把题目截图发给零或副本，它会自动记下来。")]);
+      h("button",{class:"btn sm flat",onclick:()=>{draft.splice(i,1);save();closeSheet();openHwSheet(subj)}},"删掉"))):[h("div",{class:"dim"},"现在没有在收的题。做作业时把题目发给零，它会记在这里，做完可以整理成一份 PDF。")]);
   const arch=(S.hwArchive||[]).filter(a=>a.subj===subj).slice(-6).reverse();
   sheet(subj,h("h2",null,"整理作业 · "+SUBJ[subj].name),h("div",{class:"row"},title),list,
     draft.length?h("button",{class:"btn go",onclick:async()=>{const a={id:"h"+uid(),subj,title:title.value.trim()||"Homework",items:draft.slice(),at:Date.now()};S.hwArchive=S.hwArchive||[];S.hwArchive.push(a);S.hwDraft[subj]=[];save();closeSheet();await hwExport(a);renderAll()}},"生成 PDF（"+draft.length+" 题）"):null,
-    arch.length?h("div",null,h("div",{class:"eyebrow",style:{margin:"6px 0"}},"以前的"),h("div",{class:"list"},arch.map(a=>h("button",{class:"chip",style:{fontSize:"14px",padding:"6px 10px"},onclick:()=>hwExport(a)},a.title+" · "+a.items.length+" 题 · "+new Date(a.at).toLocaleDateString("zh-CN"))))):null)}
+    arch.length?h("div",null,h("div",{class:"eyebrow",style:{margin:"6px 0"}},"以前的"),h("div",{class:"list"},arch.map(a=>h("div",{class:"row",style:{gap:"6px"}},h("button",{class:"chip",style:{fontSize:"14px",padding:"6px 10px",flex:"1"},onclick:()=>hwExport(a)},a.title+" · "+a.items.length+" 题 · "+new Date(a.at).toLocaleDateString("zh-CN")),h("button",{class:"btn sm flat","aria-label":"删掉",onclick:()=>{S.hwArchive=S.hwArchive.filter(x=>x!==a);save();closeSheet();openHwSheet(subj)}},"×"))))):null)}
 
 /* 交给零的文件：存一份到 桌面\Cornell\<课程>，再传一份到 Google Drive 的 学习空间/<课程> */
 function abToB64(buf){const u=new Uint8Array(buf);let s="";for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)}
