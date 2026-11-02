@@ -164,7 +164,7 @@
     var messages = toMessages(input);
     if (!messages.length || messages[messages.length - 1].role !== "user") throw { code: "bad_request", message: "最后一条必须是 user" };
     if (jsonMode) messages[messages.length - 1].content += JSON_HINT;
-    var body = { messages: messages, model: currentModel() };
+    var body = { messages: messages, model: opts.siteModel || currentModel() }; // 零在网站上固定用 opts.siteModel
     if (opts.images && opts.images.length) body.images = await Promise.all([].slice.call(opts.images, 0, 5).map(blobToImage));
     if (opts.signal && opts.signal.aborted) throw { code: "cancelled", message: "已取消" };
     var r;

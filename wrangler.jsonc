@@ -38,8 +38,8 @@
     "PUBLIC_URL": "https://memory.catmin.io",
     "SITE_HOST": "study.catmin.io",
     // 网站 API 模式的花费上限（美元），到了就停
-    "DAILY_LIMIT_USD": "1",
-    "MONTHLY_LIMIT_USD": "10"
+    "DAILY_LIMIT_USD": "3",
+    "MONTHLY_LIMIT_USD": "30"
   }
   // 机密（用 wrangler secret put 设置，不写在这里）：
   //   OWNER_PASSWORD  授权页面的口令
