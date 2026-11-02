@@ -527,25 +527,29 @@ async function onHotkey() {
   if (paths.length) deliverPaths(paths); else toggleZero();
 }
 
-// ---------- 存到 Cornell\<课程>（Google Drive 盘里，没有就桌面） ----------
-// 装了 Google Drive 桌面版（G:\My Drive 这类盘）就放进 My Drive\Cornell：网页、手机上传到 Drive 的文件也会自动出现在电脑上
-let rootCache = null;
-function cornellRoot() {
-  if (rootCache && Date.now() - rootCache.at < 60000) return rootCache.dir;
-  let dir = path.join(app.getPath("desktop"), "Cornell");
-  if (process.platform === "win32") {
-    outer: for (const L of "GHIJKLMNOPQRSTUVWXYZDEF") for (const n of ["My Drive", "我的云端硬盘", "我的雲端硬碟"]) {
-      const p = L + ":\\" + n;
-      try { if (fs.existsSync(p)) { dir = path.join(p, "Cornell"); break outer; } } catch (e) {}
-    }
+// ---------- 存到 桌面\Cornell\<学期>\<课程> ----------
+// 课程文件夹：先在 桌面\Cornell 下面（最多两层，比如 Cornell\26 Fall\CHEM 2090）找已有的同名文件夹；
+// 没有就建在最新的学期文件夹（“26 Fall” 这种）里。Google Drive 桌面版负责把 Cornell 同步上去
+function cornellBase() { return path.join(app.getPath("desktop"), "Cornell"); }
+function termName(d = new Date()) { const m = d.getMonth() + 1, y = String(d.getFullYear()).slice(2); return y + " " + (m >= 8 ? "Fall" : m <= 5 ? "Spring" : "Summer"); }
+const TERM_RE = /^\d\d\s*(fall|spring|summer|winter)$/i;
+function findCourseDir(safe) {
+  const base = cornellBase(), hits = [], lc = safe.toLowerCase();
+  const same = (n) => { n = n.toLowerCase(); return n === lc || n.startsWith(lc + " ") || n.startsWith(lc + "-") || n.startsWith(lc + "_"); }; // “MATH 1920 Multivariable Calculus” 也算
+  const kids = (d) => { try { return fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith(".")); } catch (e) { return []; } };
+  for (const a of kids(base)) {
+    const pa = path.join(base, a.name);
+    if (same(a.name)) hits.push(pa);
+    for (const b of kids(pa)) if (same(b.name)) hits.push(path.join(pa, b.name));
   }
-  if (!rootCache || rootCache.dir !== dir) dlog("cornell root " + dir);
-  rootCache = { dir, at: Date.now() };
-  return dir;
+  if (!hits.length) return null;
+  // 有好几个就要学期文件夹里的，再要最近改过的
+  const score = (p) => (TERM_RE.test(path.basename(path.dirname(p))) ? 1e15 : 0) + (() => { try { return fs.statSync(p).mtimeMs; } catch (e) { return 0; } })();
+  return hits.sort((x, y) => score(y) - score(x))[0];
 }
 function courseDir(course) {
   const safe = String(course).replace(/[\\/:*?"<>|]/g, " ").trim() || "其他";
-  const dir = path.join(cornellRoot(), safe);
+  const dir = findCourseDir(safe) || path.join(cornellBase(), termName(), safe);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
