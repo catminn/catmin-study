@@ -54,6 +54,10 @@ const causalStageValid = (s, p) => Object.values(p.routes).some(r =>
 
 // Corrupt persisted state cannot grant approved dialogue or partially commit.
 const record = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+// Snapshots are also a persistence boundary. Unknown fields must not survive
+// cloning into the next committed state under an otherwise valid ledger.
+const exactFields = (value, fields) => record(value) &&
+  Object.keys(value).length === fields.length && fields.every(k => own(value, k));
 
 // A count-matched ledger alone cannot justify a saved route or reunion.
 // Inspect only synthetic commit shapes/order; real provenance remains server-owned.
@@ -129,7 +133,9 @@ function routeLedgerConsistent(s, p) {
 }
 
 const validState = (s, p) => {
-  if (!record(s) || !record(s.npc) || !record(s.player) || !record(s.commits) ||
+  if (!exactFields(s, ['scope', 'version', 'scene', 'routeTrace', 'npc', 'player', 'commits']) ||
+      !exactFields(s.npc, ['location', 'availability', 'relation', 'heardClaims', 'confirmedFacts']) ||
+      !exactFields(s.player, ['heardClaims', 'confirmedFacts']) || !record(s.commits) ||
       !Number.isSafeInteger(s.version) || s.version < 0 ||
       typeof s.scene !== 'string' || !s.scene ||
       !(s.routeTrace === null || typeof s.routeTrace === 'string') ||
