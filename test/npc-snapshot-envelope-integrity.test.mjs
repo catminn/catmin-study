@@ -34,7 +34,7 @@ test('reviewed snapshot envelope survives persistence, replay and a new commit',
     ['scope', 'version', 'scene', 'routeTrace', 'npc', 'player', 'commits'].sort());
   assert.deepEqual(Object.keys(saved.npc).sort(),
     ['location', 'availability', 'relation', 'heardClaims', 'confirmedFacts'].sort());
-  assert.deepEqual(Object.keys(saved.player).sort(), ['heardClaims', 'confirmedFacts']);
+  assert.deepEqual(Object.keys(saved.player).sort(), ['heardClaims', 'confirmedFacts'].sort());
   const replay = applyCommitted(saved, first);
   assert.equal(replay.ok, true);
   assert.equal(replay.replay, true);
