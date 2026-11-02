@@ -1171,7 +1171,7 @@ function earn(delta,text){delta=r1(delta);if(text&&!/^(兑换|购买|花费)/.te
 function levelOf(xp){let L=1;while(xp>=60*L*(L+1)/2)L++;const lo=60*(L-1)*L/2,hi=60*L*(L+1)/2;return{L,lo,hi,title:LEVELS[Math.min(L-1,LEVELS.length-1)]}}
 
 /* ============ rewards ============ */
-function multFor(due,grace=0,now=Date.now(),self){const hrs=(due-now)/HOUR;if(self&&now<=self&&hrs<48)return{m:1.5,cls:"early",label:"×1.5 自定 ddl 前",step:2};
+function multFor(due,grace=0,now=Date.now(),self){/* 按墙上时间算（跨夏令时那周差的一小时不算） */const hrs=(due-now+(new Date(now).getTimezoneOffset()-new Date(due).getTimezoneOffset())*MIN)/HOUR;if(self&&now<=self&&hrs<48)return{m:1.5,cls:"early",label:"×1.5 自定 ddl 前",step:2};
   if(hrs>=72)return{m:2.5,cls:"early",label:"×2.5 提前 3 天+",step:0};if(hrs>=48)return{m:2,cls:"early",label:"×2 提前 2 天",step:1};if(hrs>=24)return{m:1.5,cls:"early",label:"×1.5 提前 1 天",step:2};
   if(hrs>=0)return{m:1,cls:"ontime",label:"×1 当天",step:3};
   const late=Math.ceil(-hrs/24);if(grace&&late<=grace)return{m:0.8,cls:"late",label:"×0.8 迟交第 "+late+" 天",step:4};
@@ -1179,9 +1179,10 @@ function multFor(due,grace=0,now=Date.now(),self){const hrs=(due-now)/HOUR;if(se
 function preview(base,due,grace,self){if(!due)return{m:1,total:R(base),mf:null,extra:[]};const mf=multFor(due,grace,Date.now(),self);const total=R(base*mf.m);const extra=[];
   if(mf.m>1){const sh=Math.floor((due-Date.now())/HOUR/24);if(sh>0)extra.push("时间碎片 +"+sh);if(S.combo>=2)extra.push("提前连击 +"+R(10))}
   return{m:mf.m,total,mf,extra}}
-function award(base,due,grace,label,self){const p=preview(base,due,grace,self);let pts=p.total;const lines=[R(base)+" 基础"+(p.mf?" "+p.mf.label:"")];
+let LAST_SH=0;/* 上一次 award 给的时间碎片，记进 done，撤销时一起收回 */
+function award(base,due,grace,label,self){const p=preview(base,due,grace,self);let pts=p.total;LAST_SH=0;const lines=[R(base)+" 基础"+(p.mf?" "+p.mf.label:"")];
   if(p.mf){const early=Math.max(0,(due-Date.now())/HOUR);
-    if(p.m>1){S.combo++;if(S.combo>=3){pts=r1(pts+R(10));lines.push("提前连击 "+S.combo+"，+"+R(10))}const sh=Math.floor(early/24);if(sh>0){S.shards+=sh;lines.push("时间碎片 +"+sh)}}else S.combo=0;
+    if(p.m>1){S.combo++;if(S.combo>=3){pts=r1(pts+R(10));lines.push("提前连击 "+S.combo+"，+"+R(10))}const sh=Math.floor(early/24);if(sh>0){S.shards+=sh;LAST_SH=sh;lines.push("时间碎片 +"+sh)}}else S.combo=0;
     const wk=weekKey();S.weekEarly[wk]=(S.weekEarly[wk]||0)+early;
     while(S.shards>=3){S.shards-=3;S.cards.makeup++;lines.push("3 块碎片合成了一张补签卡")}}
   const before=levelOf(S.xp).L;earn(pts,label);const after=levelOf(S.xp).L;save();showReward(pts,label,lines,after>before?after:0);return pts}
@@ -1221,7 +1222,7 @@ function occurrences(){const out=[];const discFull=discCount()>=DISC_NEED;const 
   return out.sort((a,b)=>a.soft-b.soft)}
 const weekOcc=wk=>{const o=[];for(let i=0;i<7;i++)o.push(...occOnDay(addDays(wk,i)));return o};
 const isOpen=o=>!S.done[o.key]&&!S.skipped[o.key];
-function completeTask(o){if(S.done[o.key])return;focusAct();closeSheet();const pts=award(o.r.base,o.soft,o.r.grace||0,SUBJ[o.subj].name+" "+o.title,o.self);S.done[o.key]={at:Date.now(),pts};save();renderAll()}
+function completeTask(o){if(S.done[o.key])return;focusAct();closeSheet();const pts=award(o.r.base,o.soft,o.r.grace||0,SUBJ[o.subj].name+" "+o.title,o.self);S.done[o.key]={at:Date.now(),pts,sh:LAST_SH};save();renderAll()}
 function startTask(o){if(S.started[o.key])return;S.started[o.key]=Date.now();
   if((o.soft-Date.now())/HOUR>=48){S.cards.makeup++;S.ledger.push({at:Date.now(),d:0,t:"开荒奖励 · "+SUBJ[o.subj].name+" "+o.title+" · 补签卡 +1"});toast("开荒奖励：补签卡 +1")}else toast("已开始，做完回来领奖励");
   save();renderAll();openTaskSheet(o)}
@@ -2153,7 +2154,7 @@ Object.defineProperty(ZW,"turns",{get(){return ZW.hist[ZW.subj]||(ZW.hist[ZW.sub
 const zwT=k=>ZW.hist[k]||(ZW.hist[k]=[]);
 function zwSave(){const hist={};for(const k of Object.keys(SUBJ))hist[k]=zwT(k).slice(-30).map(t=>{const o={role:t.role,content:t.content,at:t.at||0};if(t.docs)o.docs=t.docs;if(t.memo)o.memo=t.memo;if(t.ask)o.ask=t.ask;return o});const body={subj:ZW.subj,hist};
   if(DB&&UID){DB.doc("data/users/"+UID+"/chat-zero").set(body).then(r=>liveSaw("chat-zero",r)).catch(()=>{})}else{try{localStorage.setItem("zs-chat-zero",JSON.stringify(body))}catch(e){}}}
-async function zwLoad(){try{let d=null;if(DB&&UID){const c=await DB.doc("data/users/"+UID+"/chat-zero").get();if(c.exists)d=clone(c.data())}else d=JSON.parse(localStorage.getItem("zs-chat-zero")||"null");
+async function zwLoad(){try{let d=null;if(DB&&UID){const c=await DB.doc("data/users/"+UID+"/chat-zero").get();liveSaw("chat-zero",c);if(c.exists)d=clone(c.data())}else d=JSON.parse(localStorage.getItem("zs-chat-zero")||"null");
   if(d){if(d.subj&&(SUBJ[d.subj]||d.subj==="life"))ZW.subj=d.subj;if(d.hist&&typeof d.hist==="object"){for(const k in d.hist)if((SUBJ[k]||k==="life")&&Array.isArray(d.hist[k]))ZW.hist[k]=d.hist[k]}else if(Array.isArray(d.turns))ZW.hist[ZW.subj]=d.turns}}catch(e){}zwRender()}
 /* 每轮都变的东西（几点、在哪页、共享记忆搜到的）放在最后一条消息里，前面的背景说明保持不变，才能命中提示缓存 */
 function zwNowNote(){const now=new Date();return"（现在 "+pad(now.getHours())+":"+pad(now.getMinutes())+"，她在网站的「"+({now:"现在",map:"地图",cal:"日历",dungeon:"副本",shop:"商店",bag:"背包"}[curView()]||"")+"」页）"}
@@ -2744,10 +2745,11 @@ function todoEvArgs(t){const s=new Date(t.due);const iso=x=>localKey(x)+"T"+pad(
     :{summary:(t.done?"✓ ":"📝 ")+t.t,startTime:iso(s),endTime:iso(new Date(t.due+30*MIN)),description:"学习空间待办 · https://study.catmin.io",availability:"AVAILABILITY_FREE",overrideReminders:[{method:"popup",minutes:30}]}}
 function refreshDaySheet(){const el=$("#dayTodos");if(el){const k=el.dataset.k;if(k){closeSheet();openDaySheet(k)}}}
 async function addTodo(title,dueStr,subj){title=String(title||"").trim().slice(0,80);if(!title){toast("写上要做什么");return}
-  const allDay=!!dueStr&&/^\d{4}-\d\d-\d\d$/.test(dueStr);const due=allDay?keyToDate(dueStr).getTime()+23*HOUR+59*MIN:todoDue(dueStr);
+  const allDay=!!dueStr&&/^\d{4}-\d\d-\d\d$/.test(dueStr);const due=allDay?at(...dueStr.split("-").map(Number)):todoDue(dueStr);
   const t={id:"t"+uid().slice(0,6),t:title,subj:SUBJ[subj]?subj:null,due,allDay,done:null,ev:null,at:Date.now()};S.todos=S.todos||[];S.todos.push(t);save();renderAll();refreshDaySheet();
-  if(due){const p=await gcalCall("create_event",todoEvArgs(t));if(p&&p.id){t.ev=p.id;save();toast("已加到 Google 日历")}}}
-async function toggleTodo(t){t.done=t.done?null:Date.now();save();renderAll();refreshDaySheet();if(t.ev)gcalCall("update_event",Object.assign({eventId:t.ev},todoEvArgs(t)))}
+  if(due){const p=await gcalCall("create_event",todoEvArgs(t));if(p&&p.id){const x=(S.todos||[]).find(y=>y.id===t.id);if(!x){gcalCall("delete_event",{eventId:p.id});return}x.ev=p.id;save();toast("已加到 Google 日历")}}}
+const tdRef=t=>(S.todos||[]).find(x=>x.id===t.id)||t;
+async function toggleTodo(t){t=tdRef(t);t.done=t.done?null:Date.now();save();renderAll();refreshDaySheet();if(t.ev)gcalCall("update_event",Object.assign({eventId:t.ev},todoEvArgs(t)))}
 async function removeTodo(t){S.todos=(S.todos||[]).filter(x=>x!==t&&x.id!==t.id);save();renderAll();refreshDaySheet();if(t.ev)gcalCall("delete_event",{eventId:t.ev})}
 function todoRow(t){const now=Date.now();const late=t.due&&!t.done&&t.due<now;
   return h("div",{class:"td-row "+(t.done?"done":late?"late":"ontime")},h("input",{type:"checkbox",checked:!!t.done,onchange:()=>toggleTodo(t),"aria-label":"完成"}),
@@ -2837,12 +2839,12 @@ function beginTask(kind,key,subj,title,quiet){
   if(kind==="occ"&&!S.started[key]){S.started[key]=Date.now();const o=occurrences().find(x=>x.key===key);if(o&&(o.soft-Date.now())/HOUR>=48){S.cards.makeup++;S.ledger.push({at:Date.now(),d:0,t:"开荒奖励 · "+title+" · 补签卡 +1"});toast("开荒奖励：补签卡 +1")}}
   if(S.cur&&S.cur.key!==key)pauseTask(true);
   const old=S.cur&&S.cur.key===key?S.cur:null;
-  S.cur={key,kind,subj:SUBJ[subj]?subj:(ZW.subj||"math"),title,start:Date.now(),spent:old?old.spent||0:(S.pausedTasks||{})[key]||0};
+  S.cur={key,kind,subj:SUBJ[subj]?subj:(ZW.subj||"math"),title,start:Date.now(),spent:old?(old.spent||0)+(old.start?Date.now()-old.start:0):(S.pausedTasks||{})[key]||0};
   if(S.pausedTasks)delete S.pausedTasks[key];save();
   ZW.subj=S.cur.subj;
   if(DESK&&EMBED!=="zero"){renderAll();DESK.openZero("#task");return}
   zwOpen(S.cur.subj);if(!quiet)zwSay("开始做「"+title+"」。把第一题截图发给我（拖到小圆上、按快捷键，或者直接贴进来都行）。");renderAll()}
-function pauseTask(silent){const c=S.cur;if(!c)return;S.pausedTasks=S.pausedTasks||{};S.pausedTasks[c.key]=(c.spent||0)+(Date.now()-c.start);S.cur=null;save();if(!silent){zwSay("先放下「"+c.title+"」，已经做了 "+Math.round(S.pausedTasks[c.key]/MIN)+" 分钟，下次接着算。");renderAll()}}
+function pauseTask(silent){const c=S.cur;if(!c)return;S.pausedTasks=S.pausedTasks||{};S.pausedTasks[c.key]=(c.spent||0)+(c.start?Date.now()-c.start:0);S.cur=null;save();if(!silent){zwSay("先放下「"+c.title+"」，已经做了 "+Math.round(S.pausedTasks[c.key]/MIN)+" 分钟，下次接着算。");renderAll()}}
 async function finishTask(){const c=S.cur;if(!c)return;const min=curMinutes();const it=curItem();
   S.timeLog=S.timeLog||[];S.timeLog.push({kind:c.kind==="occ"&&it&&it.r?it.r.id:c.kind,subj:c.subj,title:c.title,min,at:Date.now()});S.timeLog=S.timeLog.slice(-120);
   S.cur=null;save();
@@ -2929,8 +2931,8 @@ async function openBackups(){let list=[];try{list=(await (await fetch("/api/back
   sheet(null,h("h2",null,"存档备份"),box)}
 /* 截止时间可以改：点待办右边的时间 */
 function setDueFix(key,v){S.dueFix=S.dueFix||{};if(v)S.dueFix[key]=v;else delete S.dueFix[key];NUMC.clear();save();renderAll();toast(v?"截止改到 "+new Date(v).toLocaleString("zh-CN",{month:"numeric",day:"numeric",weekday:"short",hour:"2-digit",minute:"2-digit"}):"截止时间恢复原样")}
-function setTodoDue(t,v){t.due=v||null;t.allDay=false;save();renderAll();refreshDaySheet();
-  if(v){if(t.ev)gcalCall("update_event",Object.assign({eventId:t.ev},todoEvArgs(t)));else gcalCall("create_event",todoEvArgs(t)).then(p=>{if(p&&p.id){t.ev=p.id;save()}})}else if(t.ev){gcalCall("delete_event",{eventId:t.ev});t.ev=null;save()}}
+function setTodoDue(t,v){t=tdRef(t);t.due=v||null;t.allDay=false;save();renderAll();refreshDaySheet();
+  if(v){if(t.ev)gcalCall("update_event",Object.assign({eventId:t.ev},todoEvArgs(t)));else gcalCall("create_event",todoEvArgs(t)).then(p=>{if(p&&p.id){tdRef(t).ev=p.id;save()}})}else if(t.ev){gcalCall("delete_event",{eventId:t.ev});t.ev=null;save()}}
 function editDue(el,set){const inp=h("input",{type:"datetime-local",class:"td-due"});const d=new Date(Date.now()+DAY);d.setHours(23,59,0,0);
   inp.value=localKey(d)+"T23:59";el.replaceWith(inp);inp.focus();try{inp.showPicker&&inp.showPicker()}catch(e){}
   let doneE=false;const fin=ok=>{if(doneE)return;doneE=true;if(ok&&inp.value){const t=Date.parse(inp.value);if(!isNaN(t)){set(t);tellTodoBusy();return}}renderAll();tellTodoBusy()};
@@ -2957,8 +2959,10 @@ function planBlock(id,b){const left=b.due-Date.now();if(left>10*DAY||left<0)retu
       return h("button",{class:(dn?"done":"")+(today?" today":""),disabled:!!dn,title:d.task,onclick:()=>{const pts=award(PLAN_PTS,keyToDate(d.day).getTime()+DAY+4*HOUR,0,"考前计划 · "+d.topic);S.done[k]={at:Date.now(),pts};save();openBossSheet(id);renderAll()}},
         h("span",null,(dn?"✓ ":"")+d.day.slice(5).replace("-","/")+" "+d.topic+(today&&!dn&&d.task?" — "+d.task:"")),h("span",{class:"rw"},"+"+(dn?dn.pts:R(PLAN_PTS))))})))}
 /* 待办小窗 */
-function undoDone(key,label){const d=S.done[key];if(!d)return;delete S.done[key];if(d.pts)earn(-d.pts,"撤销 · "+label);save();renderAll()}
+function undoDone(key,label){const d=S.done[key];if(!d)return;delete S.done[key];if(d.pts){earn(-d.pts,"撤销 · "+label);if(d.pts>0)S.xp=Math.max(0,S.xp-Math.round(d.pts*XP_PER))}
+  if(d.sh){S.shards-=d.sh;while(S.shards<0&&S.cards.makeup>0){S.cards.makeup--;S.shards+=3}S.shards=Math.max(0,S.shards)}save();renderAll()}
 function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEmbed"});document.body.append(el)}const now=Date.now();
+  /* 重画（每分钟、别处改了存档拉下来）时保住正在输入的待办 */const o0=el.querySelector(".td-add input[type=text]"),o1=el.querySelector(".td-add input[type=datetime-local]"),ae=document.activeElement;const keep=o0&&(o0.value||ae===o0||ae===o1)?{v:o0.value,d:o1?o1.value:"",f:ae===o1?1:ae===o0?0:-1}:null;
   const wk=t=>{const d=new Date(t);const days=Math.round((keyToDate(localKey(d))-keyToDate(localKey(new Date(now))))/DAY);return days<=0?(t<now?"过期":pad(d.getHours())+":"+pad(d.getMinutes())):days===1?"明天":"周"+WD[d.getDay()]};
   const line=(text,when,soon,done,toggle,onDel,onStart,active,onDue)=>h("div",{class:"td-row"+(done?" done":"")+(soon&&!done?" soon":"")+(active?" active":""),onclick:e=>{if(e.target.closest(".x,.go2"))return;toggle()}},h("span",{class:"ck"}),h("span",{class:"t"},text),when!==null&&onDue?h("span",{class:"w","aria-label":"改截止时间",onclick:e=>{e.stopPropagation();editDue(e.currentTarget,onDue)}},when||"＋时间"):when?h("span",{class:"w"},when):null,onStart&&!done?h("button",{class:"go2"+(active?" on":""),"aria-label":active?"暂停":"开始做",onpointerdown:e=>{e.preventDefault();e.stopPropagation();if(active)pauseTask();else onStart()},onclick:e=>e.stopPropagation()},active?"❚❚":"▶"):null,onDel?h("button",{class:"x","aria-label":"删除",onclick:onDel},"×"):null);
   const recent=k=>S.done[k]&&now-S.done[k].at<12*HOUR;const rows=[];
@@ -2966,7 +2970,7 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
   if(!checkedToday())rows.push(line("签到","",false,false,()=>DESK?DESK.openZero("daily"):openDaily(suggestSubj())));
   const dueOf=o=>o.soft<now&&o.hard>now?o.hard:o.soft;
   const items=[...occurrences().filter(o=>!S.skipped[o.key]&&(!S.done[o.key]||recent(o.key))&&dueOf(o)<now+5*DAY).map(o=>{const t=SUBJ[o.subj].name+" "+o.title;return{t,due:dueOf(o),done:!!S.done[o.key],go:()=>S.done[o.key]?undoDone(o.key,t):completeTask(o),start:()=>beginTask("occ",o.key,o.subj,t),key:o.key,setDue:v=>setDueFix(o.key,v),due0:dueOf(o)}}),
-    ...SIDE.filter(q=>q.due<now+5*DAY&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>{const k="cv-"+q.id;return{t:q.title,due:q.due,done:!!S.done[k],go:()=>{if(S.done[k]){undoDone(k,q.title);return}const pts=award(SIDE_PTS,q.due,0,"支线 · "+q.title);S.done[k]={at:Date.now(),pts};save();renderAll()},start:()=>beginTask("cv",k,q.subj,q.title),key:k,setDue:v=>setDueFix(k,v)}}),
+    ...SIDE.filter(q=>q.due<now+5*DAY&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>{const k="cv-"+q.id;return{t:q.title,due:q.due,done:!!S.done[k],go:()=>{if(S.done[k]){undoDone(k,q.title);return}const pts=award(SIDE_PTS,q.due,0,"支线 · "+q.title);S.done[k]={at:Date.now(),pts,sh:LAST_SH};save();renderAll()},start:()=>beginTask("cv",k,q.subj,q.title),key:k,setDue:v=>setDueFix(k,v)}}),
     ...(S.todos||[]).filter(t=>!t.done||now-t.done<12*HOUR).map(t=>({t:t.t,due:t.due||now+30*DAY,nodue:!t.due,done:!!t.done,go:()=>toggleTodo(t),del:()=>removeTodo(t),start:()=>beginTask("todo",t.id,t.subj,t.t),key:t.id,setDue:v=>setTodoDue(t,v)}))].sort((a,b)=>(a.done-b.done)||(a.due-b.due));
   for(const it of items)rows.push(line(it.t,it.nodue?"":wk(it.due),it.due-now<24*HOUR,it.done,it.go,it.del,it.start,S.cur&&S.cur.key===it.key,it.setDue));
   if(sleepAwake())rows.push(line("起床","",true,false,wakeUp));
@@ -2979,9 +2983,10 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
   const open=items.filter(i=>!i.done).length+(checkedToday()?0:1);const hot=items.filter(i=>!i.done&&!i.nodue&&i.due-now<24*HOUR).length;
   const mini=h("div",{class:"td-mini"},h("b",null,"待办"),h("span",{class:"n"+(hot?" hot":""),title:hot?hot+" 项 24 小时内要交":""},hot?String(hot):open?String(open):"✓"));
   TD_HOT=hot;const tab=h("div",{class:"td-tab"});tab.innerHTML=tabSvg();
-  el.replaceChildren(mini,tab,pin||"",h("div",{class:"td-list"},rows),h("div",{class:"td-add"},ti,dt),grip);tellTodoBusy()}
+  if(keep){ti.value=keep.v;dt.value=keep.d;dt.hidden=false}
+  el.replaceChildren(mini,tab,pin||"",h("div",{class:"td-list"},rows),h("div",{class:"td-add"},ti,dt),grip);if(keep&&keep.f>=0)(keep.f?dt:ti).focus();tellTodoBusy()}
 /* 待办窗口“正在用”：输入框里有字（且还在页面上）或有弹窗。每次重画、加完任务都重新告诉桌面程序，免得卡在“正在用”收不回去 */
-function todoBusyNow(){const a=document.activeElement;return !!((a&&a.isConnected&&a.tagName==="INPUT"&&a.value.trim())||document.querySelector(".scrim,.qz,.pop"))}
+function todoBusyNow(){const a=document.activeElement;return !!((document.hasFocus()&&a&&a.isConnected&&a.tagName==="INPUT"&&a.value.trim())||document.querySelector(".scrim,.qz,.pop"))}
 function tellTodoBusy(){if(typeof EMBED!=="undefined"&&EMBED==="todo"&&DESK&&DESK.todoBusy)setTimeout(()=>DESK.todoBusy(todoBusyNow()),0)}
 /* 收起来的样子：一枚燕尾书签，不写字。贴上边时尾巴朝下，贴左右时尾巴朝屏幕里；有 24 小时内要交的，书签上有一个小红点 */
 let TD_HOT=0,TD_EDGE="top";
@@ -2993,7 +2998,7 @@ function tabSvg(){const n=7,side=TD_EDGE==="left"||TD_EDGE==="right",W=side?34:2
 if(EMBED==="todo"&&DESK&&DESK.todoMode){const B=document.body;
   DESK.onTodoState&&DESK.onTodoState(st=>{const e=st.mode==="dock"?st.edge:"top";if(e!==TD_EDGE){TD_EDGE=e;const t=document.querySelector(".td-tab");if(t)t.innerHTML=tabSvg()}B.classList.toggle("td-collapsed",st.mode==="mini");B.classList.toggle("td-docked",st.mode==="dock");for(const e of["left","right","top"])B.classList.toggle("dock-"+e,st.mode==="dock"&&st.edge===e)});
   // 输入框里打了字、或者有弹窗时才算“正在用”，空着的输入框不拦着收起
-  const tell=tellTodoBusy;["focusin","input","keyup"].forEach(ev=>document.addEventListener(ev,tell));document.addEventListener("focusout",()=>setTimeout(tell,50));new MutationObserver(tell).observe(B,{childList:true});
+  const tell=tellTodoBusy;["focusin","input","keyup"].forEach(ev=>document.addEventListener(ev,tell));window.addEventListener("blur",tell);window.addEventListener("focus",tell);document.addEventListener("focusout",()=>setTimeout(tell,50));new MutationObserver(tell).observe(B,{childList:true});
   DESK.onTodoState&&DESK.onTodoState(st=>{if(st.mode!=="full"&&document.activeElement&&document.activeElement.tagName==="INPUT")document.activeElement.blur()});
   if(DESK.isGlass)DESK.isGlass().then(g=>{if(g)B.classList.add("glass")}).catch(()=>{})}
 if(DESK&&EMBED==="zero"&&DESK.isGlass)DESK.isGlass().then(g=>{if(g)document.body.classList.add("glass")}).catch(()=>{});
@@ -3013,7 +3018,7 @@ if(DESK&&DESK.onWall&&(EMBED==="todo"||EMBED==="zero")){let W=null;
   window.addEventListener("resize",()=>requestAnimationFrame(()=>{if(W)place()}))}
 if(DESK&&DESK.onSaver)DESK.onSaver(v=>document.body.classList.toggle("saver",!!v));
 let S_PIN=true;if(DESK&&DESK.getPin)DESK.getPin().then(v=>{S_PIN=!!v;if(EMBED==="todo")renderTodoEmbed()}).catch(()=>{});
-if(EMBED==="todo"){setInterval(()=>{if(!document.hidden)renderTodoEmbed()},60000)}
+if(EMBED==="todo"){setInterval(()=>{if(!document.hidden&&!todoBusyNow())renderTodoEmbed()},60000)}
 /* 桌面小圆的小红点：24 小时内有没交的作业 */
 function deskBadge(){if(EMBED!=="zero")return;const now=Date.now();const due=o=>o.soft<now&&o.hard>now?o.hard:o.soft;
   const L=[...occurrences().filter(o=>isOpen(o)&&due(o)>now&&due(o)-now<24*HOUR).map(o=>SUBJ[o.subj].name+" "+o.title),...SIDE.filter(q=>!S.done["cv-"+q.id]&&q.due>now&&q.due-now<24*HOUR).map(q=>q.title)];
@@ -3024,18 +3029,19 @@ if(EMBED==="zero"&&DESK){setInterval(deskBadge,5*60000)}
 
 /* 多窗口（桌面程序的几个小窗、多个浏览器标签）共用一份云端存档：获得焦点或别的窗口存档后，拉最新的 */
 let PULLING=false;
-async function pullState(){if(!stateRef||PULLING||dirty)return;PULLING=true;try{const s=await stateRef.get();if(s.exists){const n=s.data();if(n&&(n.savedAt||0)>(S.savedAt||0)){S=mergeState(n);applyDyn();renderAll()}}}catch(e){}finally{PULLING=false}
-  if(EMBED==="zero"||DESK)zwLoad()}
+async function pullState(){if(!stateRef||PULLING||dirty)return false;PULLING=true;try{const s=await stateRef.get();liveSaw("state",s);if(s.exists){const n=s.data();/* 等云端回来的这段时间里本地又改了：不覆盖，下次保存会写上去 */if(n&&!dirty&&(n.savedAt||0)>(S.savedAt||0)){S=mergeState(n);applyDyn();renderAll()}}}catch(e){}finally{PULLING=false}
+  if((EMBED==="zero"||DESK)&&!ZW.ctl)zwLoad();return true}
 window.addEventListener("focus",()=>pullState());
 /* 网页版、桌面待办、桌面零三边互通：每 5 秒问一下云端哪份存档的版本变了（只取版本号，很轻），变了就拉下来。
    自己刚写进去的版本会记下来，不会白拉一次 */
 const LIVE={ver:{},busy:false};
 function liveSaw(key,r){if(r&&r.version)LIVE.ver[key]=Math.max(LIVE.ver[key]||0,r.version)}
-async function pullChat(k){if(!DB||!UID)return;try{const c=await DB.doc("data/users/"+UID+"/chat-"+k).get();if(!c.exists)return;const d=c.data();if(!d||!Array.isArray(d.turns)||(d.savedAt||0)<=(CHAT_AT[k]||0))return;CHATS[k]=clone(d.turns);CHAT_AT[k]=d.savedAt||0;if(curView()==="dungeon")route()}catch(e){}}
+async function pullChat(k){if(!DB||!UID)return;if(CTL&&CUR===k)return false;try{const c=await DB.doc("data/users/"+UID+"/chat-"+k).get();liveSaw("chat-"+k,c);if(!c.exists||CTL&&CUR===k)return;const d=c.data();if(!d||!Array.isArray(d.turns)||(d.savedAt||0)<=(CHAT_AT[k]||0))return;CHATS[k]=clone(d.turns);CHAT_AT[k]=d.savedAt||0;if(curView()==="dungeon"&&CUR===k)route()}catch(e){}}
 async function liveTick(){if(!window.__SITE||!DB||!DB.meta||!UID||LIVE.busy)return;if(!DESK&&document.visibilityState!=="visible")return;LIVE.busy=true;
-  try{const keys=["state","chat-zero"].concat(Object.keys(SUBJ).map(k=>"chat-"+k));const m=await DB.meta(keys);
+  try{const keys=EMBED==="todo"?["state"]:["state","chat-zero"].concat(Object.keys(SUBJ).map(k=>"chat-"+k));/* 待办小窗只用存档 */const m=await DB.meta(keys);
     for(const k of keys){const v=m[k]&&m[k].version;if(v==null)continue;const old=LIVE.ver[k];if(old!=null&&v<=old)continue;LIVE.ver[k]=v;if(old==null)continue;
-      if(k==="state")await pullState();else if(k==="chat-zero"){if(!ZW.ctl)await zwLoad()}else await pullChat(k.slice(5))}}catch(e){}finally{LIVE.busy=false}}
+      /* 正忙（没存完、正在拉、正在回答）就先不算看过，下一轮再拉 */
+      if(k==="state"){if(!(await pullState()))LIVE.ver[k]=old}else if(k==="chat-zero"){if(!ZW.ctl)await zwLoad();else LIVE.ver[k]=old}else if((await pullChat(k.slice(5)))===false)LIVE.ver[k]=old}}catch(e){}finally{LIVE.busy=false}}
 setInterval(liveTick,5000);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")liveTick()});
 if(DESK){DESK.onPull&&DESK.onPull(()=>pullState());DESK.onFiles&&DESK.onFiles((target,list)=>{if(DESK.log)DESK.log("files",target,(list||[]).length);if(target==="ask")pickTarget(list);else deskDeliver(target,list)});DESK.onCommand&&DESK.onCommand(c=>{if(c==="#task"&&S.cur){zwOpen(S.cur.subj);if(!ZW.turns.length||!/^开始做「/.test(ZW.turns[ZW.turns.length-1].content))zwSay("开始做「"+S.cur.title+"」。把第一题截图发给我（拖到小圆上、按快捷键，或者直接贴进来都行）。");return}if(c==="daily"){if(checkedToday())toast("今天已经签过了");else openDaily(suggestSubj())}else if(c&&c[0]==="#")location.hash=c});DESK.ready&&DESK.ready()}
 
@@ -3046,8 +3052,8 @@ route();
   SAMPLE=sample;MCP=mcp;if(sample){try{const l=await sample.limits();IMG_OK=!!(l&&l.images)}catch(e){}}
   try{UID=user?await user.id():null}catch(e){UID=null}let fresh=false;
   if(db&&UID){DB=db;stateRef=db.doc("data/users/"+UID+"/state");
-    try{const snap=await stateRef.get();if(snap.exists)S=mergeState(snap.data());else fresh=true}catch(e){banner("存档读取失败，先用空白存档。",true)}
-    await Promise.all(Object.keys(SUBJ).map(async k=>{try{const c=await db.doc("data/users/"+UID+"/chat-"+k).get();if(c.exists){const cd=c.data();CHAT_AT[k]=cd.savedAt||0;const t=cd.turns;if(Array.isArray(t))CHATS[k]=clone(t)}}catch(e){}}))}
+    try{const snap=await stateRef.get();liveSaw("state",snap);if(snap.exists)S=mergeState(snap.data());else fresh=true}catch(e){/* 读失败时不能把空白存档写回云端 */stateRef=null;DB=null;fresh=true;banner("存档读取失败，先用空白存档（不会覆盖云端），刷新再试。",true)}
+    if(DB)await Promise.all(Object.keys(SUBJ).map(async k=>{try{const c=await db.doc("data/users/"+UID+"/chat-"+k).get();liveSaw("chat-"+k,c);if(c.exists){const cd=c.data();CHAT_AT[k]=cd.savedAt||0;const t=cd.turns;if(Array.isArray(t))CHATS[k]=clone(t)}}catch(e){}}))}
   else{try{const raw=localStorage.getItem("zs-state");if(raw)S=mergeState(JSON.parse(raw));else fresh=true}catch(e){fresh=true}
     for(const k in SUBJ){try{const c=JSON.parse(localStorage.getItem("zs-chat-"+k)||"null");if(c&&Array.isArray(c.turns)){CHATS[k]=c.turns;CHAT_AT[k]=c.savedAt||0}}catch(e){}}
     banner(C&&C.use?"云端存档没连上，进度暂时存在这个浏览器里。":"本地预览：进度只存在这个浏览器里。在 Claude 里打开才会同步存档和启用 AI。")}

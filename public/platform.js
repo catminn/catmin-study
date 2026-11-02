@@ -33,7 +33,7 @@
         get: async function () {
           if (!key) return { exists: false, data: function () { return undefined; } };
           var o = await api("/api/db?key=" + encodeURIComponent(key));
-          return { exists: !!o.exists, data: function () { return o.value; } };
+          return { exists: !!o.exists, version: o.version, data: function () { return o.value; } };
         },
         set: async function (v) {
           if (!key) throw { code: "bad_path", message: path };
@@ -193,8 +193,8 @@
     try {
       for (;;) {
         var step = await reader.read();
-        if (step.done) break;
-        buf += step.value;
+        if (step.done) { if (!buf.trim()) break; buf += "\n\n"; } // 最后一段没有空行结尾也要处理
+        else buf += step.value;
         var i;
         while ((i = buf.indexOf("\n\n")) >= 0) {
           var line = buf.slice(0, i).replace(/^data:\s?/, ""); buf = buf.slice(i + 2);
@@ -205,6 +205,7 @@
           else if (ev.error) fail = ev.error;
           else if (ev.done) { truncated = !!ev.truncated; if (STATUS) { STATUS.spent.today += ev.cost || 0; STATUS.spent.month += ev.cost || 0; renderPicker(); } }
         }
+        if (step.done) break;
       }
     } catch (e) {
       if (opts.signal && opts.signal.aborted) throw { code: "cancelled", message: "已取消", text: text };
