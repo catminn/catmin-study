@@ -392,8 +392,10 @@ export const TOOLS: Tool[] = [
       }
       const content = mistakeContent(p);
       const hash = await sha256(content);
-      await deleteByHashes(env, [m.content_hash]);
+      // 先插新的再删旧的：新内容和已有的记忆重复（主键冲突）时，旧错题不会被删掉丢失
+      if (await getByHash(env, hash)) throw new Error("A memory with this exact content already exists: " + hash);
       await insertMemory(env, { ...m, content, content_hash: hash, metadata: meta, updated_at: now() });
+      await deleteByHashes(env, [m.content_hash]);
       return JSON.stringify({ success: true, content_hash: hash, previous_hash: m.content_hash });
     },
   },

@@ -4,6 +4,7 @@
 //     Google Calendar.list_events
 //     Google Drive.search_files / list_recent_files / read_file_content
 import type { SiteEnv } from "./site";
+import { localToUtcMs } from "./timeexpr";
 
 export class GErr extends Error {
   constructor(public code: string, message: string, public status = 400) {
@@ -201,11 +202,8 @@ export function toRfc3339(s: string, tz = TZ): string {
   const m = /^(\d{4})-(\d\d)-(\d\d)(?:[T ](\d\d):(\d\d)(?::(\d\d))?)?/.exec(s);
   if (!m) throw new GErr("bad_request", "时间格式不对：" + s);
   const [y, mo, d, h, mi, se] = [m[1], m[2], m[3], m[4] || "0", m[5] || "0", m[6] || "0"].map(Number);
-  const guess = Date.UTC(y, mo - 1, d, h, mi, se);
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" }).formatToParts(new Date(guess));
-  const g = (t: string) => Number(parts.find((p) => p.type === t)!.value);
-  const asLocal = Date.UTC(g("year"), g("month") - 1, g("day"), g("hour"), g("minute"), g("second"));
-  return new Date(guess - (asLocal - guess)).toISOString();
+  // 偏移在结果时刻上再核对一次（只算一次的话，夏令时切换后的几个小时会差一小时）
+  return new Date(localToUtcMs(y, mo, d, h, mi, se, tz)).toISOString();
 }
 
 async function listEvents(env: SiteEnv, input: Record<string, any>) {

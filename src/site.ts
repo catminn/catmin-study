@@ -101,19 +101,22 @@ document.getElementById("f").onsubmit=async e=>{e.preventDefault();const el=docu
 </script>`;
 
 // ---------- 花费 ----------
-const day = () => new Date().toISOString().slice(0, 10);
+// 「今天」按美东日期算（花费上限在她那边的午夜重置，而不是美东晚上 7/8 点）
+const day = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 async function spent(env: SiteEnv) {
   const d = day();
   const m = d.slice(0, 7);
   const r = await env.DB.prepare(
-    "SELECT COALESCE(SUM(CASE WHEN day=? THEN cost_usd END),0) AS today, COALESCE(SUM(CASE WHEN substr(day,1,7)=? THEN cost_usd END),0) AS month FROM api_usage",
+    "SELECT COALESCE(SUM(CASE WHEN day=? THEN cost_usd END),0) AS today, COALESCE(SUM(CASE WHEN substr(day,1,7)=? THEN cost_usd END),0) AS month FROM api_usage WHERE day>=?",
   )
-    .bind(d, m)
+    .bind(d, m, m + "-01")
     .first<{ today: number; month: number }>();
   return { today: r?.today ?? 0, month: r?.month ?? 0 };
 }
 function limits(env: SiteEnv) {
-  return { daily: Number(env.DAILY_LIMIT_USD || 1), monthly: Number(env.MONTHLY_LIMIT_USD || 10) };
+  // 配置写错（NaN）时退回默认值，否则 NaN 比较永远为 false，等于没有上限
+  const num = (v: string | undefined, d: number) => { const n = Number(v); return v && Number.isFinite(n) ? n : d; };
+  return { daily: num(env.DAILY_LIMIT_USD, 1), monthly: num(env.MONTHLY_LIMIT_USD, 10) };
 }
 async function recordUsage(env: SiteEnv, model: string, inTok: number, outTok: number) {
   const p = MODELS[model];
@@ -168,7 +171,7 @@ async function runDriveTool(env: SiteEnv, name: string, input: any, seen?: { tit
   }
 }
 // 带工具的回答：最多 5 轮「模型要工具 → 服务器执行 → 把结果给模型」，最后返回整段文字
-async function anthropicWithTools(env: SiteEnv, model: string, r: AiReq, signal: AbortSignal) {
+async function anthropicWithTools(env: SiteEnv, model: string, r: AiReq, signal: AbortSignal, used: { inTok: number; outTok: number }) {
   const maxTok = Math.min(Math.max(Number(r.max_tokens) || 4096, 256), 16000);
   const imgs = (r.images || []).slice(0, 5);
   const msgs: any[] = r.messages.map((m, idx) => {
@@ -178,7 +181,7 @@ async function anthropicWithTools(env: SiteEnv, model: string, r: AiReq, signal:
     if (idx === 0 && text.length > 200) return { role: m.role, content: [{ type: "text", text, cache_control: { type: "ephemeral" } }] };
     return { role: m.role, content: text };
   });
-  let inTok = 0, outTok = 0, truncated = false, text = "";
+  let truncated = false, text = "";
   const seen = { titles: {} as Record<string, string>, files: [] as { id: string; title: string; text: string }[] };
   for (let round = 0; round < 6; round++) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -189,8 +192,9 @@ async function anthropicWithTools(env: SiteEnv, model: string, r: AiReq, signal:
     if (!res.ok) { const t = await res.text().catch(() => ""); throw Object.assign(new Error("upstream"), { status: res.status, body: t }); }
     const o: any = await res.json();
     const u = o.usage || {};
-    inTok += Math.round((u.input_tokens ?? 0) + 1.25 * (u.cache_creation_input_tokens ?? 0) + 0.1 * (u.cache_read_input_tokens ?? 0));
-    outTok += u.output_tokens ?? 0;
+    // 每轮的用量记在调用方的计数器里：中途出错时前几轮的花费也要记账
+    used.inTok += Math.round((u.input_tokens ?? 0) + 1.25 * (u.cache_creation_input_tokens ?? 0) + 0.1 * (u.cache_read_input_tokens ?? 0));
+    used.outTok += u.output_tokens ?? 0;
     const blocks: any[] = o.content || [];
     text = blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
     if (o.stop_reason === "max_tokens") truncated = true;
@@ -200,7 +204,7 @@ async function anthropicWithTools(env: SiteEnv, model: string, r: AiReq, signal:
     for (const b of blocks.filter((b) => b.type === "tool_use")) results.push({ type: "tool_result", tool_use_id: b.id, content: await runDriveTool(env, b.name, b.input, seen) });
     msgs.push({ role: "user", content: results });
   }
-  return { text, inTok, outTok, truncated, files: seen.files };
+  return { text, inTok: used.inTok, outTok: used.outTok, truncated, files: seen.files };
 }
 type Img = { media_type: string; data: string };
 type Msg = { role: "user" | "assistant"; content: string };
@@ -366,14 +370,18 @@ async function aiHandler(req: Request, env: SiteEnv, ctx: ExecutionContext) {
     const { readable, writable } = new TransformStream();
     const w = writable.getWriter();
     const send = (o: unknown) => w.write(enc.encode("data: " + JSON.stringify(o) + "\n\n"));
+    const used = { inTok: 0, outTok: 0 };
+    let recorded = false;
     const work = (async () => {
       try {
-        const out = await anthropicWithTools(env, model, r, ac.signal);
+        const out = await anthropicWithTools(env, model, r, ac.signal, used);
+        const cost = await recordUsage(env, model, out.inTok, out.outTok);
+        recorded = true;
         if (out.text) await send({ d: out.text });
         if (out.files.length) await send({ files: out.files });
-        const cost = await recordUsage(env, model, out.inTok, out.outTok);
         await send({ done: true, model, cost, truncated: out.truncated, input_tokens: out.inTok, output_tokens: out.outTok });
       } catch (e: any) {
+        if (!recorded && (used.inTok || used.outTok)) await recordUsage(env, model, used.inTok, used.outTok).catch(() => {});
         const ue = e?.status ? upstreamError(e.status, e.body || "") : null;
         await send({ error: ue && (ue as any).code ? { code: (ue as any).code, message: (ue as any).message } : { code: ac.signal.aborted ? "cancelled" : "upstream_error", message: String(e?.message ?? e) } }).catch(() => {});
       } finally {
@@ -475,7 +483,8 @@ async function dbHandler(req: Request, env: SiteEnv, url: URL) {
   }
   if (req.method === "PUT") {
     const text = await req.text();
-    if (text.length > 1_800_000) return err("too_large", "存档太大", 413);
+    // 按 UTF-8 字节算（D1 单值上限约 2MB；中文一个字 3 字节，按字符数算会放过超限的存档，D1 报错变成 500）
+    if (text.length > 1_800_000 || enc.encode(text).length > 1_800_000) return err("too_large", "存档太大", 413);
     try {
       JSON.parse(text);
     } catch {
@@ -496,15 +505,21 @@ async function dbHandler(req: Request, env: SiteEnv, url: URL) {
 }
 
 // 每天第一次保存存档前，把旧存档复制一份到 bak.state.YYYY-MM-DD（美东日期），保留 14 天
+// 本实例已确认备份过的日期：存档每几秒保存一次，同一天里不用每次都跑 INSERT + DELETE
+let backedUpDay = "";
 async function dailyBackup(env: SiteEnv, t: number) {
   const day = new Date(t * 1000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  if (backedUpDay === day) return;
   const bk = "bak.state." + day;
-  await env.DB.prepare(
+  const ins = await env.DB.prepare(
     `INSERT OR IGNORE INTO study_state (key,value,version,updated_at,updated_by)
      SELECT ?, value, 1, ?, 'backup' FROM study_state WHERE key='state'`,
   )
     .bind(bk, t)
     .run();
+  // 还没有 state（第一次保存）时不记，下次保存再试
+  if (ins.meta.changes || (await env.DB.prepare("SELECT 1 FROM study_state WHERE key=?").bind(bk).first())) backedUpDay = day;
+  if (!ins.meta.changes) return;
   const old = new Date((t - 14 * 86400) * 1000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   await env.DB.prepare("DELETE FROM study_state WHERE key LIKE 'bak.state.%' AND key < ?").bind("bak.state." + old).run();
 }
@@ -525,7 +540,7 @@ async function exportHandler(env: SiteEnv) {
     try { value = JSON.parse(r.value); } catch { value = { __unparsable: r.value }; }
     return { key: r.key, version: r.version, updated_at: r.updated_at, updated_by: r.updated_by, value };
   });
-  const day = new Date().toISOString().slice(0, 10);
+  const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   return json(
     { format: "zhushen-export-v1", exported_at: new Date().toISOString(), counts: { study_state: docs.length, chat_summaries: cs.results.length }, study_state: docs, chat_summaries: cs.results },
     200,
@@ -605,6 +620,9 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (req.method !== "GET") {
       const origin = req.headers.get("Origin");
       if (origin && origin !== url.origin) return err("forbidden", "跨站请求被拒绝", 403);
+      // 没带 Origin 时看浏览器的 Sec-Fetch-Site（同站的其他子域名也算跨源）
+      const sfs = req.headers.get("Sec-Fetch-Site");
+      if (!origin && sfs && sfs !== "same-origin" && sfs !== "none") return err("forbidden", "跨站请求被拒绝", 403);
     }
     if (p === "/api/logout")
       return json({ ok: true }, 200, { "Set-Cookie": `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax` });
