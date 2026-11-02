@@ -356,6 +356,14 @@ body.dg-on{overflow:hidden}
   body:not(.dg-more) .dg .fighters,body:not(.dg-more) #focusPill,body:not(.dg-more) #duePanel,body:not(.dg-more) #skillPanel,body:not(.dg-more) #questBar{display:none!important}
   body.dg-more .dg-more-btn{background:rgba(240,192,96,.25)}
   .dg .choices .qcard,.dg .choices>div{max-height:32vh;overflow:auto}
+  /* 手机上聊天区再挤出地方：输入区、题目卡都收紧，资料/Drive 那一排也收进 ⋯ */
+  body:not(.dg-more) .dg .dg-res{display:none!important}
+  .dg .composer{padding:6px 8px;gap:5px;border-radius:14px}
+  .dg .modes .btn{font-size:13px;padding:3px 10px;min-height:0;box-shadow:none}
+  .dg .inrow{gap:6px;align-items:center}.dg .inrow .btn{padding:6px 10px}
+  .dg .composer textarea{min-height:38px;font-size:15px;padding:8px 10px}
+  .dg .chat{gap:10px}.dg .chat .ln{font-size:15px;line-height:1.65}.dg .chat .ln.nar{font-size:15px}
+  .ln.qq2{padding:8px 12px;font-size:15px;line-height:1.6;border-radius:12px}.ln.qq2 .q-h{font-size:17px}
 }
 .dg-tabrow{display:flex;gap:6px;align-items:stretch}.dg-tabrow .dg-tabs{flex:1;min-width:0}
 .dg-more-btn.dot{position:relative}.dg-more-btn.dot::after{content:"";position:absolute;top:5px;right:6px;width:8px;height:8px;border-radius:50%;background:#e5484d}.dg-more-btn{display:none;flex:none;width:40px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#efedf8;font-size:18px;cursor:pointer}
@@ -574,7 +582,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
             <textarea id="input" rows="1" placeholder="回答或提问"></textarea>
             <button class="btn go" id="sendBtn">发送</button>
           </div>
-          <div class="row between" style="gap:6px;flex-wrap:wrap"><div class="row" style="gap:6px"><button class="btn sm glass" id="libBtn" title="资料架">资料 0</button><button class="btn sm glass" id="driveBtn" title="从 Google Drive 添加">Drive</button><button class="btn sm glass" id="stopBtn" hidden>停止</button></div><div class="aiNote" id="aiNote"></div></div>
+          <div class="row between dg-res" style="gap:6px;flex-wrap:wrap"><div class="row" style="gap:6px"><button class="btn sm glass" id="libBtn" title="资料架">资料 0</button><button class="btn sm glass" id="driveBtn" title="从 Google Drive 添加">Drive</button><button class="btn sm glass" id="stopBtn" hidden>停止</button></div><div class="aiNote" id="aiNote"></div></div>
         </div>
       </div>
     </div>
