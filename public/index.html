@@ -1023,7 +1023,7 @@ ${mem}
  "chem":{"exams":[...],"topics":[...],"ps":{"n":8,"due":"2026-10-28"},"lab":null},
  "engri":{"exams":[...],"topics":[...],"hw":null},
  "engl":{"disc":null}}
-规则：exams 只列今天之后还没考的考试（due 用本地时间，格式 YYYY-MM-DDTHH:MM）；topics 是下一场考试范围内按顺序排的知识点，每科最多 10 个，标题简短，有讲课日期就填 lec；math.hw 列出今天之后的作业编号和截止日期（YYYY-MM-DD）；ps、lab、hw、disc 是下一次的编号和截止日期，不知道就写 null。`,{cache:false});
+规则：exams 只列今天之后还没考的考试（due 用本地时间，格式 YYYY-MM-DDTHH:MM）；topics 是下一场考试范围内按顺序排的知识点，每科最多 10 个，标题简短，有讲课日期就填 lec；math.hw 列出今天之后的作业编号和截止日期（YYYY-MM-DD）；ps、lab、hw、disc 是下一次的编号和截止日期，不知道就写 null。`,{cache:false,siteModel:"claude-haiku-5-5"});
     if(!j||typeof j!=="object")throw{code:"invalid_json"};S.dyn={at:Date.now(),data:j};applyDyn();save();renderAll();toast("课程信息已从共享记忆更新")}
   catch(e){S.dynErr=(e&&e.code)==="no_mem"?SM_STATE:sampleErr(e);if(S.dyn)S.dyn.at=Date.now();save()}
   finally{SYNCING=false;renderSyncRow()}}
@@ -1663,7 +1663,7 @@ async function smFlush(manual,only){if(SMF||!MCP||S.sharedMem===false)return -1;
       if(smWrite("memory_store",{content:"【学习网站·动态】Catherine 在学习网站「学习空间」上的记录：\n"+ev.map(e=>fmt(e.at)+" "+(e.s&&SUBJ[e.s]?SUBJ[e.s].name+" · ":"")+e.t).join("\n"),metadata:{tags:"study-site,activity",type:"activity"}},()=>{S.smEvAt=Math.max(S.smEvAt||0,lastEv);S.smLast=Date.now();save();if(curView()==="bag")renderBag()}))n++}
     if(SAMPLE)for(const k of only?[only]:Object.keys(SUBJ)){const seen=S.smSeen[k]||0;const nt=[...CHATS[k],...((typeof ZW!=="undefined"&&ZW.hist&&ZW.hist[k])||[])].filter(t=>t.at&&t.at>seen&&!t.quiz).sort((a,b)=>a.at-b.at);if(nt.length<(manual?1:4))continue;
       const convo=nt.map(t=>(t.role==="user"?"Catherine：":"网站：")+String(t.content).slice(0,1500)).join("\n\n").slice(-20000);const last=Math.max(...nt.map(t=>t.at));
-      let r=null;try{r=await SAMPLE.json(`下面是 Catherine 在学习网站「学习空间」上 ${SUBJ[k].full} 的一段学习对话。网站把学习包装成无限流剧情，请忽略剧情，只提取以后对她有用的学习信息，写给她的其他 AI 助手看。\n\n${convo}\n\n只回复 JSON：{"summary":"三到六句中文：这次学了或做了什么，她掌握了什么，卡在哪里，还有什么没解决，下次从哪接着学。具体到知识点、题号、作业名，不写剧情。","worth":true}，如果这段对话里没有任何学习内容，worth 写 false。`,{cache:false})}catch(e){continue}
+      let r=null;try{r=await SAMPLE.json(`下面是 Catherine 在学习网站「学习空间」上 ${SUBJ[k].full} 的一段学习对话。网站把学习包装成无限流剧情，请忽略剧情，只提取以后对她有用的学习信息，写给她的其他 AI 助手看。\n\n${convo}\n\n只回复 JSON：{"summary":"三到六句中文：这次学了或做了什么，她掌握了什么，卡在哪里，还有什么没解决，下次从哪接着学。具体到知识点、题号、作业名，不写剧情。","worth":true}，如果这段对话里没有任何学习内容，worth 写 false。`,{cache:false,siteModel:"claude-haiku-5-5"})}catch(e){continue}
       if(r&&r.worth!==false&&r.summary){if(smWrite("memory_store",{content:"【学习网站·"+SUBJ[k].full+"】"+new Date().toLocaleDateString("sv-SE")+" 学习记录："+String(r.summary).slice(0,1200),metadata:{tags:"study-site,"+smTag(k)+",session",type:"learning"}},()=>{S.smSeen[k]=Math.max(S.smSeen[k]||0,last);S.smLast=Date.now();save();if(curView()==="bag")renderBag()}))n++}
       else{S.smSeen[k]=last;save()}}}
   finally{SMF=false}return n}
@@ -2614,7 +2614,7 @@ engri = ENGRI 1170 机械工程导论
 engl = ENGL 1111 Modern Fantasy Media（奇幻作品、写作研讨课）
 文件名：${f.name}
 ${text?"开头的内容：\n"+text.slice(0,1800):"（读不出文字，只能看文件名）"}
-明显属于其中一门课才回答，拿不准、或者看起来和学习无关（安装包、随手存的图片、表格模板等）就写 null。只回复 JSON：{"subj":"math|chem|engri|engl|null"}`,{cache:false});
+明显属于其中一门课才回答，拿不准、或者看起来和学习无关（安装包、随手存的图片、表格模板等）就写 null。只回复 JSON：{"subj":"math|chem|engri|engl|null"}`,{cache:false,siteModel:"claude-haiku-5-5"});
       if(j&&SUBJ[j.subj])subj=j.subj}catch(e){}}
   if(!subj)return;
   const dest=await DESK.inboxPlace(item.src,COURSE[subj],f.name);if(!dest)return;
