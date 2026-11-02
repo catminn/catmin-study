@@ -22,9 +22,9 @@
 </style></head><body>
 <svg viewBox="0 0 300 300" id="svg"><g class="ring" id="g"></g></svg>
 <script>
-  // 外圈五格（拖上去的文件是什么），中间“拖到这里取消”。哪门课、哪份作业由零判断
+  // 外圈六格（拖上去的文件是什么），中间“拖到这里取消”。哪门课、哪份作业由零判断
   const SEG = [
-    { k: "hw", t: "作业" }, { k: "review", t: "复习资料" }, { k: "material", t: "课程资料" }, { k: "notes", t: "老师笔记" }, { k: "ask", t: "问零" },
+    { k: "hw", t: "作业" }, { k: "lab", t: "实验" }, { k: "review", t: "复习资料" }, { k: "material", t: "课程资料" }, { k: "notes", t: "老师笔记" }, { k: "ask", t: "问零" },
   ];
   const C = 150, R1 = 58, R2 = 138, RAD = 10, GAP = 6, N = SEG.length, g = document.getElementById("g"), NS = "http://www.w3.org/2000/svg";
   const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || g).append(e); return e; };

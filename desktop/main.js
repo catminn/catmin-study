@@ -686,7 +686,7 @@ function startRingHook() {
 }
 let ringHoverKey = "", ringDropAt = 0, ringSel = null, ringCenter = null;
 // 和 ring.html 一样的五格：从正上方顺时针
-const RING_KEYS = ["hw", "review", "material", "notes", "ask"];
+const RING_KEYS = ["hw", "lab", "review", "material", "notes", "ask"];
 function ringSector(px, py) {
   if (!ringCenter) return "";
   const p = toDip(px, py), x = p.x - ringCenter.x, y = p.y - ringCenter.y, d = Math.hypot(x, y), s = RING / 300, N = RING_KEYS.length;
