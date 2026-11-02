@@ -128,6 +128,61 @@ async function recordUsage(env: SiteEnv, model: string, inTok: number, outTok: n
 }
 
 // ---------- AI ----------
+// 服务器端工具：模型在回答前可以自己调 Google Drive（用网站连的 Google 账号）
+const DRIVE_TOOLS = [
+  { name: "drive_search", description: "在 Catherine 的 Google Drive 里按文件名搜索，返回文件 id、标题、类型、修改时间。关键词尽量短，比如 HW8、Quiz 3、Lab 8；搜不到就换个关键词再试。", input_schema: { type: "object", properties: { query: { type: "string", description: "文件名里包含的关键词" } }, required: ["query"] } },
+  { name: "drive_read", description: "读出 Google Drive 里一个文件的文字内容（PDF、Google 文档、Word 等），参数是 drive_search 给的 id。", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+];
+async function runDriveTool(env: SiteEnv, name: string, input: any): Promise<string> {
+  try {
+    if (name === "drive_search") {
+      const q = String(input?.query || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      const r: any = await googleTool(env, "Google Drive", "search_files", { query: `title contains '${q}'`, pageSize: 12 });
+      return JSON.stringify((r.files || []).map((f: any) => ({ id: f.id, title: f.title, mimeType: f.mimeType, modified: f.modifiedTime })));
+    }
+    if (name === "drive_read") {
+      const r: any = await googleTool(env, "Google Drive", "read_file_content", { fileId: String(input?.id || "") });
+      return String(r.fileContent || "（读不出文字）").slice(0, 24000);
+    }
+    return "没有这个工具";
+  } catch (e: any) {
+    return "出错了：" + String(e?.message || e).slice(0, 200);
+  }
+}
+// 带工具的回答：最多 5 轮「模型要工具 → 服务器执行 → 把结果给模型」，最后返回整段文字
+async function anthropicWithTools(env: SiteEnv, model: string, r: AiReq, signal: AbortSignal) {
+  const maxTok = Math.min(Math.max(Number(r.max_tokens) || 4096, 256), 16000);
+  const imgs = (r.images || []).slice(0, 5);
+  const msgs: any[] = r.messages.map((m, idx) => {
+    const text = String(m.content ?? "");
+    if (idx === r.messages.length - 1 && m.role === "user" && imgs.length)
+      return { role: m.role, content: [...imgs.map((im) => ({ type: "image", source: { type: "base64", media_type: im.media_type, data: im.data } })), { type: "text", text }] };
+    if (idx === 0 && text.length > 200) return { role: m.role, content: [{ type: "text", text, cache_control: { type: "ephemeral" } }] };
+    return { role: m.role, content: text };
+  });
+  let inTok = 0, outTok = 0, truncated = false, text = "";
+  for (let round = 0; round < 6; round++) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST", signal,
+      headers: { "x-api-key": env.ANTHROPIC_API_KEY!, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model, max_tokens: maxTok, messages: msgs, tools: round < 5 ? DRIVE_TOOLS : undefined }),
+    });
+    if (!res.ok) { const t = await res.text().catch(() => ""); throw Object.assign(new Error("upstream"), { status: res.status, body: t }); }
+    const o: any = await res.json();
+    const u = o.usage || {};
+    inTok += Math.round((u.input_tokens ?? 0) + 1.25 * (u.cache_creation_input_tokens ?? 0) + 0.1 * (u.cache_read_input_tokens ?? 0));
+    outTok += u.output_tokens ?? 0;
+    const blocks: any[] = o.content || [];
+    text = blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
+    if (o.stop_reason === "max_tokens") truncated = true;
+    if (o.stop_reason !== "tool_use") break;
+    msgs.push({ role: "assistant", content: blocks });
+    const results = [];
+    for (const b of blocks.filter((b) => b.type === "tool_use")) results.push({ type: "tool_result", tool_use_id: b.id, content: await runDriveTool(env, b.name, b.input) });
+    msgs.push({ role: "user", content: results });
+  }
+  return { text, inTok, outTok, truncated };
+}
 type Img = { media_type: string; data: string };
 type Msg = { role: "user" | "assistant"; content: string };
 interface AiReq {
@@ -137,6 +192,7 @@ interface AiReq {
   tier?: string;
   images?: Img[];
   max_tokens?: number;
+  serverTools?: string[]; // ["drive"]：让模型自己去 Google Drive 搜文件、读内容（只支持 Anthropic）
 }
 
 function pickModel(env: SiteEnv, r: AiReq): string | null {
@@ -287,6 +343,26 @@ async function aiHandler(req: Request, env: SiteEnv, ctx: ExecutionContext) {
 
   const ac = new AbortController();
   req.signal?.addEventListener?.("abort", () => ac.abort());
+  if (prov === "anthropic" && Array.isArray(r.serverTools) && r.serverTools.includes("drive")) {
+    const { readable, writable } = new TransformStream();
+    const w = writable.getWriter();
+    const send = (o: unknown) => w.write(enc.encode("data: " + JSON.stringify(o) + "\n\n"));
+    const work = (async () => {
+      try {
+        const out = await anthropicWithTools(env, model, r, ac.signal);
+        if (out.text) await send({ d: out.text });
+        const cost = await recordUsage(env, model, out.inTok, out.outTok);
+        await send({ done: true, model, cost, truncated: out.truncated, input_tokens: out.inTok, output_tokens: out.outTok });
+      } catch (e: any) {
+        const ue = e?.status ? upstreamError(e.status, e.body || "") : null;
+        await send({ error: ue && (ue as any).code ? { code: (ue as any).code, message: (ue as any).message } : { code: ac.signal.aborted ? "cancelled" : "upstream_error", message: String(e?.message ?? e) } }).catch(() => {});
+      } finally {
+        await w.close().catch(() => {});
+      }
+    })();
+    ctx.waitUntil(work);
+    return new Response(readable, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store" } });
+  }
   let up: Response;
   try {
     up = await upstream(env, model, r, ac.signal);
