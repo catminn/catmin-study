@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="apple-touch-icon" href="/icon-180.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="小助手"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>学习空间</title>
 <link rel="apple-touch-icon" href="https://study.catmin.io/icon-180.png"><link rel="icon" href="https://study.catmin.io/icon-192.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="小助手"><meta name="theme-color" content="#141a35">
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -2935,7 +2935,7 @@ function setTodoDue(t,v){t.due=v||null;t.allDay=false;save();renderAll();refresh
   if(v){if(t.ev)gcalCall("update_event",Object.assign({eventId:t.ev},todoEvArgs(t)));else gcalCall("create_event",todoEvArgs(t)).then(p=>{if(p&&p.id){t.ev=p.id;save()}})}else if(t.ev){gcalCall("delete_event",{eventId:t.ev});t.ev=null;save()}}
 function editDue(el,set){const inp=h("input",{type:"datetime-local",class:"td-due"});const d=new Date(Date.now()+DAY);d.setHours(23,59,0,0);
   inp.value=localKey(d)+"T23:59";el.replaceWith(inp);inp.focus();try{inp.showPicker&&inp.showPicker()}catch(e){}
-  let doneE=false;const fin=ok=>{if(doneE)return;doneE=true;if(ok&&inp.value){const t=Date.parse(inp.value);if(!isNaN(t)){set(t);return}}renderAll()};
+  let doneE=false;const fin=ok=>{if(doneE)return;doneE=true;if(ok&&inp.value){const t=Date.parse(inp.value);if(!isNaN(t)){set(t);tellTodoBusy();return}}renderAll();tellTodoBusy()};
   inp.addEventListener("change",()=>fin(true));inp.addEventListener("keydown",e=>{if(e.key==="Escape")fin(false);if(e.key==="Enter")fin(true)});inp.addEventListener("blur",()=>setTimeout(()=>fin(false),150));
   if(DESK&&DESK.todoBusy)DESK.todoBusy(true)}
 /* 考前计划：考试前 10 天内，零按范围排一份每天一个点的计划；每日一课按计划教，做完一项 +5 */
@@ -2974,14 +2974,17 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
   if(sleepAwake())rows.push(line("起床","",true,false,wakeUp));
   {const hr=new Date(now).getHours();if(!S.sleep&&(hr>=21||hr<6))rows.push(line("晚安",sleepWindow(now).ok?"00:30 前 +"+SLEEP_PTS:"",false,false,goodnight))}
   const ti=h("input",{type:"text",placeholder:"+ 待办"});const dt=h("input",{type:"datetime-local",hidden:true,title:"截止时间（可不填）"});
-  const add=()=>{if(!ti.value.trim())return;addTodo(ti.value,dt.value,"");ti.value="";dt.value="";dt.hidden=true};
+  const add=()=>{if(!ti.value.trim())return;const v=ti.value,d=dt.value;ti.value="";dt.value="";dt.hidden=true;ti.blur();addTodo(v,d,"");tellTodoBusy()};
   ti.addEventListener("focus",()=>{dt.hidden=false});ti.addEventListener("keydown",e=>{if(e.key==="Enter")add();if(e.key==="Escape"){ti.blur();dt.hidden=true}});dt.addEventListener("keydown",e=>{if(e.key==="Enter")add()});
   const pin=DESK&&DESK.setPin?h("button",{class:"td-pin"+(S_PIN?" on":""),"aria-label":S_PIN?"取消置顶":"置顶",onclick:async()=>{S_PIN=!S_PIN;DESK.setPin(S_PIN);renderTodoEmbed()}},S_PIN?"●":"○"):null;
   let grip="";if(DESK&&DESK.resizeBy){grip=h("div",{class:"td-grip"});let last=null;grip.addEventListener("pointerdown",e=>{last={x:e.screenX,y:e.screenY};grip.setPointerCapture(e.pointerId)});grip.addEventListener("pointermove",e=>{if(!last)return;DESK.resizeBy(e.screenX-last.x,e.screenY-last.y);last={x:e.screenX,y:e.screenY}});grip.addEventListener("pointerup",()=>{last=null})}
   const open=items.filter(i=>!i.done).length+(checkedToday()?0:1);const hot=items.filter(i=>!i.done&&!i.nodue&&i.due-now<24*HOUR).length;
   const mini=h("div",{class:"td-mini"},h("b",null,"待办"),h("span",{class:"n"+(hot?" hot":""),title:hot?hot+" 项 24 小时内要交":""},hot?String(hot):open?String(open):"✓"));
   TD_HOT=hot;const tab=h("div",{class:"td-tab"});tab.innerHTML=tabSvg();
-  el.replaceChildren(mini,tab,pin||"",h("div",{class:"td-list"},rows),h("div",{class:"td-add"},ti,dt),grip)}
+  el.replaceChildren(mini,tab,pin||"",h("div",{class:"td-list"},rows),h("div",{class:"td-add"},ti,dt),grip);tellTodoBusy()}
+/* 待办窗口“正在用”：输入框里有字（且还在页面上）或有弹窗。每次重画、加完任务都重新告诉桌面程序，免得卡在“正在用”收不回去 */
+function todoBusyNow(){const a=document.activeElement;return !!((a&&a.isConnected&&a.tagName==="INPUT"&&a.value.trim())||document.querySelector(".scrim,.qz,.pop"))}
+function tellTodoBusy(){if(typeof EMBED!=="undefined"&&EMBED==="todo"&&DESK&&DESK.todoBusy)setTimeout(()=>DESK.todoBusy(todoBusyNow()),0)}
 /* 收起来的样子：一枚燕尾书签，不写字。贴上边时尾巴朝下，贴左右时尾巴朝屏幕里；有 24 小时内要交的，书签上有一个小红点 */
 let TD_HOT=0,TD_EDGE="top";
 function tabSvg(){const n=7,side=TD_EDGE==="left"||TD_EDGE==="right",W=side?34:22,H=side?22:34;
@@ -2992,8 +2995,7 @@ function tabSvg(){const n=7,side=TD_EDGE==="left"||TD_EDGE==="right",W=side?34:2
 if(EMBED==="todo"&&DESK&&DESK.todoMode){const B=document.body;
   DESK.onTodoState&&DESK.onTodoState(st=>{const e=st.mode==="dock"?st.edge:"top";if(e!==TD_EDGE){TD_EDGE=e;const t=document.querySelector(".td-tab");if(t)t.innerHTML=tabSvg()}B.classList.toggle("td-collapsed",st.mode==="mini");B.classList.toggle("td-docked",st.mode==="dock");for(const e of["left","right","top"])B.classList.toggle("dock-"+e,st.mode==="dock"&&st.edge===e)});
   // 输入框里打了字、或者有弹窗时才算“正在用”，空着的输入框不拦着收起
-  const busy=()=>!!((document.activeElement&&document.activeElement.tagName==="INPUT"&&document.activeElement.value.trim())||document.querySelector(".scrim,.qz,.pop"));
-  const tell=()=>DESK.todoBusy&&DESK.todoBusy(busy());["focusin","input","keyup"].forEach(ev=>document.addEventListener(ev,tell));document.addEventListener("focusout",()=>setTimeout(tell,50));new MutationObserver(tell).observe(B,{childList:true});
+  const tell=tellTodoBusy;["focusin","input","keyup"].forEach(ev=>document.addEventListener(ev,tell));document.addEventListener("focusout",()=>setTimeout(tell,50));new MutationObserver(tell).observe(B,{childList:true});
   DESK.onTodoState&&DESK.onTodoState(st=>{if(st.mode!=="full"&&document.activeElement&&document.activeElement.tagName==="INPUT")document.activeElement.blur()});
   if(DESK.isGlass)DESK.isGlass().then(g=>{if(g)B.classList.add("glass")}).catch(()=>{})}
 if(DESK&&EMBED==="zero"&&DESK.isGlass)DESK.isGlass().then(g=>{if(g)document.body.classList.add("glass")}).catch(()=>{});

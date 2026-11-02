@@ -439,7 +439,8 @@ setInterval(() => {
   if (todoState === "full") {
     if (!todo.isVisible()) return;
     if (inRect(p, todo.getBounds(), 6)) todoAway = 0;
-    else if (!todoBusy && ++todoAway >= 5) { todoAway = 0; setTodoMode("mini"); }
+    // “正在用”只在待办窗口还有键盘焦点时拦着；点到别的地方去了就照常收起，免得卡住
+    else if (!(todoBusy && todo.isFocused()) && ++todoAway >= 5) { todoAway = 0; todoBusy = false; setTodoMode("mini"); }
   } else if (tab && !tab.isDestroyed() && tab.isVisible() && inRect(p, tab.getBounds(), 3)) { todoAway = 0; setTodoMode("full"); }
 }, 120);
 // 拖动结束：限制在屏幕内；贴近上、左、右边就记成贴边书签，离开就松开
