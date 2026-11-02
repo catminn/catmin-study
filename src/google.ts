@@ -223,6 +223,7 @@ function evBody(input: Record<string, any>) {
   const b: Record<string, any> = {};
   if (input.summary != null) b.summary = String(input.summary).slice(0, 200);
   if (input.description != null) b.description = String(input.description).slice(0, 2000);
+  if (input.location != null) b.location = String(input.location).slice(0, 300);
   if (input.allDay && input.startTime) {
     const d = String(input.startTime).slice(0, 10), e = String(input.endTime || input.startTime).slice(0, 10);
     b.start = { date: d }; b.end = { date: e > d ? e : new Date(Date.parse(d + "T12:00:00Z") + 864e5).toISOString().slice(0, 10) };
