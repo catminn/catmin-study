@@ -1852,7 +1852,7 @@ function aiTurnEl(t,reveal){const wrap=h("div",{class:"turn"});let lastK=null,la
   return wrap}
 let REVEAL=false;
 function topicFrom(subj){const v=(S.topicFrom||{})[subj]||0;return v>(CHATS[subj]||[]).length?0:v}
-function newTopic(){if(CTL)return;S.topicFrom={...(S.topicFrom||{}),[CUR]:CHATS[CUR].length};if(S.qn)S.qn[CUR]=0;QUEST[CUR]=null;delete S.battle[CUR];save();renderDungeon();setTimeout(()=>{const c=$("#chat");c.scrollTop=c.scrollHeight;$("#input").focus()},0)}
+function newTopic(){if(CTL)return;S.topicFrom={...(S.topicFrom||{}),[CUR]:CHATS[CUR].length};if(S.qn)S.qn[CUR]=0;dcClear(CUR);QUEST[CUR]=null;delete S.battle[CUR];save();renderDungeon();setTimeout(()=>{const c=$("#chat");c.scrollTop=c.scrollHeight;$("#input").focus()},0)}
 function renderChat(){const box=$("#chat");box.replaceChildren();const turns=CHATS[CUR];
   if(!turns.length)box.append(h("div",{class:"ln hint"},SAMPLE?"直接说你想做什么":"需要在 Claude 里打开才能对话"));
   const lastIdx=turns.length-1;let revealEls=[];
@@ -1965,7 +1965,7 @@ async function send(text){text=(text||$("#input").value).trim();if(!text||!SAMPL
   const lastQ=[...turns].reverse().find(t=>t.role==="assistant");const pk=pickLib(subj,text+" "+(QUEST[subj]?QUEST[subj].name||"":"")+" "+(lastQ?String(lastQ.content).slice(-400):""));
   const lib=pk.text?"\n\n她放进资料架的文件（题目、讲义、prompt 等，回答时优先依据这些，引用时说清是哪份）：\n"+pk.text:"";
   const input=[{role:"user",content:contextTurn(subj)+lib+(mem?"\n\n共享记忆里和这次相关的内容（她在别的对话里和 Claude、ChatGPT 记下的，作参考）：\n"+mem:"")},{role:"assistant",content:"已读取玩家档案。"},...hist];
-  const dT=driveTools();if(dT||window.__SITE){const l=input[input.length-1];if(l&&typeof l.content==="string")l.content+=DRIVE_HINT}const opts={cache:false,modelTier:"complex",...(dT?{tools:dT}:{}),...(window.__SITE?{serverTools:["drive"]}:{}),signal:CTL.signal,onText:({text})=>{body.textContent=text.replace(TAG_RE,"").trim();box.scrollTop=box.scrollHeight}};
+  const dT=driveTools();if(dT||window.__SITE){const l=input[input.length-1];if(l&&typeof l.content==="string")l.content+=dcBlock(subj)+DRIVE_HINT}DSUBJ=subj;const opts={cache:false,modelTier:"complex",...(dT?{tools:dT}:{}),...(window.__SITE?{serverTools:["drive"]}:{}),signal:CTL.signal,onText:({text})=>{body.textContent=text.replace(TAG_RE,"").trim();box.scrollTop=box.scrollHeight}};
   if(imgs.length)opts.images=imgs.slice(0,5);
   try{const r=await SAMPLE(input,opts);PARSED_CHOICES=null;REVEAL=true;TAGFX=false;const clean=stripTags(subj,r.text);if(subj!=="engl")advanceBeat(subj,false);{const hv=harvest(subj,clean);if(!TAGFX&&S.battle[subj]){if(hv.ok)battleHit(subj);else if(hv.bad)battleMiss(subj)}}save();if(PARSED_CHOICES){PARSED_CHOICES=PARSED_CHOICES.map(x=>x.replace(/^[A-DＡ-Ｄ][.．、:：)]\s*/,""));for(let i=PARSED_CHOICES.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[PARSED_CHOICES[i],PARSED_CHOICES[j]]=[PARSED_CHOICES[j],PARSED_CHOICES[i]]}}turns.push({role:"assistant",at:Date.now(),content:clean||"（收到）",choices:PARSED_CHOICES||undefined,refs:pk.refs.length?pk.refs.slice(0,6):undefined});if(r.truncated)$("#aiNote").textContent="回答被截断了，可以说「继续」。"}
   catch(e){if(e&&e.code!=="cancelled")$("#aiNote").textContent=sampleErr(e);if(e&&e.text)turns.push({role:"assistant",content:stripTags(subj,e.text)})}
@@ -2043,12 +2043,19 @@ async function driveRead(f){const r=await MCP.callTool(DRIVE,"read_file_content"
 function smPayload(r,raw){let p=r&&r.payload;if(p&&Array.isArray(p.content)&&p.content[0]&&typeof p.content[0].text==="string")p=p.content[0].text;if(raw)return typeof p==="string"?p:JSON.stringify(p);if(typeof p==="string"){try{return JSON.parse(p)}catch(e){return null}}return p}
 function driveTools(){if(window.__SITE||!MCP)return null;const qe=t=>String(t).replace(/\\/g,"\\\\").replace(/'/g,"\\'");
   return[{name:"drive_search",description:"在 Catherine 的 Google Drive 里按文件名搜索，返回文件 id、标题、类型、修改时间。关键词尽量短，比如 HW8、Quiz 3、Lab 8；搜不到就换个关键词再试。",inputSchema:{type:"object",properties:{query:{type:"string",description:"文件名里包含的关键词"}},required:["query"]},
-      execute:async({query})=>{try{const r=await MCP.callTool(SM,"drive_search",{query},{cache:false});const v=smPayload(r);if(Array.isArray(v))return v;if(v&&Array.isArray(v.files))return v}catch(e){}
+      execute:async({query})=>{try{const r=await MCP.callTool(SM,"drive_search",{query},{cache:false});const v=smPayload(r);const fl=Array.isArray(v)?v:v&&Array.isArray(v.files)?v.files:null;if(fl){for(const f of fl)if(f&&f.id)DTITLE[f.id]=f.title;return v}}catch(e){}
         const r=await MCP.callTool(DRIVE,"search_files",{query:"title contains '"+qe(query)+"'",pageSize:12,excludeContentSnippets:true},{cache:false});return(drivePayload(r).files||[]).map(f=>({id:f.id,title:f.title,mimeType:f.mimeType,modified:f.modifiedTime}))}},
     {name:"drive_read",description:"读出 Google Drive 里一个文件的文字内容（PDF、Google 文档、Word 等），参数是 drive_search 给的 id（和 account）。",inputSchema:{type:"object",properties:{id:{type:"string"},account:{type:"string"}},required:["id"]},
-      execute:async({id,account})=>{try{const r=await MCP.callTool(SM,"drive_read",{id,...(account?{account}:{})},{cache:false});const v=smPayload(r,true);if(typeof v==="string"&&v)return v.slice(0,24000)}catch(e){}
-        const t=await driveRead({id});return String(t||"（这个文件读不出文字，可能是扫描件）").slice(0,24000)}}]}
-const DRIVE_HINT="\n\n（你可以用 drive_search 和 drive_read 两个工具直接去她的 Google Drive 找文件、读内容。她说文件在 Drive 里时，自己去找，不要让她再发。）";
+      execute:async({id,account})=>{const sj=DSUBJ;if(DCACHE[id])return DCACHE[id].text;try{const r=await MCP.callTool(SM,"drive_read",{id,...(account?{account}:{})},{cache:false});const v=smPayload(r,true);if(typeof v==="string"&&v){dcPut(id,v,sj);return v.slice(0,24000)}}catch(e){}
+        const t=await driveRead({id});if(t)dcPut(id,t,sj);return String(t||"（这个文件读不出文字，可能是扫描件）").slice(0,24000)}}]}
+const DRIVE_HINT="\n\n（你可以用 drive_search 和 drive_read 两个工具直接去她的 Google Drive 找文件、读内容。她说文件在 Drive 里时，自己去找，不要让她再发。但只在真的需要一份还没读过的文件时才用：上面「已经读过的 Drive 文件」里有的内容直接用，不要再搜再读；普通的讲解、出题、批改不需要碰 Drive。）";
+let DCACHE={};try{DCACHE=JSON.parse(localStorage.getItem("zs-drive-cache")||"{}")||{}}catch(e){}
+const DTITLE={};let DSUBJ="";
+function dcSave(){try{const ks=Object.keys(DCACHE).sort((a,b)=>DCACHE[b].at-DCACHE[a].at);let tot=0;for(const k of ks){tot+=DCACHE[k].text.length;if(tot>150000)delete DCACHE[k]}localStorage.setItem("zs-drive-cache",JSON.stringify(DCACHE))}catch(e){}}
+function dcPut(id,text,subj){if(!id||!text)return;DCACHE[id]={title:DTITLE[id]||(DCACHE[id]&&DCACHE[id].title)||id,text:String(text).slice(0,24000),subj,at:Date.now()};dcSave()}
+function dcClear(subj){for(const k of Object.keys(DCACHE))if(DCACHE[k].subj===subj)delete DCACHE[k];dcSave()}
+function dcBlock(subj){const fs=Object.values(DCACHE).filter(d=>d.subj===subj).sort((a,b)=>b.at-a.at).slice(0,3);if(!fs.length)return"";let left=36000;
+  return"\n\n【已经读过的 Drive 文件，内容如下，直接用，不要再去 Drive 搜或读】\n"+fs.map(d=>{const t=d.text.slice(0,Math.max(0,Math.min(left,16000)));left-=t.length;return"### "+d.title+"\n"+t}).join("\n\n")}
 function openDrive(){if(!MCP){toast("需要在 Claude 里打开");return}const subj=CUR;
   const list=h("div",{class:"dlist"},h("div",{class:"muted"},"读取中…"));const q=h("input",{class:"dsearch",type:"search",placeholder:"搜索文件名或文件夹名"});
   sheet(subj,h("h3",null,"从 Google Drive 添加"),h("div",{class:"muted"},"点文件夹会把里面能读的文件全部加进来。"),q,list);
@@ -2114,7 +2121,7 @@ async function zwSend(text,show){text=(text||$("#zwInput").value).trim();const h
   for(const t of ZW.turns.slice(0,-12))if(t.docs&&budget>0&&hist.length){for(const d of t.docs){const x=d.text.slice(0,budget);budget-=x.length;hist[0].content="【她之前发过的附件 "+d.name+"】\n"+x+"\n\n"+hist[0].content}}
   const mem=await smSearch(subj,text);
   const input=[{role:"user",content:zwContext(subj)},{role:"assistant",content:"收到。"},...hist];{const last=input[input.length-1];last.content+="\n\n"+zwNowNote()+(mem?"\n\n共享记忆里相关的内容（参考）：\n"+mem:"")}
-  const dT=driveTools();if(dT||window.__SITE){const l=input[input.length-1];l.content+=DRIVE_HINT}const opts={cache:false,modelTier:"complex",siteModel:"claude-haiku-5-5",...(dT?{tools:dT}:{}),...(window.__SITE?{serverTools:["drive"]}:{}),signal:ZW.ctl.signal,onText:({text})=>{const at=zwAtBottom();bub.textContent=text.replace(TAG_RE,"").trim();if(at)log.scrollTop=log.scrollHeight;else{ZW.unread=true;zwJumpBtn()}}};ZW.imgMem=ZW.imgMem||{};const old=(ZW.imgMem[subj]||[]).filter(f=>!imgs.includes(f));const send=[...imgs,...old.slice(0,2)].slice(0,5);if(send.length||budget<24000||S.zwMode==="ddl")opts.siteModel="claude-sonnet-5-5";if(send.length){opts.images=send;if(send.length>imgs.length){const last=input[input.length-1];last.content+="\n\n（附带的图片里，"+(imgs.length?"前 "+imgs.length+" 张是这次发的，后面":"全部")+"是她之前发过的）"}}
+  const dT=driveTools();if(dT||window.__SITE){const l=input[input.length-1];l.content+=dcBlock(ZW.subj)+DRIVE_HINT}DSUBJ=ZW.subj;const opts={cache:false,modelTier:"complex",siteModel:"claude-haiku-5-5",...(dT?{tools:dT}:{}),...(window.__SITE?{serverTools:["drive"]}:{}),signal:ZW.ctl.signal,onText:({text})=>{const at=zwAtBottom();bub.textContent=text.replace(TAG_RE,"").trim();if(at)log.scrollTop=log.scrollHeight;else{ZW.unread=true;zwJumpBtn()}}};ZW.imgMem=ZW.imgMem||{};const old=(ZW.imgMem[subj]||[]).filter(f=>!imgs.includes(f));const send=[...imgs,...old.slice(0,2)].slice(0,5);if(send.length||budget<24000||S.zwMode==="ddl")opts.siteModel="claude-sonnet-5-5";if(send.length){opts.images=send;if(send.length>imgs.length){const last=input[input.length-1];last.content+="\n\n（附带的图片里，"+(imgs.length?"前 "+imgs.length+" 张是这次发的，后面":"全部")+"是她之前发过的）"}}
   if(imgs.length){const last=input[input.length-1];last.content+="\n\n（她这次发了图片。请在回复最后写一行 [图片]，把图里的题目文字、选项和数字原样记下来，看不清的写“?”。这行不会显示给她，是给你之后回看用的。）"}
   ZW.imgMem[subj]=[...imgs,...(ZW.imgMem[subj]||[])].filter((f,i,a)=>a.indexOf(f)===i).slice(0,4);
   try{const r=await SAMPLE(input,opts);let raw=r.text,sw=null;raw=raw.replace(/^\s*\[科目\]\s*(math|chem|engri|engl)\s*$/m,(_,k)=>{sw=k;return""});const keep=[];raw=raw.replace(/^\s*\[记住\]\s*(.+)$/gm,(_,x)=>{keep.push(x.trim());return""});
