@@ -305,7 +305,7 @@ function ensureTab() {
   tab = new BrowserWindow({ width: MINI.width, height: MINI.height, frame: false, ...smallOpts(), resizable: false, movable: false, focusable: false, thickFrame: false,
     skipTaskbar: true, alwaysOnTop: true, hasShadow: false, show: false, minWidth: 10, minHeight: 10,
     webPreferences: { preload: path.join(__dirname, "tab-preload.js"), contextIsolation: true, sandbox: false } });
-  tab.setAlwaysOnTop(conf.todoPinned !== false, "screen-saver"); // 置顶时书签也一直在最上面
+  tab.setAlwaysOnTop(!gameHidden && conf.todoPinned !== false, "screen-saver"); // 置顶时书签也一直在最上面（玩游戏时不置顶）
   tab.loadFile(path.join(__dirname, "tab.html"));
   tab.on("closed", () => { tab = null; });
   return tab;
@@ -357,7 +357,7 @@ let todoBusy = false, todoAway = 0;
 ipcMain.on("todo-busy", (e, v) => { todoBusy = !!v; });
 function inRect(p, b, m) { return p.x >= b.x - m && p.x < b.x + b.width + m && p.y >= b.y - m && p.y < b.y + b.height + m; }
 setInterval(() => {
-  if (!todo || todo.isDestroyed() || todoDragging || gameHidden || conf.todoShown === false) return;
+  if (!todo || todo.isDestroyed() || todoDragging || conf.todoShown === false) return;
   const p = screen.getCursorScreenPoint();
   if (todoState === "full") {
     if (!todo.isVisible()) return;
@@ -382,9 +382,16 @@ function todoMoved() {
 ipcMain.handle("is-glass", (e) => { const w = BrowserWindow.fromWebContents(e.sender); return !!(w && w._glass); });
 ipcMain.on("todo-resize", (e, dw, dh) => { if (!todo || todo.isDestroyed() || todoState !== "full") return; const b = todo.getBounds(); todo.setBounds({ x: b.x, y: b.y, width: Math.max(180, Math.round(b.width + dw)), height: Math.max(120, Math.round(b.height + dh)) }); conf.todo = todo.getBounds(); saveConf(); });
 ipcMain.handle("get-pin", () => conf.todoPinned !== false);
-ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(!!v); if (tab && !tab.isDestroyed()) tab.setAlwaysOnTop(!!v, "screen-saver"); refreshMenu(); });
+ipcMain.on("set-pin", (e, v) => { conf.todoPinned = !!v; saveConf(); applyOnTop(); refreshMenu(); });
 // 游戏计时开始：把小圆、待办、零藏起来（记住原来哪些开着），计时结束再放回来
-let gameHidden = null, gameEndT = null, gameUntil = 0;
+let gameHidden = false, gameEndT = null, gameUntil = 0;
+function applyOnTop() {
+  const pin = !gameHidden && conf.todoPinned !== false;
+  if (bubble && !bubble.isDestroyed()) bubble.setAlwaysOnTop(!gameHidden, "screen-saver");
+  if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(pin);
+  if (tab && !tab.isDestroyed()) tab.setAlwaysOnTop(pin, "screen-saver");
+  if (zero && !zero.isDestroyed()) zero.setAlwaysOnTop(!gameHidden, "floating");
+}
 ipcMain.on("game-mode", (e, on, end) => {
   // 某个窗口的旧存档说“没在玩”时不算数，只认“点了结束计时”或到点（end = -1）
   if (!on && end !== -1 && gameUntil > Date.now()) return;
@@ -392,15 +399,9 @@ ipcMain.on("game-mode", (e, on, end) => {
   // 到点自己结束（不等页面里的计时器，隐藏的窗口里计时器会被放慢）
   clearTimeout(gameEndT);
   if (on && end > Date.now()) gameEndT = setTimeout(() => ipcMain.emit("game-mode", null, false, -1), Math.min(end - Date.now() + 500, 2 ** 31 - 1));
-  if (on && !gameHidden) {
-    gameHidden = [bubble, todo, zero, tab].filter((w) => w && !w.isDestroyed() && w.isVisible());
-    for (const w of gameHidden) w.hide();
-    hideRing(0);
-  } else if (!on && gameHidden) {
-    for (const w of gameHidden) if (w && !w.isDestroyed() && w !== zero) w.showInactive();
-    gameHidden = null;
-    note("游戏时间到了", "小圆和待办回来了。");
-  }
+  // 玩游戏时不藏起来，只是不置顶（游戏窗口会盖住它们）；转盘照常能用
+  if (on && !gameHidden) { gameHidden = true; applyOnTop(); }
+  else if (!on && gameHidden) { gameHidden = false; applyOnTop(); note("游戏时间到了", "小圆和待办回到最上面了。"); }
   refreshMenu();
 });
 // 作业红点只在待办书签上；小圆的红点留给通知（零回复了、新版本、下载收纳了文件），打开零就清掉
@@ -550,7 +551,7 @@ function createRing() {
 }
 function toDip(x, y) { return process.platform === "win32" ? screen.screenToDipPoint({ x, y }) : { x, y }; }
 function showRing(x, y) {
-  if (!ring || ring.isDestroyed() || conf.ringOff || gameHidden) return;
+  if (!ring || ring.isDestroyed() || conf.ringOff) return;
   const p = toDip(x, y);
   ring.setBounds({ x: Math.round(p.x - RING / 2), y: Math.round(p.y - RING / 2), width: RING, height: RING });
 
@@ -697,7 +698,7 @@ function menu() {
     { label: "问零", click: () => showZero() },
     { label: "签到", click: () => showZero("daily") },
     { label: "待办", type: "checkbox", checked: conf.todoShown !== false, click: toggleTodo },
-    { label: "待办置顶", type: "checkbox", checked: conf.todoPinned !== false, click: (i) => { conf.todoPinned = i.checked; saveConf(); if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(i.checked); } },
+    { label: "待办置顶", type: "checkbox", checked: conf.todoPinned !== false, click: (i) => { conf.todoPinned = i.checked; saveConf(); applyOnTop(); } },
     { label: "打开学习空间", click: () => openMain() },
     { type: "separator" },
     { label: "显示零的小圆", type: "checkbox", checked: conf.bubbleHidden !== true, click: (i) => { conf.bubbleHidden = !i.checked; saveConf(); if (bubble) { if (i.checked) bubble.showInactive(); else bubble.hide(); } } },
