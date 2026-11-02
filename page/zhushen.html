@@ -241,7 +241,7 @@ input[type=text],input[type=number],input[type=datetime-local],textarea.plain,se
 .score-row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}
 .rank{font-family:var(--display);font-size:22px;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;color:#fff}
 .rank.S{background:#d9a21b}.rank.A{background:#2fa865}.rank.B{background:#3f8fd6}.rank.C{background:#8b5cf6}.rank.D{background:#8a8fa8}
-.modes{display:flex;gap:8px;flex-wrap:wrap;padding:2px 2px 6px}
+.modes{display:flex;gap:8px;flex-wrap:wrap;padding:2px 2px 6px}.modes[hidden]{display:none!important}
 .modes .btn{white-space:nowrap}
 .composer{display:flex;flex-direction:column;gap:8px}
 .composer textarea{width:100%;min-height:84px;resize:vertical;background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:10px 12px;font-size:16px;line-height:1.6}
@@ -573,11 +573,11 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
         <div class="chat" id="chat" aria-live="polite"></div>
         <div class="choices" id="choices"></div>
         <div class="composer" id="composer">
-          <div class="modes" id="modes"></div>
+          <div class="modes" id="modes" hidden></div>
           <div class="lib" id="lib"></div><div class="thumbs" id="thumbs"></div>
           <div class="inrow">
             <label class="btn sm glass" id="imgLabel" style="cursor:pointer" title="上传图片、PDF、Word、文本"><svg class="i"><use href="#i-clip"/></svg><input type="file" id="img" accept="image/*,.pdf,.docx,.txt,.md,.csv,.json,.tex" multiple hidden></label>
-            <textarea id="input" rows="1" placeholder="回答或提问"></textarea>
+            <textarea id="input" rows="1" placeholder="想做什么直接说：复习 quiz、发作业照片、学新课…"></textarea>
             <button class="btn go" id="sendBtn">发送</button>
           </div>
           <div class="row between dg-res" style="gap:6px;flex-wrap:wrap"><div class="row" style="gap:6px"><button class="btn sm glass" id="libBtn" title="资料架">资料 0</button><button class="btn sm glass" id="driveBtn" title="从 Google Drive 添加">Drive</button><button class="btn sm glass" id="stopBtn" hidden>停止</button></div><div class="aiNote" id="aiNote"></div></div>
@@ -920,6 +920,7 @@ const COMMON_RULES=`你在写一部和玩家实时互动的无限流小说，同
 - 她是这个无限流世界里的玩家，用第二人称「你」。知识点是闯关的钥匙：门上的屏幕要她输入一个数，守卫用一道题拦路，Boss 的血条靠一问一问打掉。
 - 剧情要真的往前走：每个世界有自己的悬念和主线（见下面的世界大纲），每回合都要发生一点新的事情，推进当前这一幕。不要原地打转，不要只换一句描写就算剧情。
 - 角色要活起来，但不用每回合都让每个人说话：只有剧情需要、或者这个角色真有话要说时才让他开口，一回合一两个人发言就够，很多回合只有旁白和零也完全可以。角色之间可以有冲突、误会、玩笑和秘密。
+- 页面上没有模式按钮了，她想干什么都是直接打字说（复习某场考试、发作业照片、学新东西、刷题、随便问）。从她的话里判断她要什么，直接开始做，不要反问她要选哪个模式。她说复习但没说哪场，就复习「Boss」列表里最近的那一场（看清楚它的范围），不要跳到更远的考试。她只打了个招呼或者没说清，就看最近的截止和考试，用一句话建议现在最该做的一件事，然后直接开始。
 - 功能性的对话不走剧情：她问的是现实里的事（找文件、搜 Drive、截止时间、积分、怎么用这个页面、要你整理或解释什么），或者明显是在跟你本人说话，就只由零直接回答，像平时的 Claude 一样把事办好，不写旁白，不让任何角色插话，不推进剧情，也不出「第 N 问」。办完了她回到做题，再接着剧情走。
 - 无限流的基调：这是一场会死人的副本，不是游学。每回合都要有一个紧迫的压力：倒计时、追击、陷阱、规则反噬、竞争玩家抢先、同伴突然失踪或背叛的苗头。体力和队友的命都是真的，写得紧张一点，可以有惊险的瞬间和死里逃生，但不要真的杀死她。零偶尔以主神广播的口吻通报时间、任务和规则。关键的题就是门、锁、刀、绳，答对才能过去，答错就要付出一点代价（给她提示，剧情出一个小麻烦）。
 - 排版规则，页面靠它把每个人分进不同的对话框，必须严格遵守：
@@ -1439,6 +1440,7 @@ function reviewPrompt(subj,t){const now=Date.now();const B=BOSSES();
   const e=Object.values(B).filter(b=>b.subj===subj&&b.exam&&b.due>now-2*HOUR).sort((a,b)=>a.due-b.due)[0];if(!e)return t;
   const d=new Date(e.due);const when=(d.getMonth()+1)+"/"+d.getDate()+" "+["周日","周一","周二","周三","周四","周五","周六"][d.getDay()]+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
   return"【考前复习】最近的考试是 "+e.title+"（"+when+(e.where?"，"+e.where:"")+"），范围："+(e.scope||"不确定，先问我")+"。只复习这一场，别跳到后面的考试。先问我哪里没把握，然后从最薄弱的地方开始，每块一个典型题。"}
+function intentOf(t,img){if(/复习|quiz|小测|考试|prelim|exam|期中|期末|模拟卷/i.test(t))return"review";if(img||/作业|hw\s*\d|homework|problem\s*set|\bps\s*\d|gradescope|lab|pre-?lab|实验报告/i.test(t))return"hw";if(/刷题|练习|出.{0,3}题|来.{0,2}道/.test(t))return"train";if(/学新|新课|新知识|下一节|往下学/.test(t))return"quest";return null}
 function helpMode(subj,re){return(MODES[subj].find(m=>re.test(m[0]))||MODES[subj][0])[1]}
 function openTaskSheet(o){const d=S.done[o.key];const early=(o.soft-Date.now())>=48*HOUR;
   const act=!!(S.cur&&S.cur.key===o.key),disc=o.r.id==="engl-disc",passed=S.skipped[o.key]&&S.skipped[o.key].pass;
@@ -1714,7 +1716,7 @@ function renderDungeon(){const w=worldOf(CUR);{const b=S.battle[CUR];if(!QUEST[C
     h("button",{class:"btn sm",onclick:()=>openHwSheet(CUR),title:"把这次收集的作业题目整理成 PDF"},"整理作业"+(((S.hwDraft||{})[CUR]||[]).length?" "+S.hwDraft[CUR].length:"")),
     CUR!=="engl"?h("button",{class:"btn sm ok",onclick:startQuiz,disabled:!SAMPLE||!!CTL,title:"5 道单选，每天前 3 次有奖励"},"小测验 · 最多 +"+R(40)+(quizzesToday()>=QUIZ_CAP?"（今日奖励已满）":"")):"");
   $("#imgLabel").hidden=!SAMPLE;$("#driveBtn").hidden=!MCP;renderLib();$("#sendBtn").disabled=!SAMPLE||!!CTL;
-  renderDuePanel();renderSkills();renderChat();{const last=CHATS[CUR][CHATS[CUR].length-1];const m=last&&last.role==="assistant"&&String(last.content).match(/第\s*(\d+)\s*问/g);$("#input").placeholder=m?"回答"+m[m.length-1].replace(/\s+/g," "):"回答或提问"}renderFocus();startAmbient();drainFx()}
+  renderDuePanel();renderSkills();renderChat();{const last=CHATS[CUR][CHATS[CUR].length-1];const m=last&&last.role==="assistant"&&String(last.content).match(/第\s*(\d+)\s*问/g);$("#input").placeholder=m?"回答"+m[m.length-1].replace(/\s+/g," "):"想做什么直接说：复习 quiz、发作业照片…"}renderFocus();startAmbient();drainFx()}
 function drainFx(){let d=80;while(FXQ.length){const f=FXQ.shift();if(f.subj&&f.subj!==CUR)continue;setTimeout(()=>playFx(f),d);d+=f.t==="loc"?1900:f.t==="ko"?1500:550}}
 const FACE_COLORS=["#c4473b","#3f8fd6","#2fa865","#8b5cf6","#d9772b","#0ea5a0","#d1559a","#b8902a"];
 function face(name){let x=0;for(const ch of name)x=(x*31+ch.charCodeAt(0))>>>0;return h("div",{class:"face",style:{background:npcColor(name)}},name.slice(0,1))}
@@ -1907,7 +1909,7 @@ function contextTurn(subj){const now=new Date();const w=worldOf(subj);const q=QU
   const prog=(S.progress[subj]||[]).slice(-8).map(p=>"- "+p.d+" "+p.t).join("\n")||"（还没有记录）";
   const mis=S.mistakes.filter(m=>m.subj===subj&&!m.killed).slice(-6).map(m=>"- "+m.id+" "+m.text+(m.fix?"（正确思路："+m.fix+"）":"")).join("\n")||"（无）";
   const dl=occurrences().filter(o=>o.subj===subj&&isOpen(o)).slice(0,4).map(o=>"- "+o.title+" 截止 "+fmtDue(o.soft)).join("\n")||"（无）";
-  const bs=Object.values(BOSSES()).filter(b=>b.subj===subj&&b.due&&b.due>Date.now()).map(b=>"- "+b.title+" "+fmtDue(b.due)).join("\n");
+  const bs=Object.values(BOSSES()).filter(b=>b.subj===subj&&b.due&&b.due>Date.now()).sort((a,b)=>a.due-b.due).map(b=>"- "+b.title+" "+fmtDue(b.due)+(b.scope?"，范围 "+b.scope:"")+(b.where?"（"+b.where+"）":"")).join("\n");
   const main=MAIN[subj].filter(n=>!n.boss).map(n=>(nodeIsDone(subj,n)?"✓ ":"· ")+nodeName(subj,n)).join("，");
   return COMMON_RULES+"\n\n"+PACK[subj]+`\n\n现在：${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} 周${WD[now.getDay()]} ${pad(now.getHours())}:${pad(now.getMinutes())}
 当前世界：${w.name}（${w.desc}）
@@ -1930,6 +1932,8 @@ async function ensureArc(subj){if(subj==="engl"||!SAMPLE)return;const T=tale(sub
       for(const c of T.arc.cast){if(c&&c.name)T.npcs[String(c.name).slice(0,10)]=String(c.role||"").slice(0,24)}save()}}catch(e){}}
 function advanceBeat(subj,force){const T=tale(subj);if(!T.arc)return;T.turns=(T.turns||0)+1;if(force||T.turns>=7){if((T.beat||0)<T.arc.acts.length-1){T.beat=(T.beat||0)+1;T.turns=0;FXQ.push({t:"loc",subj,name:"第 "+(T.beat+1)+" 幕",desc:T.arc.acts[T.beat].replace(/^第.幕[：:]/,"").slice(0,30)})}}}
 async function send(text){text=(text||$("#input").value).trim();if(!text||!SAMPLE||CTL)return;focusAct();$("#input").value="";
+  if(CUR!=="engl"&&text.length<12&&/^(签到|每日委托|签到题)/.test(text)){openDaily(CUR);return}
+  if(CUR!=="engl"){const k=intentOf(text,IMGS.length);if(k&&!(S.battle[CUR]&&S.battle[CUR].kind===k)){if(k==="quest"&&!QUEST[CUR]){const n=MAIN[CUR][curIndex(CUR)];if(n&&!n.boss){startNode(CUR,n);return}}startBattle(CUR,k,FOES[k])}}
   const subj=CUR;const turns=CHATS[subj];const imgs=IMGS.slice();turns.push({role:"user",content:text,imgs:imgs.length||undefined,at:Date.now()});IMGS=[];renderThumbs();
   CTL=new AbortController();renderDungeon();
   const box=$("#chat");const body=h("div",null,"思考中…");box.append(h("div",{class:"ln nar"},body));box.scrollTop=box.scrollHeight;
@@ -1941,7 +1945,7 @@ async function send(text){text=(text||$("#input").value).trim();if(!text||!SAMPL
   const lastQ=[...turns].reverse().find(t=>t.role==="assistant");const pk=pickLib(subj,text+" "+(QUEST[subj]?QUEST[subj].name||"":"")+" "+(lastQ?String(lastQ.content).slice(-400):""));
   const lib=pk.text?"\n\n她放进资料架的文件（题目、讲义、prompt 等，回答时优先依据这些，引用时说清是哪份）：\n"+pk.text:"";
   const input=[{role:"user",content:contextTurn(subj)+lib+(mem?"\n\n共享记忆里和这次相关的内容（她在别的对话里和 Claude、ChatGPT 记下的，作参考）：\n"+mem:"")},{role:"assistant",content:"已读取玩家档案。"},...hist];
-  const dT=driveTools();if(dT||window.__SITE){const l=input[input.length-1];if(l&&typeof l.content==="string")l.content+=DRIVE_HINT}const opts={cache:false,...(dT?{tools:dT}:{}),...(window.__SITE?{serverTools:["drive"]}:{}),signal:CTL.signal,onText:({text})=>{body.textContent=text.replace(TAG_RE,"").trim();box.scrollTop=box.scrollHeight}};
+  const dT=driveTools();if(dT||window.__SITE){const l=input[input.length-1];if(l&&typeof l.content==="string")l.content+=DRIVE_HINT}const opts={cache:false,modelTier:"complex",...(dT?{tools:dT}:{}),...(window.__SITE?{serverTools:["drive"]}:{}),signal:CTL.signal,onText:({text})=>{body.textContent=text.replace(TAG_RE,"").trim();box.scrollTop=box.scrollHeight}};
   if(imgs.length)opts.images=imgs.slice(0,5);
   try{const r=await SAMPLE(input,opts);PARSED_CHOICES=null;REVEAL=true;TAGFX=false;const clean=stripTags(subj,r.text);if(subj!=="engl")advanceBeat(subj,false);{const hv=harvest(subj,clean);if(!TAGFX&&S.battle[subj]){if(hv.ok)battleHit(subj);else if(hv.bad)battleMiss(subj)}}save();if(PARSED_CHOICES){PARSED_CHOICES=PARSED_CHOICES.map(x=>x.replace(/^[A-DＡ-Ｄ][.．、:：)]\s*/,""));for(let i=PARSED_CHOICES.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[PARSED_CHOICES[i],PARSED_CHOICES[j]]=[PARSED_CHOICES[j],PARSED_CHOICES[i]]}}turns.push({role:"assistant",at:Date.now(),content:clean||"（收到）",choices:PARSED_CHOICES||undefined,refs:pk.refs.length?pk.refs.slice(0,6):undefined});if(r.truncated)$("#aiNote").textContent="回答被截断了，可以说「继续」。"}
   catch(e){if(e&&e.code!=="cancelled")$("#aiNote").textContent=sampleErr(e);if(e&&e.text)turns.push({role:"assistant",content:stripTags(subj,e.text)})}
