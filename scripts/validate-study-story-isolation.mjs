@@ -103,7 +103,9 @@ export function applySyntheticAction(m, s, a) {
       return success(next);
     }
     if (a.type === 'preview') {
-      if (a.chapterId === undefined || a.chapterId !== s.frontier) return fail('STORY_LOCKED');
+      // Null is not a valid preview target even when the saga is complete.
+      if (s.frontier === null || a.chapterId === undefined ||
+          a.chapterId !== s.frontier) return fail('STORY_LOCKED');
       return success(next);
     }
     const c = m.chapters.find(c => c.id === a.chapterId);
