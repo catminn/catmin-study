@@ -181,6 +181,23 @@ export function applyCommitted(state, event, p = policy) {
   // accepted for legacy synthetic fixtures; explicit commits use 'commit'.
   if (event.mode !== undefined && event.mode !== 'commit') return { ok: false, code: 'not_committed', state };
   if (event.source !== 'server' || event.status !== 'committed' || !validEventId(event.id)) return { ok: false, code: 'not_committed', state };
+  // Incoming committed events are a separate trust boundary from saved
+  // fingerprints. Never accept unreviewed per-action payload fields, even on
+  // an idempotent replay. ASK/preview remain non-committing as before.
+  const eventPayloadFields = {
+    route_committed: ['route', 'next'],
+    scene_entered: ['next'],
+    availability_changed: ['next'],
+    player_told_npc: ['factId'],
+    npc_told_player: ['factId'],
+    fact_verified: ['factId', 'subject']
+  };
+  if (own(eventPayloadFields, event.type)) {
+    const envelope = ['id', 'type', 'scope', 'source', 'status', 'expectedVersion'];
+    if (own(event, 'mode')) envelope.push('mode');
+    if (!exactFields(event, [...envelope, ...eventPayloadFields[event.type]]))
+      return { ok: false, code: 'event_fields_invalid', state };
+  }
   const fingerprint = JSON.stringify({ type: event.type, scope: event.scope, route: event.route, factId: event.factId, next: event.next, subject: event.subject });
   if (own(state.commits, event.id)) {
     return state.commits[event.id] === fingerprint
