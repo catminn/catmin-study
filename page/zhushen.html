@@ -2253,10 +2253,10 @@ function sleepSettle(up){const s=S.sleep;if(!s)return;const now=up||Date.now();
   let pts=0,lines=[fmtBed(bm)+" 睡，"+(up?pad(new Date(now).getHours())+":"+pad(new Date(now).getMinutes())+" 起":"没点起床")+(avg!=null?"（最近平均 "+fmtBed(avg)+" 睡）":"")];
   if(sleepWindow(s.at).ok){S.sleepLog=S.sleepLog||[];if(!S.sleepLog.includes(s.day))S.sleepLog.push(s.day);S.sleepLog=S.sleepLog.slice(-60);const n=sleepStreak()+1;pts=n>=3?SLEEP_STREAK_PTS:SLEEP_PTS;lines.push("连续早睡 "+n+" 晚"+(n>=3?"，奖励加码":"，连续 3 晚起每晚 +"+SLEEP_STREAK_PTS))}
   else if(avg!=null&&avg-bm>=20){pts=SLEEP_PROG_PTS;lines.push("比最近平均早了 "+Math.round(avg-bm)+" 分钟，进步奖励")}
-  /* 起床（第二天第一次打开的时间）：睡够 7 小时 +15；睡了 6 小时以上并且 8:00 前起 +20、9:00 前起 +10 */
+  /* 起床（第二天第一次打开的时间）：睡够 7 小时 +15；睡了 6 小时以上并且 8:00 前起 +20、10:00 前起 +10 */
   if(up){const dur=(now-s.at)/HOUR,u=new Date(now),um=u.getHours()*60+u.getMinutes();
     if(dur>=7&&dur<=12){pts+=WAKE_DUR_PTS;lines.push("睡了 "+dur.toFixed(1)+" 小时，睡够了 +"+WAKE_DUR_PTS)}
-    if(dur>=6&&um<=8*60){pts+=WAKE_EARLY_PTS;lines.push("8:00 前起床 +"+WAKE_EARLY_PTS)}else if(dur>=6&&um<=9*60){pts+=WAKE_OK_PTS;lines.push("9:00 前起床 +"+WAKE_OK_PTS)}}
+    if(dur>=6&&um<=8*60){pts+=WAKE_EARLY_PTS;lines.push("8:00 前起床 +"+WAKE_EARLY_PTS)}else if(dur>=6&&um<=10*60){pts+=WAKE_OK_PTS;lines.push("10:00 前起床 +"+WAKE_OK_PTS)}}
   if(pts){const before=levelOf(S.xp).L;earn(pts,"早睡早起");save();setTimeout(()=>showReward(pts,"早上好",lines,levelOf(S.xp).L>before?levelOf(S.xp).L:0),900)}
   else{save();setTimeout(()=>toast("睡眠记下了："+lines[0]),1200)}renderAll()}
 function nextSteps(){const out=[];const now=Date.now();
