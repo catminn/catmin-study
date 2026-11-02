@@ -2231,7 +2231,7 @@ function renderNow(){const steps=nextSteps();if(NI>=steps.length)NI=0;const st=s
 function route(){const v=curView();document.body.classList.toggle("dg-on",v==="dungeon");measureBars();for(const x of VIEWS)$("#v-"+x).hidden=x!==v;document.querySelectorAll(".tabbar a").forEach(a=>a.setAttribute("aria-current",a.dataset.v===v?"page":"false"));renderHud();renderView(v);
   if(v==="map")setTimeout(scrollToCur,40);else window.scrollTo(0,0)}
 function renderView(v){if(v==="now")renderNow();else if(v==="map")renderMap();else if(v==="cal")renderCal();else if(v==="dungeon")renderDungeon();else if(v==="shop")renderShop();else renderBag()}
-function renderAll(){renderHud();renderView(curView());if(EMBED==="todo")renderTodoEmbed();if(EMBED==="zero")deskBadge()}
+function renderAll(){if(EMBED==="zero")setTimeout(pendingPdfs,3000);renderHud();renderView(curView());if(EMBED==="todo")renderTodoEmbed();if(EMBED==="zero")deskBadge()}
 function softRefresh(){renderHud();const v=curView();if(v==="map"||v==="cal")renderView(v)}
 
 function applyTheme(t){const r=document.documentElement;if(window.zsDesktop&&/[?&]embed=(todo|zero)/.test(location.search))t="light"; /* 桌面的待办和零只用浅色半透明，背景深它自然变深 */if(t)r.setAttribute("data-theme",t);else r.removeAttribute("data-theme");
@@ -2475,6 +2475,12 @@ function hwHtml(a){const esc=x=>String(x).replace(/[&<>]/g,c=>({"&":"&amp;","<":
 <h1>${esc(COURSE[a.subj]+" · "+a.title)}</h1><div class="meta">Catherine Min · jm3235 · ${esc(new Date(a.at).toLocaleDateString("zh-CN"))} · ${a.items.length} 题</div>
 ${a.items.map((q,i)=>`<div class="q"><div class="no">${esc(q.no&&q.no!=="?"?q.no:"第 "+(i+1)+" 题")}</div><div class="t">${esc(q.text)}</div></div>`).join("")}
 </body></html>`}
+/* 作业汇总是在网页/手机上做完的（那里只能打印）：电脑上的零下次打开时补生成 PDF，放进 My Drive\Cornell\<课程>，Drive 自己上传 */
+const PDF_TRIED=new Set();
+async function pendingPdfs(){if(!(DESK&&DESK.savePdf&&EMBED==="zero"))return;
+  for(const a of (S.hwArchive||[])){if(a.local||PDF_TRIED.has(a.id)||Date.now()-(a.at||0)>7*DAY)continue;PDF_TRIED.add(a.id);
+    const name=COURSE[a.subj]+" "+a.title.replace(/[\\/:*?"<>|]/g," ")+".pdf";
+    try{const r=await DESK.savePdf(a.subj,COURSE[a.subj],name,hwHtml(a));if(r&&r.path){a.local=r.path;save();toast("补存了「"+name+"」")}}catch(e){}}}
 async function hwExport(a){const name=COURSE[a.subj]+" "+a.title.replace(/[\\/:*?"<>|]/g," ")+".pdf";
   if(DESK&&DESK.savePdf){try{const r=await DESK.savePdf(a.subj,COURSE[a.subj],name,hwHtml(a));if(r&&r.path)a.local=r.path;if(r&&r.data)await driveUpload(a.subj,name,"application/pdf",r.data).then(x=>{if(x&&x.webViewLink)a.drive=x.webViewLink});save();toast("已存到Cornell\\"+COURSE[a.subj]+(a.drive?" 和 Drive":""));return}catch(e){toast("PDF 没存成功")}}
   const w=window.open("","_blank");if(w){w.document.write(hwHtml(a).replace("</body>","<script>window.onload=()=>setTimeout(()=>print(),1200)<\/script></body>"));w.document.close()}}
