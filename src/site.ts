@@ -301,6 +301,24 @@ function upstreamError(status: number, text: string) {
   return { code: "upstream_error", message: `上游返回 ${status}：${t}` };
 }
 
+// ---------- 语音输入：录音交给 Workers AI 的 Whisper 转成文字（中英混说都行） ----------
+async function sttHandler(req: Request, env: SiteEnv) {
+  const buf = new Uint8Array(await req.arrayBuffer());
+  if (!buf.byteLength) return err("bad_request", "没有录到声音");
+  if (buf.byteLength > 12_000_000) return err("too_large", "录音太长了，分几段说", 413);
+  let bin = "";
+  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  try {
+    const r: any = await env.AI.run("@cf/openai/whisper-large-v3-turbo" as any, {
+      audio: btoa(bin), task: "transcribe", vad_filter: true,
+      initial_prompt: "以下是简体中文的普通话，可能夹杂英文单词、数学和化学术语。",
+    } as any);
+    return json({ ok: true, text: String(r?.text ?? "").trim() });
+  } catch (e: any) {
+    return err("upstream_error", "语音转文字失败：" + String(e?.message ?? e).slice(0, 120), 502);
+  }
+}
+
 async function aiHandler(req: Request, env: SiteEnv, ctx: ExecutionContext) {
   let r: AiReq;
   try {
@@ -586,6 +604,7 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/logout")
       return json({ ok: true }, 200, { "Set-Cookie": `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax` });
     if (p === "/api/ai" && req.method === "POST") return aiHandler(req, env, ctx);
+    if (p === "/api/stt" && req.method === "POST") return sttHandler(req, env);
     if (p === "/api/ai/status") return aiStatus(env);
     if (p === "/api/db") return dbHandler(req, env, url);
     if (p === "/api/export" && req.method === "GET") return exportHandler(env);

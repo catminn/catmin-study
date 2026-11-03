@@ -384,6 +384,10 @@ body.dg-on{overflow:hidden}
 .dg .turn .zw-plot{height:420px}
 .dg .turn .zw-figdl{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:#efedf8}
 @media (max-width:820px){.dg .turn{padding:10px 12px;gap:10px;border-radius:14px}.dg .turn .ln.nar{font-size:15px}.dg .turn .zw-plot{height:300px}}
+/* 语音输入按钮：录音时变红、闪；转文字时变淡 */
+.mic{flex:none}.mic svg{width:18px;height:18px}.mic.rec{background:#e5484d!important;border-color:#e5484d!important;color:#fff!important}.mic.busy{opacity:.55;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){.mic.rec{animation:micp 1.2s ease-in-out infinite}@keyframes micp{50%{box-shadow:0 0 0 6px rgba(229,72,77,.25)}}}
+.zw-in .mic{width:34px;height:36px;padding:0;border-radius:10px}
 .dg-tabrow{display:flex;gap:6px;align-items:stretch}.dg-tabrow .dg-tabs{flex:1;min-width:0}
 .dg-more-btn.dot{position:relative}.dg-more-btn.dot::after{content:"";position:absolute;top:5px;right:6px;width:8px;height:8px;border-radius:50%;background:#e5484d}.dg-more-btn{display:none;flex:none;width:40px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#efedf8;font-size:18px;cursor:pointer}
 /* fullscreen fx */
@@ -1927,19 +1931,24 @@ function topicFrom(subj){const T=CHATS[subj]||[];const ts=(S.topicAt||{})[subj];
 function newTopic(){if(CTL)return;S.topicFrom={...(S.topicFrom||{}),[CUR]:CHATS[CUR].length};S.topicAt={...(S.topicAt||{}),[CUR]:Date.now()};if(S.qn)S.qn[CUR]=0;dcClear(CUR);QUEST[CUR]=null;delete S.battle[CUR];save();renderDungeon();setTimeout(()=>{const c=$("#chat");c.scrollTop=c.scrollHeight;$("#input").focus()},0)}
 function renderChat(){const box=$("#chat");box.replaceChildren();const turns=CHATS[CUR];
   if(!turns.length)box.append(h("div",{class:"ln hint"},SAMPLE?"直接说你想做什么":"需要在 Claude 里打开才能对话"));
-  const lastIdx=turns.length-1;let revealEls=[];
+  const lastIdx=turns.length-1;let revealEls=[],newTurn=null;
   const tf=topicFrom(CUR);const tdiv=()=>h("div",{class:"ln topic-div"},"新话题");
   turns.forEach((t,i)=>{if(i===tf&&tf>0)box.append(tdiv());if(t.err){box.append(h("div",{class:"ln hint"},t.content));return}if(t.quiz){box.append(quizSummary(t));return}
     if(t.role==="user"){const el=h("div",{class:"ln me"});el.textContent=t.content;if(t.imgs)el.append(h("div",{style:{fontSize:"12px",opacity:.8}},"附了 "+t.imgs+" 张图"));box.append(el);return}
-    const el=aiTurnEl(t,REVEAL&&i===lastIdx);box.append(el);if(REVEAL&&i===lastIdx)revealEls=[...el.children]});
+    const el=aiTurnEl(t,REVEAL&&i===lastIdx);box.append(el);if(REVEAL&&i===lastIdx){revealEls=[...el.children];newTurn=el}});
   if(tf>0&&tf===turns.length)box.append(tdiv());
-  typeset(box);box.scrollTop=box.scrollHeight;
+  typeset(box);dgScroll(box,newTurn?Math.max(0,newTurn.offsetTop-box.offsetTop-8):box.scrollHeight);DG_FOLLOW=true;
   const showChoices=()=>{const last=turns[lastIdx];const ch=$("#choices");ch.replaceChildren();
     if(last&&last.role==="assistant"&&last.choices&&last.choices.length&&!CTL){ch.append(...last.choices.map(o=>h("button",{class:"choice",onclick:()=>send(o)},renderMd(o))));typeset(ch)}};
-  if(revealEls.length){REVEAL=false;$("#choices").replaceChildren();let i=0;const next=()=>{if(i>=revealEls.length){showChoices();return}revealEls[i].classList.remove("pending");box.scrollTop=box.scrollHeight;i++;setTimeout(next,i===1?150:650)};
+  if(revealEls.length){REVEAL=false;$("#choices").replaceChildren();let i=0;const next=()=>{if(i>=revealEls.length){showChoices();return}revealEls[i].classList.remove("pending");if(DG_FOLLOW){const r=revealEls[i].getBoundingClientRect(),b=box.getBoundingClientRect();if(r.bottom>b.bottom)dgScroll(box,box.scrollTop+Math.min(r.bottom-b.bottom+8,Math.max(0,r.top-b.top-8)))}i++;setTimeout(next,i===1?150:650)};
     box.onclick=()=>{revealEls.forEach(e=>e.classList.remove("pending"));i=revealEls.length};setTimeout(next,60)}
   else showChoices()}
 function bubble(t){return aiTurnEl(t,false)}
+/* 副本聊天的滚动：新回复只在她停在底部时跟着往下走；她往上翻了就不再自动跳（下一次发消息时恢复跟随）。
+   新的一回合从这一回合的开头显示，不直接跳到最底下 */
+let DG_FOLLOW=true,DG_PROG=0;
+function dgScroll(box,y){DG_PROG=Date.now();box.scrollTop=y}
+document.addEventListener("scroll",e=>{const b=e.target;if(!b||b.id!=="chat"||Date.now()-DG_PROG<120)return;DG_FOLLOW=b.scrollHeight-b.scrollTop-b.clientHeight<60},true);
 /* 公式用 KaTeX 输出成浏览器原生的 MathML：和正常文字一样能选中、能复制一部分。KaTeX 没加载好时退回 MathJax */
 const KATEX=["https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js","https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"];
 setTimeout(async()=>{for(const u of KATEX){try{await loadScript(u);if(window.katex){if(typeof zwRender==="function")zwRender();return}}catch(e){}}},0);
@@ -2033,7 +2042,7 @@ async function send(text){text=(text||$("#input").value).trim();if(!text||!SAMPL
   if(CUR!=="engl"){const k=intentOf(text,IMGS.length);if(k&&!(S.battle[CUR]&&S.battle[CUR].kind===k)){if(k==="quest"&&!QUEST[CUR]){const n=MAIN[CUR][curIndex(CUR)];if(n&&!n.boss){startNode(CUR,n);return}}startBattle(CUR,k,FOES[k])}}
   const subj=CUR;const turns=CHATS[subj];const imgs=IMGS.slice();turns.push({role:"user",content:text,imgs:imgs.length||undefined,at:Date.now()});IMGS=[];renderThumbs();
   CTL=new AbortController();renderDungeon();
-  const box=$("#chat");const body=h("div",null,"思考中…");box.append(h("div",{class:"ln nar"},body));box.scrollTop=box.scrollHeight;
+  const box=$("#chat");const body=h("div",null,"思考中…");box.append(h("div",{class:"ln nar"},body));DG_FOLLOW=true;dgScroll(box,box.scrollHeight);
   const hist=turns.slice(Math.max(topicFrom(subj),turns.length-16)).filter(t=>!t.err).map(t=>({role:t.role,content:t.content||"（小测验）"})).reduce((a,m)=>{const l=a[a.length-1];if(l&&l.role===m.role)l.content+="\n\n"+m.content;else a.push({...m});return a},[]);while(hist.length&&hist[0].role!=="user")hist.shift();
   $("#stopBtn").hidden=false;$("#aiNote").textContent="";body.textContent="翻阅共享记忆…";
   if(SAGA[subj])syncTale(subj);
@@ -2042,7 +2051,7 @@ async function send(text){text=(text||$("#input").value).trim();if(!text||!SAMPL
   const lastQ=[...turns].reverse().find(t=>t.role==="assistant");const pk=pickLib(subj,text+" "+(QUEST[subj]?QUEST[subj].name||"":"")+" "+(lastQ?String(lastQ.content).slice(-400):""));
   const lib=pk.text?"\n\n她放进资料架的文件（题目、讲义、prompt 等，回答时优先依据这些，引用时说清是哪份）：\n"+pk.text:"";
   const input=[{role:"user",content:contextTurn(subj)+lib+(mem?"\n\n共享记忆里和这次相关的内容（她在别的对话里和 Claude、ChatGPT 记下的，作参考）：\n"+mem:"")},{role:"assistant",content:"已读取玩家档案。"},...hist];
-  const dT=driveTools();if(dT||window.__SITE){const l=input[input.length-1];if(l&&typeof l.content==="string")l.content+=dcBlock(subj)+DRIVE_HINT}DSUBJ=subj;const opts={cache:false,modelTier:"complex",...(dT?{tools:dT}:{}),...(window.__SITE?{serverTools:["drive"],onFiles:fs=>fs.forEach(f=>{DTITLE[f.id]=f.title;dcPut(f.id,f.text,subj)})}:{}),signal:CTL.signal,onText:({text})=>{body.textContent=text.replace(TAG_RE,"").trim();box.scrollTop=box.scrollHeight}};
+  const dT=driveTools();if(dT||window.__SITE){const l=input[input.length-1];if(l&&typeof l.content==="string")l.content+=dcBlock(subj)+DRIVE_HINT}DSUBJ=subj;const opts={cache:false,modelTier:"complex",...(dT?{tools:dT}:{}),...(window.__SITE?{serverTools:["drive"],onFiles:fs=>fs.forEach(f=>{DTITLE[f.id]=f.title;dcPut(f.id,f.text,subj)})}:{}),signal:CTL.signal,onText:({text})=>{body.textContent=text.replace(TAG_RE,"").trim();if(DG_FOLLOW)dgScroll(box,box.scrollHeight)}};
   if(imgs.length)opts.images=imgs.slice(0,5);
   try{let r;try{r=await SAMPLE(input,opts)}catch(e1){if(!e1||!/upstream|overload|server/.test(String(e1.code))||CTL.signal.aborted)throw e1;body.textContent="出了点岔子，再试一次…";await new Promise(z=>setTimeout(z,1500));const o2={...opts};delete o2.tools;delete o2.modelTier;r=await SAMPLE(input,o2)}PARSED_CHOICES=null;REVEAL=true;TAGFX=false;const clean=stripTags(subj,r.text);if(subj!=="engl")advanceBeat(subj,false);{const hv=harvest(subj,clean);if(!TAGFX&&S.battle[subj]){if(hv.ok)battleHit(subj);else if(hv.bad)battleMiss(subj)}}save();if(PARSED_CHOICES){PARSED_CHOICES=PARSED_CHOICES.map(x=>x.replace(/^[A-DＡ-Ｄ][.．、:：)]\s*/,""));for(let i=PARSED_CHOICES.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[PARSED_CHOICES[i],PARSED_CHOICES[j]]=[PARSED_CHOICES[j],PARSED_CHOICES[i]]}}turns.push({role:"assistant",at:Date.now(),content:clean||"（收到）",choices:PARSED_CHOICES||undefined,refs:pk.refs.length?pk.refs.slice(0,6):undefined});if(r.truncated)$("#aiNote").textContent="回答被截断了，可以说「继续」。"}
   catch(e){if(e&&e.code!=="cancelled"){$("#aiNote").textContent=sampleErr(e);if(!(e&&e.text))turns.push({role:"assistant",err:true,at:Date.now(),content:"（这句没回上来："+sampleErr(e)+(e&&e.code?" ["+e.code+"]":"")+"）"})}if(e&&e.text)turns.push({role:"assistant",content:stripTags(subj,e.text)})}
@@ -3068,6 +3077,26 @@ async function liveTick(){if(!window.__SITE||!DB||!DB.meta||!UID||LIVE.busy)retu
 setInterval(liveTick,5000);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")liveTick()});
 if(DESK){DESK.onPull&&DESK.onPull(()=>pullState());DESK.onFiles&&DESK.onFiles((target,list)=>{if(DESK.log)DESK.log("files",target,(list||[]).length);if(target==="ask")pickTarget(list);else deskDeliver(target,list)});DESK.onCommand&&DESK.onCommand(c=>{if(c==="#task"&&S.cur){zwOpen(S.cur.subj);if(!ZW.turns.length||!/^开始做「/.test(ZW.turns[ZW.turns.length-1].content))zwSay("开始做「"+S.cur.title+"」。把第一题截图发给我（拖到小圆上、按快捷键，或者直接贴进来都行）。");return}if(c==="daily"){if(checkedToday())toast("今天已经签过了");else openDaily(suggestSubj())}else if(c&&c[0]==="#")location.hash=c});DESK.ready&&DESK.ready()}
 
+/* 语音输入：网站和桌面版点麦克风录音，再点一下结束，服务器（Whisper）转成文字填进输入框，可以接着改再发。
+   Claude 里打开的版本拿不到麦克风，不显示这个按钮 */
+const MIC_SVG='<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+const VOICE={on:null};
+function addVoice(inputId,sendId,cls){const inp=document.getElementById(inputId),snd=document.getElementById(sendId);
+  if(!inp||!snd||inp.dataset.voice||!window.__SITE||!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder))return;inp.dataset.voice=1;
+  const b=document.createElement("button");b.type="button";b.className=cls+" mic";b.title="语音输入（再点一下结束）";b.setAttribute("aria-label","语音输入");b.innerHTML=MIC_SVG;snd.before(b);
+  b.addEventListener("click",()=>VOICE.on?VOICE.on.stop():voiceStart(inp,b))}
+function voiceInsert(inp,text){text=String(text||"").trim();if(!text)return;const s=inp.selectionStart??inp.value.length,e=inp.selectionEnd??inp.value.length;
+  inp.value=inp.value.slice(0,s)+text+inp.value.slice(e);inp.dispatchEvent(new Event("input",{bubbles:true}));inp.focus();try{inp.selectionStart=inp.selectionEnd=s+text.length}catch(x){}}
+async function voiceStart(inp,b){let st;try{st=await navigator.mediaDevices.getUserMedia({audio:true})}catch(e){toast("没拿到麦克风权限");return}
+  const mt=["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg"].find(t=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t))||"";
+  let rec;try{rec=new MediaRecorder(st,mt?{mimeType:mt}:undefined)}catch(e){st.getTracks().forEach(t=>t.stop());toast("这个浏览器录不了音");return}
+  const parts=[],t0=Date.now();rec.ondataavailable=e=>{if(e.data&&e.data.size)parts.push(e.data)};const cap=setTimeout(()=>VOICE.on&&VOICE.on.stop(),180000);
+  rec.onstop=async()=>{clearTimeout(cap);st.getTracks().forEach(t=>t.stop());VOICE.on=null;b.classList.remove("rec");if(Date.now()-t0<700){toast("太短了，按一下说完再按一下");return}b.classList.add("busy");
+    try{const blob=new Blob(parts,{type:rec.mimeType||mt||"audio/webm"});const r=await fetch("/api/stt",{method:"POST",headers:{"Content-Type":blob.type,"X-TZ":TZID},body:blob,credentials:"include"});
+      const o=await r.json().catch(()=>({}));if(!r.ok)throw o;if(o.text)voiceInsert(inp,o.text);else toast("没听清，再说一次")}
+    catch(e){toast("语音没转成文字"+(e&&e.message?"："+e.message:""))}finally{b.classList.remove("busy")}};
+  rec.start(1000);VOICE.on={stop:()=>{if(rec.state!=="inactive")rec.stop()}};b.classList.add("rec")}
+addVoice("input","sendBtn","btn sm glass");addVoice("zwInput","zwSend","btn sm flat");
 route();
 (async()=>{
   const C=window.claude;let db=null,user=null,sample=null,mcp=null;
