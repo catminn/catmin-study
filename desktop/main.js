@@ -485,6 +485,7 @@ function applyOnTop() {
   if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(pin);
   if (tab && !tab.isDestroyed()) tab.setAlwaysOnTop(pin, "screen-saver");
   if (zero && !zero.isDestroyed()) zero.setAlwaysOnTop(!gameHidden, "floating");
+  for (const w of [bubble, todo, tab, zero]) noTb(w);
 }
 ipcMain.on("game-mode", (e, on, end) => {
   // 某个窗口的旧存档说“没在玩”时不算数，只认“点了结束计时”或到点（end = -1）
@@ -905,6 +906,12 @@ app.on("second-instance", (e, argv) => {
   if (files.length) deliverPaths(files); else showZero();
 });
 
+// 小圆、待办、书签、零这些小窗都不该出现在任务栏。Windows 上隐藏再显示、改置顶、毛玻璃的激活消息之后，
+// 「不显示在任务栏」偶尔会失效（任务栏多出「零」「待办」），所以每次显示、置顶变化后都再设一次。只有主窗口（学习空间）留在任务栏。
+const noTb = (w) => { try { if (w && !w.isDestroyed() && w !== main) w.setSkipTaskbar(true); } catch (e) {} };
+app.on("browser-window-created", (e, w) => {
+  for (const ev of ["show", "ready-to-show", "restore", "focus", "always-on-top-changed"]) w.on(ev, () => { noTb(w); setTimeout(() => noTb(w), 300); });
+});
 app.whenReady().then(async () => {
   transOn = await readTransparency();
   if (!transOn && !conf.transWarned) { conf.transWarned = true; saveConf(); setTimeout(() => note("毛玻璃需要打开 Windows 的“透明效果”", "设置 → 个性化 → 颜色 → 透明效果。打开后退出学习空间再打开。现在先用普通半透明。"), 4000); }
