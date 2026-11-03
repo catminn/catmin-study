@@ -787,9 +787,15 @@ function startInbox() {
       clearTimeout(inboxTimers.get(p));
       inboxTimers.set(p, setTimeout(() => settleInbox(p, -1), 2500));
     });
+    // Windows 上睡眠唤醒、网盘同步之后 fs.watch 可能悄悄失效：出错就重开
+    inboxWatcher.on("error", (e) => { dlog("inbox watch error", e.message); restartInbox(); });
     dlog("inbox watching", dir);
   } catch (e) { inboxWatcher = null; dlog("inbox watch failed", dir, e.message); }
 }
+function restartInbox() { stopInbox(); setTimeout(startInbox, 1000); }
+// 唤醒后、以及每 30 分钟，把监视重开一次（便宜，防止它不声不响地停了）
+setInterval(() => { if (!conf.inboxOff) restartInbox(); }, 30 * 60 * 1000);
+app.whenReady().then(() => { try { require("electron").powerMonitor.on("resume", () => { dlog("resume: restart inbox"); restartInbox(); }); } catch (e) {} });
 function stopInbox() { if (inboxWatcher) { try { inboxWatcher.close(); } catch (e) {} inboxWatcher = null; } }
 function settleInbox(p, lastSize) {
   inboxTimers.delete(p);
