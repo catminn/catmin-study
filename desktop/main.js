@@ -927,7 +927,8 @@ app.on("browser-window-created", (e, w) => {
   for (const ev of ["show", "ready-to-show"]) w.on(ev, () => noTb(w));
   // 页面崩了或卡死：自动重新加载，不留一块灰窗口
   w.webContents.on("render-process-gone", (ev, d) => { dlog("renderer gone", d && d.reason); if (!w.isDestroyed() && d && d.reason !== "clean-exit") setTimeout(() => { if (!w.isDestroyed()) w.webContents.reload(); }, 1000); });
-  w.on("unresponsive", () => { dlog("window unresponsive"); setTimeout(() => { if (!w.isDestroyed() && w !== main) w.webContents.forcefullyCrashRenderer(); }, 8000); });
+  w.on("unresponsive", () => { dlog("window unresponsive"); clearTimeout(w._hangT); w._hangT = setTimeout(() => { if (!w.isDestroyed() && w !== main) w.webContents.forcefullyCrashRenderer(); }, 15000); });
+  w.on("responsive", () => clearTimeout(w._hangT));
 });
 app.whenReady().then(async () => {
   transOn = await readTransparency();
