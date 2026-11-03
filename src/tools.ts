@@ -466,21 +466,25 @@ TOOLS.push(
   } as Tool,
   {
     name: "calendar_add",
-    description: "Add an event to Catherine's personal Google Calendar (primary calendar). Times are America/New_York, format 'YYYY-MM-DDTHH:MM'. For an all-day item set allDay true and give the date. Only call this when she asks to add something to her calendar.",
-    inputSchema: { type: "object", properties: { summary: { type: "string" }, startTime: { type: "string", description: "e.g. 2026-11-05T19:30" }, endTime: { type: "string", description: "e.g. 2026-11-05T21:00; for all-day, the date" }, description: { type: "string" }, location: { type: "string" }, allDay: { type: "boolean" } }, required: ["summary", "startTime", "endTime"] },
+    description: "Add an event to Catherine's personal Google Calendar (primary calendar). Times are in Catherine's current local time zone (it follows her computer — e.g. Ithaca in term time, China over winter break; the result echoes the zone used), format 'YYYY-MM-DDTHH:MM'. For an all-day item set allDay true and give the date. Only call this when she asks to add something to her calendar.",
+    inputSchema: { type: "object", properties: { summary: { type: "string" }, startTime: { type: "string", description: "e.g. 2026-11-05T19:30" }, timeZone: { type: "string", description: "IANA zone of her device, only if known for sure (her own pages send it); usually omit" }, endTime: { type: "string", description: "e.g. 2026-11-05T21:00; for all-day, the date" }, description: { type: "string" }, location: { type: "string" }, allDay: { type: "boolean" } }, required: ["summary", "startTime", "endTime"] },
     async run(env, a) {
       const g = await import("./google");
+      const z = await import("./tz");
+      if (a.timeZone) await z.noteTz(env as any, a.timeZone); // 她的页面会带上电脑的时区
       const r: any = await g.googleTool(env as any, "Google Calendar", "create_event", a);
-      return JSON.stringify({ ok: true, id: r?.id, summary: r?.summary, start: r?.start, end: r?.end, link: r?.htmlLink });
+      return JSON.stringify({ ok: true, id: r?.id, summary: r?.summary, start: r?.start, end: r?.end, link: r?.htmlLink, timeZone: z.tz() });
     },
   } as Tool,
   {
     name: "calendar_list",
-    description: "List events on Catherine's personal Google Calendar between two times (America/New_York, 'YYYY-MM-DDTHH:MM'). Use to check for conflicts before adding.",
-    inputSchema: { type: "object", properties: { startTime: { type: "string" }, endTime: { type: "string" } }, required: ["startTime", "endTime"] },
+    description: "List events on Catherine's personal Google Calendar between two times (her current local time zone, which follows her computer; format 'YYYY-MM-DDTHH:MM'). Use to check for conflicts before adding.",
+    inputSchema: { type: "object", properties: { startTime: { type: "string" }, endTime: { type: "string" }, timeZone: { type: "string", description: "IANA zone of her device, only if known for sure; usually omit" } }, required: ["startTime", "endTime"] },
     annotations: { readOnlyHint: true },
     async run(env, a) {
       const g = await import("./google");
+      const z = await import("./tz");
+      if (a.timeZone) await z.noteTz(env as any, a.timeZone);
       const r: any = await g.googleTool(env as any, "Google Calendar", "list_events", { ...a, pageSize: 50 });
       const ev = (r?.events || r?.items || []).map((e: any) => ({ summary: e.summary, start: e.start, end: e.end }));
       return JSON.stringify(ev);

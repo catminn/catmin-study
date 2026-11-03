@@ -4,7 +4,7 @@ import { authorize } from "./auth";
 import { mcpFetch } from "./mcp";
 import { type Env as BaseEnv, getByHash, insertMemory, normTags, reindexMissing } from "./store";
 import { type SiteEnv, siteFetch } from "./site";
-import { syncAllCourses } from "./coursesync";
+import { loadTz } from "./tz";
 
 export type Env = BaseEnv & SiteEnv & { PUBLIC_URL: string; SITE_HOST?: string };
 
@@ -100,10 +100,7 @@ export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext) {
     // study.catmin.io 是网站；其余域名（memory.catmin.io）是共享记忆 MCP
     if (env.SITE_HOST && new URL(request.url).host === env.SITE_HOST) return siteFetch(request, env, ctx);
-    return providerFor(env).fetch(request, env, ctx);
-  },
-  // 定时任务：课程资料同步（见 wrangler.jsonc 的 triggers.crons）
-  async scheduled(_ev: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(syncAllCourses(env).catch(() => null));
+    // 共享记忆（Claude / ChatGPT）用她最后一次在网站或桌面版上报的时区
+    return loadTz(env).then(() => providerFor(env).fetch(request, env, ctx));
   },
 } satisfies ExportedHandler<Env>;

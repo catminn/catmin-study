@@ -28,7 +28,7 @@ const KK = (acct: Acct) => acct === "main" ? { refresh: "google:refresh", access
 const K_REFRESH = "google:refresh";
 const K_ACCESS = "google:access";
 const K_EMAIL = "google:email";
-const TZ = "America/New_York";
+import { tz } from "./tz"; // 她现在的时区（跟着电脑走）
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
@@ -196,19 +196,19 @@ async function gjson(env: SiteEnv, url: string, init: RequestInit = {}, acct: Ac
 }
 
 // ---------- 日历 ----------
-// 页面传来的时间没有时区（"2026-10-26T00:00:00"），按美东本地时间理解
-export function toRfc3339(s: string, tz = TZ): string {
+// 页面传来的时间没有时区（"2026-10-26T00:00:00"），按她现在的时区理解；带了偏移的原样用
+export function toRfc3339(s: string, zone = tz()): string {
   if (/[zZ]$|[+-]\d\d:?\d\d$/.test(s)) return s;
   const m = /^(\d{4})-(\d\d)-(\d\d)(?:[T ](\d\d):(\d\d)(?::(\d\d))?)?/.exec(s);
   if (!m) throw new GErr("bad_request", "时间格式不对：" + s);
   const [y, mo, d, h, mi, se] = [m[1], m[2], m[3], m[4] || "0", m[5] || "0", m[6] || "0"].map(Number);
   // 偏移在结果时刻上再核对一次（只算一次的话，夏令时切换后的几个小时会差一小时）
-  return new Date(localToUtcMs(y, mo, d, h, mi, se, tz)).toISOString();
+  return new Date(localToUtcMs(y, mo, d, h, mi, se, zone)).toISOString();
 }
 
 async function listEvents(env: SiteEnv, input: Record<string, any>) {
   const id = String(input.calendarId || "primary");
-  const q = new URLSearchParams({ singleEvents: "true", orderBy: "startTime", timeZone: TZ, maxResults: String(Math.min(Number(input.pageSize) || 250, 500)) });
+  const q = new URLSearchParams({ singleEvents: "true", orderBy: "startTime", timeZone: tz(), maxResults: String(Math.min(Number(input.pageSize) || 250, 500)) });
   if (input.startTime) q.set("timeMin", toRfc3339(String(input.startTime)));
   if (input.endTime) q.set("timeMax", toRfc3339(String(input.endTime)));
   if (input.pageToken) q.set("pageToken", String(input.pageToken));
@@ -226,8 +226,8 @@ function evBody(input: Record<string, any>) {
     const d = String(input.startTime).slice(0, 10), e = String(input.endTime || input.startTime).slice(0, 10);
     b.start = { date: d }; b.end = { date: e > d ? e : new Date(Date.parse(d + "T12:00:00Z") + 864e5).toISOString().slice(0, 10) };
   } else {
-    if (input.startTime) b.start = { dateTime: toRfc3339(String(input.startTime)), timeZone: TZ };
-    if (input.endTime) b.end = { dateTime: toRfc3339(String(input.endTime)), timeZone: TZ };
+    if (input.startTime) b.start = { dateTime: toRfc3339(String(input.startTime)), timeZone: tz() };
+    if (input.endTime) b.end = { dateTime: toRfc3339(String(input.endTime)), timeZone: tz() };
   }
   if (Array.isArray(input.overrideReminders)) b.reminders = { useDefault: false, overrides: input.overrideReminders.slice(0, 5).map((x: any) => ({ method: x.method === "email" ? "email" : "popup", minutes: Math.max(0, Number(x.minutes) || 0) })) };
   if (input.availability === "AVAILABILITY_FREE") b.transparency = "transparent";
@@ -241,7 +241,10 @@ async function createEvent(env: SiteEnv, input: Record<string, any>) {
 }
 async function updateEvent(env: SiteEnv, input: Record<string, any>) {
   if (!input.eventId) throw new GErr("bad_request", "需要 eventId");
-  return gjson(env, evUrl(String(input.calendarId || "primary"), String(input.eventId)), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(evBody(input)) });
+  // 全天 ↔ 定时互换时，PATCH 要把另一种写法清掉，否则 Google 会拒绝（start 里同时有 date 和 dateTime）
+  const b = evBody(input);
+  for (const k of ["start", "end"]) if (b[k]) { if (b[k].date) b[k].dateTime = null; else if (b[k].dateTime) b[k].date = null; }
+  return gjson(env, evUrl(String(input.calendarId || "primary"), String(input.eventId)), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
 }
 async function deleteEvent(env: SiteEnv, input: Record<string, any>) {
   if (!input.eventId) throw new GErr("bad_request", "需要 eventId");

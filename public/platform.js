@@ -14,6 +14,9 @@
 
   async function api(path, opts) {
     var r;
+    // 每次都带上电脑的时区，服务器按它算「今天」和日历时间（回国就自动按中国时间）
+    opts = Object.assign({}, opts || {}); opts.headers = Object.assign({}, opts.headers || {});
+    try { opts.headers["X-TZ"] = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
     try { r = await fetch(path, opts); } catch (e) {
       if (e && e.name === "AbortError") throw { code: "cancelled", message: "已取消" };
       throw { code: "server_unavailable", message: "网络连不上" };

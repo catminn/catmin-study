@@ -5,15 +5,7 @@
 // - /api/mcp：共享记忆工具直接在这里执行；Google 日历/Drive 见 google.ts（只读，需要在页面上点一次「连接 Google」）
 import type { Env } from "./store";
 import { TOOL_MAP } from "./tools";
-import { handleTurn } from "./turn";
-import { commitChoice, commitTravel, snapshotStats } from "./world";
-import { putContent, listContent, compareContent, listDungeons, checkDungeon, dungeonProgress, expandDungeonMarkers, registerDungeonTrigger, registerSkillBinding, setReviewMode, attachReview } from "./content";
-import { pinLegacySessions, getDefaultWorld, setDefaultWorld } from "./world";
-import { publicSceneInfo } from "./world";
-import { approveProposal, courseStatus, getProposal, proposePack, removeFolder, setFolder, syncCourse } from "./coursesync";
-import { auditStats, declineOffer, getProfile, putProfile } from "./learning";
-import { getSession, postAction, sessionOp } from "./adventure";
-import { getBalance, listEvents, postEvent, postReward } from "./events";
+import { loadTz, noteTz, tzDay } from "./tz";
 import { GErr, finishAuth, googleDisconnect, googleStatus, googleTool, startAuth, aiDriveSearch, aiDriveRead } from "./google";
 
 export type SiteEnv = Env & {
@@ -47,7 +39,6 @@ const TIER_DEFAULT: Record<string, Record<string, string>> = {
 // ---------- 工具 ----------
 const json = (o: unknown, status = 200, headers: HeadersInit = {}) =>
   new Response(JSON.stringify(o), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers } });
-const asJson = (r: { status: number; body: unknown }) => json(r.body, r.status);
 const err = (code: string, message: string, status = 400) => json({ code, message }, status);
 
 async function hmac(key: string, data: string) {
@@ -101,8 +92,8 @@ document.getElementById("f").onsubmit=async e=>{e.preventDefault();const el=docu
 </script>`;
 
 // ---------- 花费 ----------
-// 「今天」按美东日期算（花费上限在她那边的午夜重置，而不是美东晚上 7/8 点）
-const day = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+// 「今天」按她现在所在时区的日期算（花费上限在她那边的午夜重置）
+const day = () => tzDay();
 async function spent(env: SiteEnv) {
   const d = day();
   const m = d.slice(0, 7);
@@ -135,10 +126,10 @@ async function recordUsage(env: SiteEnv, model: string, inTok: number, outTok: n
 const DRIVE_TOOLS = [
   { name: "drive_search", description: "在 Catherine 的 Google Drive 里按文件名搜索，返回文件 id、标题、类型、修改时间。关键词尽量短，比如 HW8、Quiz 3、Lab 8；搜不到就换个关键词再试。", input_schema: { type: "object", properties: { query: { type: "string", description: "文件名里包含的关键词" } }, required: ["query"] } },
   { name: "drive_read", description: "读出 Google Drive 里一个文件的文字内容（PDF、Google 文档、Word 等），参数是 drive_search 给的 id。", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
-  { name: "calendar_add", description: "在 Catherine 的个人 Google 日历上添加一个日程。时间用美东时间，格式 YYYY-MM-DDTHH:MM；全天的设 allDay 为 true。只在她让你加日历时用。", input_schema: { type: "object", properties: { summary: { type: "string" }, startTime: { type: "string" }, endTime: { type: "string" }, description: { type: "string" }, allDay: { type: "boolean" } }, required: ["summary", "startTime", "endTime"] } },
+  { name: "calendar_add", description: "在 Catherine 的个人 Google 日历上添加一个日程。时间用她电脑当前所在时区的本地时间，格式 YYYY-MM-DDTHH:MM；全天的设 allDay 为 true。只在她让你加日历时用。", input_schema: { type: "object", properties: { summary: { type: "string" }, startTime: { type: "string" }, endTime: { type: "string" }, description: { type: "string" }, allDay: { type: "boolean" } }, required: ["summary", "startTime", "endTime"] } },
   { name: "gmail_search", description: "搜 Catherine 个人 Gmail 的邮件，query 用 Gmail 搜索语法（比如 from:canvas newer_than:7d、is:unread in:inbox）。返回 id、主题、发件人、日期、摘要。", input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
   { name: "gmail_read", description: "读一封邮件串的全文，参数是 gmail_search 给的 id。只读。", input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
-  { name: "calendar_list", description: "查看 Catherine 个人 Google 日历某段时间里的日程（美东时间 YYYY-MM-DDTHH:MM），加之前可以先看有没有冲突。", input_schema: { type: "object", properties: { startTime: { type: "string" }, endTime: { type: "string" } }, required: ["startTime", "endTime"] } },
+  { name: "calendar_list", description: "查看 Catherine 个人 Google 日历某段时间里的日程（她电脑当前时区的本地时间 YYYY-MM-DDTHH:MM），加之前可以先看有没有冲突。", input_schema: { type: "object", properties: { startTime: { type: "string" }, endTime: { type: "string" } }, required: ["startTime", "endTime"] } },
 ];
 async function runDriveTool(env: SiteEnv, name: string, input: any, seen?: { titles: Record<string, string>; files: { id: string; title: string; text: string }[] }): Promise<string> {
   try {
@@ -310,41 +301,6 @@ function upstreamError(status: number, text: string) {
   return { code: "upstream_error", message: `上游返回 ${status}：${t}` };
 }
 
-// ---------- 非流式一次性调用（冒险回合用）----------
-async function completeOnce(env: SiteEnv, tier: string, provider: string, text: string, maxTok: number): Promise<string> {
-  const model = pickModel(env, { messages: [], tier, provider });
-  if (!model || !hasKey(env, MODELS[model].provider)) throw new Error("no_key");
-  const up = await upstream(env, model, { messages: [{ role: "user", content: text }], max_tokens: maxTok }, new AbortController().signal);
-  if (!up.ok || !up.body) throw new Error("upstream_" + up.status);
-  const prov = MODELS[model].provider;
-  let out = "", inTok = 0, outTok = 0;
-  try {
-    for await (const data of sse(up.body)) {
-      if (data === "[DONE]") break;
-      let ev: any;
-      try { ev = JSON.parse(data); } catch { continue; }
-      if (prov === "anthropic") {
-        if (ev.type === "message_start") { const u = ev.message?.usage ?? {}; inTok = Math.round((u.input_tokens ?? 0) + 1.25 * (u.cache_creation_input_tokens ?? 0) + 0.1 * (u.cache_read_input_tokens ?? 0)); } // 按缓存折算后的输入量计费
-        else if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") out += ev.delta.text;
-        else if (ev.type === "message_delta") outTok = ev.usage?.output_tokens ?? outTok;
-      } else {
-        const c = ev.choices?.[0];
-        if (c?.delta?.content) out += c.delta.content;
-        if (ev.usage) { inTok = ev.usage.prompt_tokens ?? inTok; outTok = ev.usage.completion_tokens ?? outTok; }
-      }
-    }
-  } finally {
-    if (inTok || outTok) await recordUsage(env, model, inTok, outTok).catch(() => {});
-  }
-  return out;
-}
-async function budgetOk(env: SiteEnv) {
-  const lim = limits(env), sp = await spent(env);
-  if (sp.today >= lim.daily) return { ok: false as const, reason: `今天的 API 花费已到上限 $${lim.daily}。进度已保留，明天再继续。` };
-  if (sp.month >= lim.monthly) return { ok: false as const, reason: `本月的 API 花费已到上限 $${lim.monthly}。` };
-  return { ok: true as const };
-}
-
 async function aiHandler(req: Request, env: SiteEnv, ctx: ExecutionContext) {
   let r: AiReq;
   try {
@@ -354,7 +310,6 @@ async function aiHandler(req: Request, env: SiteEnv, ctx: ExecutionContext) {
   }
   if (!Array.isArray(r.messages) || !r.messages.length || r.messages[r.messages.length - 1].role !== "user")
     return err("bad_request", "messages 必须以 user 结尾");
-  r.messages = await Promise.all(r.messages.map(async (m) => (m.role === "user" && typeof m.content === "string" ? { ...m, content: await expandDungeonMarkers(env, m.content) } : m)));
   const model = pickModel(env, r);
   if (!model) return err("bad_request", "未知模型");
   const prov = MODELS[model].provider;
@@ -504,11 +459,11 @@ async function dbHandler(req: Request, env: SiteEnv, url: URL) {
   return err("bad_request", "只支持 GET / PUT", 405);
 }
 
-// 每天第一次保存存档前，把旧存档复制一份到 bak.state.YYYY-MM-DD（美东日期），保留 14 天
+// 每天第一次保存存档前，把旧存档复制一份到 bak.state.YYYY-MM-DD（她所在时区的日期），保留 14 天
 // 本实例已确认备份过的日期：存档每几秒保存一次，同一天里不用每次都跑 INSERT + DELETE
 let backedUpDay = "";
 async function dailyBackup(env: SiteEnv, t: number) {
-  const day = new Date(t * 1000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const day = tzDay(t * 1000);
   if (backedUpDay === day) return;
   const bk = "bak.state." + day;
   const ins = await env.DB.prepare(
@@ -520,7 +475,7 @@ async function dailyBackup(env: SiteEnv, t: number) {
   // 还没有 state（第一次保存）时不记，下次保存再试
   if (ins.meta.changes || (await env.DB.prepare("SELECT 1 FROM study_state WHERE key=?").bind(bk).first())) backedUpDay = day;
   if (!ins.meta.changes) return;
-  const old = new Date((t - 14 * 86400) * 1000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const old = tzDay((t - 14 * 86400) * 1000);
   await env.DB.prepare("DELETE FROM study_state WHERE key LIKE 'bak.state.%' AND key < ?").bind("bak.state." + old).run();
 }
 async function backupsHandler(env: SiteEnv) {
@@ -540,7 +495,7 @@ async function exportHandler(env: SiteEnv) {
     try { value = JSON.parse(r.value); } catch { value = { __unparsable: r.value }; }
     return { key: r.key, version: r.version, updated_at: r.updated_at, updated_by: r.updated_by, value };
   });
-  const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const day = tzDay();
   return json(
     { format: "zhushen-export-v1", exported_at: new Date().toISOString(), counts: { study_state: docs.length, chat_summaries: cs.results.length }, study_state: docs, chat_summaries: cs.results },
     200,
@@ -616,6 +571,10 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
   const authed = await validSession(req, env);
   if (p.startsWith("/api/")) {
     if (!authed) return err("session_expired", "请先登录", 401);
+    // 时区跟着她的电脑走：页面每次请求带 X-TZ，变了就记下来（只影响之后的计算）
+    await loadTz(env);
+    const xtz = req.headers.get("X-TZ");
+    if (xtz) ctx.waitUntil(noteTz(env, xtz));
     // 防跨站：写操作只接受同源请求
     if (req.method !== "GET") {
       const origin = req.headers.get("Origin");
@@ -631,72 +590,6 @@ export async function siteFetch(req: Request, env: SiteEnv, ctx: ExecutionContex
     if (p === "/api/db") return dbHandler(req, env, url);
     if (p === "/api/export" && req.method === "GET") return exportHandler(env);
     if (p === "/api/backups" && req.method === "GET") return backupsHandler(env);
-    if (p === "/api/events" && req.method === "POST") return asJson(await postEvent(env, await req.json().catch(() => null)));
-    if (p === "/api/events" && req.method === "GET") return asJson(await listEvents(env, url));
-    if (p === "/api/rewards" && req.method === "POST") return asJson(await postReward(env, await req.json().catch(() => null)));
-    if (p === "/api/dungeons/check" && req.method === "POST") return asJson(await checkDungeon(env, await req.json().catch(() => null)));
-    if (p === "/api/dungeons/progress" && req.method === "GET") return asJson(await dungeonProgress(env));
-    if (p === "/api/dungeons" && req.method === "GET") return asJson(await listDungeons(env));
-    if (p === "/api/adventure/turn" && req.method === "POST")
-      return asJson(await handleTurn(env, await req.json().catch(() => null), { budgetOk: () => budgetOk(env), complete: (t, pr, x, m) => completeOnce(env, t, pr, x, m) }));
-    if (p === "/api/adventure/travel" && req.method === "POST") return asJson(await commitTravel(env, await req.json().catch(() => null)));
-    if (p === "/api/adventure/choice" && req.method === "POST") return asJson(await commitChoice(env, await req.json().catch(() => null)));
-    if (p === "/api/adventure/action" && req.method === "POST") return asJson(await postAction(env, await req.json().catch(() => null)));
-    if (p === "/api/adventure/session" && req.method === "POST") return asJson(await sessionOp(env, await req.json().catch(() => null)));
-    if (p === "/api/adventure/session" && req.method === "GET") return asJson(await getSession(env, url.searchParams.get("id") || ""));
-    if (p === "/api/adventure/world" && req.method === "GET") return json(await publicSceneInfo(env, url.searchParams.get("id") || ""));
-    if (p === "/api/adventure/learning-profile" && req.method === "GET") { const pr = await getProfile(env); return json({ ok: true, enrolledCourseIds: pr.enrolledCourseIds, optedOutCourseIds: pr.optedOutCourseIds, avoidLearning: pr.avoidLearning }); }
-    if (p === "/api/adventure/learning-profile" && req.method === "PUT") return asJson(await putProfile(env, await req.json().catch(() => null)));
-    if (p === "/api/adventure/learning-offer/decline" && req.method === "POST") { const b: any = await req.json().catch(() => null); return asJson(await declineOffer(env, b?.sessionId, b?.conceptId)); }
-    if (p.startsWith("/api/courses/")) {
-      const sub = p.slice("/api/courses/".length);
-      const adminOk = async () => { const pw = req.headers.get("X-Owner-Password") ?? ""; return !!env.OWNER_PASSWORD && !!pw && (await safeEq(pw, env.OWNER_PASSWORD)); };
-      const body = req.method === "GET" ? null : await req.json().catch(() => null);
-      if (sub === "status" && req.method === "GET") return asJson(await courseStatus(env));
-      if (sub === "folder" && req.method === "POST") return asJson(await setFolder(env, body));
-      if (sub === "folder" && req.method === "DELETE") return asJson(await removeFolder(env, body));
-      if (sub === "sync" && req.method === "POST") return asJson(await syncCourse(env, body));
-      if (sub === "propose" && req.method === "POST") return asJson(await proposePack(env, body, (pr, m) => completeOnce(env, "default", "anthropic", pr, m)));
-      if (sub === "proposal" && req.method === "GET") return asJson(await getProposal(env, url.searchParams.get("courseId") || ""));
-      if (sub === "approve" && req.method === "POST") return (await adminOk()) ? asJson(await approveProposal(env, body)) : err("forbidden", "仅限管理员（需再带一次主口令）", 403);
-    }
-    if (p === "/api/adventure/learning-audit" && req.method === "GET") { // 管理员：只有分类计数
-      const pw = req.headers.get("X-Owner-Password") ?? "";
-      if (!env.OWNER_PASSWORD || !pw || !(await safeEq(pw, env.OWNER_PASSWORD))) return err("forbidden", "仅限管理员", 403);
-      return json({ ok: true, audit: await auditStats(env) });
-    }
-    if (p === "/api/adventure/ending-snapshot" && req.method === "GET") {
-      // 管理员计数视图：同内容库通道的口令校验；响应只有分类计数，快照本体永不经 HTTP
-      const pw = req.headers.get("X-Owner-Password") ?? "";
-      if (!env.OWNER_PASSWORD || !pw || !(await safeEq(pw, env.OWNER_PASSWORD))) return err("forbidden", "仅限管理员", 403);
-      const st = await snapshotStats(env, url.searchParams.get("id") || "");
-      return json({ ok: true, snapshot: st });
-    }
-    if (p === "/api/adventure/content" || p.startsWith("/api/adventure/admin/")) {
-      // 内容库/世界管理员通道：登录会话还不够，必须在请求头再带一次主口令（X-Owner-Password）；失败 5 次锁 15 分钟。
-      const ip = req.headers.get("CF-Connecting-IP") ?? "local";
-      const fk = "cfail:" + ip;
-      if (Number((await env.OAUTH_KV.get(fk)) ?? 0) >= 5) return err("locked", "尝试次数过多，请稍后再试", 429);
-      const pw = req.headers.get("X-Owner-Password") ?? "";
-      if (!env.OWNER_PASSWORD || !pw || !(await safeEq(pw, env.OWNER_PASSWORD))) {
-        await env.OAUTH_KV.put(fk, String(Number((await env.OAUTH_KV.get(fk)) ?? 0) + 1), { expirationTtl: 900 });
-        return err("forbidden", "内容库仅限管理员", 403);
-      }
-      if (p === "/api/adventure/admin/compare" && req.method === "POST") return asJson(await compareContent(env, await req.json().catch(() => null))); // 只读：只返回计数
-      if (p === "/api/adventure/admin/pin-legacy" && req.method === "POST") return asJson(await pinLegacySessions(env, await req.json().catch(() => null)));
-      if (p === "/api/adventure/admin/default-world") {
-        if (req.method === "GET") return asJson(await getDefaultWorld(env));
-        if (req.method === "PUT") return asJson(await setDefaultWorld(env, await req.json().catch(() => null)));
-      }
-      if (p === "/api/adventure/admin/skill-binding" && req.method === "PUT") return asJson(await registerSkillBinding(env, await req.json().catch(() => null))); // 私有绑定登记：不授予、不返回
-      if (p === "/api/adventure/admin/dungeon-trigger" && req.method === "PUT") return asJson(await registerDungeonTrigger(env, await req.json().catch(() => null))); // 只登记私有注册表，不授予任何东西
-      if (p === "/api/adventure/admin/dungeon-review-mode" && req.method === "PUT") return asJson(await setReviewMode(env, await req.json().catch(() => null)));
-      if (p === "/api/adventure/admin/dungeon-review" && req.method === "PUT") return asJson(await attachReview(env, await req.json().catch(() => null)));
-      if (p === "/api/adventure/content" && req.method === "PUT") return asJson(await putContent(env, await req.json().catch(() => null)));
-      if (p === "/api/adventure/content" && req.method === "GET") return asJson(await listContent(env, url)); // 只返回元数据，正文永不经 HTTP 返回
-      return err("not_found", "没有这个接口", 404);
-    }
-    if (p === "/api/rewards/balance" && req.method === "GET") return asJson(await getBalance(env));
     if (p === "/api/google/status") return json(await googleStatus(env));
     if (p === "/api/google/disconnect" && req.method === "POST") {
       await googleDisconnect(env);

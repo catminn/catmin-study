@@ -1,7 +1,5 @@
 // 本地测试：假 AI 向量 + 假 Vectorize + 假的 Anthropic/OpenAI 流式接口
 import base from "./entry";
-import { syncAllCourses } from "../src/coursesync";
-import { canPrompt, recordPrompt, recordRefusal, suppressExplore } from "../src/director";
 const realFetch = globalThis.fetch;
 function fakeStream(provider: string, text: string) {
   const enc = new TextEncoder();
@@ -82,53 +80,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
     const last = body.messages[body.messages.length - 1];
     const lastText = typeof last.content === "string" ? last.content : last.content.map((c: any) => c.text || "").join("");
     const hasImg = typeof last.content !== "string";
-    const q = (lastText.split("玩家输入：")[1] || "").split("\n")[0].trim();
-    let special: string | null = null;
-    if (lastText.includes("[[CLASSIFY]]")) (globalThis as any).__lastcls = lastText;
-    if (lastText.includes("你是学习型冒险游戏里的导师兼 DM")) (globalThis as any).__lastdm = lastText;
-    if (lastText.includes("[[CLASSIFY]]")) {
-      const C = (i: string[], c: boolean, r: boolean, e: any, p = false, k: string | null = null, pr = "none", act = "apply-derivative-method") => JSON.stringify({ intents: i, explicitCommit: c, storyResume: r, pauseStory: p, insightKey: k, planRef: pr, conceptId: e ? "math1920.derivative-basics" : null, actionId: act, evaluation: e });
-      if (q.includes("BADJSON")) special = "不是json";
-      else if (q.includes("PH-MATHX")) special = JSON.stringify({ intents: ["PRACTICE"], explicitCommit: false, conceptId: "mathx.alpha", actionId: "plain-action", insightKey: "mx-1", evaluation: { correctness: "correct", reasoning: "valid", assistance: "none" } });
-      else if (q.includes("出发 s-b")) special = JSON.stringify({ intents: ["EXPLORE"], explicitCommit: false, moveTo: "s-b", actionId: "plain-action", evaluation: null });
-      else if (q.includes("前往 s-b")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, moveTo: "s-b", actionId: "plain-action", evaluation: null });
-      else if (q.includes("前往 s-end")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, moveTo: "s-end", actionId: "plain-action", evaluation: null });
-      else if (q.includes("前往 s-a")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, moveTo: "s-a", actionId: "plain-action", evaluation: null });
-      else if (q.includes("谈 ch-one")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, choiceId: "ch-one", actionId: "plain-action", evaluation: null });
-      else if (q.includes("谈 ch-bad")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, choiceId: "ch-bad", actionId: "plain-action", evaluation: null });
-      else if (q.includes("完整演示")) special = JSON.stringify({ intents: ["LEARN"], explicitCommit: false, tutorSolution: true, evaluation: null });
-      else if (q.includes("换道新题")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "none" }, false, "new-task-insight").replace('"conceptId"', '"newTask":true,"conceptId"');
-      else if (q.includes("自己算")) special = JSON.stringify({ intents: ["ASK"], explicitCommit: false, quiet: "on", evaluation: null });
-      else if (q.includes("给我提示")) special = JSON.stringify({ intents: ["ASK"], explicitCommit: false, quiet: "off", evaluation: null });
-      else if (q.includes("执行方案 A")) special = JSON.stringify({ intents: ["ACT"], explicitCommit: true, planRef: "previous", planIndex: 1, actionId: "apply-derivative-method", evaluation: null });
-      else if (q.includes("搬箱子")) special = C(["ACT"], true, false, null, false, null, "inline", "plain-action");
-      else if (q.includes("梯度方法执行")) special = C(["ACT"], true, false, null, false, null, "inline", "determine-local-steepest-ascent");
-      else if (q.includes("区别")) special = C(["ASK"], false, false, null);
-      else if (q.includes("系统讲")) special = C(["LEARN"], false, false, null);
-      else if (q.includes("刷5题")) special = C(["PRACTICE"], false, false, null, true);
-      else if (q.includes("先不要执行")) special = C(["ASK", "LEARN", "ACT"], false, false, null, false, null, "inline");
-      else if (q.includes("继续课程")) special = JSON.stringify({ intents: ["EXPLORE"], explicitCommit: false, storyResume: true, resumeTarget: "lesson", evaluation: null });
-      else if (q.includes("回到故事")) special = JSON.stringify({ intents: ["EXPLORE"], explicitCommit: false, storyResume: true, resumeTarget: "story", evaluation: null });
-      else if (q.trim() === "继续") special = JSON.stringify({ intents: ["EXPLORE"], explicitCommit: false, storyResume: true, evaluation: null });
-      else if (q.includes("继续并执行")) special = C(["ACT"], true, true, null, false, null, "inline");
-      else if (q.includes("刚才")) special = C(["ACT"], true, false, null, false, null, "previous");
-      else if (q.includes("执行")) special = C(["ACT"], true, false, null, false, null, "inline");
-      else if (q.includes("乘 2")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "invalid", assistance: "none" });
-      else if (q.includes("先展开") || q.includes("再说一遍")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "none" }, false, "expand-then-differentiate");
-      else if (q.includes("提示后")) special = C(["PRACTICE"], false, false, { correctness: "correct", reasoning: "valid", assistance: "major_hint" });
-      else special = C(["EXPLORE"], false, false, null);
-    } else if (lastText.includes("[[COURSE-PROPOSE]]")) {
-      (globalThis as any).__lastprompt = lastText;
-      const ids = [...lastText.matchAll(/fileId=([\w-]+)/g)].map((m) => m[1]);
-      special = lastText.includes("COURSE-BADJSON") ? "不是json" : JSON.stringify({ concepts: [
-        { id: "mathx.alpha", title: "PH-Alpha", prerequisites: [], applications: ["infer-slope", "terrain.infer-change-direction"], sources: [ids[0]] },
-        { id: "mathx.beta", title: "PH-Beta", prerequisites: ["mathx.alpha", "mathx.ghost"], applications: ["app-two", "evidence.reconcile-measurements"], sources: [ids[ids.length - 1]] },
-        { id: "mathx.nosrc", title: "PH-NoSource", prerequisites: [], applications: [], sources: ["cf-none"] },
-        { id: "other.bad", title: "PH-BadId", prerequisites: [], applications: [], sources: [ids[0]] },
-      ] });
-    } else if (lastText.includes("[[VERIFY]]")) special = JSON.stringify({ ownAnswer: "2t+2", agree: !q.includes("NOAGREE") });
-    if (!special && !lastText.includes("[[") && q.includes("刚才的方法")) special = lastText.includes("思路 expand-then-differentiate") ? "CTXOK" : "CTXMISSING";
-    if (!special && (globalThis as any).__replyfail && lastText.includes("你是学习型冒险游戏里的导师兼 DM")) return new Response("boom", { status: 500 });
+    const special: string | null = null;
     const reply = special ?? (lastText.includes("JSON") ? '```json\n{"ok":true,"n":3}\n```' : `你好，这是${prov}的${body.model}回答。${hasImg ? "收到图片。" : ""}`);
     return new Response(fakeStream(prov, reply), { headers: { "content-type": "text/event-stream" } });
   }
@@ -139,17 +91,6 @@ export default {
     const u = new URL(req.url);
     if (u.pathname === "/__gcalls") return Response.json((globalThis as any).__gcalls.splice(0));
     if (u.pathname === "/__replyfail") { (globalThis as any).__replyfail = u.searchParams.get("on") === "1"; return new Response("ok"); }
-    if (u.pathname === "/__director") {
-      const sid = u.searchParams.get("sid")!, topic = u.searchParams.get("topic") || "t", now = Number(u.searchParams.get("now"));
-      return (async () => {
-        const op = u.searchParams.get("op");
-        if (op === "prompt") await recordPrompt(env, sid, topic, now);
-        else if (op === "refuse") await recordRefusal(env, sid, topic);
-        else if (op === "explore") await suppressExplore(env, sid, now);
-        return Response.json(await canPrompt(env, sid, topic, now));
-      })();
-    }
-    if (u.pathname === "/__sync_all") return (async () => Response.json(await syncAllCourses(env, u.searchParams.get("today") || undefined)))();
     if (u.pathname === "/__drive") {
       const D = (globalThis as any).__drive, g = (k: string) => u.searchParams.get(k);
       const op = g("op");
@@ -157,8 +98,6 @@ export default {
       else if (op === "set") D.files[g("id")!] = { parent: g("parent"), name: g("name"), mime: g("mime") || "text/plain", modified: g("modified"), text: g("nulltext") ? null : g("text") ?? "" };
       else if (op === "del") delete D.files[g("id")!];
       else if (op === "listfail") D.listFail = g("on") === "1";
-      else if (op === "lastcls") return new Response((globalThis as any).__lastcls || "");
-      else if (op === "lastdm") return new Response((globalThis as any).__lastdm || "");
       else if (op === "lastprompt") return new Response((globalThis as any).__lastprompt);
       return Response.json({ ok: true });
     }

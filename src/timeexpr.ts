@@ -1,6 +1,6 @@
 // 把 "yesterday" / "last week" / "3 days ago" / "昨天" / "上周" 之类转换成时间范围（Unix 秒）
-// 用美东时间计算"今天"的边界
-const TZ = "America/New_York";
+// 用她现在的时区（跟着电脑走，见 tz.ts）计算"今天"的边界
+import { tz } from "./tz";
 const DAY = 86400;
 
 // 某个时刻在 tz 里的墙上时间（年月日时分秒）
@@ -14,17 +14,17 @@ function tzOffset(ms: number, tz: string) {
   const p = wallParts(ms, tz);
   return Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi, p.s) - Math.floor(ms / 1000) * 1000;
 }
-// 美东墙上时间 → UTC 毫秒。偏移要在结果时刻上再核对一次，否则夏令时切换后几个小时会差一小时
-export function localToUtcMs(y: number, mo: number, d: number, h = 0, mi = 0, s = 0, tz = TZ): number {
+// 当地墙上时间 → UTC 毫秒。偏移要在结果时刻上再核对一次，否则夏令时切换后几个小时会差一小时
+export function localToUtcMs(y: number, mo: number, d: number, h = 0, mi = 0, s = 0, zone = tz()): number {
   const guess = Date.UTC(y, mo - 1, d, h, mi, s);
-  const o1 = tzOffset(guess, tz);
-  const o2 = tzOffset(guess - o1, tz);
+  const o1 = tzOffset(guess, zone);
+  const o2 = tzOffset(guess - o1, zone);
   return guess - o2;
 }
 
-// 美东"今天"往前 back 天那一天的 0 点（Unix 秒）
+// 当地"今天"往前 back 天那一天的 0 点（Unix 秒）
 function localMidnight(nowSec: number, back = 0): number {
-  const p = wallParts(nowSec * 1000, TZ);
+  const p = wallParts(nowSec * 1000, tz());
   const d = new Date(Date.UTC(p.y, p.mo - 1, p.d - back));
   return localToUtcMs(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()) / 1000;
 }
@@ -62,7 +62,7 @@ export function parseTimeExpr(expr: string, nowSec = Date.now() / 1000): { after
   return null;
 }
 
-// "YYYY-MM-DD" 按美东当天 0 点算（以前写死 -04:00，冬令时会差一小时）
+// "YYYY-MM-DD" 按当地当天 0 点算（以前写死 -04:00，冬令时会差一小时）
 export function isoToSec(s?: string): number | undefined {
   if (!s) return undefined;
   const dm = /^(\d{4})-(\d\d)-(\d\d)$/.exec(s);
