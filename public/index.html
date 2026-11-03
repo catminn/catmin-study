@@ -3018,7 +3018,8 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
   if(keep){ti.value=keep.v;dt.value=keep.d;dt.hidden=false}
   el.replaceChildren(mini,tab,pin||"",h("div",{class:"td-list"},rows),h("div",{class:"td-add"},ti,dt),grip);if(keep&&keep.f>=0)(keep.f?dt:ti).focus();tellTodoBusy()}
 /* 待办窗口“正在用”：输入框里有字（且还在页面上）或有弹窗。每次重画、加完任务都重新告诉桌面程序，免得卡在“正在用”收不回去 */
-function todoBusyNow(){const a=document.activeElement;return !!((document.hasFocus()&&a&&a.isConnected&&a.tagName==="INPUT"&&a.value.trim())||document.querySelector(".scrim,.qz,.pop"))}
+function todoBusyNow(){const a=document.activeElement;/* 弹窗只算看得见的（页面里藏着的、别的视图留下的不算，否则会一直收不回去） */
+  return !!((document.hasFocus()&&a&&a.isConnected&&a.tagName==="INPUT"&&a.value.trim())||[...document.querySelectorAll(".scrim,.qz,.pop")].some(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=="hidden"))}
 function tellTodoBusy(){if(typeof EMBED!=="undefined"&&EMBED==="todo"&&DESK&&DESK.todoBusy)setTimeout(()=>DESK.todoBusy(todoBusyNow()),0)}
 /* 收起来的样子：一枚燕尾书签，不写字。贴上边时尾巴朝下，贴左右时尾巴朝屏幕里；有 24 小时内要交的，书签上有一个小红点 */
 let TD_HOT=0,TD_EDGE="top";

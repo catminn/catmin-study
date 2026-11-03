@@ -322,6 +322,8 @@ function createTodo(show) {
   // 毛玻璃用 glass.js（失去焦点也保持）；不支持的系统退回页面自己的半透明底色
   const opts = Object.assign({ x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 160, minHeight: 120, resizable: true, thickFrame: false, hasShadow: false, alwaysOnTop: conf.todoPinned !== false }, glassOpts());
   todo = pageWin(opts, SITE + "?embed=todo");
+  // 焦点用事件记（毛玻璃会补发“激活”消息，isFocused() 在失焦后也可能还是 true）
+  todo.on("focus", () => { todoFocused = true; }); todo.on("blur", () => { todoFocused = false; });
   todo.on("will-move", () => { todoDragging = true; clearTimeout(todoDragT); todoDragT = setTimeout(() => { todoDragging = false; }, 1500); });
   todo.on("moved", todoMoved);
   todo.on("resized", () => { if (todo && !todo.isDestroyed() && todoState === "full") { conf.todo = todo.getBounds(); saveConf(); } });
@@ -446,7 +448,7 @@ function setTodoMode(mode) {
 ipcMain.on("todo-mode", (e, mode) => { if (winOf(e) === todo) setTodoMode(mode); });
 ipcMain.on("tab-click", () => setTodoMode("full"));
 // 鼠标位置由主进程盯着：移到书签上就展开，移出列表 0.6 秒后收起（页面里正在输入时不收）
-let todoBusy = false, todoAway = 0;
+let todoBusy = false, todoAway = 0, todoFocused = false;
 ipcMain.on("todo-busy", (e, v) => { if (winOf(e) === todo) todoBusy = !!v; }); // 只认待办窗口自己（零的窗口、完整网站发来的不算）
 function inRect(p, b, m) { return p.x >= b.x - m && p.x < b.x + b.width + m && p.y >= b.y - m && p.y < b.y + b.height + m; }
 setInterval(() => {
@@ -455,8 +457,8 @@ setInterval(() => {
   if (todoState === "full") {
     if (!todo.isVisible()) return;
     if (inRect(p, todo.getBounds(), 6)) todoAway = 0;
-    // “正在用”只在待办窗口还有键盘焦点时拦着；点到别的地方去了就照常收起，免得卡住
-    else if (!(todoBusy && todo.isFocused()) && ++todoAway >= 5) { todoAway = 0; todoBusy = false; setTodoMode("mini"); }
+    // 正在用（输入框里有字、有弹窗）且窗口真有焦点时先不收；但鼠标离开超过 20 秒一律收起，免得卡住
+    else if (++todoAway >= 166 || (todoAway >= 5 && !(todoBusy && todoFocused))) { todoAway = 0; todoBusy = false; setTodoMode("mini"); }
   } else if (tab && !tab.isDestroyed() && tab.isVisible() && inRect(p, tab.getBounds(), 3)) { todoAway = 0; setTodoMode("full"); }
 }, 120);
 // 拖动结束：限制在屏幕内；贴近上、左、右边就记成贴边书签，离开就松开
