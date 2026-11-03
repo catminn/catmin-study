@@ -1,7 +1,7 @@
 {
   "name": "xuexi-kongjian",
   "productName": "学习空间",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "description": "学习空间桌面版：零的小圆、置顶待办、把文件丢给零",
   "main": "main.js",
   "author": "Catherine Min",

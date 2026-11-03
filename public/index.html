@@ -2854,9 +2854,10 @@ engl = ENGL 1111 Modern Fantasy Media（奇幻作品、写作研讨课）
 文件名：${f.name}
 ${text?"开头的内容：\n"+text.slice(0,1800):"（读不出文字，只能看文件名）"}
 明显属于其中一门课才回答，拿不准、或者看起来和学习无关（安装包、随手存的图片、表格模板等）就写 null。只回复 JSON：{"subj":"math|chem|engri|engl|null"}`,{cache:false,siteModel:"claude-haiku-5-5"});
-      if(j&&SUBJ[j.subj])subj=j.subj}catch(e){}}
-  if(!subj)return;
-  const dest=await DESK.inboxPlace(item.src,COURSE[subj],f.name);if(!dest)return;
+      if(j&&SUBJ[j.subj])subj=j.subj}catch(e){try{DESK.log&&DESK.log("inbox","ai error",(e&&(e.code||e.message))||"")}catch(x){}}}
+  const lg=(...a)=>{try{DESK.log&&DESK.log("inbox",...a)}catch(e){}};
+  if(!subj){lg("not a course file",f.name);return}
+  const dest=await DESK.inboxPlace(item.src,COURSE[subj],f.name);lg("place",subj,dest||"(failed)");if(!dest){toast("「"+f.name+"」没收纳成功");return}
   if(text&&text.replace(/\s/g,"").length>=40)addDoc(subj,{name:f.name,src:"下载收纳",text},true);
   smEvent("收纳了 "+f.name,subj);save();
   driveUpload(subj,f.name,f.type,item.data)}

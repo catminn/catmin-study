@@ -783,31 +783,35 @@ function startInbox() {
     inboxWatcher = fs.watch(dir, (ev, name) => {
       if (!name || !INBOX_EXT.test(name) || /\.(crdownload|part|tmp|download)$/i.test(name)) return;
       const p = path.join(dir, name);
+      if (!inboxTimers.has(p)) dlog("inbox saw", ev, name);
       clearTimeout(inboxTimers.get(p));
       inboxTimers.set(p, setTimeout(() => settleInbox(p, -1), 2500));
     });
-  } catch (e) { inboxWatcher = null; }
+    dlog("inbox watching", dir);
+  } catch (e) { inboxWatcher = null; dlog("inbox watch failed", dir, e.message); }
 }
 function stopInbox() { if (inboxWatcher) { try { inboxWatcher.close(); } catch (e) {} inboxWatcher = null; } }
 function settleInbox(p, lastSize) {
   inboxTimers.delete(p);
-  let st; try { st = fs.statSync(p); } catch (e) { return; }
-  if (!st.isFile() || st.size === 0 || st.size > MAX_FILE) return;
-  if (Date.now() - st.birthtimeMs > 10 * 60 * 1000 && Date.now() - st.mtimeMs > 10 * 60 * 1000) return; // 只管新下载的
+  let st; try { st = fs.statSync(p); } catch (e) { dlog("inbox gone", path.basename(p)); return; }
+  if (!st.isFile() || st.size === 0 || st.size > MAX_FILE) { dlog("inbox skip size", path.basename(p), st.size); return; }
+  if (Date.now() - st.birthtimeMs > 10 * 60 * 1000 && Date.now() - st.mtimeMs > 10 * 60 * 1000) { dlog("inbox skip old", path.basename(p)); return; } // 只管新下载的
   if (st.size !== lastSize) { inboxTimers.set(p, setTimeout(() => settleInbox(p, st.size), 1500)); return; } // 还在写
   // 撤销过的文件不再自动收纳
   const key = path.basename(p).toLowerCase() + "|" + st.size;
   if ((conf.inboxIgnore || []).includes(key)) { dlog("inbox skip (undone before)", path.basename(p)); return; }
-  const list = readFiles([p]); if (!list.length) return;
+  const list = readFiles([p]); if (!list.length) { dlog("inbox unreadable", path.basename(p)); return; }
   list[0].src = p;
-  send(ensureZero(), "files", "inbox", list);
+  const z = ensureZero();
+  dlog("inbox send", path.basename(p), readyWins.has(z.webContents.id) ? "ready" : "queued");
+  send(z, "files", "inbox", list);
 }
 ipcMain.handle("inbox-place", (e, src, course, name) => {
   try {
-    if (!fromSite(e) || !src) return "";
+    if (!fromSite(e) || !src) { dlog("inbox-place refused sender", e.sender.getURL()); return ""; }
     // 只收“下载”文件夹里直接放着的文件（就是 settleInbox 交过去的那些），网页不能让这里搬别处的文件
     src = path.resolve(String(src));
-    if (path.dirname(src).toLowerCase() !== path.resolve(app.getPath("downloads")).toLowerCase()) return "";
+    if (path.dirname(src).toLowerCase() !== path.resolve(app.getPath("downloads")).toLowerCase()) { dlog("inbox-place not in downloads", src); return ""; }
     if (!fs.existsSync(src) || !fs.statSync(src).isFile()) return "";
     const dir = courseDir(course);
     let dest = freeName(dir, name || path.basename(src), src), dup = false;
@@ -816,8 +820,9 @@ ipcMain.handle("inbox-place", (e, src, course, name) => {
     lastInbox = { from: src, to: dest, dup }; conf.lastInbox = lastInbox; saveConf(); bubbleDot(true);
     try { new Notification({ title: "已收纳到 " + course, body: path.basename(dest), icon: ICON, silent: true }).show(); } catch (err) {}
     refreshMenu();
+    dlog("inbox-place ok", dest, dup ? "dup" : "");
     return dest;
-  } catch (err) { return ""; }
+  } catch (err) { dlog("inbox-place error", err.message); return ""; }
 });
 function undoInbox() {
   if (!lastInbox) return;
