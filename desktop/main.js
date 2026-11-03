@@ -487,7 +487,6 @@ function applyOnTop() {
   if (todo && !todo.isDestroyed()) todo.setAlwaysOnTop(pin);
   if (tab && !tab.isDestroyed()) tab.setAlwaysOnTop(pin, "screen-saver");
   if (zero && !zero.isDestroyed()) zero.setAlwaysOnTop(!gameHidden, "floating");
-  for (const w of [bubble, todo, tab, zero]) noTb(w);
 }
 ipcMain.on("game-mode", (e, on, end) => {
   // 某个窗口的旧存档说“没在玩”时不算数，只认“点了结束计时”或到点（end = -1）
@@ -921,9 +920,14 @@ app.on("second-instance", (e, argv) => {
 
 // 小圆、待办、书签、零这些小窗都不该出现在任务栏。Windows 上隐藏再显示、改置顶、毛玻璃的激活消息之后，
 // 「不显示在任务栏」偶尔会失效（任务栏多出「零」「待办」），所以每次显示、置顶变化后都再设一次。只有主窗口（学习空间）留在任务栏。
-const noTb = (w) => { try { if (w && !w.isDestroyed() && w !== main) w.setSkipTaskbar(true); } catch (e) {} };
+// 注意：不能挂在 focus / 置顶变化上——setSkipTaskbar 在 Windows 上会引发新的焦点/激活事件，挂上去就成了死循环（0.8.4–0.8.7 窗口卡死变灰）。
+// 只在显示时补一次，同一个窗口 1 秒内最多一次。
+const noTb = (w) => { try { if (!w || w.isDestroyed() || w === main) return; const now = Date.now(); if (now - (w._noTbAt || 0) < 1000) return; w._noTbAt = now; w.setSkipTaskbar(true); } catch (e) {} };
 app.on("browser-window-created", (e, w) => {
-  for (const ev of ["show", "ready-to-show", "restore", "focus", "always-on-top-changed"]) w.on(ev, () => { noTb(w); setTimeout(() => noTb(w), 300); });
+  for (const ev of ["show", "ready-to-show"]) w.on(ev, () => noTb(w));
+  // 页面崩了或卡死：自动重新加载，不留一块灰窗口
+  w.webContents.on("render-process-gone", (ev, d) => { dlog("renderer gone", d && d.reason); if (!w.isDestroyed() && d && d.reason !== "clean-exit") setTimeout(() => { if (!w.isDestroyed()) w.webContents.reload(); }, 1000); });
+  w.on("unresponsive", () => { dlog("window unresponsive"); setTimeout(() => { if (!w.isDestroyed() && w !== main) w.webContents.forcefullyCrashRenderer(); }, 8000); });
 });
 app.whenReady().then(async () => {
   transOn = await readTransparency();
