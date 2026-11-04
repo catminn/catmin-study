@@ -28,4 +28,5 @@ contextBridge.exposeInMainWorld("zsDesktop", {
   onPull: (cb) => ipcRenderer.on("pull", () => cb()),
   onFiles: (cb) => ipcRenderer.on("files", (e, target, list) => cb(target, list)),
   onCommand: (cb) => ipcRenderer.on("cmd", (e, c) => cb(c)),
+  onSys: (cb) => ipcRenderer.on("sys", (e, t) => cb(String(t))),
 });
