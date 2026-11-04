@@ -823,27 +823,36 @@ ipcMain.handle("inbox-place", (e, src, course, name) => {
     let dest = freeName(dir, name || path.basename(src), src), dup = false;
     if (!dest) { dup = true; dest = path.join(dir, safeName(name || path.basename(src))); fs.unlinkSync(src); } // 课程文件夹里已经有内容一样的文件
     else { try { fs.renameSync(src, dest); } catch (err) { fs.copyFileSync(src, dest, fs.constants.COPYFILE_EXCL); fs.unlinkSync(src); } }
-    lastInbox = { from: src, to: dest, dup }; conf.lastInbox = lastInbox; saveConf(); bubbleDot(true);
+    lastInbox = { from: src, to: dest, dup }; conf.lastInbox = lastInbox;
+    conf.inboxHist = [...(conf.inboxHist || []).filter((x) => x.to !== dest), { from: src, to: dest, dup, at: Date.now() }].slice(-30); // 零聊天里每条收纳提示都能撤销
+    saveConf(); bubbleDot(true);
     try { new Notification({ title: "已收纳到 " + course, body: path.basename(dest), icon: ICON, silent: true }).show(); } catch (err) {}
     refreshMenu();
     dlog("inbox-place ok", dest, dup ? "dup" : "");
     return dest;
   } catch (err) { dlog("inbox-place error", err.message); return ""; }
 });
-function undoInbox() {
-  if (!lastInbox) return;
+// 撤销一次收纳（零聊天里那行灰字后面的「撤销」）：只认自己记下的收纳记录，网页不能借这个搬别的文件
+function undoInbox(to) {
+  const hist = conf.inboxHist || [];
+  const it = hist.find((x) => x.to === to);
+  if (!it) return { ok: false, reason: "找不到这次收纳的记录" };
   try {
-    if (fs.existsSync(lastInbox.to) && !fs.existsSync(lastInbox.from)) {
-      const size = fs.statSync(lastInbox.to).size;
-      conf.inboxIgnore = [...(conf.inboxIgnore || []), path.basename(lastInbox.from).toLowerCase() + "|" + size].slice(-50);
-      // 课程文件夹里那份本来就有（收纳时只删了下载里的重复）：撤销时复制回去，不把原来的搬走
-      if (lastInbox.dup) fs.copyFileSync(lastInbox.to, lastInbox.from);
-      else { try { fs.renameSync(lastInbox.to, lastInbox.from); } catch (e) { fs.copyFileSync(lastInbox.to, lastInbox.from); fs.unlinkSync(lastInbox.to); } }
-      note("已撤销收纳", path.basename(lastInbox.from) + " 回到了下载文件夹，之后不会再自动收它。");
-    }
-  } catch (e) { dlog("undo err", e.message); }
-  lastInbox = null; delete conf.lastInbox; saveConf(); refreshMenu();
+    if (!fs.existsSync(it.to)) return { ok: false, reason: "课程文件夹里已经没有这个文件了" };
+    if (fs.existsSync(it.from)) return { ok: false, reason: "下载文件夹里已经有同名文件" };
+    const size = fs.statSync(it.to).size;
+    conf.inboxIgnore = [...(conf.inboxIgnore || []), path.basename(it.from).toLowerCase() + "|" + size].slice(-50);
+    // 课程文件夹里那份本来就有（收纳时只删了下载里的重复）：撤销时复制回去，不把原来的搬走
+    if (it.dup) fs.copyFileSync(it.to, it.from);
+    else { try { fs.renameSync(it.to, it.from); } catch (e) { fs.copyFileSync(it.to, it.from); fs.unlinkSync(it.to); } }
+    conf.inboxHist = hist.filter((x) => x !== it);
+    if (lastInbox && lastInbox.to === to) { lastInbox = null; delete conf.lastInbox; }
+    saveConf();
+    dlog("inbox undo", it.to, "->", it.from);
+    return { ok: true, from: it.from };
+  } catch (e) { dlog("undo err", e.message); return { ok: false, reason: e.message }; }
 }
+ipcMain.handle("inbox-undo", (e, to) => (fromSite(e) ? undoInbox(String(to)) : { ok: false, reason: "不允许" }));
 
 // ---------- 自动更新：从 GitHub Releases（catminn/catmin-study）后台下载，退出或点托盘时换上 ----------
 let updater = null, updateReady = "";
@@ -894,7 +903,6 @@ function menu() {
       ...Object.entries(RING_MODS).map(([k, t]) => ({ label: "按住 " + t, type: "radio", checked: (conf.ringMod || "shift") === k, click: () => { conf.ringMod = k; saveConf(); refreshMenu(); } })),
     ] },
     { label: "自动收纳下载的课程文件", type: "checkbox", checked: !conf.inboxOff, click: (i) => { conf.inboxOff = !i.checked; saveConf(); if (i.checked) startInbox(); else stopInbox(); } },
-    { label: lastInbox ? "撤销上次收纳（" + path.basename(lastInbox.to).slice(0, 24) + "）" : "撤销上次收纳", enabled: !!lastInbox, click: undoInbox },
     { label: "开机启动", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
     { label: hotkey ? "设置快捷键…（现在是 " + keyName(hotkey) + "）" : "设置快捷键…（现在没有）", click: openHotkeyWin },
     ...(updateReady ? [{ label: "重启并更新到 " + updateReady, click: () => { app.isQuitting = true; flushConf(); app.releaseSingleInstanceLock(); setImmediate(() => updater.quitAndInstall(true, true)); } }] : []), // 先放开单实例锁，否则装好后新版一启动就以为旧的还在、自己退出
@@ -937,6 +945,7 @@ app.whenReady().then(async () => {
   if (!transOn && !conf.transWarned) { conf.transWarned = true; saveConf(); setTimeout(() => note("毛玻璃需要打开 Windows 的“透明效果”", "设置 → 个性化 → 颜色 → 透明效果。打开后退出学习空间再打开。现在先用普通半透明。"), 4000); }
   setInterval(async () => { const t = await readTransparency(); if (t !== transOn) { transOn = t; glassFor(zero, true); glassFor(todo, todoState === "full"); } }, 10 * 60 * 1000);
   if (conf.lastInbox && conf.lastInbox.to && fs.existsSync(conf.lastInbox.to)) lastInbox = conf.lastInbox;
+  if (lastInbox && !(conf.inboxHist || []).some((x) => x.to === lastInbox.to)) conf.inboxHist = [...(conf.inboxHist || []), { ...lastInbox, at: Date.now() }];
   if (conf.glassMode) { delete conf.glassMode; saveConf(); } // 玻璃效果固定用默认（Windows 11 材质），菜单已去掉
   setInterval(labPoll, 15000); setTimeout(labPoll, 6000); // 远程排查小圆和书签的磨砂（glass-lab.json）
   // 节能模式：系统关掉模糊时，各个窗口改成纯白底
