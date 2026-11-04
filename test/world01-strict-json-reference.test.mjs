@@ -67,7 +67,7 @@ test('JSON.parse would silently accept duplicate keys', () => assert.equal(JSON.
 const fixtureUrl = new URL('../content/contracts/world01-opening-skeleton.json', import.meta.url);
 const expectedBlob = 'd47474604926ef0ad8763b36fa543b283557ba32';
 const sha = (algorithm, bytes) => createHash(algorithm).update(bytes).digest('hex');
-const blobHash = bytes => sha('sha1', Buffer.concat([Buffer.from(`blob ${bytes.length}\\0`, 'ascii'), bytes]));
+const blobHash = bytes => sha('sha1', Buffer.concat([Buffer.from(`blob ${bytes.length}\0`, 'ascii'), bytes]));
 const canonical = value => value === null || typeof value !== 'object'
   ? JSON.stringify(value)
   : Array.isArray(value) ? `[${value.map(canonical).join(',')}]`
@@ -88,7 +88,7 @@ test('real public fixture strict parse and byte/digest binding', () => {
 });
 test('real fixture mutation with duplicate decoded key fails closed', () => {
   const source = readFileSync(fixtureUrl).toString('utf8');
-  const mutated = source.replace(/^\\s*\\{/, '{"schemaVersion":"shadow",');
+  const mutated = source.replace(/^\s*\{/, '{"schemaVersion":"shadow",');
   assert.notEqual(mutated, source);
   assert.throws(() => parseStrict(Buffer.from(mutated)), SyntaxError);
 });
