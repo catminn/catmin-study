@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 // Synthetic author-side byte parser; never accepts private story input.
-function parseStrict(bytes) {
+export function parseStrict(bytes) {
   const s = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   let i = 0;
   const ws = () => { while (/\s/.test(s[i] ?? '') && i < s.length) i++; };
@@ -60,3 +62,33 @@ for (const [name, source] of [
 ]) test(`reject ${name}`, () => assert.throws(() => parseStrict(b(source)), SyntaxError));
 test('reject invalid UTF-8', () => assert.throws(() => parseStrict(Buffer.from([0xc3,0x28])), TypeError));
 test('JSON.parse would silently accept duplicate keys', () => assert.equal(JSON.parse('{"a":1,"a":2}').a, 2));
+
+// Real public fixture integration: no private narrative or approval sidecar.
+const fixtureUrl = new URL('../content/contracts/world01-opening-skeleton.json', import.meta.url);
+const expectedBlob = 'd47474604926ef0ad8763b36fa543b283557ba32';
+const sha = (algorithm, bytes) => createHash(algorithm).update(bytes).digest('hex');
+const blobHash = bytes => sha('sha1', Buffer.concat([Buffer.from(`blob ${bytes.length}\\0`, 'ascii'), bytes]));
+const canonical = value => value === null || typeof value !== 'object'
+  ? JSON.stringify(value)
+  : Array.isArray(value) ? `[${value.map(canonical).join(',')}]`
+  : `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
+test('real public fixture strict parse and byte/digest binding', () => {
+  const bytes = readFileSync(fixtureUrl);
+  assert.equal(blobHash(bytes), expectedBlob);
+  const parsed = parseStrict(bytes);
+  assert.equal(parsed.schemaVersion, 'story-structure-0.1');
+  assert.equal(parsed.visibility, 'mechanics_only');
+  const digest = sha('sha256', canonical(parsed));
+  assert.match(digest, /^[0-9a-f]{64}$/);
+  const reordered = Object.fromEntries(Object.entries(parsed).reverse());
+  assert.equal(digest, sha('sha256', canonical(reordered)));
+  const changed = structuredClone(parsed);
+  changed.warning += ' ';
+  assert.notEqual(digest, sha('sha256', canonical(changed)));
+});
+test('real fixture mutation with duplicate decoded key fails closed', () => {
+  const source = readFileSync(fixtureUrl).toString('utf8');
+  const mutated = source.replace(/^\\s*\\{/, '{"schemaVersion":"shadow",');
+  assert.notEqual(mutated, source);
+  assert.throws(() => parseStrict(Buffer.from(mutated)), SyntaxError);
+});
