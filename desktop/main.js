@@ -505,7 +505,8 @@ ipcMain.on("badge", (e, n) => { const h = Number(n) || 0; if (h !== todoHot) { t
 let bubbleDotOn = false;
 function bubbleDot(on) { bubbleDotOn = !!on; if (bubble && !bubble.isDestroyed()) bubble.webContents.send("badge", on ? 1 : 0); }
 ipcMain.on("dlog", (e, ...a) => dlog("page", ...a));
-ipcMain.on("notify", () => { if (!(zero && !zero.isDestroyed() && zero.isVisible() && zero.isFocused())) bubbleDot(true); });
+// 小红点只表示「零那边有你还没看到的新东西」：零回复了而窗口没开着、或者收纳了文件。窗口开着（哪怕没焦点）就不亮；有新版本只在托盘里提示，不亮红点
+ipcMain.on("notify", () => { if (!(zero && !zero.isDestroyed() && zero.isVisible())) bubbleDot(true); });
 ipcMain.on("saved", (e) => {
   for (const w of [zero, todo, main]) if (w && !w.isDestroyed() && w.webContents.id !== e.sender.id) send(w, "pull");
 });
@@ -867,7 +868,6 @@ function startUpdater() {
     lastPct = -1;
     if (info && info.version && info.version === updateReady) { updateState = ""; if (manualCheck) note("学习空间", updateReady + " 已经下载好了：点托盘里的「重启并更新」换上。"); manualCheck = false; refreshMenu(); return; }
     manualCheck = false;
-    bubbleDot(true);
     updateReady = info && info.version || "新版本"; updateState = ""; refreshMenu();
     note("新版本下载好了", updateReady + " 已经准备好：点托盘里的「重启并更新」换上。");
   });
