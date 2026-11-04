@@ -483,6 +483,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 .zw-t select{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:2px 6px;font-size:13px}
 .zw-x{border:0;background:none;color:var(--dim);font-size:13px;padding:4px 6px;cursor:pointer}.zw-x.zw-cl{text-decoration:none;white-space:nowrap}.zw-head .zw-x{flex:none;padding:4px 4px}.zw-t{flex:1 0 auto}.zw-t select{flex:none}.zw-x.ddl{color:#fff;background:#d9534f;border-radius:6px;font-weight:700}.zw-x:last-child{font-size:20px;line-height:1}
 .zw-log{flex:1;min-height:0;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.zw-sys{align-self:center;max-width:90%;text-align:center;font-size:12px;line-height:1.5;color:var(--dim);padding:0 8px}
 .zw-m{max-width:92%;border-radius:14px;padding:8px 12px;font-size:15px;line-height:1.75;overflow-wrap:anywhere}
 .zw-m.a{align-self:flex-start;background:var(--panel2);border-radius:4px 14px 14px 14px}
 .zw-m.u{align-self:flex-end;background:var(--fg);color:var(--panel);border-radius:14px 4px 14px 14px;white-space:pre-wrap}
@@ -2208,7 +2209,7 @@ function zwOpen(subj,msg){if(subj&&SUBJ[subj]){ZW.subj=subj}$("#zwPanel").hidden
 function zwCloseP(){$("#zwPanel").hidden=true;document.body.classList.remove("zw-open")}
 function zwRender(){const sel=$("#zwSubj");if(!sel)return;{const cl=$("#zwClaude");if(cl)cl.hidden=!window.__SITE}{const mb=$("#zwMode");if(mb){const d=S.zwMode==="ddl";mb.textContent=d?"赶 DDL":"教学";mb.classList.toggle("ddl",d)}}renderTaskBar();sel.replaceChildren(h("option",{value:"life",selected:ZW.subj==="life"},"日常"),...Object.keys(SUBJ).map(k=>h("option",{value:k,selected:k===ZW.subj},SUBJ[k].name)));{const mb=$("#zwMode");if(mb)mb.hidden=ZW.subj==="life"}
   const log=$("#zwLog");const atB=zwAtBottom(),prev=log.scrollTop,nTurns=ZW.turns.length,subjChanged=ZW.shownSubj!==ZW.subj,grew=!subjChanged&&nTurns>(ZW.shownN||0);ZW.shownSubj=ZW.subj;ZW.shownN=nTurns;log.replaceChildren();if(!ZW.turns.length)log.append(h("div",{class:"zw-hint"},SAMPLE?(ZW.subj==="life"?"想让我做什么，直接说。加日历、找文件、记事情都行。":"有什么不会的，直接问。"):"需要在 Claude 里打开才能对话"));
-  for(const t of ZW.turns){if(t.role==="user")log.append(h("div",{class:"zw-m u"},t.content));else log.append(h("div",{class:"zw-m a"},renderMd(t.content),h("button",{class:"zw-copy",title:"复制这条（公式保留成 LaTeX）",onclick:()=>copyText(t.content.replace(/```(svg|plotly)[\s\S]*?```/g,"[图]").trim(),"已复制")},"复制")))}
+  for(const t of ZW.turns){if(t.role==="sys"){log.append(h("div",{class:"zw-sys"},t.content));continue}if(t.role==="user")log.append(h("div",{class:"zw-m u"},t.content));else log.append(h("div",{class:"zw-m a"},renderMd(t.content),h("button",{class:"zw-copy",title:"复制这条（公式保留成 LaTeX）",onclick:()=>copyText(t.content.replace(/```(svg|plotly)[\s\S]*?```/g,"[图]").trim(),"已复制")},"复制")))}
   $("#zwThumbs").replaceChildren(...ZW.imgs.map(f=>h("span",{class:"zw-th"},h("img",{src:URL.createObjectURL(f),alt:"附图"}),h("button",{class:"zw-thx","aria-label":"移除",onclick:()=>{ZW.imgs=ZW.imgs.filter(x=>x!==f);zwRender()}},"×"))),...(ZW.docs||[]).map(d=>h("span",{class:"lchip"},h("span",null,d.name),h("button",{onclick:()=>{ZW.docs=ZW.docs.filter(x=>x!==d);zwRender()},"aria-label":"移除"},"×"))));$("#zwClipL").hidden=false;$("#zwSend").disabled=!SAMPLE||!!ZW.ctl;
   typeset(log);
   /* 停在她离开的地方；刚发消息、换科目、本来就在最底下时才跳到最新 */
@@ -2220,7 +2221,7 @@ async function zwSend(text,show){text=(text||$("#zwInput").value).trim();const h
   const subj=ZW.subj;const imgs=ZW.imgs.slice();ZW.imgs=[];const docs=(ZW.docs||[]).slice();ZW.docs=[];ZW.turns.push({role:"user",...(show?{ask:text}:{}),content:(show||(onlyAtt?"":text))+(imgs.length?"（附了 "+imgs.length+" 张图）":"")+(docs.length?"（附件："+docs.map(d=>d.name).join("、")+"）":""),at:Date.now(),...(docs.length?{docs:docs.map(d=>({name:d.name,text:d.text.slice(0,12000)}))}:{})});ZW.ctl=new AbortController();zwRender();const T0=ZW.turns,uTurn=T0[T0.length-1];
   const log=$("#zwLog");const bub=h("div",{class:"zw-m a"},"…");log.append(bub);log.scrollTop=log.scrollHeight;ZW.shownN=ZW.turns.length;
   /* 发过的附件（讲义、题目）和零从图片里记下的内容，后面每一轮都带着，不然零下一句就忘了 */
-  const recent=ZW.turns.slice(-12);let budget=24000;
+  const recent=ZW.turns.filter(t=>t.role!=="sys").slice(-12);let budget=24000;/* 系统提示（收纳了文件之类）不发给 AI */
   const hist=recent.map(t=>{let c=t.ask?t.content.replace(/^[^（]*/,t.ask):t.content;if(t.docs&&budget>0)for(const d of t.docs){const x=d.text.slice(0,budget);budget-=x.length;c+="\n\n【附件 "+d.name+"】\n"+x}if(t.memo)c+="\n\n（你之前从她的图片里记下的内容）\n"+t.memo;return{role:t.role,content:c}});
   while(hist.length&&hist[0].role!=="user")hist.shift();
   for(const t of ZW.turns.slice(0,-12))if(t.docs&&budget>0&&hist.length){for(const d of t.docs){const x=d.text.slice(0,budget);budget-=x.length;hist[0].content="【她之前发过的附件 "+d.name+"】\n"+x+"\n\n"+hist[0].content}}
@@ -2857,7 +2858,8 @@ ${text?"开头的内容：\n"+text.slice(0,1800):"（读不出文字，只能看
       if(j&&SUBJ[j.subj])subj=j.subj}catch(e){try{DESK.log&&DESK.log("inbox","ai error",(e&&(e.code||e.message))||"")}catch(x){}}}
   const lg=(...a)=>{try{DESK.log&&DESK.log("inbox",...a)}catch(e){}};
   if(!subj){lg("not a course file",f.name);return}
-  const dest=await DESK.inboxPlace(item.src,COURSE[subj],f.name);lg("place",subj,dest||"(failed)");if(!dest){toast("「"+f.name+"」没收纳成功");return}
+  const dest=await DESK.inboxPlace(item.src,COURSE[subj],f.name);lg("place",subj,dest||"(failed)");if(!dest){zwSys("「"+f.name+"」没收纳成功，还在下载文件夹里");return}
+  zwSys("已把「"+f.name+"」收纳到 "+String(COURSE[subj]).split(" ").slice(0,2).join(" "));
   if(text&&text.replace(/\s/g,"").length>=40)addDoc(subj,{name:f.name,src:"下载收纳",text},true);
   smEvent("收纳了 "+f.name,subj);save();
   driveUpload(subj,f.name,f.type,item.data)}
@@ -2868,6 +2870,8 @@ ${text?"开头的内容：\n"+text.slice(0,1800):"（读不出文字，只能看
 function curItem(){const c=S.cur;if(!c)return null;if(c.kind==="occ")return occurrences().find(o=>o.key===c.key)||null;if(c.kind==="cv")return SIDE.find(q=>"cv-"+q.id===c.key)||null;return(S.todos||[]).find(t=>t.id===c.key)||null}
 function curMinutes(){const c=S.cur;if(!c)return 0;return Math.round(((c.spent||0)+(c.start?Date.now()-c.start:0))/MIN)}
 function zwSay(text){ZW.turns.push({role:"assistant",content:text,at:Date.now()});zwSave();zwRender()}
+/* 聊天里居中的灰色小字系统提示（像微信的「拍了拍」）：不是零说的话，也不会发给 AI */
+function zwSys(text){ZW.turns.push({role:"sys",content:String(text),at:Date.now()});zwSave();zwRender();if($("#zwPanel")&&$("#zwPanel").hidden&&$("#zwFab"))$("#zwFab").classList.add("ping")}
 function beginTask(kind,key,subj,title,quiet){
   if(kind==="occ"&&!S.started[key]){S.started[key]=Date.now();const o=occurrences().find(x=>x.key===key);if(o&&(o.soft-Date.now())/HOUR>=48){S.cards.makeup++;S.ledger.push({at:Date.now(),d:0,t:"开荒奖励 · "+title+" · 补签卡 +1"});toast("开荒奖励：补签卡 +1")}}
   if(S.cur&&S.cur.key!==key)pauseTask(true);
