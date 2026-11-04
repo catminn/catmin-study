@@ -1173,6 +1173,10 @@ function mergeState(raw){const x=raw?clone(raw):{};const o=Object.assign(default
   if(o.cards&&o.cards.rest>0){o.cards.makeup=(o.cards.makeup||0)+o.cards.rest;o.cards.rest=0}
   /* 一次性：数学 HW 9 按新规则补到 60 */
   if(!o.mig1102){const d=o.done["math-hw@2026-10-29"];if(d&&typeof d.pts==="number"&&d.pts<60){const add=60-d.pts;o.points=r1((o.points||0)+add);o.xp=(o.xp||0)+Math.round(add*XP_PER);o.ledger.push({at:Date.now(),d:add,t:"补发 · 数学 HW 9（按新规则 60 分）"});d.pts=60}o.mig1102=1}
+  /* 一次性：11/3 晚上的晚安被「窗口重新加载」误判成又在用了（旧规则），恢复回来，早上可以点起床 */
+  if(!o.mig1104){const L=o.ledger||[];const v=L.filter(e=>e.t==="晚安后又在用，这次不算"&&e.at>at(2026,11,3,18,0)&&e.at<at(2026,11,4,12,0)).pop();
+    const g=v&&L.filter(e=>/^晚安 /.test(e.t)&&e.at<v.at&&e.at>at(2026,11,3,18,0)).pop();
+    if(v&&g&&!o.sleep){o.sleep={at:g.at,wake:sleepWake(g.at),day:dayKey(g.at)};o.ledger=L.filter(e=>e!==v)}o.mig1104=1}
   /* 一次性：HW 9 实际用时 90 分钟；11/1 的 lab report 和 pre-lab 截止延后 30 分钟 */
   if(!o.mig1101){o.timeLog=Array.isArray(o.timeLog)?o.timeLog:[];for(const e of o.timeLog)if(e.subj==="math"&&/HW 9\b/.test(e.title||"")&&e.min>100)e.min=90;
     if(o.cur&&o.cur.subj==="math"&&/HW 9\b/.test(o.cur.title||"")){o.cur.spent=90*60000;o.cur.start=null}
@@ -2425,7 +2429,8 @@ function wakeCutoff(s){const d=new Date(s.wake);d.setHours(13,0,0,0);return Math
 function wakeUp(){if(!sleepAwake()){toast("还没到早上");return}sleepSettle(Date.now())}
 function sleepCheck(){const s=S.sleep;if(!s)return;const now=Date.now();
   if(now>=s.wake){if(now>=wakeCutoff(s))sleepSettle(null);else renderHud();return}
-  if(now<s.wake){if(now-s.at>SLEEP_GRACE){S.sleep=null;S.ledger.push({at:now,d:0,t:"晚安后又在用，这次不算"});save();setTimeout(()=>toast("晚安后又在用，这次不算；真要睡了再点一次晚安"),1200);renderAll()}return}
+  /* 晚安后到起床前：打开页面、窗口刷新/重启、待办展开收起都不算「又在用」，只有真的点击或打字才算（见 sleepUsed） */
+  if(now<s.wake)return
 }
 function sleepSettle(up){const s=S.sleep;if(!s)return;const now=up||Date.now();
   S.sleep=null;const bm=bedMin(s.at),avg=sleepAvg();S.sleepRec=(S.sleepRec||[]).concat([{day:s.day,bed:s.at,up:up||null}]).slice(-90);
@@ -2490,6 +2495,10 @@ function tickFocus(){const f=FOCUS;if(!f)return;const now=Date.now();
   if(!CTL&&now-f.last>FOCUS_IDLE){focusFail("6 分钟没有动静");return}
   if(CTL)f.last=now;if(curView()==="dungeon")renderFocus()}
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")sleepCheck()});
+/* 晚安 15 分钟后到早上起床时间之前，在任何页面上真的点了或打了字，才算「晚安后又在用」 */
+function sleepUsed(){const s=S.sleep;if(!s)return;const now=Date.now();if(now>=s.wake||now-s.at<=SLEEP_GRACE)return;
+  S.sleep=null;S.ledger.push({at:now,d:0,t:"晚安后又在用，这次不算"});save();setTimeout(()=>toast("晚安后又在用，这次不算；真要睡了再点一次晚安"),300);renderAll()}
+["pointerdown","keydown"].forEach(ev=>document.addEventListener(ev,e=>{if(e.isTrusted)sleepUsed()},true));
 document.addEventListener("visibilitychange",()=>{if(!FOCUS)return;if(document.visibilityState==="hidden"){clearTimeout(FOCUS_HIDE);FOCUS_HIDE=setTimeout(()=>{if(document.visibilityState==="hidden")focusFail("切走了网页")},FOCUS_AWAY)}else clearTimeout(FOCUS_HIDE)});
 window.addEventListener("pagehide",()=>{if(FOCUS){S.focusLive={start:FOCUS.start,min:FOCUS.min};save()}});
 
