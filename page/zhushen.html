@@ -1210,6 +1210,9 @@ function mergeState(raw){const x=raw?clone(raw):{};const o=Object.assign(default
   /* 一次性：PS 9 在桌面待办上按时打了勾，但被另一端的旧存档覆盖掉了，补记（按时 ×1 = 50）；以前没归到具体作业的收题清掉 */
   if(!o.mig1105){o.done=o.done||{};const k="chem-ps@2026-11-04";if(!o.done[k]){o.done[k]={at:at(2026,11,4,23,0),pts:50};o.ledger=o.ledger||[];o.ledger.push({at:Date.now(),d:50,t:"补记 · 化学 PS 9（按时交）"});o.points=(o.points||0)+50;o.xp=(o.xp||0)+Math.round(50*XP_PER)}
     if(o.started)delete o.started[k];if(o.pausedTasks)delete o.pausedTasks[k];if(o.hwDraft&&typeof o.hwDraft==="object")for(const sj in o.hwDraft)if(Array.isArray(o.hwDraft[sj]))o.hwDraft[sj]=o.hwDraft[sj].filter(q=>q&&q.task);o.mig1105=1}
+  /* 一次性：11/5 凌晨点了晚安后，为了帮忙测试网页改动又用了一会儿，被判成「又在用」；按最后一次用（02:20）补回晚安，早上能点起床 */
+  if(!o.mig1105s){const L=o.ledger||[];const v=L.find(e=>e.t==="晚安后又在用，这次不算"&&e.at>at(2026,11,5,1,0)&&e.at<at(2026,11,5,4,0));const later=L.some(e=>/^晚安 /.test(e.t)&&e.at>at(2026,11,5,2,5));
+    if(v&&!later&&!o.sleep&&!(o.sleepRec||[]).some(x=>x.day==="2026-11-04")){const b=at(2026,11,5,2,20);o.sleep={at:b,wake:sleepWake(b),day:"2026-11-04"};o.sleepMt=Date.now()}o.mig1105s=1}
   if(!o.mig1104){const L=o.ledger||[];const v=L.filter(e=>e.t==="晚安后又在用，这次不算"&&e.at>at(2026,11,3,18,0)&&e.at<at(2026,11,4,12,0)).pop();
     const g=v&&L.filter(e=>/^晚安 /.test(e.t)&&e.at<v.at&&e.at>at(2026,11,3,18,0)).pop();
     if(v&&g&&!o.sleep){o.sleep={at:g.at,wake:sleepWake(g.at),day:dayKey(g.at)};o.ledger=L.filter(e=>e!==v)}o.mig1104=1}
@@ -2473,8 +2476,8 @@ function sleepWake(at){const d=new Date(at),w=new Date(at);if(d.getHours()>=12)w
 function sleepStreak(){const set=new Set(S.sleepLog||[]);let n=0;let k=addDays(dayKey(),-1);while(set.has(k)){n++;k=addDays(k,-1)}return n}
 function sleepAvg(n=7){const r=(S.sleepRec||[]).slice(-n);return r.length?r.reduce((a,x)=>a+bedMin(x.bed),0)/r.length:null}
 let UNDO_SLEEP=0;
-function goodnight(){if(S.sleep){if(Date.now()-UNDO_SLEEP<5000){const at=S.sleep.at;S.sleep=null;const i=S.ledger.findIndex(l=>l.at===at&&/^晚安 /.test(l.t));if(i>=0)S.ledger.splice(i,1);UNDO_SLEEP=0;save();toast("已撤销晚安");renderAll()}else{UNDO_SLEEP=Date.now();toast("点错了？5 秒内再点一次就撤销晚安")}return}const now=Date.now();
-  S.sleep={at:now,wake:sleepWake(now),day:dayKey()};S.ledger.push({at:now,d:0,t:"晚安 "+fmtBed(bedMin(now))});save();
+function goodnight(){if(S.sleep){if(Date.now()-UNDO_SLEEP<5000){const at=S.sleep.at;S.sleep=null;S.sleepMt=Date.now();const i=S.ledger.findIndex(l=>l.at===at&&/^晚安 /.test(l.t));if(i>=0)S.ledger.splice(i,1);UNDO_SLEEP=0;save();toast("已撤销晚安");renderAll()}else{UNDO_SLEEP=Date.now();toast("点错了？5 秒内再点一次就撤销晚安")}return}const now=Date.now();
+  S.sleep={at:now,wake:sleepWake(now),day:dayKey()};S.sleepMt=now;S.ledger.push({at:now,d:0,t:"晚安 "+fmtBed(bedMin(now))});save();
   const ok=sleepWindow(now).ok,avg=sleepAvg();
   fxBanner("晚安",ok?"00:30 前，明早打开领 +"+(sleepStreak()>=2?SLEEP_STREAK_PTS:SLEEP_PTS):avg!=null?"最近平均 "+fmtBed(avg)+" 睡，明早看看有没有进步":"记下了，明早打开就记起床","#8b9cf0");renderAll()}
 /* 起床要自己点（防止在床上刷手机）：早上打开后顶栏变成「起床」；到中午 13:00 还没点，就只结算睡觉的部分 */
@@ -2487,7 +2490,7 @@ function sleepCheck(){const s=S.sleep;if(!s)return;const now=Date.now();
   if(now<s.wake)return
 }
 function sleepSettle(up){const s=S.sleep;if(!s)return;const now=up||Date.now();
-  S.sleep=null;const bm=bedMin(s.at),avg=sleepAvg();S.sleepRec=(S.sleepRec||[]).concat([{day:s.day,bed:s.at,up:up||null}]).slice(-90);
+  S.sleep=null;S.sleepMt=Date.now();const bm=bedMin(s.at),avg=sleepAvg();S.sleepRec=(S.sleepRec||[]).concat([{day:s.day,bed:s.at,up:up||null}]).slice(-90);
   let pts=0,lines=[fmtBed(bm)+" 睡，"+(up?pad(new Date(now).getHours())+":"+pad(new Date(now).getMinutes())+" 起":"没点起床")+(avg!=null?"（最近平均 "+fmtBed(avg)+" 睡）":"")];
   if(sleepWindow(s.at).ok){S.sleepLog=S.sleepLog||[];if(!S.sleepLog.includes(s.day))S.sleepLog.push(s.day);S.sleepLog=S.sleepLog.slice(-60);const n=sleepStreak()+1;pts=n>=3?SLEEP_STREAK_PTS:SLEEP_PTS;lines.push("连续早睡 "+n+" 晚"+(n>=3?"，奖励加码":"，连续 3 晚起每晚 +"+SLEEP_STREAK_PTS))}
   else if(avg!=null&&avg-bm>=20){pts=SLEEP_PROG_PTS;lines.push("比最近平均早了 "+Math.round(avg-bm)+" 分钟，进步奖励")}
@@ -2551,7 +2554,7 @@ function tickFocus(){const f=FOCUS;if(!f)return;const now=Date.now();
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")sleepCheck()});
 /* 晚安 15 分钟后到早上起床时间之前，在任何页面上真的点了或打了字，才算「晚安后又在用」 */
 function sleepUsed(){const s=S.sleep;if(!s)return;const now=Date.now();if(now>=s.wake||now-s.at<=SLEEP_GRACE)return;
-  S.sleep=null;S.ledger.push({at:now,d:0,t:"晚安后又在用，这次不算"});save();setTimeout(()=>toast("晚安后又在用，这次不算；真要睡了再点一次晚安"),300);renderAll()}
+  S.sleep=null;S.sleepMt=Date.now();S.ledger.push({at:now,d:0,t:"晚安后又在用，这次不算"});save();setTimeout(()=>toast("晚安后又在用，这次不算；真要睡了再点一次晚安"),300);renderAll()}
 ["pointerdown","keydown"].forEach(ev=>document.addEventListener(ev,e=>{if(e.isTrusted)sleepUsed()},true));
 document.addEventListener("visibilitychange",()=>{if(!FOCUS)return;if(document.visibilityState==="hidden"){clearTimeout(FOCUS_HIDE);FOCUS_HIDE=setTimeout(()=>{if(document.visibilityState==="hidden")focusFail("切走了网页")},FOCUS_AWAY)}else clearTimeout(FOCUS_HIDE)});
 window.addEventListener("pagehide",()=>{if(FOCUS){S.focusLive={start:FOCUS.start,min:FOCUS.min};save()}});
@@ -3158,6 +3161,7 @@ function syncMerge(a,b){if(!a)return clone(b);if(!b)return clone(a);const o=clon
   uni("mistakes",m=>m.id);uni("scores",x=>x.id);uni("timeLog",x=>x.at+"|"+x.title);uni("sleepRec",x=>x.bed);uni("playLog",x=>x.at);uni("dqDone",x=>x.day+"|"+x.client);uni("hwArchive",x=>x.id);
   o.checkins=[...new Set([...(o.checkins||[]),...(b.checkins||[])])].sort();
   for(const m of o.mistakes||[]){const r=(b.mistakes||[]).find(x=>x.id===m.id);if(r&&r.killed)m.killed=r.killed}
+  if((b.sleepMt||0)>(o.sleepMt||0)){o.sleep=b.sleep;o.sleepMt=b.sleepMt}
   o.savedAt=Math.max(o.savedAt||0,b.savedAt||0);return o}
 const sameState=(x,y)=>{try{return JSON.stringify(x)===JSON.stringify(y)}catch(e){return false}};
 let PULLING=false;
