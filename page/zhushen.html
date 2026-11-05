@@ -1174,6 +1174,9 @@ function mergeState(raw){const x=raw?clone(raw):{};const o=Object.assign(default
   /* 一次性：数学 HW 9 按新规则补到 60 */
   if(!o.mig1102){const d=o.done["math-hw@2026-10-29"];if(d&&typeof d.pts==="number"&&d.pts<60){const add=60-d.pts;o.points=r1((o.points||0)+add);o.xp=(o.xp||0)+Math.round(add*XP_PER);o.ledger.push({at:Date.now(),d:add,t:"补发 · 数学 HW 9（按新规则 60 分）"});d.pts=60}o.mig1102=1}
   /* 一次性：11/3 晚上的晚安被「窗口重新加载」误判成又在用了（旧规则），恢复回来，早上可以点起床 */
+  /* 一次性：PS 9 在桌面待办上按时打了勾，但被另一端的旧存档覆盖掉了，补记（按时 ×1 = 50）；以前没归到具体作业的收题清掉 */
+  if(!o.mig1105){o.done=o.done||{};const k="chem-ps@2026-11-04";if(!o.done[k]){o.done[k]={at:at(2026,11,4,23,0),pts:50};o.ledger=o.ledger||[];o.ledger.push({at:Date.now(),d:50,t:"补记 · 化学 PS 9（按时交）"});o.points=(o.points||0)+50;o.xp=(o.xp||0)+Math.round(50*XP_PER)}
+    if(o.started)delete o.started[k];if(o.pausedTasks)delete o.pausedTasks[k];if(o.hwDraft&&typeof o.hwDraft==="object")for(const sj in o.hwDraft)if(Array.isArray(o.hwDraft[sj]))o.hwDraft[sj]=o.hwDraft[sj].filter(q=>q&&q.task);o.mig1105=1}
   if(!o.mig1104){const L=o.ledger||[];const v=L.filter(e=>e.t==="晚安后又在用，这次不算"&&e.at>at(2026,11,3,18,0)&&e.at<at(2026,11,4,12,0)).pop();
     const g=v&&L.filter(e=>/^晚安 /.test(e.t)&&e.at<v.at&&e.at>at(2026,11,3,18,0)).pop();
     if(v&&g&&!o.sleep){o.sleep={at:g.at,wake:sleepWake(g.at),day:dayKey(g.at)};o.ledger=L.filter(e=>e!==v)}o.mig1104=1}
@@ -1194,7 +1197,7 @@ function save(){dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,40
 function trimState(){S.checkins=[...new Set(S.checkins)].slice(-300);S.restDays=S.restDays.slice(-80);S.ledger=S.ledger.slice(-400);S.mistakes=S.mistakes.slice(-100);
   for(const k in S.progress)S.progress[k]=S.progress[k].slice(-15);const cut=Date.now()-90*DAY;for(const m of[S.started,S.skipped])for(const k in m)if(m[k]<cut)delete m[k]}
 function flush(){if(!dirty)return;dirty=false;trimState();S.savedAt=Date.now();if(window.zsDesktop&&window.zsDesktop.gameMode&&S.timer&&S.timer.end>Date.now())window.zsDesktop.gameMode(true,S.timer.end); /* 买了游戏时间立刻告诉桌面程序藏起小圆和待办 */const body=clone(S);cloudQueue("state",()=>clone(S));
-  saving=saving.then(async()=>{if(stateRef){try{liveSaw("state",await stateRef.set(body));if(DESK&&DESK.saved)DESK.saved();if($("#saveBanner").dataset.err)banner("")}catch(e){banner("存档没写进去（"+((e&&e.code)||"错误")+"），刷新后再试。",true)}}else{try{localStorage.setItem("zs-state",JSON.stringify(body))}catch(e){}}})}
+  saving=saving.then(async()=>{if(stateRef){try{let out=body;if(window.__SITE){try{const r=await stateRef.get();if(r.exists&&(r.version||0)>(LIVE.ver.state||0)){const m=mergeState(syncMerge(S,r.data()));S=m;out=clone(m);liveSaw("state",r);applyDyn();renderAll()}}catch(e){}}liveSaw("state",await stateRef.set(out));if(DESK&&DESK.saved)DESK.saved();if($("#saveBanner").dataset.err)banner("")}catch(e){banner("存档没写进去（"+((e&&e.code)||"错误")+"），刷新后再试。",true)}}else{try{localStorage.setItem("zs-state",JSON.stringify(body))}catch(e){}}})}
 function banner(t,err){const b=$("#saveBanner");b.textContent=t;b.hidden=!t;if(err)b.dataset.err="1";else delete b.dataset.err}
 function smEvent(text,subj){S.smLog=S.smLog||[];S.smLog.push({at:Date.now(),s:subj||"",t:String(text).slice(0,160)});if(S.smLog.length>200)S.smLog.shift()}
 function earn(delta,text){delta=r1(delta);if(text&&!/^(兑换|购买|花费)/.test(text))smEvent(text+(delta?"（"+(delta>0?"+":"")+delta+" 分）":""));S.points=r1(S.points+delta);if(delta>0)S.xp+=Math.round(delta*XP_PER);S.ledger.push({at:Date.now(),d:delta,t:text})}
@@ -1808,7 +1811,7 @@ function renderDungeon(){const w=worldOf(CUR);{const b=S.battle[CUR];if(!QUEST[C
     n&&!nodeIsDone(CUR,n)?h("button",{class:"btn sm ok",onclick:()=>completeNode(CUR,n)},"学完了 +"+preview(n.pts||NODE_PTS,n.due||null,0).total):h("span",{class:"small"},"已通关"))}
   $("#modes").replaceChildren(...MODES[CUR].map(([l,t],i)=>h("button",{class:"btn sm"+(i===0?" go":""),onclick:()=>{if(/签到/.test(l)){openDaily(CUR);return}if(CUR!=="engl"){const k=/复习/.test(l)?"review":/作业|Lab/.test(l)?"hw":/签到/.test(l)?"daily":/剧情/.test(l)?"quest":"train";
       if(k!=="quest")startBattle(CUR,k,FOES[k]);else if(!QUEST[CUR]){const ci=curIndex(CUR);const n=MAIN[CUR][ci];if(n&&!n.boss){startNode(CUR,n);return}startBattle(CUR,"train",FOES.train)}}send(/复习/.test(l)?reviewPrompt(CUR,t):t)},disabled:!SAMPLE||!!CTL},l)),
-    h("button",{class:"btn sm",onclick:()=>openHwSheet(CUR),title:"把这次收集的作业题目整理成 PDF"},"整理作业"+(((S.hwDraft||{})[CUR]||[]).length?" "+S.hwDraft[CUR].length:"")),
+    h("button",{class:"btn sm",onclick:()=>openHwSheet(CUR),title:"把这次收集的作业题目整理成 PDF"},"整理作业"+(draftOf(CUR).length?" "+draftOf(CUR).length:"")),
     CUR!=="engl"?h("button",{class:"btn sm ok",onclick:startQuiz,disabled:!SAMPLE||!!CTL,title:"5 道单选，每天前 3 次有奖励"},"小测验 · 最多 +"+R(40)+(quizzesToday()>=QUIZ_CAP?"（今日奖励已满）":"")):"");
   $("#imgLabel").hidden=!SAMPLE;$("#driveBtn").hidden=true;renderLib();$("#sendBtn").disabled=!SAMPLE||!!CTL;
   renderDuePanel();renderSkills();renderChat();{const last=CHATS[CUR][CHATS[CUR].length-1];const m=last&&last.role==="assistant"&&String(last.content).match(/第\s*(\d+)\s*问/g);$("#input").placeholder=m?"回答"+m[m.length-1].replace(/\s+/g," "):"想做什么直接说"}renderFocus();startAmbient();drainFx()}
@@ -2621,7 +2624,7 @@ function cloudParse(p){if(p==null)return null;if(typeof p==="string"){try{return
 async function cloudGet(key){const r=await MCP.callTool(SM,"study_state_get",{key},{cache:false});const o=cloudParse(r.payload);if(!o||typeof o.version!=="number")throw{code:"bad_reply"};return o}
 async function cloudPut(key,value,force){const r=await MCP.callTool(SM,"study_state_put",{key,value,base_version:CLOUD.ver[key]||0,force:!!force,source:"artifact"},{cache:false});const o=cloudParse(r.payload);
   if(o&&o.ok){CLOUD.ver[key]=o.version;return true}
-  if(o&&o.conflict){cloudConflict(key,o.current||{});return false}
+  if(o&&o.conflict){if(key==="state"&&!force){try{const cur=await cloudGet("state");CLOUD.ver.state=cur.version;if(cur.exists&&cur.value){const m=mergeState(syncMerge(S,cur.value));cloudApply("state",m)}return await cloudPut("state",clone(S))}catch(e){}}cloudConflict(key,o.current||{});return false}
   throw{code:"bad_reply"}}
 function cloudQueue(key,getter){if(!cloudOn()||CLOUD.conflict)return;CLOUD.pending[key]=getter;clearTimeout(CLOUD.timer[key]);CLOUD.timer[key]=setTimeout(()=>cloudFlush(key),4000)}
 async function cloudFlush(key){const g=CLOUD.pending[key];if(!g||CLOUD.conflict||!cloudOn())return;if(!CLOUD.ready){CLOUD.timer[key]=setTimeout(()=>cloudFlush(key),3000);return}if(CLOUD.busy[key]){CLOUD.timer[key]=setTimeout(()=>cloudFlush(key),2000);return}
@@ -2645,6 +2648,10 @@ function cloudApply(key,val){if(!val||typeof val!=="object")return;
   if(key==="state"){S=mergeState(val);applyDyn();dirty=false;const body=clone(S);if(stateRef)stateRef.set(body).catch(()=>{});else{try{localStorage.setItem("zs-state",JSON.stringify(body))}catch(e){}}route()}
   else if(key.startsWith("chat-")){const k=key.slice(5);if(!SUBJ[k]||!Array.isArray(val.turns))return;CHATS[k]=clone(val.turns);CHAT_AT[k]=val.savedAt||0;
     if(DB&&UID)DB.doc("data/users/"+UID+"/chat-"+k).set({turns:val.turns,savedAt:CHAT_AT[k]}).catch(()=>{});else{try{localStorage.setItem("zs-chat-"+k,JSON.stringify(val))}catch(e){}}if(curView()==="dungeon")route()}}
+/* 开着的时候每 30 秒看一眼云端：别处（网站、桌面待办）改过就合并进来，不用等下次打开 */
+async function cloudPoll(){if(!cloudOn()||!CLOUD.ready||CLOUD.conflict||dirty||CLOUD.busy.state||CLOUD.pending.state||document.visibilityState!=="visible")return;
+  try{const o=await cloudGet("state");if(!o.exists||!o.value||(o.version||0)<=(CLOUD.ver.state||0))return;CLOUD.ver.state=o.version;const m=mergeState(syncMerge(o.value,S));if(!sameState(m,S))cloudApply("state",m);if(!sameState(m,mergeState(clone(o.value))))cloudQueue("state",()=>clone(S))}catch(e){}}
+setInterval(cloudPoll,30000);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")setTimeout(cloudPoll,500)});
 // 启动：谁新用谁。云端更新就载入，本地更新就上传
 async function cloudBoot(){if(!cloudOn())return;
   const st0=S.savedAt||0,ch0=Object.assign({},CHAT_AT);
@@ -2652,7 +2659,8 @@ async function cloudBoot(){if(!cloudOn())return;
   let pulled=[];
   for(const[key,localAt,getter]of keys){try{const o=await cloudGet(key);CLOUD.ver[key]=o.version||0;
       const remoteAt=o.exists&&o.value?(o.value.savedAt||o.updated_at*1000||0):0;
-      if(o.exists&&remoteAt>localAt+1000){cloudApply(key,o.value);pulled.push(key==="state"?"存档":SUBJ[key.slice(5)].name+"对话")}
+      if(key==="state"&&o.exists&&o.value){const m=mergeState(syncMerge(remoteAt>localAt?o.value:S,remoteAt>localAt?S:o.value));const remoteOnly=!sameState(m,S);if(remoteOnly){cloudApply("state",m);pulled.push("存档")}if(!sameState(m,mergeState(clone(o.value))))CLOUD.pending[key]=getter}
+      else if(o.exists&&remoteAt>localAt+1000){cloudApply(key,o.value);pulled.push(SUBJ[key.slice(5)].name+"对话")}
       else if(!o.exists||localAt>remoteAt+1000){CLOUD.pending[key]=CLOUD.pending[key]||getter}
     }catch(e){cloudStatus("err",e);setTimeout(cloudBoot,60000);return}}
   CLOUD.ready=true;for(const k of Object.keys(CLOUD.pending))cloudQueue(k,CLOUD.pending[k]);
@@ -2790,8 +2798,8 @@ async function addTodo(title,dueStr,subj){title=String(title||"").trim().slice(0
   const t={id:"t"+uid().slice(0,6),t:title,subj:SUBJ[subj]?subj:null,due,allDay,done:null,ev:null,at:Date.now()};S.todos=S.todos||[];S.todos.push(t);save();renderAll();refreshDaySheet();
   if(due){const p=await gcalCall("create_event",todoEvArgs(t));if(p&&p.id){const x=(S.todos||[]).find(y=>y.id===t.id);if(!x){gcalCall("delete_event",{eventId:p.id});return}x.ev=p.id;save();toast("已加到 Google 日历")}}}
 const tdRef=t=>(S.todos||[]).find(x=>x.id===t.id)||t;
-async function toggleTodo(t){t=tdRef(t);t.done=t.done?null:Date.now();save();renderAll();refreshDaySheet();if(t.ev)gcalCall("update_event",Object.assign({eventId:t.ev},todoEvArgs(t)))}
-async function removeTodo(t){S.todos=(S.todos||[]).filter(x=>x!==t&&x.id!==t.id);save();renderAll();refreshDaySheet();if(t.ev)gcalCall("delete_event",{eventId:t.ev})}
+async function toggleTodo(t){t=tdRef(t);t.done=t.done?null:Date.now();t.mt=Date.now();save();renderAll();refreshDaySheet();if(t.ev)gcalCall("update_event",Object.assign({eventId:t.ev},todoEvArgs(t)))}
+async function removeTodo(t){S.todos=(S.todos||[]).filter(x=>x!==t&&x.id!==t.id);S.todoGone=S.todoGone||{};if(t.id)S.todoGone[t.id]=Date.now();save();renderAll();refreshDaySheet();if(t.ev)gcalCall("delete_event",{eventId:t.ev})}
 function todoRow(t){const now=Date.now();const late=t.due&&!t.done&&t.due<now;
   return h("div",{class:"td-row "+(t.done?"done":late?"late":"ontime")},h("input",{type:"checkbox",checked:!!t.done,onchange:()=>toggleTodo(t),"aria-label":"完成"}),
     h("div",{class:"t"},(t.subj?SUBJ[t.subj].name+" ":"")+t.t,h("small",null,t.due?(t.allDay?fmtDue(t.due).replace(/ \d\d:\d\d$/,""):fmtDue(t.due))+(t.done?"":" · "+fmtLeft(t.due-now).replace("还剩 ","剩 ")):"没有截止时间")),
@@ -2805,8 +2813,12 @@ function todoForm(dayK){const ti=h("input",{type:"text",placeholder:"加一个�
 
 /* ============ 作业档案：聊天里收集的题目 → 一份 PDF（Cornell 文件夹 + Google Drive + 网站背包） ============ */
 const COURSE={math:"MATH 1920",chem:"CHEM 2090",engri:"ENGRI 1170",engl:"ENGL 1111"};
-function hwAdd(subj,raw){const[no,...rest]=String(raw).split("||");const text=rest.join("||").trim();if(!text)return;S.hwDraft=S.hwDraft||{};const L=S.hwDraft[subj]=S.hwDraft[subj]||[];
-  const key=text.replace(/\s+/g,"").slice(0,60);if(L.some(x=>x.text.replace(/\s+/g,"").slice(0,60)===key))return;L.push({no:(no||"?").trim().slice(0,20),text:text.slice(0,4000),at:Date.now()});if(L.length>60)L.shift()}
+/* 收题跟着「正在做」的那份作业走：开始了哪份，题就记在哪份下面；没在做的时候收的题单独一组 */
+const taskOf=subj=>S.cur&&S.cur.subj===subj?S.cur.key:null;
+function draftOf(subj,task){if(task===undefined)task=taskOf(subj);return((S.hwDraft||{})[subj]||[]).filter(q=>(q.task||null)===task)}
+function dropDraft(subj,task){if(!S.hwDraft||!S.hwDraft[subj])return;S.hwDraft[subj]=S.hwDraft[subj].filter(q=>(q.task||null)!==task)}
+function hwAdd(subj,raw){const[no,...rest]=String(raw).split("||");const text=rest.join("||").trim();if(!text)return;S.hwDraft=S.hwDraft||{};const L=S.hwDraft[subj]=S.hwDraft[subj]||[];const task=taskOf(subj);
+  const key=text.replace(/\s+/g,"").slice(0,60);if(L.some(x=>(x.task||null)===task&&x.text.replace(/\s+/g,"").slice(0,60)===key))return;L.push({no:(no||"?").trim().slice(0,20),text:text.slice(0,4000),at:Date.now(),task});if(L.length>60)L.shift()}
 function hwGuessTitle(subj){if(S.cur&&S.cur.subj===subj)return S.cur.title.replace(/^(数学|化学|机械|英文)\s*/,"");const o=occurrences().filter(x=>x.subj===subj&&isOpen(x)).sort((a,b)=>a.soft-b.soft)[0];return o?o.title:"Homework"}
 function hwHtml(a){const esc=x=>String(x).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[c]);
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(COURSE[a.subj]+" "+a.title)}</title>
@@ -2826,12 +2838,12 @@ async function pendingPdfs(){if(!(DESK&&DESK.savePdf&&EMBED==="zero"))return;
 async function hwExport(a){const name=COURSE[a.subj]+" "+a.title.replace(/[\\/:*?"<>|]/g," ")+".pdf";
   if(DESK&&DESK.savePdf){try{const r=await DESK.savePdf(a.subj,COURSE[a.subj],name,hwHtml(a));if(r&&r.path)a.local=r.path;if(r&&r.data)await driveUpload(a.subj,name,"application/pdf",r.data).then(x=>{if(x&&x.webViewLink)a.drive=x.webViewLink});save();toast("已存到Cornell\\"+COURSE[a.subj]+(a.drive?" 和 Drive":""));return}catch(e){toast("PDF 没存成功")}}
   const w=window.open("","_blank");if(w){w.document.write(hwHtml(a).replace("</body>","<script>window.onload=()=>setTimeout(()=>print(),1200)<\/script></body>"));w.document.close()}}
-function openHwSheet(subj){subj=subj||ZW.subj||CUR||"math";const draft=((S.hwDraft||{})[subj]||[]);const title=h("input",{type:"text",value:hwGuessTitle(subj),style:{flex:"1 1 160px"}});
+function openHwSheet(subj){subj=subj||ZW.subj||CUR||"math";const task=taskOf(subj);const draft=draftOf(subj,task);const title=h("input",{type:"text",value:hwGuessTitle(subj),style:{flex:"1 1 160px"}});
   const list=h("div",{class:"list"},draft.length?draft.map((q,i)=>h("div",{class:"li",style:{display:"block"}},h("b",null,q.no&&q.no!=="?"?q.no:"第 "+(i+1)+" 题"),h("div",{class:"small",style:{whiteSpace:"pre-wrap"}},q.text.slice(0,300)),
-      h("button",{class:"btn sm flat",onclick:()=>{draft.splice(i,1);save();closeSheet();openHwSheet(subj)}},"删掉"))):[h("div",{class:"dim"},"现在没有在收的题。做作业时把题目发给零，它会记在这里，做完可以整理成一份 PDF。")]);
+      h("button",{class:"btn sm flat",onclick:()=>{S.hwDraft[subj]=(S.hwDraft[subj]||[]).filter(x=>x!==q);save();closeSheet();openHwSheet(subj)}},"删掉"))):[h("div",{class:"dim"},"现在没有在收的题。做作业时把题目发给零，它会记在这里，做完可以整理成一份 PDF。")]);
   const arch=(S.hwArchive||[]).filter(a=>a.subj===subj).slice(-6).reverse();
   sheet(subj,h("h2",null,"整理作业 · "+SUBJ[subj].name),h("div",{class:"row"},title),list,
-    draft.length?h("button",{class:"btn go",onclick:async()=>{const a={id:"h"+uid(),subj,title:title.value.trim()||"Homework",items:draft.slice(),at:Date.now()};S.hwArchive=S.hwArchive||[];S.hwArchive.push(a);S.hwDraft[subj]=[];save();closeSheet();await hwExport(a);renderAll()}},"生成 PDF（"+draft.length+" 题）"):null,
+    draft.length?h("button",{class:"btn go",onclick:async()=>{const a={id:"h"+uid(),subj,title:title.value.trim()||"Homework",items:draft.slice(),at:Date.now()};S.hwArchive=S.hwArchive||[];S.hwArchive.push(a);dropDraft(subj,task);save();closeSheet();await hwExport(a);renderAll()}},"生成 PDF（"+draft.length+" 题）"):null,
     arch.length?h("div",null,h("div",{class:"eyebrow",style:{margin:"6px 0"}},"以前的"),h("div",{class:"list"},arch.map(a=>h("div",{class:"row",style:{gap:"6px"}},h("button",{class:"chip",style:{fontSize:"14px",padding:"6px 10px",flex:"1"},onclick:()=>hwExport(a)},a.title+" · "+a.items.length+" 题 · "+new Date(a.at).toLocaleDateString("zh-CN")),h("button",{class:"btn sm flat","aria-label":"删掉",onclick:()=>{S.hwArchive=S.hwArchive.filter(x=>x!==a);save();closeSheet();openHwSheet(subj)}},"×"))))):null)}
 
 /* 交给零的文件：存一份到 桌面\Cornell\<课程>，再传一份到 Google Drive 的 学习空间/<课程> */
@@ -2899,23 +2911,23 @@ async function finishTask(){const c=S.cur;if(!c)return;const min=curMinutes();co
   S.timeLog=S.timeLog||[];S.timeLog.push({kind:c.kind==="occ"&&it&&it.r?it.r.id:c.kind,subj:c.subj,title:c.title,min,at:Date.now()});S.timeLog=S.timeLog.slice(-120);
   S.cur=null;save();
   /* 做完了不自动出汇总：先问。题目没认出来（只有题号）的不算 */
-  const draft=((S.hwDraft||{})[c.subj]||[]),real=draft.filter(q=>q&&q.text&&!/无法辨认|仅有题号/.test(q.text));const pdf="";
-  if(draft.length&&!real.length){S.hwDraft[c.subj]=[];save()}
+  const draft=draftOf(c.subj,c.key),real=draft.filter(q=>q&&q.text&&!/无法辨认|仅有题号/.test(q.text));const pdf="";
+  if(draft.length&&!real.length){dropDraft(c.subj,c.key);save()}
   let pts="";
   if(c.kind==="occ"&&it&&!S.done[it.key]){const before=S.points;completeTask(it);pts="，+"+fp(S.points-before)}
   else if(c.kind==="cv"&&it&&!S.done[c.key]){const p=award(SIDE_PTS,it.due,0,"支线 · "+it.title);S.done[c.key]={at:Date.now(),pts:p};pts="，+"+p}
   else if(c.kind==="todo"&&it&&!it.done)toggleTodo(it);
   zwSay("「"+c.title+"」做完了，用时 "+min+" 分钟"+pdf+pts+"。");save();renderAll();
   if(real.length&&(!DESK||EMBED==="zero")){const go=await zwChoose("要把这次收的 "+real.length+" 道题整理成一份 PDF 吗？",[{t:"整理",v:1,go:true},{t:"不用",v:0}]);
-    if(go){const a={id:"h"+uid(),subj:c.subj,title:c.title.replace(/^(数学|化学|机械|英文)\s*/,""),items:real.slice(),at:Date.now()};S.hwArchive=S.hwArchive||[];S.hwArchive.push(a);S.hwDraft[c.subj]=[];save();await hwExport(a)}
-    else if(go===0){S.hwDraft[c.subj]=[];save();zwSay("好，不整理了。")}}}
+    if(go){const a={id:"h"+uid(),subj:c.subj,title:c.title.replace(/^(数学|化学|机械|英文)\s*/,""),items:real.slice(),at:Date.now()};S.hwArchive=S.hwArchive||[];S.hwArchive.push(a);dropDraft(c.subj,c.key);save();await hwExport(a)}
+    else if(go===0){dropDraft(c.subj,c.key);save();zwSay("好，不整理了。")}}}
 /* 正在做的那份已经在别处打勾了（网站、待办）：自动收尾（记时、出 PDF），不重复加分 */
 function curDoneElsewhere(){const c=S.cur;if(!c)return false;if(c.kind==="todo"){const t=(S.todos||[]).find(x=>x.id===c.key);return !t||!!t.done}return !!S.done[c.key]}
 let CUR_AUTO=0;
 function checkCurDone(){if(!curDoneElsewhere())return;if(DESK&&EMBED==="todo")return;if(Date.now()-CUR_AUTO<5000)return;CUR_AUTO=Date.now();finishTask()}
 function renderTaskBar(){checkCurDone();let el=$("#zwTask");const hd=document.querySelector(".zw-head");if(!hd)return;
   if(!el){el=h("div",{id:"zwTask"});hd.after(el)}const c=S.cur;el.hidden=!c;if(!c)return;
-  const n=((S.hwDraft||{})[c.subj]||[]).length;
+  const n=draftOf(c.subj,c.key).length;
   el.replaceChildren(h("span",{class:"tt"},"正在做 "+c.title),h("span",{class:"dim"},curMinutes()+" 分钟"+(n?" · 已收 "+n+" 题":"")),
     h("button",{class:"zw-x",onclick:()=>pauseTask()},"放下"),h("button",{class:"btn sm go",onclick:finishTask},"做完了"))}
 setInterval(()=>{if(S.cur)renderTaskBar()},30000);
@@ -3009,7 +3021,7 @@ function planBlock(id,b){const left=b.due-Date.now();if(left>10*DAY||left<0)retu
       return h("button",{class:(dn?"done":"")+(today?" today":""),disabled:!!dn,title:d.task,onclick:()=>{const pts=award(PLAN_PTS,keyToDate(d.day).getTime()+DAY+4*HOUR,0,"考前计划 · "+d.topic);S.done[k]={at:Date.now(),pts};save();openBossSheet(id);renderAll()}},
         h("span",null,(dn?"✓ ":"")+d.day.slice(5).replace("-","/")+" "+d.topic+(today&&!dn&&d.task?" — "+d.task:"")),h("span",{class:"rw"},"+"+(dn?dn.pts:R(PLAN_PTS))))})))}
 /* 待办小窗 */
-function undoDone(key,label){const d=S.done[key];if(!d)return;delete S.done[key];if(d.pts){earn(-d.pts,"撤销 · "+label);if(d.pts>0)S.xp=Math.max(0,S.xp-Math.round(d.pts*XP_PER))}
+function undoDone(key,label){const d=S.done[key];if(!d)return;delete S.done[key];S.undone=S.undone||{};S.undone[key]=Date.now();if(d.pts){earn(-d.pts,"撤销 · "+label);if(d.pts>0)S.xp=Math.max(0,S.xp-Math.round(d.pts*XP_PER))}
   if(d.sh){S.shards-=d.sh;while(S.shards<0&&S.cards.makeup>0){S.cards.makeup--;S.shards+=3}S.shards=Math.max(0,S.shards)}save();renderAll()}
 function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEmbed"});document.body.append(el)}const now=Date.now();
   /* 重画（每分钟、别处改了存档拉下来）时保住正在输入的待办 */const o0=el.querySelector(".td-add input[type=text]"),o1=el.querySelector(".td-add input[type=datetime-local]"),ae=document.activeElement;const keep=o0&&(o0.value||ae===o0||ae===o1)?{v:o0.value,d:o1?o1.value:"",f:ae===o1?1:ae===o0?0:-1}:null;
@@ -3079,8 +3091,26 @@ function deskBadge(){if(EMBED!=="zero")return;const now=Date.now();const due=o=>
 if(EMBED==="zero"&&DESK){setInterval(deskBadge,5*60000)}
 
 /* 多窗口（桌面程序的几个小窗、多个浏览器标签）共用一份云端存档：获得焦点或别的窗口存档后，拉最新的 */
+/* 两边（网站/桌面待办/手机 Claude 版）各自改了存档时，合并而不是谁新用谁：打勾、跳过、待办、错题、积分流水都取并集，
+   积分按对方多出来的流水补上；撤销和删除用墓碑记下，不会被另一边「复活」 */
+function syncMerge(a,b){if(!a)return clone(b);if(!b)return clone(a);const o=clone(a);b=clone(b);
+  o.undone=Object.assign({},b.undone||{},o.undone||{});for(const k in b.undone||{})o.undone[k]=Math.max(o.undone[k]||0,b.undone[k]);
+  o.done=o.done||{};for(const k in b.done||{})if(!o.done[k]&&!((o.undone[k]||0)>=(b.done[k].at||0)))o.done[k]=b.done[k];
+  for(const k in o.done)if((o.undone[k]||0)>(o.done[k].at||0))delete o.done[k];
+  for(const f of["skipped","started","pausedTasks","dueFix","chests","weekEarly","topicAt","topicFrom","nodeNames"]){if(b[f]&&typeof b[f]==="object"){o[f]=o[f]||{};for(const k in b[f])if(!(k in o[f]))o[f][k]=b[f][k]}}
+  const lk=e=>e.at+"|"+e.t+"|"+e.d;const have=new Set((o.ledger||[]).map(lk));let dp=0,dx=0;
+  for(const e of b.ledger||[])if(!have.has(lk(e))){(o.ledger=o.ledger||[]).push(e);dp+=e.d||0;if(e.d>0)dx+=Math.round(e.d*XP_PER);else if(/^撤销/.test(e.t||""))dx+=Math.round(e.d*XP_PER)}
+  if(o.ledger)o.ledger.sort((x,y)=>x.at-y.at);o.points=r1((o.points||0)+dp);o.xp=Math.max(0,(o.xp||0)+dx);
+  o.todoGone=Object.assign({},b.todoGone||{},o.todoGone||{});const tm=new Map((o.todos||[]).map(t=>[t.id,t]));
+  for(const t of b.todos||[]){const m=tm.get(t.id);if(!m)tm.set(t.id,t);else if((t.mt||t.done||0)>(m.mt||m.done||0))tm.set(t.id,t)}o.todos=[...tm.values()].filter(t=>!o.todoGone[t.id]);
+  const uni=(f,key)=>{const L=o[f]||[];const ks=new Set(L.map(key));for(const x of b[f]||[])if(!ks.has(key(x))){L.push(x);ks.add(key(x))}o[f]=L};
+  uni("mistakes",m=>m.id);uni("scores",x=>x.id);uni("timeLog",x=>x.at+"|"+x.title);uni("sleepRec",x=>x.bed);uni("playLog",x=>x.at);uni("dqDone",x=>x.day+"|"+x.client);uni("hwArchive",x=>x.id);
+  o.checkins=[...new Set([...(o.checkins||[]),...(b.checkins||[])])].sort();
+  for(const m of o.mistakes||[]){const r=(b.mistakes||[]).find(x=>x.id===m.id);if(r&&r.killed)m.killed=r.killed}
+  o.savedAt=Math.max(o.savedAt||0,b.savedAt||0);return o}
+const sameState=(x,y)=>{try{return JSON.stringify(x)===JSON.stringify(y)}catch(e){return false}};
 let PULLING=false;
-async function pullState(){if(!stateRef||PULLING||dirty)return false;PULLING=true;try{const s=await stateRef.get();liveSaw("state",s);if(s.exists){const n=s.data();/* 等云端回来的这段时间里本地又改了：不覆盖，下次保存会写上去 */if(n&&!dirty&&(n.savedAt||0)>(S.savedAt||0)){S=mergeState(n);applyDyn();renderAll()}}}catch(e){}finally{PULLING=false}
+async function pullState(){if(!stateRef||PULLING||dirty)return false;PULLING=true;try{const s=await stateRef.get();liveSaw("state",s);if(s.exists){const n=s.data();/* 等云端回来的这段时间里本地又改了：不覆盖，下次保存会写上去 */if(n&&!dirty){const m=mergeState(syncMerge(n,S));const changed=!sameState(m,mergeState(clone(n)));if(!sameState(m,S)){S=m;applyDyn();renderAll()}if(changed)save()}}}catch(e){}finally{PULLING=false}
   if((EMBED==="zero"||DESK)&&!ZW.ctl)zwLoad();return true}
 window.addEventListener("focus",()=>pullState());
 /* 网页版、桌面待办、桌面零三边互通：每 5 秒问一下云端哪份存档的版本变了（只取版本号，很轻），变了就拉下来。
