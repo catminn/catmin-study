@@ -2619,7 +2619,7 @@ let resizeT;window.addEventListener("resize",()=>{clearTimeout(resizeT);resizeT=
 /* ============ boot ============ */
 /* ============ 云端存档同步（测试版）：进度存到 共享记忆 的 study_state，网站和这里共用一份 ============ */
 const CLOUD={ver:{},timer:{},pending:{},busy:{},conflict:null,state:"",at:0};const CHAT_AT={};
-function cloudOn(){return !window.__SITE&&!!MCP&&S.sharedMem!==false}
+function cloudOn(){return !!MCP&&S.sharedMem!==false}
 function cloudParse(p){if(p==null)return null;if(typeof p==="string"){try{return JSON.parse(p)}catch(e){return null}}if(p&&Array.isArray(p.content)&&p.content[0]&&typeof p.content[0].text==="string"){try{return JSON.parse(p.content[0].text)}catch(e){return null}}return p}
 async function cloudGet(key){const r=await MCP.callTool(SM,"study_state_get",{key},{cache:false});const o=cloudParse(r.payload);if(!o||typeof o.version!=="number")throw{code:"bad_reply"};return o}
 async function cloudPut(key,value,force){const r=await MCP.callTool(SM,"study_state_put",{key,value,base_version:CLOUD.ver[key]||0,force:!!force,source:"artifact"},{cache:false});const o=cloudParse(r.payload);
