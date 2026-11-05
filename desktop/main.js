@@ -689,6 +689,7 @@ function createRing() {
     webPreferences: { preload: path.join(__dirname, "ring-preload.js"), contextIsolation: true, sandbox: false } });
   ring.setAlwaysOnTop(true, "screen-saver");
   ring.loadFile(path.join(__dirname, "ring.html"));
+  ring.webContents.on("render-process-gone", (e, d) => { dlog("ring gone", d && d.reason); setTimeout(() => reviveRing("gone"), 1000); });
   matWin(ring, circleRects(RING / 2, RING / 2, RING * 141 / 300, 0));
 }
 function toDip(x, y) { return process.platform === "win32" ? screen.screenToDipPoint({ x, y }) : { x, y }; }
@@ -738,6 +739,14 @@ function startRingHook() {
     }, 250);
   });
   try { hook.start(); } catch (e) { hook = null; }
+}
+/* 转盘「没了」：Windows 会悄悄摘掉卡住过的低级鼠标钩子（程序卡顿、睡眠唤醒、锁屏后常见），转盘窗口也可能崩掉。
+   唤醒、解锁时和每 10 分钟重新挂一次钩子，转盘窗口坏了就重建 */
+function reviveRing(why) {
+  try { if (!ring || ring.isDestroyed() || ring.webContents.isCrashed()) { dlog("ring recreate", why); if (ring && !ring.isDestroyed()) ring.destroy(); createRing(); } } catch (e) {}
+  if (!hook) { startRingHook(); return; }
+  try { hook.stop(); } catch (e) {}
+  try { hook.start(); dlog("ring hook restarted", why); } catch (e) { dlog("ring hook restart failed", String(e)); }
 }
 let ringHoverKey = "", ringDropAt = 0, ringSel = null, ringCenter = null;
 // 和 ring.html 一样的五格：从正上方顺时针
@@ -965,6 +974,8 @@ app.whenReady().then(async () => {
   registerHotkey(conf.hotkey);
   createRing();
   startRingHook();
+  setInterval(() => reviveRing("timer"), 10 * 60 * 1000);
+  try { const pm = require("electron").powerMonitor; pm.on("resume", () => setTimeout(() => reviveRing("resume"), 3000)); pm.on("unlock-screen", () => setTimeout(() => reviveRing("unlock"), 1500)); } catch (e) {}
   startInbox();
   startUpdater();
   const files = filesFromArgv(process.argv);
