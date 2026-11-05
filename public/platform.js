@@ -67,9 +67,11 @@
   }
   function availableModels() { return STATUS ? STATUS.models.filter(function (m) { return m.available; }) : []; }
   function currentModel() {
+    /* 2026-11：领到 API 额度，默认换成最聪明的 Opus（一次性把之前存的选择改过来，之后还能自己换） */
+    if (lsGet("cm-model-opus") !== "1") { lsSet(LS_MODEL, "claude-opus-5-5"); lsSet("cm-model-opus", "1"); }
     var saved = lsGet(LS_MODEL), av = availableModels();
     if (saved && av.some(function (m) { return m.id === saved; })) return saved;
-    var pref = ["claude-haiku-5-5", "gpt-6-luna"];
+    var pref = ["claude-opus-5-5", "claude-sonnet-5-5", "gpt-6.1-sol"];
     for (var i = 0; i < pref.length; i++) if (av.some(function (m) { return m.id === pref[i]; })) return pref[i];
     return av.length ? av[0].id : "claude-haiku-5-5";
   }
