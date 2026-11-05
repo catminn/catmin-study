@@ -343,7 +343,7 @@ body.dg-on{overflow:hidden}
 @media (max-width:820px){
   .dg-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:8px;padding-top:8px}
   .dg-side{overflow:visible;gap:6px}
-  .dg-loc{display:none}.cast,.dg-tools{display:none}
+  .dg-loc{display:none}.cast{display:none}
   .fighters{flex-direction:row}.fighters .me{flex:none;padding:6px 8px}.me b{display:none}.ava{width:34px;height:34px;font-size:18px}
   .fighters .foe{flex:1;min-width:0;padding:6px 10px}.foe .fname,.foe .fsub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.foe .fdisc{width:38px;height:38px;border-radius:12px}.foe .fdisc svg{width:22px;height:22px}
   .dg .quest{padding:4px 10px;font-size:13px}
@@ -522,7 +522,7 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 .zfrag{border-left:5px solid var(--accent);background:var(--accent-soft);border-radius:0 12px 12px 0;padding:8px 14px;font-size:15px}
 
 /* ⋯ 面板：桌面上照常排在左栏；手机上像控制中心一样从顶上拉下来，盖在聊天上 */
-.dg-sheet{display:contents}
+.dg-sheet{display:contents}.dg-tools .btn.glass{background:rgba(9,11,24,.6);border-color:rgba(255,255,255,.25)}
 .dg-sheet-res .dg-res{display:flex!important;margin:0}
 .sklist .skc{padding:8px 0;border-top:1px solid rgba(255,255,255,.1)}.sklist .skc:first-child{border-top:0}
 .sklist .skb{opacity:.85;margin-top:4px;font-size:14px;line-height:1.65}.sklist .skb .btn{margin-top:6px}
@@ -643,9 +643,9 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
         <details class="duep" id="duePanel" hidden open><summary id="dueSum"></summary><div class="duelist" id="dueList"></div></details>
         <details class="duep" id="skillPanel" hidden style="border-color:rgba(240,192,96,.6)"><summary id="skillSum"></summary><div class="sklist" id="skillList"></div></details>
         <div class="dg-sheet-res" id="dgSheetRes"></div>
+        <div class="row dg-tools"><button class="btn sm glass" id="deepBtn" title="复制当前进度，粘贴到 Claude 项目里继续">进项目深聊</button><button class="btn sm glass" id="smSaveBtn">存进共享记忆</button><button class="btn sm glass" id="clearBtn">清空记录</button></div>
         </div>
         <div class="cast" id="cast"></div>
-        <div class="row dg-tools"><button class="btn sm glass" id="deepBtn" title="复制当前进度，粘贴到 Claude 项目里继续">进项目深聊</button><button class="btn sm glass" id="smSaveBtn">存进共享记忆</button><button class="btn sm glass" id="clearBtn">清空记录</button></div>
       </aside>
       <div class="dg-main">
         <div class="chat" id="chat" aria-live="polite"></div>
