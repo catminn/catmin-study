@@ -1101,7 +1101,8 @@ function BOSSES(){const B=BASE_BOSSES();const D=S.dyn&&S.dyn.data;if(!D)return B
       B["dyn-"+subj+"-"+hashStr(e.title)]={subj,title,due,where:(e.where||"")+(e.scope?" · "+e.scope:""),scope:e.scope||"",exam:true,stages:examStages(due)}}}
   return B}
 /* 每日委托跟着课上进度走：先教最近一节课讲的；讲过了就往前补没补过的；以前的都补完了就预习下一节 */
-function dqPick(subj){const D=S.dyn&&S.dyn.data;const T=((D&&D[subj]&&D[subj].topics)||[]).filter(x=>x&&x.lec&&x.t).slice().sort((a,b)=>a.lec<b.lec?-1:1);if(!T.length)return null;
+const ENGRI_TOPICS=[["2026-08-31","向量运算"],["2026-09-02","力和力矩的向量表示"],["2026-09-09","受力分析图 FBD"],["2026-09-14","桁架分析"],["2026-09-16","桁架分析（续）"],["2026-09-23","应力与应变"],["2026-09-30","齿轮"],["2026-10-05","材料响应与剪应力"],["2026-10-14","安全系数"],["2026-10-19","设计流程与工程材料"],["2026-10-21","制造工艺"],["2026-11-02","流体力学入门"],["2026-11-04","压强与液压"],["2026-11-09","雷诺数"],["2026-11-11","平板流与管流"],["2026-11-16","比热与热力学第一定律"],["2026-11-18","热传导"],["2026-11-23","热对流"],["2026-12-02","其他传热话题"]].map(([lec,t])=>({lec,t}));
+function dqPick(subj){const D=S.dyn&&S.dyn.data;let T0=(D&&D[subj]&&D[subj].topics)||[];if(!T0.length&&subj==="engri")T0=ENGRI_TOPICS;const T=T0.filter(x=>x&&x.lec&&x.t).slice().sort((a,b)=>a.lec<b.lec?-1:1);if(!T.length)return null;
   const cov=(S.dqCovered||{})[subj]||{};const id=x=>x.lec+"|"+x.t;const today=localKey(new Date());const past=T.filter(x=>x.lec<=today),future=T.filter(x=>x.lec>today);
   const last=past[past.length-1];if(last&&!cov[id(last)])return{id:id(last),t:last.t,why:"最近一节课（"+last.lec.slice(5).replace("-","/")+"）讲的"};
   for(let i=past.length-2;i>=0;i--)if(!cov[id(past[i])])return{id:id(past[i]),t:past[i].t,why:"往前补："+past[i].lec.slice(5).replace("-","/")+" 那节课讲的，还没做过委托"};
