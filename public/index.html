@@ -1172,9 +1172,9 @@ function playMin(){return S.timer&&S.timer.meter?Math.max(0,(Date.now()-S.timer.
 function playNow(){const m=playMin();return{m,cost:S.timer&&S.timer.free?0:playCost(playedToday(),m)}}
 function startPlay(){if(S.timer&&S.timer.end>Date.now()){toast("已经在计时了");return}const free=false;
   if(S.points<=0){toast("积分不够，先去做点作业");return}
-  S.timer={label:free?"游戏中（休息日免费）":"游戏中",start:Date.now(),end:Date.now()+6*HOUR,meter:1,free};save();renderAll();toast("开始计时，玩完记得点「玩完了」")}
+  S.timer={label:free?"游戏中（休息日免费）":"游戏中",start:Date.now(),end:Date.now()+6*HOUR,meter:1,free};S.timerMt=Date.now();save();renderAll();toast("开始计时，玩完记得点「玩完了」")}
 function stopPlay(){if(!playing())return;const {m,cost}=playNow(),min=Math.round(m);S.playLog=(S.playLog||[]).filter(x=>Date.now()-x.at<14*DAY);S.playLog.push({day:dayKey(),min:m,at:Date.now()});
-  const lab=S.timer.free;S.timer=null;if(cost>0)earn(-cost,"游戏 "+min+" 分钟");else S.ledger.push({at:Date.now(),d:0,t:"游戏 "+min+" 分钟"+(lab?"（休息日免费）":"")});
+  const lab=S.timer.free;S.timer=null;S.timerMt=Date.now();if(cost>0)earn(-cost,"游戏 "+min+" 分钟");else S.ledger.push({at:Date.now(),d:0,t:"游戏 "+min+" 分钟"+(lab?"（休息日免费）":"")});
   save();renderAll();if(DESK&&DESK.gameMode)DESK.gameMode(false,-1);toast("玩了 "+min+" 分钟"+(cost?"，扣 "+cost+" 分":""))}
 function affordMin(){const b=playedToday();let m=0;while(m<600&&playCost(b,m+1)<=S.points)m++;return m}
 function playCard(){const on=playing(),b=playedToday(),am=affordMin();
@@ -1229,7 +1229,7 @@ function mergeState(raw){const x=raw?clone(raw):{};const o=Object.assign(default
     o.points=cv(o.points);for(const e of o.ledger)if(typeof e.d==="number")e.d=cv(e.d);for(const c of o.customRewards)c.price=Math.max(1,cv(c.price));
     for(const k in o.done)if(o.done[k]&&typeof o.done[k].pts==="number")o.done[k].pts=cv(o.done[k].pts);for(const s of o.scores)if(typeof s.bonus==="number")s.bonus=cv(s.bonus);
     if(raw)o.ledger.push({at:Date.now(),d:0,t:"积分改为 10 分 = 1 美元，余额已换算"});o.econ="usd10"}
-  o.v=2;return o}
+  staleTimer(o);o.v=2;return o}
 let DB=null,UID=null,stateRef=null,saveTimer=null,saving=Promise.resolve(),dirty=false;
 function save(){dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,400)}
 function trimState(){S.checkins=[...new Set(S.checkins)].slice(-300);S.restDays=S.restDays.slice(-80);S.ledger=S.ledger.slice(-400);S.mistakes=S.mistakes.slice(-100);
@@ -2662,7 +2662,7 @@ comp.addEventListener("drop",e=>{e.preventDefault();comp.classList.remove("drag"
 $("#img").onchange=e=>{addFiles([...e.target.files]);e.target.value=""};$("#driveBtn").onclick=openDrive;$("#libBtn").onclick=openLib;
 $("#topicBtn").onclick=newTopic;
 $("#clearBtn").onclick=()=>{CHATS[CUR]=[];QUEST[CUR]=null;delete S.battle[CUR];save();saveChat(CUR);renderDungeon()};
-$("#deepBtn").onclick=deepCopy;$("#tStop").onclick=()=>{if(playing()){stopPlay();return}S.timer=null;save();renderTimer();if(DESK&&DESK.gameMode)DESK.gameMode(false,-1)};
+$("#deepBtn").onclick=deepCopy;$("#tStop").onclick=()=>{if(playing()){stopPlay();return}S.timer=null;S.timerMt=Date.now();save();renderTimer();if(DESK&&DESK.gameMode)DESK.gameMode(false,-1)};
 $("#crAdd").onclick=()=>{const n=$("#crName").value.trim(),p=Math.round(+$("#crPrice").value*PER_USD);if(!n||!(p>0)){toast("写上名字和价格");return}S.customRewards.push({id:"c"+uid(),name:n.slice(0,30),price:p});$("#crName").value="";$("#crPrice").value="";save();renderAll()};
 $("#syncBtn").onclick=()=>syncCourses(true);
 if(window.__SITE){$("#bakRow").hidden=false;$("#bakBtn").onclick=openBackups}
@@ -3149,6 +3149,8 @@ if(EMBED==="zero"&&DESK){setInterval(deskBadge,5*60000)}
 /* 多窗口（桌面程序的几个小窗、多个浏览器标签）共用一份云端存档：获得焦点或别的窗口存档后，拉最新的 */
 /* 两边（网站/桌面待办/手机 Claude 版）各自改了存档时，合并而不是谁新用谁：打勾、跳过、待办、错题、积分流水都取并集，
    积分按对方多出来的流水补上；撤销和删除用墓碑记下，不会被另一边「复活」 */
+/* 游戏计时已经在某一端点过「玩完了」（playLog 里有开始之后的记录），另一端留着的旧计时作废 */
+function staleTimer(o){const t=o&&o.timer;if(t&&t.meter&&(o.playLog||[]).some(x=>x.at>=t.start))o.timer=null;return o}
 function syncMerge(a,b){if(!a)return clone(b);if(!b)return clone(a);const o=clone(a);b=clone(b);
   o.undone=Object.assign({},b.undone||{},o.undone||{});for(const k in b.undone||{})o.undone[k]=Math.max(o.undone[k]||0,b.undone[k]);
   o.done=o.done||{};for(const k in b.done||{})if(!o.done[k]&&!((o.undone[k]||0)>=(b.done[k].at||0)))o.done[k]=b.done[k];
@@ -3164,6 +3166,8 @@ function syncMerge(a,b){if(!a)return clone(b);if(!b)return clone(a);const o=clon
   o.checkins=[...new Set([...(o.checkins||[]),...(b.checkins||[])])].sort();
   for(const m of o.mistakes||[]){const r=(b.mistakes||[]).find(x=>x.id===m.id);if(r&&r.killed)m.killed=r.killed}
   if((b.sleepMt||0)>(o.sleepMt||0)){o.sleep=b.sleep;o.sleepMt=b.sleepMt}
+  if((b.timerMt||0)>(o.timerMt||0)){o.timer=b.timer;o.timerMt=b.timerMt}
+  staleTimer(o);
   o.savedAt=Math.max(o.savedAt||0,b.savedAt||0);return o}
 const sameState=(x,y)=>{try{return JSON.stringify(x)===JSON.stringify(y)}catch(e){return false}};
 let PULLING=false;
