@@ -1701,7 +1701,7 @@ function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.
 function scrollToCur(){const y=$("#youMark");if(!y||curView()!=="map")return;const r=y.getBoundingClientRect();window.scrollTo({top:Math.max(0,scrollY+r.top-innerHeight*0.3),behavior:reduced()?"auto":"smooth"})}
 
 /* ============ calendar ============ */
-let CV="week",CANCHOR=dayKey();const EVC=new Map();let calSeq=0;
+let CV="week",CANCHOR=localKey(new Date());const EVC=new Map();let calSeq=0;
 function calItemsOn(k){const items=[];
   for(const o of occOnDay(k)){if(S.skipped[o.key]||localKey(new Date(o.soft))!==k)continue;const d=S.done[o.key];items.push({t:SUBJ[o.subj].name+" "+o.title,cls:d?"done":multFor(o.soft,o.r.grace||0,Date.now(),o.self).cls,click:()=>openTaskSheet(o),time:o.soft})}
   for(const o of occOnDay(addDays(k,1)).concat(occOnDay(addDays(k,2))))if(o.r.target&&localKey(new Date(o.soft))===k&&!S.skipped[o.key]){const d=S.done[o.key];items.push({t:SUBJ[o.subj].name+" "+o.title,cls:d?"done":multFor(o.soft,o.r.grace||0,Date.now(),o.self).cls,click:()=>openTaskSheet(o),time:o.soft})}
@@ -1723,7 +1723,7 @@ async function renderWeek(){const seq=++calSeq;const wk=weekKey(keyToDate(CANCHO
   const today=dayKey();const set=new Set(S.checkins),rest=new Set(S.restDays);const started=S.checkins.slice().sort()[0]||today;
   const H0=7,H1=24,PX=44;const grid=h("div",{class:"week"});grid.append(h("div",{class:"dh gutter"}));
   days.forEach((k,i)=>{const d=keyToDate(k);const ck=rest.has(k)?["on","休息日"]:set.has(k)?["on","✓ 已签到"]:(k<today&&k>=started)?["miss","漏签"]:["",""];
-    grid.append(h("div",{class:"dh"+(k===today?" today":"")},"周"+"一二三四五六日"[i],h("b",null,d.getDate()),h("span",{class:"ck "+ck[0]},ck[1]||"\u00a0")))});
+    grid.append(h("div",{class:"dh"+(k===localKey(new Date())?" today":"")},"周"+"一二三四五六日"[i],h("b",null,d.getDate()),h("span",{class:"ck "+ck[0]},ck[1]||"\u00a0")))});
   grid.append(h("div",{class:"due gutter dim",style:{fontSize:"11px",textAlign:"right"}},"截止"));
   days.forEach(k=>grid.append(h("div",{class:"due"},calItemsOn(k).map(it=>h("button",{class:"chip "+it.cls,onclick:it.click,title:it.t},it.t)))));
   const hrs=h("div",{class:"gutter"});for(let x=H0;x<H1;x++)hrs.append(h("div",{class:"hr"},x+":00"));grid.append(hrs);
@@ -1743,7 +1743,7 @@ function renderMonth(){++calSeq;const[y,m]=CANCHOR.slice(0,7).split("-").map(Num
   const g=h("div",{class:"month"},"一二三四五六日".split("").map(c=>h("div",{class:"wd"},"周"+c)));
   for(let i=0;i<42;i++){const k=addDays(start,i);const d=keyToDate(k);const items=calItemsOn(k);
     const st=rest.has(k)?h("span",{class:"stamp rest"},"休"):set.has(k)?h("span",{class:"stamp on"},"✓"):(k<today&&k>=started)?h("span",{class:"stamp miss",title:"漏签"}):null;
-    g.append(h("div",{class:"mday"+(d.getMonth()!==m-1?" out":"")+(k===today?" today":""),role:"button",tabindex:"0",onclick:()=>openDaySheet(k),onkeydown:e=>{if(e.key==="Enter")openDaySheet(k)}},h("div",{class:"dn"},d.getDate(),st),
+    g.append(h("div",{class:"mday"+(d.getMonth()!==m-1?" out":"")+(k===localKey(new Date())?" today":""),role:"button",tabindex:"0",onclick:()=>openDaySheet(k),onkeydown:e=>{if(e.key==="Enter")openDaySheet(k)}},h("div",{class:"dn"},d.getDate(),st),
       items.slice(0,3).map(it=>h("span",{class:"chip "+it.cls},it.t)),items.length>3?h("span",{class:"dim",style:{fontSize:"11px"}},"+"+(items.length-3)):null))}
   $("#calBody").replaceChildren(g)}
 function openDaySheet(k){const d=keyToDate(k);const items=calItemsOn(k);sheet(null,h("h2",null,(d.getMonth()+1)+" 月 "+d.getDate()+" 日 周"+WD[d.getDay()]),
@@ -2547,7 +2547,7 @@ $("#toCur").onclick=scrollToCur;$("#pubBtn").onclick=openPublicSheet;
 $("#cvWeek").onclick=()=>{CV="week";renderCal()};$("#cvMonth").onclick=()=>{CV="month";renderCal()};
 $("#calPrev").onclick=()=>{CANCHOR=CV==="week"?addDays(CANCHOR,-7):shiftMonth(CANCHOR.slice(0,7),-1)+"-01";renderCal()};
 $("#calNext").onclick=()=>{CANCHOR=CV==="week"?addDays(CANCHOR,7):shiftMonth(CANCHOR.slice(0,7),1)+"-01";renderCal()};
-$("#calToday").onclick=()=>{CANCHOR=dayKey();renderCal()};$("#calConnect").onclick=()=>connectCalendar(true);
+$("#calToday").onclick=()=>{CANCHOR=localKey(new Date());renderCal()};$("#calConnect").onclick=()=>connectCalendar(true);
 $("#sendBtn").onclick=()=>send();$("#stopBtn").onclick=()=>{if(CTL)CTL.abort()};
 $("#input").addEventListener("input",e=>{focusTouch();const t=e.target;t.style.height="auto";t.style.height=Math.min(160,t.scrollHeight)+"px"});
 $("#input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();send()}});
