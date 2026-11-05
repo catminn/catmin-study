@@ -28,6 +28,8 @@ const KK = (acct: Acct) => acct === "main" ? { refresh: "google:refresh", access
 const K_REFRESH = "google:refresh";
 const K_ACCESS = "google:access";
 const K_EMAIL = "google:email";
+const PERSONAL_EMAIL = "catherinemin0125@gmail.com";
+const isSchool = (e: string) => /@cornell\.edu$/i.test(e || "");
 import { tz } from "./tz"; // 她现在的时区（跟着电脑走）
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -69,6 +71,7 @@ export function startAuth(env: SiteEnv, url: URL): Promise<Response> | Response 
       state,
     });
     if (acct === "cornell") { q.set("login_hint", "jm3235@cornell.edu"); q.set("hd", "cornell.edu"); }
+    else { q.set("login_hint", PERSONAL_EMAIL); q.set("prompt", "select_account consent"); }
     return Response.redirect("https://accounts.google.com/o/oauth2/v2/auth?" + q, 302);
   })();
 }
@@ -111,6 +114,15 @@ export async function finishAuth(env: SiteEnv, url: URL): Promise<Response> {
   try {
     email = JSON.parse(dec.decode(unb64(String(t.id_token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(String(t.id_token).split(".")[1].length / 4) * 4, "=")))).email || "";
   } catch {}
+  if (acct === "main" && isSchool(email)) {
+    /* 个人那一格只放个人号：选成学校号时不覆盖个人的，转存到 Cornell 那一格 */
+    const kc = KK("cornell");
+    await env.OAUTH_KV.put(kc.refresh, await seal(env, t.refresh_token));
+    await env.OAUTH_KV.put(kc.email, email);
+    await env.OAUTH_KV.put(kc.scope, String(t.scope || ""));
+    await env.OAUTH_KV.delete(kc.access);
+    return page("你刚才选的是学校账号 " + esc(email) + "，已经存成 Cornell 账号。个人账号（日历、Gmail）还需要再连一次：<a href=\"/auth/google/start\">点这里</a>，在 Google 页面选 " + PERSONAL_EMAIL + "。", false);
+  }
   const k = KK(acct);
   await env.OAUTH_KV.put(k.refresh, await seal(env, t.refresh_token));
   await env.OAUTH_KV.put(k.email, email);
@@ -124,8 +136,9 @@ export async function googleStatus(env: SiteEnv) {
   const connected = configured && !!(await env.OAUTH_KV.get(K_REFRESH));
   const scope = (await env.OAUTH_KV.get("google:scope")) || "";
   const cornell = configured && !!(await env.OAUTH_KV.get("google:cornell:refresh"));
-  return { configured, connected, email: connected ? (await env.OAUTH_KV.get(K_EMAIL)) || "" : "",
-    needsUpgrade: connected && !(scope.includes("calendar.events") && scope.includes("drive.file") && scope.includes("gmail.readonly")),
+  const email = connected ? (await env.OAUTH_KV.get(K_EMAIL)) || "" : "";
+  return { configured, connected, email, wrongAcct: isSchool(email),
+    needsUpgrade: connected && (isSchool(email) || !(scope.includes("calendar.events") && scope.includes("drive.file") && scope.includes("gmail.readonly"))),
     cornell, cornellEmail: cornell ? (await env.OAUTH_KV.get("google:cornell:email")) || "" : "",
     cornellRead: cornell && String((await env.OAUTH_KV.get("google:cornell:scope")) || "").includes("drive.readonly") };
 }

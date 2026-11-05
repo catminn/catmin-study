@@ -139,8 +139,8 @@
     }
     if (st.connected && st.needsUpgrade) {
       el.hidden = false;
-      el.textContent = "Google 需更新授权";
-      el.title = "加了读邮件等新权限，点一下重新授权";
+      el.textContent = st.wrongAcct ? "重连个人 Google" : "Google 需更新授权";
+      el.title = st.wrongAcct ? "个人那一格现在连的是学校账号，点一下，在 Google 页面选 catherinemin0125@gmail.com" : "加了读邮件等新权限，点一下重新授权（选个人账号）";
       el.onclick = function () { location.href = "/auth/google/start"; };
     } else if (st.connected) {
       el.hidden = true;
