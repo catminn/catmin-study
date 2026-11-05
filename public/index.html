@@ -1102,6 +1102,12 @@ function BOSSES(){const B=BASE_BOSSES();const D=S.dyn&&S.dyn.data;if(!D)return B
       if(twin){Object.assign(B[twin],{title,due,where:e.where||B[twin].where||"",scope:e.scope||""});continue}
       B["dyn-"+subj+"-"+hashStr(e.title)]={subj,title,due,where:(e.where||"")+(e.scope?" · "+e.scope:""),scope:e.scope||"",exam:true,stages:examStages(due)}}}
   return B}
+/* 每日委托跟着课上进度走：先教最近一节课讲的；讲过了就往前补没补过的；以前的都补完了就预习下一节 */
+function dqPick(subj){const D=S.dyn&&S.dyn.data;const T=((D&&D[subj]&&D[subj].topics)||[]).filter(x=>x&&x.lec&&x.t).slice().sort((a,b)=>a.lec<b.lec?-1:1);if(!T.length)return null;
+  const cov=(S.dqCovered||{})[subj]||{};const id=x=>x.lec+"|"+x.t;const today=localKey(new Date());const past=T.filter(x=>x.lec<=today),future=T.filter(x=>x.lec>today);
+  const last=past[past.length-1];if(last&&!cov[id(last)])return{id:id(last),t:last.t,why:"最近一节课（"+last.lec.slice(5).replace("-","/")+"）讲的"};
+  for(let i=past.length-2;i>=0;i--)if(!cov[id(past[i])])return{id:id(past[i]),t:past[i].t,why:"往前补："+past[i].lec.slice(5).replace("-","/")+" 那节课讲的，还没做过委托"};
+  const nx=future.find(x=>!cov[id(x)]);if(nx)return{id:id(nx),t:nx.t,why:"以前的都补完了，预习下一节课（"+nx.lec.slice(5).replace("-","/")+"）要讲的，按零基础讲"};return null}
 function applyDyn(){const D=S.dyn&&S.dyn.data;MAIN=Object.assign({},BASE_MAIN);if(!D)return;const B=BOSSES();const now=Date.now();
   for(const subj of["math","chem","engri"]){const d=D[subj]||{};const tp=(d.topics||[]).filter(t=>t&&t.t).slice(0,12);if(tp.length<2)continue;
     const exams=Object.keys(B).filter(id=>B[id].subj===subj&&B[id].exam&&B[id].due).sort((a,b)=>B[a].due-B[b].due);const next=exams.find(id=>B[id].due>now-6*HOUR)||exams[exams.length-1];
@@ -2266,17 +2272,17 @@ async function openDaily(subj){if(checkedToday()){openCheckin();return}subj=subj
 - 每天换不同的人、不同的事，不要和最近的委托重复。${(S.dqHist||[]).length?"最近的委托（别重复这些人和事）："+(S.dqHist||[]).slice(-6).join("；"):""}
 讲解正文里不要再写剧情和角色台词。
 ${exTxt}
-${(()=>{const pt=planToday(subj);return pt?"今天考前计划里的知识点是「"+pt.it.topic+"」（"+pt.it.task+"），就教这个。\n":""})()}先挑一个她现在最需要的知识点：最近 10 天内有考试或 quiz 的，就从它的范围里挑她最可能不会的一个点；没有的话，挑主线上接下来要学的一个点。${hw?"\n她作业里的原题（可以直接拿一道来当例题教）：\n"+hw:""}
+${(()=>{const pt=planToday(subj);if(pt)return"今天考前计划里的知识点是「"+pt.it.topic+"」（"+pt.it.task+"），就教这个。\n";const pk=dqPick(subj);if(pk)return"今天要教的是「"+pk.t+"」（"+pk.why+"），就教这一节里最核心的一个点，topic 写成这一节的名字。\n";return"先挑一个她现在最需要的知识点：最近 10 天内有考试或 quiz 的，就从它的范围里挑她最可能不会的一个点；没有的话，挑主线上接下来要学的一个点。"})()}${hw?"\n她作业里的原题（可以直接拿一道来当例题教）：\n"+hw:""}
 然后像家教一样从零教这一个点：先一两句说清是什么、什么时候用，再用一道具体的例题（最好是作业原题或考试题型）一步一步做给她看，每一步说做什么、为什么。整体 300 字以内，分 3 到 5 小段，公式用 $...$。${subj==="chem"?"例题和术语用英文，讲解用中文。":""}
 最后出一道检查题，考刚教的这个点，换个数字或问法，3 分钟能做完。能用选择题考的就出 4 个选项的单选题；需要算一个数或写一句话的就出简答题。
 只回复 JSON：{"client":"委托人，当前世界里的一个人或势力，10 字以内","brief":"委托背景一两句，60 字以内","topic":"知识点名称，15 字以内","lesson":"教学内容，段落之间用 \\n\\n 隔开","q":"检查题","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解"}`,{cache:false,signal:DQ_CTL.signal});
-      if(!j||!j.q)throw{code:"invalid_json"};dq={day:dayKey(),subj,q:String(j.q),type:j.type==="choice"&&Array.isArray(j.options)&&j.options.length>=2?"choice":"short",options:(j.options||[]).map(String),answer:j.answer,explain:String(j.explain||""),topic:String(j.topic||"").slice(0,30),lesson:String(j.lesson||""),client:String(j.client||"").slice(0,16),brief:String(j.brief||"").slice(0,120)};S.dqHist=[...(S.dqHist||[]),(dq.client?dq.client+"："+dq.brief:dq.brief).slice(0,60)].filter(Boolean).slice(-8);
+      if(!j||!j.q)throw{code:"invalid_json"};dq={day:dayKey(),subj,q:String(j.q),type:j.type==="choice"&&Array.isArray(j.options)&&j.options.length>=2?"choice":"short",options:(j.options||[]).map(String),answer:j.answer,explain:String(j.explain||""),topic:String(j.topic||"").slice(0,30),tid:(()=>{const pt=planToday(subj);if(pt)return null;const pk=dqPick(subj);return pk?pk.id:null})(),lesson:String(j.lesson||""),client:String(j.client||"").slice(0,16),brief:String(j.brief||"").slice(0,120)};S.dqHist=[...(S.dqHist||[]),(dq.client?dq.client+"："+dq.brief:dq.brief).slice(0,60)].filter(Boolean).slice(-8);
       if(dq.type==="choice"){const ci=+dq.answer;const right=dq.options[ci]!=null?dq.options[ci]:dq.options[0];const sh=dq.options.slice();for(let i=sh.length-1;i>0;i--){const r=Math.floor(Math.random()*(i+1));[sh[i],sh[r]]=[sh[r],sh[i]]}dq.options=sh;dq.answer=sh.indexOf(right)}
       S.dailyQ=dq;save()}
     catch(e){if(e&&e.code==="cancelled")return;card.replaceChildren(head(),swap,h("div",{class:"muted"},e&&e.code==="invalid_json"?"题目没生成好。":sampleErr(e)),h("button",{class:"btn go",onclick:()=>{close();openDaily(subj)}},"再出一道"));return}
     finally{DQ_CTL=null}}
   draw();
-  function finish(ok,fb){dq.done={ok,fb:fb||""};if(dq.client||dq.brief){S.dqDone=[...(S.dqDone||[]),{subj,world:worldOf(subj).name,client:dq.client||"",brief:dq.brief||"",day:dayKey()}].slice(-20)}focusAct();save();
+  function finish(ok,fb){dq.done={ok,fb:fb||""};if(dq.tid){S.dqCovered=S.dqCovered||{};(S.dqCovered[subj]=S.dqCovered[subj]||{})[dq.tid]=Date.now()}if(dq.client||dq.brief){S.dqDone=[...(S.dqDone||[]),{subj,world:worldOf(subj).name,client:dq.client||"",brief:dq.brief||"",day:dayKey()}].slice(-20)}focusAct();save();
     if(!ok){const nm={id:"m"+uid().slice(0,4),subj,text:dq.q.replace(/\s+/g," ").slice(0,160),fix:(dq.type==="choice"?"正确答案："+dq.options[dq.answer]+"。":"标准答案："+dq.answer+"。")+dq.explain.slice(0,150),added:dayKey(),at:Date.now(),revive:addDays(dayKey(),3),killed:false};S.mistakes.push(nm);syncMistake(nm)}
     smEvent("签到题"+(ok?"做对":"做错"),subj);draw()}
   function teach(){zwOpen(subj,"【签到题】题目："+dq.q+(dq.type==="choice"?"\n选项："+dq.options.map((o,k)=>String.fromCharCode(65+k)+". "+o).join("  "):"")+"\n我不会做，教我怎么做。先讲需要的知识，再带我做第一步，一步一问，先别告诉我答案。")}
