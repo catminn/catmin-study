@@ -200,7 +200,7 @@ function pageWin(opts, url) {
   const w = new BrowserWindow(Object.assign({
     show: false, frame: false, skipTaskbar: true, icon: ICON,
     // preload.js 只用 contextBridge / ipcRenderer，沙盒里也能用；远程网页放进沙盒更安全
-    webPreferences: { partition: PART, preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, spellcheck: false },
+    webPreferences: { partition: PART, preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, spellcheck: false, backgroundThrottling: false },
   }, opts));
   const id = w.webContents.id;
   w.webContents.on("did-start-loading", () => readyWins.delete(id));
@@ -222,7 +222,7 @@ function createBubble() {
     skipTaskbar: true, alwaysOnTop: true, hasShadow: false, focusable: true, show: false, icon: ICON,
     webPreferences: { preload: path.join(__dirname, "bubble-preload.js"), contextIsolation: true, sandbox: false },
   });
-  bubble.setAlwaysOnTop(true, "screen-saver");
+  bubble.setAlwaysOnTop(!gameHidden, "screen-saver");
   bubble.loadFile(path.join(__dirname, "bubble.html"));
   dlog("bubble create", pos, smallOpts());
   bubble.once("ready-to-show", () => { dlog("bubble ready", conf.bubbleHidden, bubble.getBounds()); if (conf.bubbleHidden !== true) bubble.showInactive(); setTimeout(() => dlog("bubble state", bubble && !bubble.isDestroyed() && bubble.isVisible(), bubble && !bubble.isDestroyed() && bubble.getBounds()), 3000); });
@@ -300,7 +300,7 @@ function ensureZero() {
   let rz = null;
   zero.on("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (!zero || zero.isDestroyed() || !zero.isVisible()) return; const b = zero.getBounds(); conf.zeroSize = { w: b.width, h: b.height }; saveConf(); }, 400); });
   glassFor(zero, true);
-  zero.setAlwaysOnTop(true, "floating");
+  zero.setAlwaysOnTop(!gameHidden, "floating"); // 在玩游戏时新开的零也不置顶
   zero.on("closed", () => { zero = null; });
   return zero;
 }

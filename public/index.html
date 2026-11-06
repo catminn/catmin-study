@@ -3171,7 +3171,10 @@ function syncMerge(a,b){if(!a)return clone(b);if(!b)return clone(a);const o=clon
   o.savedAt=Math.max(o.savedAt||0,b.savedAt||0);return o}
 const sameState=(x,y)=>{try{return JSON.stringify(x)===JSON.stringify(y)}catch(e){return false}};
 let PULLING=false;
+let GAME_SEEN=null;
 async function pullState(){if(!stateRef||PULLING||dirty)return false;PULLING=true;try{const s=await stateRef.get();liveSaw("state",s);if(s.exists){const n=s.data();/* 等云端回来的这段时间里本地又改了：不覆盖，下次保存会写上去 */if(n&&!dirty){const m=mergeState(syncMerge(n,S));const changed=!sameState(m,mergeState(clone(n)));if(!sameState(m,S)){S=m;applyDyn();renderAll()}if(changed)save()}}}catch(e){}finally{PULLING=false}
+  /* 桌面版：别的设备开始/结束了游戏计时，这里一拉到就告诉桌面程序（置顶跟着变） */
+  try{if(DESK&&DESK.gameMode){const on=!!(S.timer&&S.timer.meter&&S.timer.end>Date.now());if(on!==GAME_SEEN){const was=GAME_SEEN;GAME_SEEN=on;if(on)DESK.gameMode(true,S.timer.end);else if(was===true)DESK.gameMode(false,-1)}}}catch(e){}
   if((EMBED==="zero"||DESK)&&!ZW.ctl)zwLoad();return true}
 window.addEventListener("focus",()=>pullState());
 /* 网页版、桌面待办、桌面零三边互通：每 5 秒问一下云端哪份存档的版本变了（只取版本号，很轻），变了就拉下来。
