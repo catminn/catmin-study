@@ -351,7 +351,7 @@ body.dg-on{overflow:hidden}
   .ln.nar{font-size:16px}
   /* 手机上：状态、专注、待处理默认收起，点 ⋯ 展开，聊天区多留地方 */
   .dg-tabrow .dg-more-btn{display:block}
-  body:not(.dg-more) .dg .fighters,body:not(.dg-more) #focusPill,body:not(.dg-more) #duePanel,body:not(.dg-more) #skillPanel,body:not(.dg-more) #questBar{display:none!important}
+  body:not(.dg-more) .dg .fighters,body:not(.dg-more) #focusPill,body:not(.dg-more) #duePanel,body:not(.dg-more) #skillPanel,body:not(.dg-more) #questBar:not(.plan){display:none!important}
   body.dg-more .dg-more-btn{background:rgba(240,192,96,.25)}
   .dg .choices .qcard,.dg .choices>div{max-height:32vh;overflow:auto}
   .dg .choices{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:24vh;margin-top:4px}
@@ -1572,11 +1572,11 @@ function taskPrompt(o){const id=o.r.id,t=o.title;
   if(id==="chem-ps")return"【作业】我要做化学「"+t+"」。只带我做第一小步：先问我第一题是什么（我可以拍照），按考试题型一步步带我做，题目保持英文。";
   if(id==="engl-disc")return"【Discussion】帮我写「"+t+"」。先问我这次读或看的材料和要求，一次只问一个问题。";
   return"【作业】我要开始做"+SUBJ[o.subj].name+"「"+t+"」了，但我很难集中注意力。只让我做第一小步：先问我第一题是什么（我可以拍照），然后一次只带我走一步。"}
-function reviewPrompt(subj,t){const now=Date.now();const B=BOSSES();
+function reviewPrompt(subj,t){const pt=planToday(subj);if(pt)return"开始今天的计划：「"+pt.it.topic+"」"+(pt.it.task?"（"+pt.it.task+"）":"");const now=Date.now();const B=BOSSES();
   const e=Object.values(B).filter(b=>b.subj===subj&&b.exam&&b.due>now-2*HOUR).sort((a,b)=>a.due-b.due)[0];if(!e)return t;
   const d=new Date(e.due);const when=(d.getMonth()+1)+"/"+d.getDate()+" "+["周日","周一","周二","周三","周四","周五","周六"][d.getDay()]+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
   return"【考前复习】最近的考试是 "+e.title+"（"+when+(e.where?"，"+e.where:"")+"），范围："+(e.scope||"不确定，先问我")+"。只复习这一场，别跳到后面的考试。按「考前复习」的流程来：先给我一张考点地图，让我选从哪块开始。"}
-function intentOf(t,img){if(/复习|quiz|小测|考试|prelim|exam|期中|期末|模拟卷/i.test(t))return"review";if(img||/作业|hw\s*\d|homework|problem\s*set|\bps\s*\d|gradescope|lab|pre-?lab|实验报告/i.test(t))return"hw";if(/刷题|练习|出.{0,3}题|来.{0,2}道/.test(t))return"train";if(/学新|新课|新知识|下一节|往下学/.test(t))return"quest";return null}
+function intentOf(t,img){if(/复习|今天的计划|开始计划|quiz|小测|考试|prelim|exam|期中|期末|模拟卷/i.test(t))return"review";if(img||/作业|hw\s*\d|homework|problem\s*set|\bps\s*\d|gradescope|lab|pre-?lab|实验报告/i.test(t))return"hw";if(/刷题|练习|出.{0,3}题|来.{0,2}道/.test(t))return"train";if(/学新|新课|新知识|下一节|往下学/.test(t))return"quest";return null}
 function helpMode(subj,re){return(MODES[subj].find(m=>re.test(m[0]))||MODES[subj][0])[1]}
 function openTaskSheet(o){const d=S.done[o.key];const early=(o.soft-Date.now())>=48*HOUR;
   const act=!!(S.cur&&S.cur.key===o.key),disc=o.r.id==="engl-disc",passed=S.skipped[o.key]&&S.skipped[o.key].pass;
@@ -1849,7 +1849,8 @@ function renderDungeon(){const w=worldOf(CUR);{const b=S.battle[CUR];if(!QUEST[C
   const T=SAGA[CUR]?syncTale(CUR):tale(CUR);$("#dArc").textContent=SAGA[CUR]?(sagaNow(CUR).end?"主线篇章已通关 · 番外":"第 "+(sagaNow(CUR).ci+1)+" / "+sagaNow(CUR).w.ch.length+" 章 · "+sagaNow(CUR).c.t):"";$("#dPlace").replaceChildren(CUR==="engl"?"写作工坊":T.sum?"前情："+T.sum:"背景："+w.desc);
   $("#cast").replaceChildren(...(CUR==="engl"?[]:Object.entries(T.npcs).filter(([n])=>!/^(零|系统|旁白)$/.test(n)).map(([n,r])=>h("div",{class:"who"},face(n),h("div",null,h("b",null,n),h("div",{style:{opacity:.75,fontSize:"12px"}},r))))));
   renderStage();
-  const q=QUEST[CUR];const qb=$("#questBar");qb.hidden=!q;
+  const q=QUEST[CUR];const qb=$("#questBar");const ptd=!q&&CUR!=="engl"?planToday(CUR):null;qb.hidden=!q&&!ptd;qb.classList.toggle("plan",!!ptd);
+  if(ptd)qb.replaceChildren(h("div",null,h("div",{class:"eyebrow"},"今天的计划"+(ptd.all>1?" · 还剩 "+ptd.left+" 项":"")),h("b",null,ptd.it.topic),ptd.it.task?h("div",{class:"small",style:{opacity:.8}},ptd.it.task):null),h("button",{class:"btn sm ok",onclick:()=>planDone(ptd.id,ptd.it)},"学完了 +"+R(PLAN_PTS)));
   if(q){const n=MAIN[CUR].find(x=>x.id===q.id);qb.replaceChildren(h("div",null,h("div",{class:"eyebrow"},"主线关卡"),h("b",null,q.t)),
     n&&!nodeIsDone(CUR,n)?h("button",{class:"btn sm ok",onclick:()=>completeNode(CUR,n)},"学完了 +"+preview(n.pts||NODE_PTS,n.due||null,0).total):h("span",{class:"small"},"已通关"))}
   $("#modes").replaceChildren(...MODES[CUR].map(([l,t],i)=>h("button",{class:"btn sm"+(i===0?" go":""),onclick:()=>{if(/签到/.test(l)){openDaily(CUR);return}if(CUR!=="engl"){const k=/复习/.test(l)?"review":/作业|Lab/.test(l)?"hw":/签到/.test(l)?"daily":/剧情/.test(l)?"quest":"train";
@@ -1998,7 +1999,7 @@ let REVEAL=false;
 function topicFrom(subj){const T=CHATS[subj]||[];const ts=(S.topicAt||{})[subj];if(ts){const i=T.findIndex(t=>(t.at||0)>=ts);return i<0?T.length:i}const v=(S.topicFrom||{})[subj]||0;return v>T.length?0:v}
 function newTopic(){if(CTL)return;S.topicFrom={...(S.topicFrom||{}),[CUR]:CHATS[CUR].length};S.topicAt={...(S.topicAt||{}),[CUR]:Date.now()};if(S.qn)S.qn[CUR]=0;dcClear(CUR);QUEST[CUR]=null;delete S.battle[CUR];save();renderDungeon();setTimeout(()=>{const c=$("#chat");c.scrollTop=c.scrollHeight;$("#input").focus()},0)}
 function renderChat(){const box=$("#chat");box.replaceChildren();const turns=CHATS[CUR];
-  if(!turns.length)box.append(h("div",{class:"ln hint"},SAMPLE?"直接说你想做什么":"需要在 Claude 里打开才能对话"));
+  if(!turns.length)box.append(h("div",{class:"ln hint"},!SAMPLE?"需要在 Claude 里打开才能对话":(()=>{const pt=CUR!=="engl"&&planToday(CUR);return pt?h("button",{class:"btn sm go",onclick:()=>send("开始今天的计划：「"+pt.it.topic+"」"+(pt.it.task?"（"+pt.it.task+"）":""))},"开始今天的计划 · "+pt.it.topic):"直接说你想做什么"})()));
   const lastIdx=turns.length-1;let revealEls=[],newTurn=null;
   const tf=topicFrom(CUR);const tdiv=()=>h("div",{class:"ln topic-div"},"新话题");
   turns.forEach((t,i)=>{if(i===tf&&tf>0)box.append(tdiv());if(t.err){box.append(h("div",{class:"ln hint"},t.content));return}if(t.quiz){box.append(quizSummary(t));return}
@@ -2093,7 +2094,7 @@ ${q?"她现在在打主线关卡："+q.t:"现在不在主线关卡里。"}
 最近的学习笔记：\n${prog}\n没打败的错题（编号在前，只有和她现在聊的话题直接相关，或者她没有在聊具体东西时才提，不要把话题拉走）：\n${mis}\n这一科最近的截止：\n${dl}\n${bs?"Boss：\n"+bs:""}
 考试成绩：${S.scores.filter(e=>e.subj===subj).map(e=>e.name+" "+e.got+"/"+e.max).join("，")||"（无）"}${(()=>{const L=(S.dqDone||[]).filter(d=>d.subj===subj&&d.world===w.name).slice(-6);return L.length?"\n她在这个世界完成过的每日委托：\n"+L.map(d=>"- "+d.day+" "+(d.client?d.client+"：":"")+d.brief).join("\n")+"\n这些委托人可以在主线里再出现。偶尔（不要每回合）让她以前完成的某次委托在主线里带来意想不到的回报或影响，比如那个人后来帮了她一把、递来一条线索、在关键时刻出现，让她觉得当初帮的忙有了回响。":""})()}
 ${S.qn&&S.qn[subj]?"上一问是第 "+S.qn[subj]+" 问，新问题接着往下编号。":"这一科还没出过题，从第 1 问开始编号。"}
-今天${checkedToday()?"已经签到":"还没签到"}。${BUSY.length?"今天她还有别的安排，题量放轻。":""}`}
+今天${checkedToday()?"已经签到":"还没签到"}。${BUSY.length?"今天她还有别的安排，题量放轻。":""}${planContext(subj)}`}
 function sampleErr(e){const c=e&&e.code;return{not_granted:"你没有允许这个页面使用 Claude，刷新后可以重新允许。",sampling_disabled:"这个账号现在用不了 Claude。",rate_limited:"调用太频繁或者额度到了，过一会儿再试。",session_expired:"登录过期了，重新登录 Claude 再回来。",refused:"这个请求被拒绝了，换个说法试试。",prompt_too_large:"对话太长了，点「清空对话」再继续。",image_rejected:"图片有问题，换一张试试。",images_unavailable:"这里不能发图片，先用文字描述。"}[c]||"出错了，再点一次发送试试。"}
 async function ensureArc(subj){if(subj==="engl"||!SAMPLE)return;const T=tale(subj);const w=worldOf(subj);if(T.arc&&T.arc.world===w.name)return;
   const topics=MAIN[subj].filter(n=>!n.boss).map(n=>nodeName(subj,n)).slice(0,10).join("、");
@@ -2518,11 +2519,14 @@ function nextSteps(){const out=[];const now=Date.now();
   for(const k of["math","chem","engri"]){const arr=MAIN[k];const i=curIndex(k);const n=arr[i];if(!n||n.boss||nodeIsDone(k,n))continue;const debt=n.lec&&n.lec<now;
     out.push({subj:k,ic:"book",title:nodeName(k,n),meta:SUBJ[k].name+" 主线"+(debt?" · 课上已讲":"")+" · +"+R(NODE_PTS),label:SUBJ[k].name+"主线 · "+nodeName(k,n),say:(debt?"课上已经讲过「"+nodeName(k,n)+"」了，":"")+"进"+worldOf(k).name+"打这一关。每段只答一个小问题，打空守关者血条通关，+"+R(NODE_PTS)+" 分。",go:()=>startNode(k,n),pri:debt?1:0})}
   if(quizzesToday()<QUIZ_CAP){const k=weightedPick(["math","chem","engri"],"qz"+dayKey()+":"+quizzesToday());const top=(S.progress[k]||[]).slice(-1)[0];const cn=MAIN[k][curIndex(k)];const topic=top?top.t:cn&&!cn.boss?nodeName(k,cn):SUBJ[k].full;QUIZ_TOPIC[k]=topic;out.push({subj:k,ic:"bulb",title:"小测验 · "+topic,meta:SUBJ[k].name+" · 5 题 · 最多 +"+R(40),label:SUBJ[k].name+"小测验 · "+topic,say:SUBJ[k].name+"小测验，考「"+topic+"」，5 道选择题。每题 +"+R(6)+"，全对 +"+R(10)+"。",go:()=>{goDungeon(k);setTimeout(startQuiz,150)}})}
-  for(const k of["math","chem","engri"]){const b=examInfo(k);if(!b)continue;const d=Math.ceil((b.due-now)/DAY);if(d>14)continue;
+  {const pt=planToday();if(pt){const k=pt.b.subj;out.push({subj:k,ic:"crown",title:"今天的复习 · "+pt.it.topic,meta:SUBJ[k].name+" · "+pt.b.title+" 考前计划 · 约 "+(pt.it.min||60)+" 分钟"+(pt.all>1?" · 今天还剩 "+pt.left+" 项":""),label:"考前计划 "+pt.it.topic,say:pt.b.title+"的考前计划，今天是「"+pt.it.topic+"」。进副本，零直接从这里教起。",go:()=>planGo(pt.id,pt.it),plan:true})}}
+  for(const k of["math","chem","engri"]){const b=examInfo(k);if(!b)continue;const d=Math.ceil((b.due-now)/DAY);if(d>14)continue;if(planToday(k))continue;
+    const bid=Object.keys(BOSSES()).find(x=>BOSSES()[x]===b||BOSSES()[x].title===b.title&&BOSSES()[x].due===b.due);const np=bid&&!(S.examPlan||{})[bid]&&d<=12;
+    if(np){out.push({subj:k,ic:"crown",title:"排考前计划 · "+b.title,meta:"还有 "+d+" 天 · 先回答几个问题，零按天排好",label:"排考前计划 "+b.title,review:true,days:d,go:()=>planSetup(bid,BOSSES()[bid])});continue}
     out.push({subj:k,ic:"crown",title:"备考 · "+b.title,meta:"还有 "+d+" 天 · 从最没把握的地方开始",label:"备考 "+b.title,review:true,days:d,go:()=>{startBattle(k,"review",FOES.review);goDungeon(k,helpMode(k,/考前复习/))}})}
   out.push({ic:"game",title:"今天的都做完了",meta:"有 "+fp(S.points)+" 分",btn:"去商店",label:"去商店兑换游戏时间",say:"今天该做的都做完了。现在有 "+fp(S.points)+" 分，可以去换游戏时间。",go:()=>{location.hash="#shop"},rest:true});
   // order: check-in, urgent, debt main, monsters, main, quiz, rest
-  const pri=x=>x.sleep?x.sleep:x.label==="做一道签到题"?0:urgent.some(o=>x.label.endsWith(o.title))?1:x.review?(x.days<=7?1.5:3.5):x.pri===1?2:x.label==="打一只错题怪"?3:x.rest?9:x.label.includes("小测验")?5:4;
+  const pri=x=>x.sleep?x.sleep:x.plan?1.2:x.label==="做一道签到题"?0:urgent.some(o=>x.label.endsWith(o.title))?1:x.review?(x.days<=7?1.5:3.5):x.pri===1?2:x.label==="打一只错题怪"?3:x.rest?9:x.label.includes("小测验")?5:4;
   return out.sort((a,b)=>pri(a)-pri(b)||(b.subj?subjWeight(b.subj):0)-(a.subj?subjWeight(a.subj):0))}
 let GI=0;const QUIZ_TOPIC={};
 function openGuide(fromReward){const steps=nextSteps();if(GI>=steps.length)GI=0;const st=steps[GI];
@@ -3063,24 +3067,66 @@ function editDue(el,set){const inp=h("input",{type:"datetime-local",class:"td-du
   if(DESK&&DESK.todoBusy)DESK.todoBusy(true)}
 /* 考前计划：考试前 10 天内，零按范围排一份每天一个点的计划；每日一课按计划教，做完一项 +5 */
 const PLAN_PTS=5;
-function planToday(subj){const k=dayKey();for(const id in (S.examPlan||{})){const p=S.examPlan[id];const b=BOSSES()[id];if(!b||b.due<Date.now()||(subj&&b.subj!==subj))continue;const it=p.days.find(d=>d.day===k);if(it)return{id,b,it}}return null}
-async function makePlan(id,b,btn){if(!SAMPLE){toast("需要在 Claude 里打开");return}btn.disabled=true;btn.textContent="零在排计划…";
-  const days=[];for(let k=dayKey();keyToDate(k).getTime()<b.due-12*HOUR&&days.length<10;k=addDays(k,1))days.push(k);
-  if(!days.length){toast("离考试太近了，直接进副本复习");btn.disabled=false;return}
-  const mis=(S.mistakes||[]).filter(m=>m.subj===b.subj&&!m.fixed).slice(-12).map(m=>"- "+String(m.text).slice(0,120)).join("\n");
+/* ============ 考前计划 ============
+   排之前先问：哪几天有空、每天多久、哪几节没把握；每天可以排 0～几项。
+   每项 {id,day,topic,task,min,kind}；kind=mock（模拟卷）/final（错题和公式）固定不动，其他没做完的过了日子自动往后挪。 */
+const planKey=(id,d)=>"plan:"+id+":"+(d.id||d.day);
+function planDays(b){const days=[];for(let k=dayKey();keyToDate(k).getTime()<b.due-12*HOUR&&days.length<12;k=addDays(k,1))days.push(k);return days}
+function planShift(id){const p=(S.examPlan||{})[id];if(!p||!p.avail)return 0;const today=dayKey();
+  const mv=p.days.filter(d=>!d.kind||d.kind==="learn");const late=mv.filter(d=>d.day<today&&!S.done[planKey(id,d)]);if(!late.length)return 0;
+  const fixed=p.days.filter(d=>d.kind==="mock"||d.kind==="final").map(d=>d.day).sort();const stop=fixed[0]||"9999";
+  let slots=Object.keys(p.avail).filter(k=>k>=today&&k<stop&&p.avail[k]>0).sort();if(!slots.length)slots=[today];
+  const todo=mv.filter(d=>!S.done[planKey(id,d)]).sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);
+  /* 按每天的时间装：1 小时装 1 项，装满了还有剩的，再从前往后每天多塞一项 */
+  const cap=slots.map(k=>Math.max(1,Math.round((p.avail[k]||60)/60)));const load=slots.map(()=>0);let si=0;
+  if(todo.length<=cap.reduce((x,y)=>x+y,0)){for(const d of todo){while(load[si]>=cap[si])si++;d.day=slots[si];load[si]++}}else{const per=Math.ceil(todo.length/slots.length);todo.forEach((d,i)=>{d.day=slots[Math.min(slots.length-1,Math.floor(i/per))]})}
+  p.days.sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);p.moved=(p.moved||0)+late.length;save();return late.length}
+function planToday(subj){const k=dayKey();for(const id in (S.examPlan||{})){const p=S.examPlan[id];const b=BOSSES()[id];if(!b||b.due<Date.now()||(subj&&b.subj!==subj))continue;planShift(id);
+  const list=p.days.filter(d=>d.day===k);const it=list.find(d=>!S.done[planKey(id,d)]);if(it)return{id,b,it,p,left:list.filter(d=>!S.done[planKey(id,d)]).length,all:list.length}}return null}
+function planDone(id,d){const k=planKey(id,d);if(S.done[k])return;const pts=award(PLAN_PTS,keyToDate(d.day).getTime()+DAY+4*HOUR,0,"考前计划 · "+d.topic);S.done[k]={at:Date.now(),pts};save();renderAll()}
+function planContext(subj){const pt=planToday(subj);const p=pt&&pt.p;if(!p)return"";
+  const rest=p.days.map(d=>(S.done[planKey(pt.id,d)]?"✓ ":"· ")+d.day.slice(5)+" "+d.topic).join("；");
+  return"\n她给「"+pt.b.title+"」排了考前计划："+rest+"\n今天这一项是「"+pt.it.topic+"」："+(pt.it.task||"")+"（约 "+(pt.it.min||60)+" 分钟）。她说「复习」「开始今天的计划」之类的话时，就直接教这一项，不用再让她选从哪开始：当她完全不会，先用一句话说清这一块在算什么，再小步讲，每步一个小问题；最后做 2–3 道考试难度的题。这一项教完、题也做对了，提醒她点副本左边「今天的计划」里的「学完了」。"}
+/* 排计划前的小问卷 */
+function planSetup(id,b){const days=planDays(b);if(!days.length){toast("离考试太近了，直接进副本复习");return}
+  const hr=new Date().getHours();const late=hr>=22||hr<4;const avail={};const ex=localKey(new Date(b.due));days.forEach((k,i)=>{avail[k]=i===0&&late?0:k===ex?30:60});
+  const D=S.dyn&&S.dyn.data&&S.dyn.data[b.subj];const today=localKey(new Date());
+  const tops=((D&&D.topics)||[]).filter(t=>t&&t.t&&t.lec<=addDays(today,7)).map(t=>t.t);const weak=new Set();
+  const wd=k=>{const d=keyToDate(k);return (d.getMonth()+1)+"/"+d.getDate()+" 周"+WD[d.getDay()]};
+  const opts=[[0,"不复习"],[30,"30 分钟"],[60,"1 小时"],[90,"1.5 小时"],[120,"2 小时"],[180,"3 小时"]];
+  const note=h("input",{placeholder:"还有什么要说的（可不填），比如：17.2 线积分完全没听懂",style:{width:"100%"}});
+  sheet(b.subj,h("div",{style:{display:"flex",flexDirection:"column",gap:"12px"}},
+    h("div",{class:"eyebrow"},"排考前计划 · "+b.title),h("div",{class:"dim small"},"考试 "+fmtDue(b.due)+(b.scope?" · 范围 "+b.scope:"")),
+    h("b",null,"1. 每天大概能复习多久？"),
+    h("div",{style:{display:"grid",gridTemplateColumns:"auto 1fr",gap:"6px 10px",alignItems:"center"}},days.flatMap(k=>[h("span",{class:"small"},wd(k)+(k===dayKey()?"（今天）":"")),
+      h("select",{onchange:e=>{avail[k]=+e.target.value}},opts.map(([v,l])=>{const o=h("option",{value:v},l);if(v===avail[k])o.selected=true;return o}))])),
+    tops.length?h("b",null,"2. 哪几节最没把握？（点一下选上）"):null,
+    tops.length?h("div",{class:"row",style:{flexWrap:"wrap",gap:"6px"}},tops.map(t=>{const bt=h("button",{class:"btn sm",onclick:()=>{weak.has(t)?weak.delete(t):weak.add(t);bt.classList.toggle("go",weak.has(t))}},t);return bt})):null,
+    note,
+    h("button",{class:"btn go bigbtn",onclick:e=>makePlan(id,b,e.currentTarget,{avail,weak:[...weak],note:note.value.trim()})},"让零排计划")))}
+async function makePlan(id,b,btn,o){if(!SAMPLE){toast("需要在 Claude 里打开");return}if(!o){planSetup(id,b);return}
+  const avail=o.avail;const days=Object.keys(avail).filter(k=>avail[k]>0).sort();if(!days.length){toast("至少选一天复习");return}
+  btn.disabled=true;btn.textContent="零在排计划…";
+  const mis=(S.mistakes||[]).filter(m=>m.subj===b.subj&&!m.killed).slice(-12).map(m=>"- "+String(m.text).slice(0,120)).join("\n");
   try{const j=await SAMPLE.json(contextTurn(b.subj)+`\n\n给「${b.title}」（${fmtDue(b.due)}${b.scope?"，范围 "+b.scope:b.where?"，"+b.where:""}）排考前计划，不要剧情。
-可用的日子：${days.join("、")}（每天一项）。她做得慢，每天的量控制在 1 小时左右。
-排法：前面的日子每天一个知识点（先教会再做 2–3 道题），按考试分量和她的薄弱处排序；倒数第二天做一套模拟卷；最后一天只过错题和公式。${mis?"\n她没解决的错题：\n"+mis:""}
-只回 JSON：{"days":[{"day":"YYYY-MM-DD","topic":"知识点（短）","task":"今天具体做什么（一句话）"}]}`,{cache:false});
-    const list=(j&&j.days||[]).filter(d=>d&&days.includes(d.day)&&d.topic).map(d=>({day:d.day,topic:String(d.topic).slice(0,40),task:String(d.task||"").slice(0,120)}));
-    if(!list.length)throw 0;S.examPlan=S.examPlan||{};S.examPlan[id]={at:Date.now(),days:list};save();openBossSheet(id)}
-  catch(e){toast("计划没排出来，再试一次");btn.disabled=false;btn.textContent="排考前计划"}}
-function planBlock(id,b){const left=b.due-Date.now();if(left>10*DAY||left<0)return null;const p=(S.examPlan||{})[id];
-  if(!p)return h("div",{class:"row"},h("button",{class:"btn",onclick:e=>makePlan(id,b,e.currentTarget)},"排考前计划"),h("span",{class:"dim small"},"每天一个点，每日委托跟着教"));
-  return h("div",null,h("div",{class:"row between",style:{marginBottom:"6px"}},h("div",{class:"eyebrow"},"考前计划"),h("button",{class:"btn sm flat",onclick:()=>{delete S.examPlan[id];save();openBossSheet(id)}},"重排")),
-    h("div",{class:"checklist"},p.days.map(d=>{const k="plan:"+id+":"+d.day;const dn=S.done[k];const today=d.day===dayKey();
-      return h("button",{class:(dn?"done":"")+(today?" today":""),disabled:!!dn,title:d.task,onclick:()=>{const pts=award(PLAN_PTS,keyToDate(d.day).getTime()+DAY+4*HOUR,0,"考前计划 · "+d.topic);S.done[k]={at:Date.now(),pts};save();openBossSheet(id);renderAll()}},
-        h("span",null,(dn?"✓ ":"")+d.day.slice(5).replace("-","/")+" "+d.topic+(today&&!dn&&d.task?" — "+d.task:"")),h("span",{class:"rw"},"+"+(dn?dn.pts:R(PLAN_PTS))))})))}
+她每天能复习的时间（分钟）：${days.map(k=>k+" "+avail[k]).join("、")}。只能排在这些日子里，每一项大约 45–60 分钟，按当天时间决定排几项（30 分钟的日子只排一个小点或错题回顾）。
+${o.weak.length?"她说最没把握的：「"+o.weak.join("」「")+"」，这些多给时间、排在前面。":""}${o.note?"\n她补充：「"+o.note+"」":""}
+排法：先覆盖整个考试范围（她做得慢，先教会再做 2–3 道题），按考试分量和她的薄弱处排序；最后两个复习日：倒数第二个做一套模拟卷（kind 写 mock），最后一个只过错题和公式纸（kind 写 final）；其余 kind 写 learn。${mis?"\n她没解决的错题：\n"+mis:""}
+只回 JSON：{"items":[{"day":"YYYY-MM-DD","topic":"知识点（短）","task":"具体做什么（一句话）","min":60,"kind":"learn"}]}`,{cache:false});
+    const list=(j&&(j.items||j.days)||[]).filter(d=>d&&days.includes(d.day)&&d.topic).map((d,i)=>({id:"i"+Date.now().toString(36)+i,day:d.day,topic:String(d.topic).slice(0,40),task:String(d.task||"").slice(0,140),min:Math.max(15,Math.min(180,+d.min||60)),kind:/^(mock|final)$/.test(d.kind)?d.kind:"learn"}))
+      .sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);
+    if(!list.length)throw 0;S.examPlan=S.examPlan||{};S.examPlan[id]={at:Date.now(),avail,weak:o.weak,days:list};save();toast("计划排好了");openBossSheet(id);renderAll()}
+  catch(e){toast("计划没排出来，再试一次");btn.disabled=false;btn.textContent="让零排计划"}}
+function planBlock(id,b){const left=b.due-Date.now();if(left>12*DAY||left<0)return null;const p=(S.examPlan||{})[id];
+  if(!p)return h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>planSetup(id,b)},"排考前计划"),h("span",{class:"dim small"},"先问你几个问题，再按天排好；每天进副本说「复习」就按计划教"));
+  planShift(id);const today=dayKey();
+  return h("div",null,h("div",{class:"row between",style:{marginBottom:"6px"}},h("div",{class:"eyebrow"},"考前计划"+(p.moved?" · 没做完的已往后挪":"")),h("button",{class:"btn sm flat",onclick:()=>planSetup(id,b)},"重排")),
+    h("div",{class:"checklist"},p.days.map(d=>{const k=planKey(id,d);const dn=S.done[k];const td=d.day===today;
+      return h("button",{class:(dn?"done":"")+(td?" today":""),disabled:!!dn,title:d.task,onclick:()=>{if(td&&!dn){closeSheet();planGo(id,d);return}planDone(id,d);openBossSheet(id)}},
+        h("span",null,(dn?"✓ ":"")+d.day.slice(5).replace("-","/")+" "+(d.kind==="mock"?"模拟卷 · ":d.kind==="final"?"错题和公式 · ":"")+d.topic+(td&&!dn&&d.task?" — "+d.task:"")),h("span",{class:"rw"},td&&!dn?"开始 →":"+"+(dn?dn.pts:R(PLAN_PTS))))})),
+    h("div",{class:"dim small",style:{marginTop:"6px"}},"今天的那一项点一下直接进副本开始；别的日子的点一下算做完。"))}
+/* 从计划进副本：开打复习战，零直接教今天这一项 */
+function planGo(id,d){const b=BOSSES()[id];if(!b)return;startBattle(b.subj,"review",FOES.review);goDungeon(b.subj,"开始今天的计划：「"+d.topic+"」"+(d.task?"（"+d.task+"）":""))}
 /* 待办小窗 */
 function undoDone(key,label){const d=S.done[key];if(!d)return;delete S.done[key];S.undone=S.undone||{};S.undone[key]=Date.now();if(d.pts){earn(-d.pts,"撤销 · "+label);if(d.pts>0)S.xp=Math.max(0,S.xp-Math.round(d.pts*XP_PER))}
   if(d.sh){S.shards-=d.sh;while(S.shards<0&&S.cards.makeup>0){S.cards.makeup--;S.shards+=3}S.shards=Math.max(0,S.shards)}save();renderAll()}
