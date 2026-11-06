@@ -1,0 +1,12 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {validateManifest,validateAuthoringLinks} from "./lib/world-manifest-validator.mjs";
+const m=(id="w01")=>({worldId:id,manifestRevision:1,globalRulesVersion:"v1",startSceneRef:id+":start",startSceneId:"start",contentRefs:[{kind:"world",ref:id+":world",rev:1},{kind:"scene",ref:id+":start",rev:2},{kind:"npc",ref:id+":guide",rev:1},{kind:"event",ref:id+":arrival",rev:3}]});
+test("valid world",()=>assert.deepEqual(validateManifest(m(),m().contentRefs),[]));
+test("same local ids separate worlds",()=>assert.deepEqual(validateManifest(m("w02"),m("w02").contentRefs),[]));
+test("foreign scene rejected",()=>{const x=m();x.contentRefs[1].ref="w02:start";assert.ok(validateManifest(x).includes("invalid_entry"));});
+test("start consistency",()=>{const x=m();x.startSceneId="other";assert.ok(validateManifest(x).includes("invalid_start_scene"));});
+test("exact revision pin",()=>{const x=m(),available=x.contentRefs.map(y=>({...y}));available[1].rev=3;assert.ok(validateManifest(x,available).includes("missing_exact_revision"));});
+test("duplicate content",()=>{const x=m();x.contentRefs.push({...x.contentRefs[1]});assert.ok(validateManifest(x).includes("duplicate_entry"));});
+test("missing world or start scene",()=>{const x=m();x.contentRefs=x.contentRefs.filter(y=>y.kind!=="world"&&y.kind!=="scene");assert.ok(validateManifest(x).includes("missing_world_record"));assert.ok(validateManifest(x).includes("missing_start_scene_record"));});
+test("all author links resolve",()=>{const x=m();assert.deepEqual(validateAuthoringLinks(x,{sceneRefs:["w01:start"],npcRefs:["w01:guide"],eventRefs:["w01:arrival"]}),[]);assert.ok(validateAuthoringLinks(x,{sceneRefs:[],npcRefs:["w02:guide"],eventRefs:[]}).includes("unresolved_npcRefs"));});

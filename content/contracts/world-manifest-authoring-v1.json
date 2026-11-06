@@ -1,0 +1,33 @@
+{
+  "schema": "world-manifest-v1",
+  "worldRecordId": "worldId:world",
+  "required": [
+    "worldId",
+    "manifestRevision",
+    "startSceneRef",
+    "startSceneId",
+    "globalRulesVersion",
+    "contentRefs"
+  ],
+  "contentRefs": "entries contain kind, ref, rev; ref is worldId:localId",
+  "pin": "New sessions pin manifest and each entry revision. Old sessions do not auto-upgrade.",
+  "example": {
+    "worldId": "sampleworld",
+    "manifestRevision": 1,
+    "startSceneRef": "sampleworld:start",
+    "startSceneId": "start",
+    "globalRulesVersion": "global-v1",
+    "contentRefs": [
+      {
+        "kind": "world",
+        "ref": "sampleworld:world",
+        "rev": 1
+      },
+      {
+        "kind": "scene",
+        "ref": "sampleworld:start",
+        "rev": 1
+      }
+    ]
+  }
+}
