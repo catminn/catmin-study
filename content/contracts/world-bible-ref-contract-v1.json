@@ -1,0 +1,62 @@
+{
+  "schema": "world-bible-ref-contract-v1",
+  "version": "1.0.0",
+  "identity": {
+    "worldId": "^[a-z][a-z0-9_-]{1,63}$",
+    "localId": "^[a-z0-9][a-z0-9._-]{0,79}$",
+    "qualifiedRef": "<worldId>:<localId>",
+    "referencePolicy": "All scene/npc/event/fact/item/flag/thread/ending references resolve in current world only. A qualified ref with a different worldId is rejected. No lookup fallback to any other world."
+  },
+  "storage": {
+    "contentKey": [
+      "worldId",
+      "kind",
+      "localId",
+      "revision"
+    ],
+    "sessionBinding": [
+      "sessionId",
+      "worldId",
+      "canonicalRevision"
+    ],
+    "collisionPolicy": "Identical localIds in different worlds are valid and isolate fully.",
+    "readPolicy": "Every lookup requires session's pinned worldId and canonicalRevision; no global latest lookup.",
+    "publication": "Approved immutable manifest binds all required content revisions; publish creates new revision, never mutates old."
+  },
+  "revisionPolicy": {
+    "initial": "Pin a complete world manifest revision on session start.",
+    "activeSession": "Read pinned manifest and its pinned object revisions for full duration, even if a new world revision publishes.",
+    "upgrade": "Only an explicit admin/user-authorized migration with compatibility validation, stable session state mapping and rollback; default never auto-upgrade.",
+    "legacy": "Ambiguous legacy runs fail closed; never infer from latest or choose first world.",
+    "endingSnapshot": "Record pinned worldId, manifest revision, and explicit commit provenance."
+  },
+  "transfer": {
+    "crossWorldDefault": "deny",
+    "exception": "Versioned explicit transfer manifest listing authorized player-visible fields, destination world, mapping, compatibility, consent; never copy secret NPC knowledge or canonical plot facts automatically."
+  },
+  "authoring": {
+    "requiredManifestFields": [
+      "schema",
+      "worldId",
+      "revision",
+      "status",
+      "globalRulesVersion",
+      "startSceneRef",
+      "scenes",
+      "npcs",
+      "events",
+      "endings"
+    ],
+    "references": "All object refs are qualified with worldId:localId; use localId only as a storage field.",
+    "privateSections": [
+      "premise",
+      "plotOutline",
+      "npcPrivateKnowledge",
+      "twists",
+      "foreshadowing",
+      "endingTruths"
+    ],
+    "secretStorage": "private D1 / protected private authoring store only, never GitHub/shared mailbox",
+    "knowledge": "Course concepts and application tags are shared library references; never transfer hidden world facts through educational retrieval."
+  }
+}

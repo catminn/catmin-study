@@ -1,0 +1,12 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {qualify,resolveInWorld,validateWorldManifest,checkRunBinding,validateMigration} from "./lib/world-bible-ref-validator.mjs";
+const make=(worldId,revision=1)=>({schema:"world-bible-ref-contract-v1",worldId,revision,status:"published",globalRulesVersion:"1",startSceneRef:qualify(worldId,"start"),scenes:[qualify(worldId,"start")],npcs:[qualify(worldId,"guide")],events:[qualify(worldId,"arrival")],endings:[qualify(worldId,"ending")]});
+test("two worlds may share identical local IDs safely",()=>{assert.equal(qualify("world01","start"),"world01:start");assert.equal(qualify("world02","start"),"world02:start");assert.deepEqual(validateWorldManifest(make("world01")),[]);assert.deepEqual(validateWorldManifest(make("world02")),[]);});
+test("cross-world references denied",()=>{assert.equal(resolveInWorld("world01","world02:start").error,"cross_world_reference");assert.ok(validateWorldManifest({...make("world01"),npcs:["world02:guide"]}).length);});
+test("unqualified references fail closed",()=>assert.equal(resolveInWorld("world01","start").error,"unqualified_reference"));
+test("session remains pinned when new revision publishes",()=>{const run={sessionId:"s1",worldId:"world01",canonicalRevision:1};assert.equal(checkRunBinding(run,make("world01",1)).ok,true);assert.equal(checkRunBinding(run,make("world01",2)).error,"revision_mismatch");});
+test("session can't silently switch worlds",()=>assert.equal(checkRunBinding({sessionId:"s1",worldId:"world01",canonicalRevision:1},make("world02")).error,"world_mismatch"));
+test("explicit upgrade requires authorization and mapping",()=>{const run={sessionId:"s1",worldId:"world01",canonicalRevision:1};assert.equal(validateMigration(run,make("world01",1),make("world01",2),false).ok,false);const allowed=validateMigration(run,make("world01",1),make("world01",2),true);assert.equal(allowed.requiresStateMappingAndRollback,true);});
+test("cross-world migration disallowed even with same scene identifiers",()=>{const run={sessionId:"s1",worldId:"world01",canonicalRevision:1};assert.equal(validateMigration(run,make("world01"),make("world02"),true).error,"cross_world_migration_disallowed");});
+test("invalid world manifests cannot publish",()=>assert.ok(validateWorldManifest({...make("world01"),startSceneRef:"world01:missing"}).includes("missing_start_scene")));
