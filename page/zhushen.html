@@ -1163,22 +1163,29 @@ function renderSyncRow(){const el=$("#syncNote");if(!el)return;el.textContent=SY
 const SHOP_REAL=[];
 /* 游戏：开始计时，玩完停止，按真实时长扣分。同一天累计越久，每分钟越贵（分段累进），拆成几次玩也一样 */
 const PLAY_TIERS=[[30,0.7],[60,0.9],[120,1.2],[1e9,1.6]];
-function playCost(before,dur){let c=0,t=before,end=before+dur,lo=0;for(const [hi,r] of PLAY_TIERS){if(t<hi&&end>lo){const a=Math.max(t,lo),b=Math.min(end,hi);if(b>a)c+=(b-a)*r}lo=hi}return Math.round(c)}
+/* 忙闲定价：接下来 3 天要交的作业、7 天内的考试越多越贵；没事的时候打折。开始计时那一刻定价，玩的中途不变 */
+function busyInfo(){const now=Date.now();let sc=0;const why=[];
+  let hw=0,hw1=0;try{for(const o of occurrences())if(isOpen(o)&&o.hard>now&&o.hard<=now+3*DAY){hw++;if(o.hard<=now+DAY)hw1++}}catch(e){}if(hw){sc+=hw*.5+hw1*.5;why.push(hw+" 个作业 3 天内截止"+(hw1?"（"+hw1+" 个明天前）":""))}
+  try{for(const b of Object.values(BOSSES())){if(!b.exam||!(b.due>now))continue;const d=(b.due-now)/DAY;const w=d<=2?3:d<=4?2:d<=7?1:0;if(w){sc+=w;why.push((b.name||b.title||"考试")+" 还有 "+Math.ceil(d)+" 天")}}}catch(e){}
+  const mult=sc<=0.5?0.6:sc<=1.5?0.7:sc<=3?0.8:sc<=5?1:1.1;const label=mult<1?"最近不忙 · "+Math.round(mult*10)+" 折":mult>1?"考前很忙 · 贵一点":"正常价";return{sc,mult,why,label}}
+const playMult=()=>S.timer&&S.timer.meter&&S.timer.mult?S.timer.mult:busyInfo().mult;
+function playCost(before,dur,mult=1){let c=0,t=before,end=before+dur,lo=0;for(const [hi,r] of PLAY_TIERS){if(t<hi&&end>lo){const a=Math.max(t,lo),b=Math.min(end,hi);if(b>a)c+=(b-a)*r}lo=hi}return Math.round(c*mult)}
 function playedToday(){const d=dayKey();return (S.playLog||[]).filter(x=>x.day===d).reduce((s,x)=>s+x.min,0)}
 const playing=()=>!!(S.timer&&S.timer.meter);
 function playMin(){return S.timer&&S.timer.meter?Math.max(0,(Date.now()-S.timer.start)/MIN):0}
-function playNow(){const m=playMin();return{m,cost:S.timer&&S.timer.free?0:playCost(playedToday(),m)}}
+function playNow(){const m=playMin();return{m,cost:S.timer&&S.timer.free?0:playCost(playedToday(),m,playMult())}}
 function startPlay(){if(S.timer&&S.timer.end>Date.now()){toast("已经在计时了");return}const free=false;
   if(S.points<=0){toast("积分不够，先去做点作业");return}
-  S.timer={label:free?"游戏中（休息日免费）":"游戏中",start:Date.now(),end:Date.now()+6*HOUR,meter:1,free};S.timerMt=Date.now();save();renderAll();toast("开始计时，玩完记得点「玩完了」")}
+  S.timer={label:free?"游戏中（休息日免费）":"游戏中",start:Date.now(),end:Date.now()+6*HOUR,meter:1,free,mult:busyInfo().mult};S.timerMt=Date.now();save();renderAll();toast("开始计时，玩完记得点「玩完了」")}
 function stopPlay(){if(!playing())return;const {m,cost}=playNow(),min=Math.round(m);S.playLog=(S.playLog||[]).filter(x=>Date.now()-x.at<14*DAY);S.playLog.push({day:dayKey(),min:m,at:Date.now()});
   const lab=S.timer.free;S.timer=null;S.timerMt=Date.now();if(cost>0)earn(-cost,"游戏 "+min+" 分钟");else S.ledger.push({at:Date.now(),d:0,t:"游戏 "+min+" 分钟"+(lab?"（休息日免费）":"")});
   save();renderAll();if(DESK&&DESK.gameMode)DESK.gameMode(false,-1);toast("玩了 "+min+" 分钟"+(cost?"，扣 "+cost+" 分":""))}
-function affordMin(){const b=playedToday();let m=0;while(m<600&&playCost(b,m+1)<=S.points)m++;return m}
+function affordMin(){const b=playedToday();let m=0;const k=busyInfo().mult;while(m<600&&playCost(b,m+1,k)<=S.points)m++;return m}
 function playCard(){const on=playing(),b=playedToday(),am=affordMin();
-  const tip="按真实时长扣分，当天累计越久越贵：前 30 分钟每分钟 0.7，30–60 分钟 0.9，1–2 小时 1.2，2 小时以上 1.6";
-  if(on){const {m,cost}=playNow();return h("div",{class:"item playbar on",title:tip},h("div",{class:"ic"},icon("game")),h("div",{class:"pb-t"},h("b",null,"游戏中"),h("span",{class:"dim"},Math.floor(m)+" 分钟 · "+cost+" 分")),h("button",{class:"btn go",onclick:stopPlay},"玩完了"))}
-  return h("div",{class:"item playbar",title:tip},h("div",{class:"ic"},icon("game")),h("div",{class:"pb-t"},h("b",null,"玩游戏"),h("span",{class:"dim"},am>0?"够玩约 "+am+" 分钟"+(b>=1?" · 今天已玩 "+Math.round(b)+" 分钟":""):"积分不够")),h("button",{class:"btn"+(am>0?" go":""),onclick:startPlay},"开始玩"))}
+  const bi=on&&S.timer.mult?{mult:S.timer.mult,label:S.timer.mult<1?"开始时不忙 · "+Math.round(S.timer.mult*10)+" 折":S.timer.mult>1?"开始时很忙 · 贵一点":"正常价",why:[]}:busyInfo();
+  const tip="按真实时长扣分，当天累计越久越贵：前 30 分钟每分钟 0.7，30–60 分钟 0.9，1–2 小时 1.2，2 小时以上 1.6（正常价）。\n再按最近忙不忙打折：没事 6 折，有一点事 7 折、8 折，考试临近或作业扎堆原价，非常忙 1.1 倍。开始计时时定价。"+(bi.why&&bi.why.length?"\n现在："+bi.why.join("、"):"\n现在：3 天内没有要交的，7 天内没有考试");
+  if(on){const {m,cost}=playNow();return h("div",{class:"item playbar on",title:tip},h("div",{class:"ic"},icon("game")),h("div",{class:"pb-t"},h("b",null,"游戏中"),h("span",{class:"dim"},Math.floor(m)+" 分钟 · "+cost+" 分"+(bi.mult!==1?" · "+bi.label:""))),h("button",{class:"btn go",onclick:stopPlay},"玩完了"))}
+  return h("div",{class:"item playbar",title:tip},h("div",{class:"ic"},icon("game")),h("div",{class:"pb-t"},h("b",null,"玩游戏"),h("span",{class:"dim"},(am>0?"够玩约 "+am+" 分钟"+(b>=1?" · 今天已玩 "+Math.round(b)+" 分钟":""):"积分不够")+" · "+bi.label)),h("button",{class:"btn"+(am>0?" go":""),onclick:startPlay},"开始玩"))}
 const CNY_TIERS=[["6",6],["15",15],["30",30],["60",60],["100",100],["180",180],["300",300],["600",600],["月卡",30],["战令",68],["战令",128]];
 const SHOP_ITEMS=[
   {id:"makeup",name:"补签卡",price:35,ic:"ticket",desc:"补上漏掉的一天签到"},
