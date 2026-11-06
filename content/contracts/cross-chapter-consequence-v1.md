@@ -1,0 +1,17 @@
+# Deferred route consequence coverage — spoiler-free author contract v1
+
+This **synthetic author-only** contract checks that a choice marked as having a consequence in a later chapter is not forgotten before an explicit deadline. It contains no formal-world scenes, NPC identities, hidden facts, answers, private hashes or approved dialogue. It is neither a live persistence layer nor permission to import the first formal world (**DO-NOT-IMPORT**).
+
+## Narrow author projection
+
+The root has exactly `chapters` and `deferrals` (at least one). Chapters are in fixed story order, with exactly `id`, `start`, `nodes`. Each chapter node has exactly `id`, `end`, `exits`, `acknowledges`; each exit has exactly `to`, `impactKey`. All chapter-internal story exits are unconditional and cannot require practice completion. Chapter terminal nodes have no exits or callbacks; for proof purposes only, every terminal connects to the next chapter's entry. This is an acyclic **chapter-beat outline**, not a loop-capable exploration map or a production saga-frontier implementation.
+
+Every branching exit has a globally unique opaque `impactKey`; linear exits use `null`. `deferrals` is an array of exactly `{impactKey,dueChapterId}` entries, referencing a subset of those branch outcomes. The due chapter must be **strictly later** than the choice's chapter. Other branch outcomes are deliberately out of scope here and must be checked by the separate local route-consequence validator. An `acknowledges` entry denotes an author-promised **conditional** narrative callback: it may appear only in a nonterminal beat of a chapter strictly later than the choice and no later than its declared deadline. The actual condition and prose require separate private approval.
+
+For each deferred outcome, **every** possible story-only route from its chosen exit through the due chapter must pass at least one such callback before that chapter ends. A callback at a common reunion beat is allowed only when the runtime will display it conditionally for the actually chosen outcome. The validator computes a reverse-DAG all-path guarantee rather than enumerating exponentially many routes. Missing callbacks, early/late callbacks, unknown keys, cycles, unreachable beats, extra fields, and undeclared runtime gates fail closed with fixed error codes that do not echo author-controlled identifiers.
+
+This is stronger than checking whether a callback exists *somewhere* in the chapter, but it cannot prove that the engine persists the choice, that the callback is displayed conditionally, that the player notices it, that the consequence is meaningful, or that the chapter sequence matches real runtime behavior. Claude owns real Worker/D1 persistence, conditional projection and regression tests; ChatGPT owns private scene/NPC and DM experience review. Real content must never be committed to this public branch or shared memory.
+
+## Synthetic executable acceptance
+
+`node --test test/cross-chapter-consequence.test.mjs` exercises valid and invalid demo-only cases. `scripts/validate-cross-chapter-consequence.mjs` returns only `{ok:true,chapterCount,nodeCount,deferredOutcomeCount}` or `{ok:false,code}`. The author must separately run local consequence and learning-path checks. Passing any synthetic test does **not** approve a real story, authorize a production change, merge a PR, or lift the first-world DO-NOT-IMPORT restriction. Real import/enforce remains subject to private field review, engineering validation and Catherine's explicit in-person authorization.

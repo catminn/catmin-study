@@ -1,0 +1,11 @@
+# DM knowledge alignment — synthetic author preflight v1
+
+**Scope:** Spoiler-free author-side cross-contract test, not a runtime engine, author approval, academic grader or import mechanism. All `demo.*` IDs are invented.
+
+A valid DM beat sheet can offer one concept while a valid chapter graph introduces **some other** skill and practice early. Passing the two checks separately therefore does not prove that the DM's offered concept is actually reachable in the chapter's learning-first rhythm. This bridge explicitly binds the DM lesson's `conceptId` to a chapter `skillId` and one or more chapter-local practice IDs.
+
+The binding has exactly eight fields: `schemaVersion: "dm-knowledge-alignment-v1"`, `synthetic:true`, `worldId`, `manifestRevision`, `lessonBeatId`, `conceptId`, `skillId`, and `practiceIds`. No prose, answer, NPC, secret, private digest, approval claim or real story identifier belongs in it. The world/revision must match the DM sheet, the lesson ID and concept must match its actual offer, and every bound card must belong to the target skill.
+
+After validating the existing DM sheet, chapter graph and generic pacing budget, the bridge proves that **every unconditional story path** teaches the *bound* skill by the configured teaching beat and offers at least one *bound* practice card by the configured practice beat. It uses longest unserved prefixes at joins. Defaults remain `teachBy:3` and `practiceBy:6`; a branch may offer a different card for the same skill. A card is optional, and a skipped exercise never blocks story progression.
+
+Run `node --test test/dm-knowledge-alignment.test.mjs` on Node 22. Results contain only fixed error codes or beat counts, never authored identifiers or text. This proves structural alignment, **not** that the explanation is good, the concept genuinely solves a scene problem, the DM displays it, the server accepts an academic result, or the player enjoys the pacing. Those require private author review and Claude's real-model and Worker/D1 tests. First formal world remains **DO-NOT-IMPORT** until private field-by-field review and Catherine's explicit authorization. No production, save, permission, merge or deployment change is permitted by this contract.

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "dm-beat-flow-v1",
+  "synthetic": true,
+  "worldId": "demo-world",
+  "manifestRevision": "demo-r1",
+  "start": "demo-entry",
+  "end": "demo-aftermath",
+  "beats": [
+    {"id":"demo-entry","type":"entry","copySlot":"demo.entry","next":["demo-observe"]},
+    {"id":"demo-observe","type":"observation","copySlot":"demo.observe","observationRef":"demo.visible","next":["demo-offer"]},
+    {"id":"demo-offer","type":"lesson_offer","copySlot":"demo.offer","anchorBeat":"demo-observe","conceptId":"demo.concept","applicationRef":"demo.use","optional":true,"mutatesWorld":false,"requiresPass":false,"skipTo":"demo-fork","resumeTo":"demo-fork","next":["demo-fork"]},
+    {"id":"demo-fork","type":"choice","copySlot":"demo.fork","next":["demo-route-a","demo-route-b"]},
+    {"id":"demo-route-a","type":"route","copySlot":"demo.route-a","traceRef":"demo.trace-a","requiresCommit":true,"eventType":"action_resolved","next":["demo-join"]},
+    {"id":"demo-route-b","type":"route","copySlot":"demo.route-b","traceRef":"demo.trace-b","requiresCommit":true,"eventType":"action_resolved","next":["demo-join"]},
+    {"id":"demo-join","type":"convergence","copySlot":"demo.join","callbacks":[
+      {"traceRef":"demo.trace-a","copySlot":"demo.callback-a","requiresCommittedTrace":true},
+      {"traceRef":"demo.trace-b","copySlot":"demo.callback-b","requiresCommittedTrace":true}
+    ],"next":["demo-aftermath"]},
+    {"id":"demo-aftermath","type":"aftermath","copySlot":"demo.after","next":[]}
+  ]
+}

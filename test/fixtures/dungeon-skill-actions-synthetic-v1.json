@@ -1,0 +1,59 @@
+{
+  "schema": "dungeon-skill-action-binding-v1",
+  "scope": "synthetic-mechanics-only",
+  "worldId": "world01",
+  "dungeonId": "demo-dungeon",
+  "manifestRevision": 1,
+  "skills": [
+    {
+      "chapter": 0,
+      "skillId": "demo.skill.01"
+    },
+    {
+      "chapter": 1,
+      "skillId": "demo.skill.02"
+    },
+    {
+      "chapter": 2,
+      "skillId": "demo.skill.03"
+    },
+    {
+      "chapter": 3,
+      "skillId": "demo.skill.04"
+    }
+  ],
+  "bindings": [
+    {
+      "actionKey": "demo.action.01",
+      "from": "w01.choice",
+      "to": "w01.route_a",
+      "skillId": "demo.skill.01",
+      "baseActionKey": "demo.base.01",
+      "advantage": "evidence_option"
+    },
+    {
+      "actionKey": "demo.action.02",
+      "from": "w01.choice",
+      "to": "w01.route_b",
+      "skillId": "demo.skill.02",
+      "baseActionKey": "demo.base.02",
+      "advantage": "risk_context"
+    },
+    {
+      "actionKey": "demo.action.03",
+      "from": "w01.discover",
+      "to": "w01.constraint",
+      "skillId": "demo.skill.03",
+      "baseActionKey": "demo.base.03",
+      "advantage": "evidence_option"
+    },
+    {
+      "actionKey": "demo.action.04",
+      "from": "w01.constraint",
+      "to": "w01.resolve",
+      "skillId": "demo.skill.04",
+      "baseActionKey": "demo.base.04",
+      "advantage": "risk_context"
+    }
+  ]
+}

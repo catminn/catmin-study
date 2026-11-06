@@ -1,0 +1,22 @@
+{
+  "schema": "global-story-rules-v1",
+  "globalRulesVersion": "global-v1",
+  "status": "public-authoring-contract",
+  "scope": "All world manifests that explicitly pin global-v1; this file does not publish or import private world content.",
+  "revisionPolicy": {
+    "publishedVersionIsImmutable": true,
+    "mismatch": "fail-closed-before-import",
+    "upgrade": "new version and explicit author review; never silently reinterpret a pinned session"
+  },
+  "rules": [
+    {"id": "G01", "requirement": "Player observation, lawful travel, dialogue and neutral continuation remain possible without a compulsory academic challenge."},
+    {"id": "G02", "requirement": "Learning opportunities require authorized public scene cues, approved enrolled concepts and player consent; do not fabricate measurements or mastery."},
+    {"id": "G03", "requirement": "NPC location, testimony, memory and relationships follow committed causes; rumors and player claims do not become confirmed facts by narration."},
+    {"id": "G04", "requirement": "Only server-validated committed actions change world state; previews, drafts and DM prose never create effects."},
+    {"id": "G05", "requirement": "Narration reveals only currently authorized player-visible information; private lore, NPC motives and future outcomes remain private."},
+    {"id": "G06", "requirement": "Meaningful choices retain lawful alternatives and perceptible consequences; backtracking does not erase committed costs or history."},
+    {"id": "G07", "requirement": "World-owned references stay within the selected world and pinned exact content revisions; never fall back to latest or another world."},
+    {"id": "G08", "requirement": "Generated side quests are proposals until separately reviewed and published; academic correctness alone does not commit a game action."}
+  ],
+  "limitations": "These are narrative authoring and import-binding rules, not evidence of production enforcement, model quality or deployed content."
+}

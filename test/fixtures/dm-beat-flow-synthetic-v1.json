@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "dm-beat-flow-v1",
+  "synthetic": true,
+  "worldId": "demo-world",
+  "manifestRevision": "demo-r1",
+  "start": "entry",
+  "end": "aftermath",
+  "beats": [
+    { "id": "entry", "type": "entry", "copySlot": "demo.entry", "next": ["observation"] },
+    { "id": "observation", "type": "observation", "copySlot": "demo.observation", "observationRef": "demo.visible-evidence", "next": ["lesson-offer"] },
+    { "id": "lesson-offer", "type": "lesson_offer", "copySlot": "demo.offer", "anchorBeat": "observation", "conceptId": "demo.math-concept", "applicationRef": "demo.in-world-use", "optional": true, "mutatesWorld": false, "requiresPass": false, "skipTo": "decision", "resumeTo": "decision", "next": ["decision"] },
+    { "id": "decision", "type": "choice", "copySlot": "demo.decision", "next": ["route-a", "route-b"] },
+    { "id": "route-a", "type": "route", "copySlot": "demo.route-a", "traceRef": "demo.trace-a", "requiresCommit": true, "eventType": "action_resolved", "next": ["merge"] },
+    { "id": "route-b", "type": "route", "copySlot": "demo.route-b", "traceRef": "demo.trace-b", "requiresCommit": true, "eventType": "action_resolved", "next": ["merge"] },
+    { "id": "merge", "type": "convergence", "copySlot": "demo.merge", "callbacks": [
+      { "traceRef": "demo.trace-a", "copySlot": "demo.callback-a", "requiresCommittedTrace": true },
+      { "traceRef": "demo.trace-b", "copySlot": "demo.callback-b", "requiresCommittedTrace": true }
+    ], "next": ["aftermath"] },
+    { "id": "aftermath", "type": "aftermath", "copySlot": "demo.aftermath", "next": [] }
+  ]
+}

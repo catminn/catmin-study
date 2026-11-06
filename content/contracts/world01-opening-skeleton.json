@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "story-structure-0.1",
+  "packageId": "world01",
+  "visibility": "mechanics_only",
+  "warning": "No plot, NPC identities, hidden truths, or player-facing scene text are included.",
+  "ownership": {
+    "narrative": "ChatGPT",
+    "engineering": "Claude"
+  },
+  "nodes": [
+    {
+      "id": "w01.entry",
+      "role": "orientation",
+      "next": [
+        "w01.choice"
+      ],
+      "learning": "none",
+      "worldMutation": "none"
+    },
+    {
+      "id": "w01.choice",
+      "role": "meaningful_choice",
+      "next": [
+        "w01.route_a",
+        "w01.route_b"
+      ],
+      "learning": "optional",
+      "worldMutation": "on_commit_only"
+    },
+    {
+      "id": "w01.route_a",
+      "role": "investigation",
+      "next": [
+        "w01.discover"
+      ],
+      "learning": "math1920.partial-derivative",
+      "worldMutation": "on_commit_only"
+    },
+    {
+      "id": "w01.route_b",
+      "role": "alternative_method",
+      "next": [
+        "w01.discover"
+      ],
+      "learning": "math1920.gradient",
+      "worldMutation": "on_commit_only"
+    },
+    {
+      "id": "w01.discover",
+      "role": "evidence_and_consequence",
+      "next": [
+        "w01.constraint"
+      ],
+      "learning": "contextual",
+      "worldMutation": "on_commit_only"
+    },
+    {
+      "id": "w01.constraint",
+      "role": "conflicting_priorities",
+      "next": [
+        "w01.resolve"
+      ],
+      "learning": "optional",
+      "worldMutation": "on_commit_only"
+    },
+    {
+      "id": "w01.resolve",
+      "role": "action_resolution",
+      "next": [
+        "w01.aftermath"
+      ],
+      "learning": "optional_application",
+      "worldMutation": "on_commit_only"
+    },
+    {
+      "id": "w01.aftermath",
+      "role": "persistent_aftermath",
+      "next": [],
+      "learning": "none",
+      "worldMutation": "on_commit_only"
+    }
+  ],
+  "authoringConstraints": [
+    "Every player-facing option has an in-world reason independent of curriculum.",
+    "All nodes accept ASK without advancing world state.",
+    "A player may attempt world action without accepting a lesson.",
+    "Academic correctness is not randomized; fictional outcomes follow server action resolution.",
+    "World consequences remain hidden until a committed action reveals them.",
+    "No event or NPC secret is carried in client-visible metadata.",
+    "Optional teaching pauses and resumes at the same narrative cursor.",
+    "Both route branches preserve their distinct factual traces after convergence."
+  ],
+  "acceptance": [
+    {
+      "id": "branch-a",
+      "route": [
+        "w01.entry",
+        "w01.choice",
+        "w01.route_a",
+        "w01.discover",
+        "w01.constraint",
+        "w01.resolve",
+        "w01.aftermath"
+      ]
+    },
+    {
+      "id": "branch-b",
+      "route": [
+        "w01.entry",
+        "w01.choice",
+        "w01.route_b",
+        "w01.discover",
+        "w01.constraint",
+        "w01.resolve",
+        "w01.aftermath"
+      ]
+    },
+    {
+      "id": "refuse-lesson",
+      "require": "progress remains possible without forced quiz"
+    },
+    {
+      "id": "pause-resume",
+      "require": "no world mutation during tutoring and original scene cursor restored"
+    },
+    {
+      "id": "invalid-academic-reason",
+      "require": "no bonus while world action remains separately adjudicable"
+    },
+    {
+      "id": "failed-action",
+      "require": "learning evidence retained; consequence comes from server"
+    },
+    {
+      "id": "branch-memory",
+      "require": "post-convergence facts can differ without revealing hidden events"
+    }
+  ]
+}

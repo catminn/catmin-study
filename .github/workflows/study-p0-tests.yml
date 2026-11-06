@@ -1,0 +1,30 @@
+name: Study RPG P0 checks
+on:
+  pull_request:
+    paths:
+      - 'public/study-core.mjs'
+      - 'scripts/**'
+      - 'test/**'
+      - 'content/contracts/**'
+      - '.github/workflows/study-p0-tests.yml'
+  push:
+    branches:
+      - 'design/dm-learning-architecture-v1'
+    paths:
+      - 'public/study-core.mjs'
+      - 'scripts/**'
+      - 'test/**'
+      - 'content/contracts/**'
+      - '.github/workflows/study-p0-tests.yml'
+permissions:
+  contents: read
+jobs:
+  p0-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test all P0 and spoiler-free authoring contracts (auto-discovered)
+        run: node --test test/*.test.mjs

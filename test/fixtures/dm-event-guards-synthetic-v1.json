@@ -1,0 +1,25 @@
+{
+  "schemaVersion":"dm-event-guards-v1",
+  "synthetic":true,
+  "worldId":"demo-world",
+  "manifestRevision":"demo-r1",
+  "startScene":"demo-entry",
+  "forkScene":"demo-fork",
+  "mergeScene":"demo-join",
+  "endScene":"demo-end",
+  "scenes":["demo-entry","demo-fork","demo-join","demo-end"],
+  "flags":["demo.route-a","demo.route-b","demo.callback-a","demo.callback-b"],
+  "publicCopySlots":["demo.enter","demo.choice-a","demo.choice-b","demo.callback-copy-a","demo.callback-copy-b"],
+  "transitions":[
+    {"id":"demo-enter","from":"demo-entry","to":"demo-fork","mode":"commit","guard":{"all":[],"none":[]},"effects":{"set":[],"clear":[]},"eventRef":"demo.event-enter","copySlot":"demo.enter"},
+    {"id":"demo-choose-a","from":"demo-fork","to":"demo-join","mode":"commit","guard":{"all":[],"none":["demo.route-a","demo.route-b"]},"effects":{"set":["demo.route-a"],"clear":[]},"eventRef":"demo.event-a","copySlot":"demo.choice-a"},
+    {"id":"demo-choose-b","from":"demo-fork","to":"demo-join","mode":"commit","guard":{"all":[],"none":["demo.route-a","demo.route-b"]},"effects":{"set":["demo.route-b"],"clear":[]},"eventRef":"demo.event-b","copySlot":"demo.choice-b"},
+    {"id":"demo-callback-a","from":"demo-join","to":"demo-end","mode":"commit","guard":{"all":["demo.route-a"],"none":["demo.route-b"]},"effects":{"set":["demo.callback-a"],"clear":[]},"eventRef":"demo.event-callback-a","copySlot":"demo.callback-copy-a"},
+    {"id":"demo-callback-b","from":"demo-join","to":"demo-end","mode":"commit","guard":{"all":["demo.route-b"],"none":["demo.route-a"]},"effects":{"set":["demo.callback-b"],"clear":[]},"eventRef":"demo.event-callback-b","copySlot":"demo.callback-copy-b"},
+    {"id":"demo-ask","from":"demo-fork","to":"demo-fork","mode":"ask","guard":{"all":[],"none":[]},"effects":{"set":[],"clear":[]},"eventRef":null,"copySlot":null}
+  ],
+  "routes":[
+    {"choiceTransitionId":"demo-choose-a","routeFlag":"demo.route-a","callbackTransitionId":"demo-callback-a","callbackFlag":"demo.callback-a"},
+    {"choiceTransitionId":"demo-choose-b","routeFlag":"demo.route-b","callbackTransitionId":"demo-callback-b","callbackFlag":"demo.callback-b"}
+  ]
+}

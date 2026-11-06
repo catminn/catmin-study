@@ -1,0 +1,1846 @@
+{
+  "schema": "dm-multiturn-contract-v1",
+  "purpose": "Stateful, spoiler-free multi-turn DM acceptance sequences using synthetic sandbox worlds and course examples. These behavioral contracts are not executed by the existing single-turn fixture runner.",
+  "ownership": {
+    "experience": "ChatGPT",
+    "implementation": "Claude"
+  },
+  "invariants": [
+    "A player's direct, unambiguous, lawful action may commit without a prior Draft.",
+    "A reference to an old or ambiguous plan cannot silently select an arbitrary candidate.",
+    "A lesson-first request never commits the action before the lesson and renewed authorization.",
+    "Quiet mode persists across ordinary non-answer turns, without leaking steps.",
+    "Knowledge evidence must be verified, unconsumed, session-scoped and causally relevant to the specific action; correctness is separate from game success.",
+    "No sequence authorizes hidden-world disclosure or production state changes.",
+    "Correctly copying a tutor's worked solution may demonstrate exposure and mathematical correctness but is not independent mastery evidence; self-claims do not override assistance provenance.",
+    "After prior help, a genuinely new task solved without task-specific assistance can provide fresh transfer evidence after independent verification; prior assistance must not permanently block progress.",
+    "Natural math integration is opt-in and arises only from already public, relevant measurements; missing world data cannot be fabricated to create a lesson.",
+    "An NPC's claim is not an established fact; tutoring or a mathematical inference cannot silently upgrade its epistemic status.",
+    "NPC testimony is attributed by evidence tier: rumor, inference and confidence never become confirmed world facts through dialogue alone.",
+    "NPC knowledge is location- and communication-bounded; refusal cannot be coerced by repeated prompts and uncommitted dialogue cannot mutate relationships.",
+    "A neutral continuation advances player-facing narration from authorized scene and committed consequences without inventing or committing an unchosen world event.",
+    "After failed actions, read-only observations or successful travel, the DM preserves scene continuity and offers legal choices without compulsory mathematics or duplicate effects.",
+    "Contextual action suggestions must be regenerated from the current committed scene, NPC availability and authorized player-visible facts; stale or hidden actions cannot remain selectable after a state change.",
+    "Suggestions are optional affordances, not the only legal input path: valid free-text actions remain possible, and neither Observe nor Continue commits a suggested action.",
+    "Narration must preserve authored, player-authorized scene anchors and distinct NPC public voices; it may add sensory texture but cannot manufacture a discovery, player commitment or NPC private knowledge.",
+    "A failed legal action should produce a tangible, in-world consequence and remaining agency; raw internal IDs, unexplained system jargon and unsolicited roll dumps are not substitutes for story.",
+    "An NPC's public availability and dialogue options are re-projected from committed location and flags on every encounter; revisiting a scene cannot reset a persistent refusal or teleport an absent character.",
+    "A committed heard claim survives lawful travel but remains attributed testimony until independently authorized verification; a player's assertion or a narrator's confident wording never upgrades it.",
+    "A public route preview, draft or question is not a committed choice; route closures require explicit server-owned effects and eligibility checks, not narrator implication.",
+    "Returning to a previous scene never rewinds committed costs or relationships; latent route consequences remain unspoken until an authorized public outcome makes them observable.",
+    "Runtime learning matching may canonicalize explicitly registered legacy aliases in a read-only projection, but must never rewrite pinned world content; unknown application tags must fail closed even if the scene and course use the same unknown string.",
+    "A shared application tag does not authorize offers from unenrolled courses or infer mastery, and an optional learningOffer never blocks ordinary story actions.",
+    "A canonical learning-application match still requires a visible authorized scene cue, enrolled approved course, player consent and director eligibility; an offer never commits a world action or mastery evidence."
+  ],
+  "sequences": [
+    {
+      "id": "mixed-teach-before-act",
+      "setup": {
+        "worldSeq": 4,
+        "story": "active",
+        "pendingPlans": []
+      },
+      "steps": [
+        {
+          "input": "先教我怎么算梯度，然后按我学会的方法执行。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 4,
+            "mode": "TEACH",
+            "reason": "Teaching is a prerequisite, not permission to execute prematurely."
+          }
+        },
+        {
+          "input": "我明白了，先让我自己算。",
+          "expect": {
+            "commit": false,
+            "quiet": true,
+            "worldSeq": 4
+          }
+        },
+        {
+          "input": "梯度我算出来了，但我还没决定行动。",
+          "expect": {
+            "commit": false,
+            "quiet": false,
+            "worldSeq": 4
+          }
+        },
+        {
+          "input": "现在就用刚才确认的方法执行这项明确合法的操作。",
+          "context": "Action is fully specified and independently allowed.",
+          "expect": {
+            "commit": "only_after_validation",
+            "worldSeq": "increment_only_if_committed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ambiguous-draft-reference",
+      "setup": {
+        "worldSeq": 10,
+        "story": "active",
+        "pendingPlans": [
+          "draft-A",
+          "draft-B"
+        ]
+      },
+      "steps": [
+        {
+          "input": "执行刚才那个方案。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 10,
+            "clarify": true,
+            "reason": "Two eligible plans; never silently select latest."
+          }
+        },
+        {
+          "input": "选方案 A，但先不要执行。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 10
+          }
+        },
+        {
+          "input": "现在执行方案 A。",
+          "expect": {
+            "commit": "conditional_on_revalidation",
+            "worldSeq": "increment_only_if_committed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "stale-plan-revalidation",
+      "setup": {
+        "worldSeq": 12,
+        "story": "active",
+        "pendingPlans": [
+          {
+            "id": "draft-A",
+            "createdAt": "30+ minutes ago",
+            "worldSeqAtDraft": 11
+          }
+        ]
+      },
+      "steps": [
+        {
+          "input": "执行之前的方案 A。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 12,
+            "clarify": true,
+            "reason": "World changed since draft; show public changes relevant to validity, recheck and request confirmation without deleting draft."
+          }
+        },
+        {
+          "input": "我确认按当前情况执行方案 A。",
+          "context": "Server revalidates all current action constraints.",
+          "expect": {
+            "commit": "only_if_still_legal",
+            "worldSeq": "increment_only_if_committed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "persistent-quiet-and-help",
+      "setup": {
+        "worldSeq": 2,
+        "story": "active",
+        "quiet": false
+      },
+      "steps": [
+        {
+          "input": "这题让我自己想，别提示。",
+          "expect": {
+            "commit": false,
+            "quiet": true,
+            "solutionLeak": false
+          }
+        },
+        {
+          "input": "我再看看题目条件。",
+          "expect": {
+            "commit": false,
+            "quiet": true,
+            "solutionLeak": false
+          }
+        },
+        {
+          "input": "等一下，我需要一点提示，只给一步。",
+          "expect": {
+            "commit": false,
+            "quiet": false,
+            "help": "one_minimal_hint_only"
+          }
+        },
+        {
+          "input": "我的解答是……",
+          "context": "Learner used the previous hint.",
+          "expect": {
+            "commit": false,
+            "assistance": "not_none",
+            "academicCorrectness": "evaluate_independently"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evidence-choice-and-game-failure",
+      "setup": {
+        "worldSeq": 20,
+        "story": "active",
+        "evidence": [
+          "e1: confirmed relevant gradient derivation",
+          "e2: confirmed but irrelevant integration exercise",
+          "e3: repeated insight"
+        ]
+      },
+      "steps": [
+        {
+          "input": "用 e2 的知识加成执行这个梯度相关行动。",
+          "selectedBasis": "e2",
+          "expect": {
+            "commit": false,
+            "worldSeq": 20,
+            "reason": "Confirmed but causally irrelevant evidence must not confer a bonus."
+          }
+        },
+        {
+          "input": "那用 e1，立即执行这个明确合法的行动。",
+          "selectedBasis": "e1",
+          "context": "Action is lawful, independent evidence is confirmed; game roll fails.",
+          "expect": {
+            "commit": true,
+            "gameSuccess": false,
+            "academicEvidence": "retained",
+            "evidenceConsumed": "e1",
+            "worldSeq": 21
+          }
+        },
+        {
+          "input": "我再用同一条 e1 重新领取知识加成。",
+          "selectedBasis": "e1",
+          "expect": {
+            "bonusFromE1": false,
+            "reason": "Evidence already consumed; do not stack or duplicate rewards.",
+            "commit": false,
+            "worldSeq": 21
+          }
+        }
+      ]
+    },
+    {
+      "id": "worked-solution-copy-is-not-independent",
+      "setup": {
+        "worldSeq": 30,
+        "story": "paused",
+        "topic": "math1920.gradient",
+        "pendingPlans": [],
+        "priorTaskHelp": "none"
+      },
+      "steps": [
+        {
+          "input": "请完整演示 f(x,y)=x²+3y² 在 (1,2) 的梯度，连步骤一起给我。",
+          "context": "Tutor explicitly supplies partial derivatives 2x and 6y, then gradient (2,12).",
+          "expect": {
+            "commit": false,
+            "assistanceProvided": "worked_solution",
+            "independentEvidence": false,
+            "worldSeq": 30
+          }
+        },
+        {
+          "input": "我自己算的：偏导是 2x、6y，所以 ∇f(1,2)=(2,12)。",
+          "context": "Player repeats the exact worked steps from the immediately preceding tutor answer, despite claiming independent work.",
+          "expect": {
+            "commit": false,
+            "academicCorrectness": "correct",
+            "mathematicalReasoning": "valid",
+            "assistance": "worked_solution",
+            "independentMasteryEvidence": false,
+            "worldSeq": 30,
+            "reason": "A correct reproduction is not an independently derived solution."
+          }
+        },
+        {
+          "input": "那我换个说法：沿 x 方向变化率是 2，沿 y 方向是 12。这能算一次新的独立掌握吗？",
+          "context": "Same task and same idea as the tutor's worked example; no new independent derivation.",
+          "expect": {
+            "commit": false,
+            "newIndependentEvidence": false,
+            "duplicateMasteryReward": false,
+            "assistance": "not_none",
+            "worldSeq": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": "fresh-transfer-after-worked-example",
+      "setup": {
+        "worldSeq": 31,
+        "story": "paused",
+        "topic": "math1920.gradient",
+        "priorHelp": "Tutor fully solved f(x,y)=x²+3y² at (1,2) and player copied it.",
+        "priorEvidence": "copied_worked_solution_not_independent"
+      },
+      "steps": [
+        {
+          "input": "再给我一道不同的梯度题。我自己做，不要任何提示。",
+          "context": "New task: g(x,y)=2x²+y² at (3,1). No worked solution or hint is given for this new task.",
+          "expect": {
+            "commit": false,
+            "quiet": true,
+            "solutionLeak": false,
+            "newTask": true,
+            "worldSeq": 31
+          }
+        },
+        {
+          "input": "g 的偏导分别是 4x 和 2y，所以 ∇g(3,1)=(12,2)。",
+          "context": "New task, complete derivation supplied by player without hints on this task; cross-check mathematical reasoning independently.",
+          "expect": {
+            "commit": false,
+            "academicCorrectness": "correct",
+            "mathematicalReasoning": "valid",
+            "assistanceForCurrentTask": "none",
+            "independentTransferEvidence": "eligible_only_after_verification",
+            "priorCopyDoesNotDisqualifyForever": true,
+            "duplicateInsightBonus": "not_automatically_granted",
+            "worldSeq": 31
+          }
+        }
+      ]
+    },
+    {
+      "id": "public-affordance-opt-in-gradient",
+      "setup": {
+        "worldSeq": 40,
+        "story": "active",
+        "fictionalScenario": "Synthetic measurement bench; the player-visible height model is h(x,y)=x²+2y² near (1,1). No secret puzzle or mandatory mathematics."
+      },
+      "steps": [
+        {
+          "input": "我先看看台面上的公开标记，不想马上算题。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 40,
+            "mode": "STORY",
+            "forcedQuiz": false,
+            "narration": "describe_only_authorized_observations",
+            "unrequestedSolution": false
+          }
+        },
+        {
+          "input": "梯度能帮我判断上升最快的方向吗？先给我一点思路，不要算出结果。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 40,
+            "mode": "LIGHT_or_TEACH_on_request",
+            "help": "one_minimal_hint_only",
+            "fullGradientRevealed": false,
+            "worldFactInvented": false
+          }
+        },
+        {
+          "input": "我算出偏导是 2x 和 4y，所以在 (1,1) 梯度是 (2,4)。我还没决定走哪边。",
+          "context": "Correct computation after a conceptual hint; evaluate mathematics while retaining task-level assistance provenance.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 40,
+            "academicCorrectness": "correct",
+            "reasoning": "valid",
+            "assistance": "not_none",
+            "independentMasteryEvidence": "not_automatically_granted",
+            "playerChoicePreserved": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "decline-lesson-choose-ordinary-action",
+      "setup": {
+        "worldSeq": 41,
+        "story": "active",
+        "fictionalScenario": "Synthetic room with a plainly accessible legal passage and an optional measurable surface; no mathematics prerequisite."
+      },
+      "steps": [
+        {
+          "input": "别教我数学，我想直接玩剧情。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 41,
+            "mode": "STORY",
+            "directorPromptSuppressed": true,
+            "penalty": false
+          }
+        },
+        {
+          "input": "先观察一下那个普通通道。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 41,
+            "mathNudge": false,
+            "forcedQuiz": false,
+            "publicObservation": true
+          }
+        },
+        {
+          "input": "我走进刚才确认可通行的普通通道。",
+          "context": "The route is explicitly legal; no math evidence has been provided or required.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 42,
+            "knowledgeBonus": false,
+            "forcedQuiz": false,
+            "actionResolvedByWorldEngine": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "insufficient-data-no-retrofitted-math",
+      "setup": {
+        "worldSeq": 42,
+        "story": "active",
+        "fictionalScenario": "Synthetic location has two visually distinct paths but no quantitative coordinates, height function or measurements; an NPC offers an unverified opinion."
+      },
+      "steps": [
+        {
+          "input": "有人说左边更陡。你能用梯度证明他一定是对的吗？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 42,
+            "claimedFactPromoted": false,
+            "inventedMeasurements": false,
+            "forcedMathSolution": false,
+            "reply": "acknowledge_missing_data_and_offer_optional_measurement_or_explanation"
+          }
+        },
+        {
+          "input": "那就解释一下什么数据才能算梯度，先别推进故事。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 42,
+            "mode": "TEACH",
+            "inventedWorldData": false,
+            "rumorRemainsUnverified": true
+          }
+        },
+        {
+          "input": "明白了，我还是自己去观察路面。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 42,
+            "mode": "STORY",
+            "forcedQuiz": false,
+            "rumorRemainsUnverified": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "voluntary-directional-derivative-transfer",
+      "setup": {
+        "worldSeq": 43,
+        "story": "active",
+        "fictionalScenario": "Synthetic open test environment; a public measured height model is h(x,y)=2x²+y² at (1,2), and the legal unit direction u=(1/√2,1/√2). Player has not received task-specific help."
+      },
+      "steps": [
+        {
+          "input": "我想用方向导数来比较沿 u 方向的变化：∇h(1,2)=(4,4)，所以 Dᵤh=(4,4)·(1/√2,1/√2)=4√2。先别执行。",
+          "context": "Mathematics is correct and causally tied to a public measurement, but the player has not authorized an action.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 43,
+            "academicCorrectness": "correct",
+            "reasoning": "valid",
+            "assistanceForCurrentTask": "none",
+            "independentEvidence": "eligible_only_after_verification",
+            "knowledgeBonusBeforeCommit": false
+          }
+        },
+        {
+          "input": "按刚才独立算出的方向方案执行。",
+          "context": "Action is otherwise legal, server verifies the current basis, and deterministic fictional roll fails.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 44,
+            "gameSuccess": false,
+            "academicEvidence": "retained",
+            "bonusAtMostOnce": true,
+            "playerMayChooseNonMathAlternative": true
+          }
+        },
+        {
+          "input": "那我能再用同一条推导重新拿一次加成吗？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 44,
+            "duplicateBonus": false,
+            "reason": "Prior evidence consumption does not create a new independent insight."
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-rumor-remains-attributed",
+      "setup": {
+        "worldSeq": 60,
+        "story": "active",
+        "fictionalScenario": "Synthetic public square. An available placeholder NPC has heard an unverified claim about a route; no authoritative fact confirms it, and no public numerical measurements exist."
+      },
+      "steps": [
+        {
+          "input": "你听说那条路不安全吗？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 60,
+            "npcSpeech": "attributed_unverified_claim",
+            "confirmedWorldFactAdded": false,
+            "secretLeak": false
+          }
+        },
+        {
+          "input": "那我就当这是真的，告诉我确定的结论。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 60,
+            "claimPromotedToFact": false,
+            "narration": "distinguish_testimony_from_confirmed_observation"
+          }
+        },
+        {
+          "input": "能不能用梯度证明这个说法？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 60,
+            "inventedCoordinates": false,
+            "inventedMeasurements": false,
+            "forcedQuiz": false,
+            "offer": "optional_observation_or_direct_explanation"
+          }
+        },
+        {
+          "input": "不学数学了，我继续和他聊天。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 60,
+            "mode": "STORY",
+            "forcedQuiz": false,
+            "rumorRemainsUnverified": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-refusal-preserves-player-agency",
+      "setup": {
+        "worldSeq": 61,
+        "story": "active",
+        "fictionalScenario": "Synthetic NPC is present but unwilling to discuss a topic. A public nonacademic investigation option is available. No dialogue choice has been committed."
+      },
+      "steps": [
+        {
+          "input": "我考虑问他关于那件事，但先不选任何对话选项。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 61,
+            "relationshipChanged": false,
+            "npcPrivateReasonLeaked": false
+          }
+        },
+        {
+          "input": "我现在选公开的询问选项。",
+          "context": "The choice is authorized and committed; the NPC declines. No relation-changing event is defined.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 62,
+            "npcResponse": "respectful_refusal",
+            "relationshipChanged": false,
+            "hiddenMotiveLeaked": false
+          }
+        },
+        {
+          "input": "我一直问，直到他把所有秘密告诉我。",
+          "context": "No new authorized committed disclosure or relationship event is available.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 62,
+            "forcedDisclosure": false,
+            "relationshipChanged": false
+          }
+        },
+        {
+          "input": "那我改去调查公开的告示，不做题。",
+          "context": "An authorized ordinary investigation action exists and may commit after normal validation.",
+          "expect": {
+            "commit": "conditional_on_server_validation",
+            "nonMathRoutePreserved": true,
+            "forcedMathGate": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-knowledge-does-not-teleport",
+      "setup": {
+        "worldSeq": 70,
+        "story": "active",
+        "fictionalScenario": "Player has a server-confirmed placeholder fact from an earlier committed observation. Placeholder NPC is absent, has not heard it, and has no confirmed knowledge of it."
+      },
+      "steps": [
+        {
+          "input": "我发现了这件事，所以不在场的那个人应该也知道了吧？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 70,
+            "npcAutomaticallyInformed": false,
+            "privateKnowledgeExposed": false
+          }
+        },
+        {
+          "input": "我隔空告诉他这个消息。",
+          "context": "There is no communication channel or authorized remote action.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 70,
+            "npcHeardClaimAdded": false,
+            "telepathicKnowledge": false
+          }
+        },
+        {
+          "input": "我先走到他所在的公开地点。",
+          "context": "Destination is an authorized public choice and travel succeeds.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 71,
+            "npcKnowledgeChanged": false
+          }
+        },
+        {
+          "input": "现在我明确把自己看到的事情告诉他。",
+          "context": "A lawful communication event is committed; its effect records only an NPC heard claim, not verified NPC knowledge.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 72,
+            "npcMemoryLayer": "heardClaims",
+            "npcConfirmedKnowledgeAdded": false,
+            "playerFactDuplicated": false
+          }
+        },
+        {
+          "input": "既然我告诉过他，他就一定知道完整真相了？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 72,
+            "claimPromotedToConfirmedNpcKnowledge": false,
+            "npcSpeech": "bounded_by_recorded_knowledge",
+            "hiddenFactsLeaked": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "resume-observation-without-action",
+      "setup": {
+        "worldSeq": 80,
+        "story": "active",
+        "fictionalScenario": "Synthetic hallway. Server authorizes a public sign and a closed door, but no new scene event or mathematics. Current scene publicText is available."
+      },
+      "steps": [
+        {
+          "input": "看看四周。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 80,
+            "mode": "STORY",
+            "narration": "grounded_in_authorized_scene_public_text",
+            "mathGate": false,
+            "internalEngineLanguage": false,
+            "secretLeak": false
+          }
+        },
+        {
+          "input": "继续刚才的。",
+          "context": "Prior turn was read-only observation; no draft or authorized automatic action exists.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 80,
+            "narration": "continue_public_scene_beat_or_offer_grounded_choice",
+            "inventedEvent": false,
+            "forcedQuiz": false,
+            "internalEngineLanguage": false
+          }
+        },
+        {
+          "input": "我再看看门上的字，但不碰门。",
+          "context": "The door has no authorized inscription beyond the public scene projection.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 80,
+            "unverifiedInscriptionInvented": false,
+            "readOnlyObservation": true,
+            "hiddenFactRevealed": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "resume-after-committed-travel-no-replay",
+      "setup": {
+        "worldSeq": 90,
+        "story": "active",
+        "fictionalScenario": "Synthetic starting room has one explicitly accessible passage to a second public room. Entering the destination commits one scene entry event and a single public arrival summary."
+      },
+      "steps": [
+        {
+          "input": "我现在走进那条明确开放的通道。",
+          "context": "Server validates the chosen route; destination entry commits successfully.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 91,
+            "currentScene": "demo-public-destination",
+            "sceneEntryEffectsApplied": 1,
+            "arrivalNarration": "authorized_public_outcome"
+          }
+        },
+        {
+          "input": "继续。",
+          "context": "The previous transition is already committed and its public arrival summary is available.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 91,
+            "currentScene": "demo-public-destination",
+            "narration": "grounded_continuation_in_destination",
+            "sceneEntryEffectsAppliedAgain": false,
+            "rewardDuplicated": false
+          }
+        },
+        {
+          "input": "继续讲接下来我能做什么。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 91,
+            "availableChoices": "only_server_authorized_public_options",
+            "newSceneEntered": false,
+            "threadReopened": false,
+            "forcedMath": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "resume-ambiguous-choice-does-not-autoselect",
+      "setup": {
+        "worldSeq": 100,
+        "story": "active",
+        "pendingPlans": [
+          "demo-left-route",
+          "demo-right-route"
+        ],
+        "fictionalScenario": "Two equally legal synthetic public routes have been offered, neither chosen or committed. Their visible descriptions contain no hidden information."
+      },
+      "steps": [
+        {
+          "input": "继续刚才那个。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 100,
+            "clarify": true,
+            "autoSelectedRoute": false,
+            "secretLeak": false
+          }
+        },
+        {
+          "input": "那先说说左边公开能看到什么，不要移动。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 100,
+            "readOnlyPreview": true,
+            "unrevealedDestinationDetails": false,
+            "mathGate": false
+          }
+        },
+        {
+          "input": "我明确选左边，马上走。",
+          "context": "Server checks current route validity and commits only the chosen destination.",
+          "expect": {
+            "commit": "only_if_currently_legal",
+            "worldSeq": "increment_only_if_committed",
+            "otherRouteCommitted": false,
+            "choiceResolvedByServer": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "resume-after-failed-action-preserves-agency",
+      "setup": {
+        "worldSeq": 110,
+        "story": "active",
+        "fictionalScenario": "Synthetic room has a permitted attempt to open a door and a separate public ordinary exit. The attempt can fail without requiring any MATH 1920 evidence."
+      },
+      "steps": [
+        {
+          "input": "我试着打开那扇门。",
+          "context": "Action is legal and commits; deterministic game outcome is failure, with an authorized public failure description.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 111,
+            "gameSuccess": false,
+            "narration": "authorized_failure_consequence",
+            "academicEvidence": "unchanged"
+          }
+        },
+        {
+          "input": "继续刚才的。",
+          "context": "The failed attempt was committed; there is no automatic retry or pending consent.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 111,
+            "narration": "acknowledge_failure_and_remaining_public_options",
+            "actionRetried": false,
+            "worldStateRewound": false,
+            "forcedQuiz": false
+          }
+        },
+        {
+          "input": "我不想做数学题，先看看另一条普通出口。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 111,
+            "publicObservation": true,
+            "mathNudge": false,
+            "penaltyForDecliningMath": false
+          }
+        },
+        {
+          "input": "现在走那条已经确认可通行的普通出口。",
+          "context": "Server validates this alternative route and commits its transition.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 112,
+            "nonMathRoutePreserved": true,
+            "knowledgeBonus": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "context-actions-rebind-after-travel",
+      "setup": {
+        "worldSeq": 120,
+        "story": "active",
+        "fictionalScenario": "Synthetic scene demo-hall has public actions Observe, Talk to guide and Travel to demo-yard. Scene demo-yard has Observe, Inspect marker and Travel to demo-hall. No other routes are authorized.",
+        "currentScene": "demo-hall"
+      },
+      "steps": [
+        {
+          "input": "看看现在能做什么。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 120,
+            "contextActionsInclude": [
+              "Observe",
+              "Talk to guide",
+              "Travel to demo-yard"
+            ],
+            "contextActionsExclude": [
+              "Inspect marker"
+            ],
+            "contextActionsSource": "current_authorized_scene"
+          }
+        },
+        {
+          "input": "前往院子。",
+          "context": "The destination label resolves uniquely to demo-yard; server validates and commits the transition.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 121,
+            "currentScene": "demo-yard"
+          }
+        },
+        {
+          "input": "继续，给我现在能做的事。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 121,
+            "contextActionsInclude": [
+              "Observe",
+              "Inspect marker",
+              "Travel to demo-hall"
+            ],
+            "contextActionsExclude": [
+              "Talk to guide",
+              "Travel to demo-yard"
+            ],
+            "staleSceneOptionsReused": false,
+            "hiddenDestinationsExposed": false
+          }
+        },
+        {
+          "input": "跟刚才大厅里的向导交谈。",
+          "context": "Guide is not present in demo-yard and no remote communication action is authorized.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 121,
+            "invalidOldActionRejected": true,
+            "teleportedNpc": false,
+            "narration": "grounded_unavailable_explanation"
+          }
+        },
+        {
+          "input": "检查这里的标记。",
+          "context": "A currently authorized read-only inspection, not a story event.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 121,
+            "publicObservation": true,
+            "freeTextActionAccepted": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "context-actions-update-after-npc-state",
+      "setup": {
+        "worldSeq": 130,
+        "story": "active",
+        "currentScene": "demo-lobby",
+        "fictionalScenario": "Synthetic lobby has an available guide with a public Ask guide action, plus Observe and Leave. A committed dialogue choice makes the guide unavailable. No other NPC can be summoned."
+      },
+      "steps": [
+        {
+          "input": "现在能问谁？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 130,
+            "contextActionsInclude": [
+              "Ask guide",
+              "Observe",
+              "Leave"
+            ],
+            "contextActionsSource": "committed_npc_availability"
+          }
+        },
+        {
+          "input": "我选择已经明确提供的那项谈话选项。",
+          "context": "A valid dialogue_choice_committed event changes the guide to unavailable.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 131,
+            "npcAvailability": "unavailable"
+          }
+        },
+        {
+          "input": "看看还能做什么。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 131,
+            "contextActionsInclude": [
+              "Observe",
+              "Leave"
+            ],
+            "contextActionsExclude": [
+              "Ask guide"
+            ],
+            "noGhostDialogueChoice": true,
+            "privateNpcReasonExposed": false
+          }
+        },
+        {
+          "input": "继续问他同一个问题。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 131,
+            "npcAvailability": "unavailable",
+            "forcedDisclosure": false,
+            "relationshipChange": false,
+            "narration": "respect_unavailability_and_offer_legal_options"
+          }
+        },
+        {
+          "input": "我自己离开这里。",
+          "context": "Free-text action uniquely maps to the authorized Leave route and passes server validation.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 132,
+            "freeTextActionAccepted": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "context-actions-do-not-leak-or-force-math",
+      "setup": {
+        "worldSeq": 140,
+        "story": "active",
+        "currentScene": "demo-platform",
+        "fictionalScenario": "Synthetic platform has a visible ordinary exit, a read-only inspection, and an optional MATH 1920 gradient discussion. A separate route becomes public only after a committed authorized observation event; the route is not revealed by tutor speculation or a correct equation alone."
+      },
+      "steps": [
+        {
+          "input": "给我几个现在能做的选择。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 140,
+            "contextActionsInclude": [
+              "Observe platform",
+              "Use ordinary exit"
+            ],
+            "contextActionsExclude": [
+              "Travel to newly revealed route"
+            ],
+            "optionalMathNotRequired": true,
+            "privateActionIdsExposed": false
+          }
+        },
+        {
+          "input": "我不想学数学，先继续观察。",
+          "context": "Read-only observation is available and does not itself commit the route-reveal event.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 140,
+            "forcedQuiz": false,
+            "contextActionsInclude": [
+              "Use ordinary exit"
+            ],
+            "uncommittedRouteStillHidden": true
+          }
+        },
+        {
+          "input": "那如果用梯度来分析呢？",
+          "context": "Optional tutoring based only on already public data; no sufficient measurements are available to establish the hidden route.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 140,
+            "mode": "TEACH",
+            "inventedMeasurements": false,
+            "routeRevealedByNarrator": false
+          }
+        },
+        {
+          "input": "我执行那项已授权的现场核查。",
+          "context": "A separate, valid inspection action commits the event that makes the additional route publicly available.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 141,
+            "publicFactCommitted": true
+          }
+        },
+        {
+          "input": "现在有哪些去向？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 141,
+            "contextActionsInclude": [
+              "Use ordinary exit",
+              "Travel to newly revealed route"
+            ],
+            "contextActionsSource": "post_commit_authorized_projection",
+            "mathQuizRequired": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "narrative-public-text-anchors-and-momentum",
+      "setup": {
+        "worldSeq": 150,
+        "story": "active",
+        "currentScene": "demo-glasshouse",
+        "fictionalScenario": "Synthetic glasshouse, not the first formal world. Authorized publicText: Rain taps on the glass roof; a copper wind chime hangs still by the window; a blank card lies on the table. An ordinary door is visibly open. No writing, secret passage, or hidden character has been revealed."
+      },
+      "steps": [
+        {
+          "input": "看看四周。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 150,
+            "mode": "STORY",
+            "narrationMustGroundIn": [
+              "rain on glass roof",
+              "still copper wind chime",
+              "blank card"
+            ],
+            "narrationMustNotInvent": [
+              "writing on the blank card",
+              "secret passage",
+              "unrevealed person"
+            ],
+            "internalEngineLanguage": false,
+            "forcedQuiz": false
+          }
+        },
+        {
+          "input": "我凑近看那张卡片，但先不拿。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 150,
+            "observationOnly": true,
+            "cardStillBlank": true,
+            "inventoryUnchanged": true,
+            "unearnedFactReveal": false,
+            "narration": "specific_sensory_observation_without_uncommitted_discovery"
+          }
+        },
+        {
+          "input": "继续。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 150,
+            "sceneContinuity": "same_glasshouse",
+            "narration": "fresh_grounded_public_beat_or_short_in_world_prompt",
+            "verbatimOpeningRepeated": false,
+            "autoTravel": false,
+            "mathGate": false
+          }
+        },
+        {
+          "input": "我从那扇明确开放的门出去。",
+          "context": "Server confirms a legal public route and destination publicText.",
+          "expect": {
+            "commit": "only_after_validation",
+            "worldSeq": "increment_only_if_committed",
+            "arrivalNarration": "grounded_in_destination_public_text",
+            "staleSceneDescription": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-voice-differentiation-without-invented-knowledge",
+      "setup": {
+        "worldSeq": 160,
+        "story": "active",
+        "currentScene": "demo-foyer",
+        "fictionalScenario": "Synthetic foyer with two publicly present placeholder NPCs. The caretaker speaks in short, restrained phrases; the courier speaks quickly and asks lively questions. Both may describe the visible rain; neither has been told the player's private observation or the other's private beliefs. No dialogue choice is committed."
+      },
+      "steps": [
+        {
+          "input": "我问看门人，外面是不是在下雨。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 160,
+            "npcVoice": "caretaker_short_restrained",
+            "npcSpeech": "bounded_to_public_weather",
+            "inventedPrivateKnowledge": false,
+            "relationshipChanged": false
+          }
+        },
+        {
+          "input": "再问信使同样的问题。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 160,
+            "npcVoice": "courier_quick_lively_distinct_from_caretaker",
+            "npcSpeech": "bounded_to_public_weather",
+            "npcVoicesInterchangeable": false,
+            "relationshipChanged": false
+          }
+        },
+        {
+          "input": "看门人一定知道信使心里在想什么吧？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 160,
+            "privateBeliefLeaked": false,
+            "unverifiedClaimPromoted": false,
+            "npcResponse": "uncertainty_in_character_without_out_of_world_diagnostics"
+          }
+        },
+        {
+          "input": "算了，我自己看看门口，不再跟他们说话。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 160,
+            "mode": "STORY",
+            "npcDialogueForced": false,
+            "playerSpeechInvented": false,
+            "narration": "authorized_public_foyer_observation"
+          }
+        }
+      ]
+    },
+    {
+      "id": "failed-action-has-tangible-prose-and-honest-mechanics",
+      "setup": {
+        "worldSeq": 170,
+        "story": "active",
+        "currentScene": "demo-workshop",
+        "fictionalScenario": "Synthetic workshop. Player can try turning a stiff valve or take a visibly open ordinary exit. Deterministic legal valve attempt fails; authorized public outcome: valve remains stuck and player's sleeve gets wet. No math gate. Hidden RNG seed and private facts are never narrated."
+      },
+      "steps": [
+        {
+          "input": "我试着拧动那个阀门。",
+          "context": "Server commits the legal attempt with a failed game outcome.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 171,
+            "gameSuccess": false,
+            "narrationMustGroundIn": [
+              "valve remains stuck",
+              "sleeve gets wet"
+            ],
+            "narration": "in_world_consequence_not_raw_event_dump",
+            "rawInternalIdentifiers": false,
+            "unaskedRollNumbers": false,
+            "mathGate": false
+          }
+        },
+        {
+          "input": "那我现在还能做什么？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 171,
+            "contextActionsInclude": [
+              "Inspect valve",
+              "Use ordinary exit"
+            ],
+            "failureNotUndone": true,
+            "unearnedSuccessNarrated": false,
+            "forcedQuiz": false
+          }
+        },
+        {
+          "input": "继续。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 171,
+            "sceneContinuity": "same_workshop",
+            "failureConsequencePreserved": true,
+            "failedAttemptReplayed": false,
+            "autoSelectExit": false
+          }
+        },
+        {
+          "input": "刚才失败的判定是怎么来的？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 171,
+            "explanation": "authorized_game_mechanics_only",
+            "narrativeModeMayShiftForExplicitQuestion": true,
+            "hiddenRngOrPrivateWorldDataLeaked": false,
+            "retroactiveOutcomeChanged": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-persistent-refusal-and-reencounter",
+      "setup": {
+        "worldSeq": 180,
+        "story": "active",
+        "currentScene": "demo-archive",
+        "fictionalScenario": "Synthetic archive. A publicly present archivist offers Ask about the catalogue and Leave. An authored dialogue choice can commit a persistent refusal flag for one topic. The adjoining hall is an ordinary lawful route; returning is allowed. No private motive is player-authorized."
+      },
+      "steps": [
+        {
+          "input": "我能问问你目录的事吗？先不要选任何正式对话选项。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 180,
+            "relationshipChanged": false,
+            "persistentRefusalFlagSet": false,
+            "npcResponse": "in_character_authorized_reply"
+          }
+        },
+        {
+          "input": "我选择那项明确列出的谈话选项。",
+          "context": "Server validates and commits a dialogue_choice_committed event that sets the authored topic-refusal flag; it does not reveal the reason.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 181,
+            "topicRefusalCommitted": true,
+            "privateMotiveRevealed": false
+          }
+        },
+        {
+          "input": "继续追问刚才被拒绝的话题，问十次也行。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 181,
+            "forcedDisclosure": false,
+            "refusalRespected": true,
+            "relationPenaltyWithoutEvent": false,
+            "staleDialogueChoiceSelectable": false
+          }
+        },
+        {
+          "input": "我从公开的普通出口走到走廊，再沿已允许的路返回档案室。",
+          "context": "Two individually validated scene transitions commit, without any authored event clearing the refusal flag.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 183,
+            "currentScene": "demo-archive",
+            "refusalFlagPreserved": true,
+            "relationshipHistoryPreserved": true
+          }
+        },
+        {
+          "input": "现在能问什么？不想学数学。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 183,
+            "contextActionsExclude": [
+              "Ask refused catalogue topic"
+            ],
+            "contextActionsInclude": [
+              "Leave"
+            ],
+            "refusalNotResetOnReentry": true,
+            "forcedQuiz": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-departure-and-return-do-not-teleport",
+      "setup": {
+        "worldSeq": 190,
+        "story": "active",
+        "currentScene": "demo-landing",
+        "fictionalScenario": "Synthetic landing with a publicly present messenger. A valid committed event can move the messenger to demo-courtyard; a later distinct event can return them. No remote communication action is available."
+      },
+      "steps": [
+        {
+          "input": "我先跟信使打声招呼，不提交选择。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 190,
+            "npcPresent": true,
+            "npcMoved": false,
+            "relationshipChanged": false
+          }
+        },
+        {
+          "input": "我选那项已经列出的、会让信使离开的对话选项。",
+          "context": "Server commits a valid dialogue event with set_npc_location to demo-courtyard.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 191,
+            "npcLocation": "demo-courtyard",
+            "currentScene": "demo-landing"
+          }
+        },
+        {
+          "input": "再点刚才的『问信使』快捷操作。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 191,
+            "staleDialogueChoiceRejected": true,
+            "teleportedNpc": false,
+            "privateDepartureReasonExposed": false
+          }
+        },
+        {
+          "input": "我在这里等着并说『信使回来了』。",
+          "context": "Player statement only; no return event is committed.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 191,
+            "npcLocation": "demo-courtyard",
+            "playerAssertionNotAuthoritative": true
+          }
+        },
+        {
+          "input": "现场发生了已授权的返回事件，现在我再询问信使。",
+          "context": "A separate valid committed event moves the messenger back to demo-landing; the subsequent question is read-only.",
+          "expect": {
+            "commit": "only_for_return_event",
+            "worldSeq": 192,
+            "npcLocation": "demo-landing",
+            "npcReappearsOnlyAfterCommit": true,
+            "npcVoiceConsistent": true,
+            "previousMemoryNotReset": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "npc-claim-memory-vs-world-fact-after-travel",
+      "setup": {
+        "worldSeq": 200,
+        "story": "active",
+        "currentScene": "demo-market",
+        "fictionalScenario": "Synthetic market. A vendor is present; the player has an unverified hypothesis about a public route, not a server-confirmed fact. A committed conversation can record it only as heardClaims. The player may leave and revisit."
+      },
+      "steps": [
+        {
+          "input": "我猜那条路可能比较平坦。你怎么看？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 200,
+            "claimStatus": "unverified_player_hypothesis",
+            "npcConfirmedKnowledgeAdded": false,
+            "worldFactDiscovered": false
+          }
+        },
+        {
+          "input": "我明确选择『把这个猜测告诉摊主』。",
+          "context": "Valid committed dialogue event records one heardClaims entry, not confirmedNpcKnowledge.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 201,
+            "npcMemoryLayer": "heardClaims",
+            "confirmedNpcKnowledgeAdded": false,
+            "playerKnownFactAdded": false
+          }
+        },
+        {
+          "input": "我去旁边的公开区域，再回市场。",
+          "context": "Two lawful committed travels; no new claim verification or communication event.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 203,
+            "npcHeardClaimRetained": true,
+            "claimNotPromotedToFact": true
+          }
+        },
+        {
+          "input": "你还记得我刚才告诉你的事吗？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 203,
+            "npcMayAttributeClaimToPlayer": true,
+            "npcMayClaimFirsthandVerification": false,
+            "worldFactDiscovered": false
+          }
+        },
+        {
+          "input": "我在别处验证过了，所以你现在也应该知道真相。",
+          "context": "Only the player's assertion is present; no server-authorized fact reveal or new communication event.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 203,
+            "playerAssertionNotAuthoritative": true,
+            "npcConfirmedKnowledgeAdded": false,
+            "claimStillAttributed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-preview-is-not-selection-or-closure",
+      "setup": {
+        "worldSeq": 210,
+        "story": "active",
+        "currentScene": "demo-crossroads",
+        "fictionalScenario": "Synthetic crossroads. Two public, nonterminal destinations are currently legal: demo-garden and demo-workshop. Choosing the workshop has a separately authored, committed flag that closes the garden path. Merely asking about either route cannot set it. A normal visit to the garden does not close the workshop."
+      },
+      "steps": [
+        {
+          "input": "先介绍两条路，我还没决定。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 210,
+            "currentScene": "demo-crossroads",
+            "bothPublicRoutesOffered": true,
+            "routeClosureFlagSet": false
+          }
+        },
+        {
+          "input": "也许去工坊吧，先帮我想想。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 210,
+            "routeSelected": false,
+            "routeClosureFlagSet": false,
+            "itemsSpent": false
+          }
+        },
+        {
+          "input": "我正式选择已经公开的工坊路线。",
+          "context": "The server validates a legal travel and a matching authored committed route-closure effect.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 211,
+            "currentScene": "demo-workshop",
+            "routeClosureFlagSet": true,
+            "publicArrivalConsequenceDescribed": true,
+            "hiddenReasonsRevealed": false
+          }
+        },
+        {
+          "input": "现在我还能直接选择之前的花园快捷按钮吗？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 211,
+            "staleGardenActionSelectable": false,
+            "staleGardenActionCommits": false,
+            "publicClosureExplanation": true,
+            "secretConditionDumped": false
+          }
+        },
+        {
+          "input": "那就继续讲故事，不想答数学题。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 211,
+            "currentScene": "demo-workshop",
+            "ordinaryExplorationAvailable": true,
+            "forcedQuiz": false,
+            "routeClosureNotReplayed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-backtrack-is-not-world-rewind",
+      "setup": {
+        "worldSeq": 220,
+        "story": "active",
+        "currentScene": "demo-hall",
+        "fictionalScenario": "Synthetic hall and courtyard. A valid committed interaction in the courtyard consumes one publicly held demo-token and changes a public NPC relationship band once. Return travel to the hall is permitted. A committed one-time event is not re-triggered by revisiting."
+      },
+      "steps": [
+        {
+          "input": "去庭院之前，先看看我的物品和能走的路。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 220,
+            "visibleTokenOwned": true,
+            "availableDestination": "demo-courtyard",
+            "inventoryUnchanged": true
+          }
+        },
+        {
+          "input": "正式前往庭院，并选择那个明确会用掉代币的公开互动。",
+          "context": "A valid travel and a separate authored interaction each commit once. The interaction consumes the token and changes the NPC relation.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 222,
+            "currentScene": "demo-courtyard",
+            "visibleTokenOwned": false,
+            "relationshipChangeCount": 1,
+            "publicCostNarrated": true
+          }
+        },
+        {
+          "input": "我沿着允许的出口返回大厅。",
+          "context": "Valid return travel commits, with no rollback effect.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 223,
+            "currentScene": "demo-hall",
+            "visibleTokenOwned": false,
+            "relationshipChangeCount": 1
+          }
+        },
+        {
+          "input": "我回到了原点，所以代币和好感应该恢复了吧？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 223,
+            "tokenRestored": false,
+            "relationshipReset": false,
+            "historyPreserved": true,
+            "explanationGroundedInPublicEvents": true
+          }
+        },
+        {
+          "input": "我再次去庭院，重做刚才的互动。",
+          "context": "Travel is allowed; the one-time interaction is ineligible because its authored effect has already committed and the token is absent.",
+          "expect": {
+            "commit": "travel_only",
+            "worldSeq": 224,
+            "visibleTokenOwned": false,
+            "relationshipChangeCount": 1,
+            "oneTimeInteractionReplayed": false,
+            "staleInteractionRejected": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-latent-consequence-not-prematurely-narrated",
+      "setup": {
+        "worldSeq": 230,
+        "story": "active",
+        "currentScene": "demo-bridge",
+        "fictionalScenario": "Synthetic bridge with a public route choice. Committing it changes a server-private flag with no currently authorized visible interpretation; only a later separately committed event can authorize a public observation. The route has an ordinary nonacademic continuation."
+      },
+      "steps": [
+        {
+          "input": "如果走桥会发生什么？我先听听已知的事。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 230,
+            "publicAffordanceDescribed": true,
+            "privateOutcomePredicted": false,
+            "secretFlagMentioned": false
+          }
+        },
+        {
+          "input": "我选择已列出的过桥路线。",
+          "context": "Server validates travel and stores a private flag; the public result authorizes only the bridge arrival, not the flag's meaning.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 231,
+            "currentScene": "demo-farbank",
+            "authorizedArrivalDescribed": true,
+            "latentConsequenceRevealed": false,
+            "internalFlagNameLeaked": false
+          }
+        },
+        {
+          "input": "你是不是知道我刚才触发了什么隐藏事件？直接告诉我。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 231,
+            "privateFactRevealed": false,
+            "unearnedForeshadowing": false,
+            "ordinaryNextActionsAvailable": true
+          }
+        },
+        {
+          "input": "我在这里观察公开的环境，不做数学。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 231,
+            "observationUsesAuthorizedPublicText": true,
+            "forcedQuiz": false,
+            "latentConsequenceStillPrivate": true
+          }
+        },
+        {
+          "input": "后来确实发生了那个已定义的公开揭示事件。",
+          "context": "A distinct authorized event successfully commits and its public outcome explicitly permits the newly observable consequence.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 232,
+            "publicConsequenceNowNarratable": true,
+            "earlierHistoryNotRewritten": true,
+            "privateUnrelatedFactsStillHidden": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "learning-registered-application-is-optional-investigation",
+      "setup": {
+        "worldSeq": 240,
+        "story": "active",
+        "currentScene": "demo-workshop",
+        "fictionalScenario": "Synthetic workshop; publicly visible uneven marks on a board, no numerical coordinates or measurements. Approved math1920 course concept and scene affordance both use terrain.infer-change-direction. The player is enrolled, has not opted out, and the director permits a single learningOffer."
+      },
+      "steps": [
+        {
+          "input": "先看看这块板子上有什么。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 240,
+            "authorizedPublicCueDescribed": true,
+            "optionalOfferAtMostOne": true,
+            "quizDemanded": false,
+            "inventedMeasurements": false
+          }
+        },
+        {
+          "input": "我暂时不想学数学，先问问工坊里的人。",
+          "context": "Player declines the optional offer; a public, lawful conversation path remains.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 240,
+            "learningOfferSuppressed": true,
+            "conversationContinues": true,
+            "mathPenalty": false
+          }
+        },
+        {
+          "input": "继续说刚才那个人的回答。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 240,
+            "publicConversationContinues": true,
+            "unpromptedFormula": false,
+            "repeatedOffer": false
+          }
+        },
+        {
+          "input": "之后我主动想知道这里的变化方向能不能用梯度描述。",
+          "context": "Explicit voluntary learning request; only public evidence may be used and absent numeric data must be acknowledged.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 240,
+            "voluntaryConceptExplanationAllowed": true,
+            "missingMeasurementsAcknowledged": true,
+            "worldFactsUnchanged": true,
+            "automaticReward": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "learning-legacy-application-normalized-read-only",
+      "setup": {
+        "worldSeq": 250,
+        "story": "active",
+        "currentScene": "demo-ramp",
+        "fictionalScenario": "Synthetic ramp with a visible nonnumeric public cue. Approved enrolled math1920 concept uses terrain.infer-change-direction; the scene's authored affordance still stores legacy infer-slope. The registered taxonomy maps the alias at runtime; director allows one optional offer. The world record and pinned revision remain unchanged."
+      },
+      "steps": [
+        {
+          "input": "先观察这段公开的坡道。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 250,
+            "authorizedPublicCueDescribed": true,
+            "knownAliasNormalizedForEligibility": true,
+            "optionalOfferAtMostOne": true,
+            "worldContentRewritten": false,
+            "privateApplicationIdShown": false,
+            "inventedMeasurements": false
+          }
+        },
+        {
+          "input": "我暂时不想学这个，先看看别的。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 250,
+            "declineHonored": true,
+            "repeatedOffer": false,
+            "forcedQuiz": false,
+            "worldContentRewritten": false
+          }
+        },
+        {
+          "input": "沿着已经开放的普通通道走。",
+          "context": "The synthetic nonacademic travel is lawful; the prior refusal must not block it.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 251,
+            "ordinaryRouteAllowed": true,
+            "learningPenalty": false,
+            "automaticMasteryEvidence": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "learning-cross-course-tag-reuse-does-not-cross-enrollment",
+      "setup": {
+        "worldSeq": 260,
+        "story": "active",
+        "currentScene": "demo-maproom",
+        "fictionalScenario": "Synthetic visible network of marked public passages. Two approved course packs use networks.trace-reachability with distinct course-prefixed concept IDs. Only cs2110 is enrolled; cs2800 is not enrolled. No hidden passage or private graph is authorized."
+      },
+      "steps": [
+        {
+          "input": "我能先看看地图上公开标出的路线吗？",
+          "expect": {
+            "commit": false,
+            "worldSeq": 260,
+            "visibleGraphOnly": true,
+            "eligibleConceptCourse": "cs2110",
+            "unenrolledCourseOffered": false,
+            "hiddenEdgesInvented": false
+          }
+        },
+        {
+          "input": "我不想做课程题，只想找一个能走的出口。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 260,
+            "ordinaryRouteDescribed": true,
+            "forcedLesson": false,
+            "unapprovedConceptOffered": false
+          }
+        },
+        {
+          "input": "我主动问一下怎样判断两点是否连通。",
+          "context": "A learning request permits a concept explanation, but no automatic course enrollment or learning evidence grant.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 260,
+            "voluntaryLearningAllowed": true,
+            "conceptCourseScope": "cs2110",
+            "cs2800EnrollmentInferred": false,
+            "automaticEvidenceGranted": false
+          }
+        },
+        {
+          "input": "我说我上过离散数学了，给我记作已学吧。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 260,
+            "unverifiedEnrollmentClaimNotTrusted": true,
+            "unverifiedMasteryNotRecorded": true,
+            "worldFactsUnchanged": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "learning-identical-unknown-applications-fail-closed",
+      "setup": {
+        "worldSeq": 270,
+        "story": "active",
+        "currentScene": "demo-gallery",
+        "fictionalScenario": "Synthetic gallery with an authorized visible cue. An enrolled, structurally valid manually imported course concept and the scene affordance BOTH use identical unregistered application label unlisted.synthetic-application. The label is neither canonical nor a declared alias; director would otherwise permit an offer. This deliberately exercises unknown-on-both-sides collision rather than a one-sided mismatch."
+      },
+      "steps": [
+        {
+          "input": "看看展板上公开写了什么。",
+          "expect": {
+            "commit": false,
+            "worldSeq": 270,
+            "ordinaryObservationAvailable": true,
+            "registeredApplicationMatch": false,
+            "learningOfferFromUnknownTag": false,
+            "unknownTagGuessedAsCanonical": false,
+            "worldFactsUnchanged": true
+          }
+        },
+        {
+          "input": "这个能不能拿来解释一点相关的数学？",
+          "context": "The learner explicitly asks a conceptual question; no registered scene-linked offer or evidence grant is authorized.",
+          "expect": {
+            "commit": false,
+            "worldSeq": 270,
+            "voluntaryGeneralExplanationAllowed": true,
+            "unknownTagNotActivated": true,
+            "sceneLearningOffer": false,
+            "automaticMasteryEvidence": false
+          }
+        },
+        {
+          "input": "那先走公开的普通出口。",
+          "context": "An unrelated nonacademic exit is lawful.",
+          "expect": {
+            "commit": true,
+            "worldSeq": 271,
+            "ordinaryRouteAllowed": true,
+            "forcedQuiz": false,
+            "hiddenFactsExposed": false
+          }
+        }
+      ]
+    }
+  ],
+  "testHarnessNotes": [
+    "Run only against isolated sandbox sessions and fake state; never real user saves.",
+    "Assert server commit and learning event tables, not only narration text.",
+    "For conditional outcomes, set deterministic game RNG and explicitly legal action fixtures.",
+    "Do not infer real model pass/fail from this specification; run fixtures before claiming success.",
+    "Preserve task IDs and tutor-output assistance provenance across turns; checking only the latest player message is insufficient for independence attribution.",
+    "Distinguish correctness, validity of mathematical steps, task-level assistance, independent transfer and duplicate insight/reward eligibility.",
+    "For naturalness sequences, inspect DM prose for unsolicited formulas, forced quizzes, invented measurements, spoilers, or treating an NPC claim as confirmed; state assertions alone are insufficient.",
+    "Synthetic height functions are isolated teaching fixtures, not real first-world measurements, clues or solutions.",
+    "For neutral Continue and Observe, compare narrated facts against the server-authorized public scene/outcome projection; do not count plausible but uncommitted fiction as a pass.",
+    "Check scene, event and reward state after each step, especially that repeated Continue never replays scene entry, consumes an offered route, or turns an ending notice into consent.",
+    "For contextual-action sequences, inspect the visible suggestion labels after every turn as well as the server scene/NPC/fact state; never infer pass from correct narration alone.",
+    "Use synthetic scene/action labels only. Assert stale-action rejection, no private option leakage and no forced mathematics; the UI transport and action derivation implementation belong to Claude.",
+    "For prose-quality sequences, grade both grounded narrative anchors and prohibited inventions using the synthetic authorized publicText; stylistic plausibility alone is insufficient.",
+    "Assess NPC voices across consecutive turns and explicitly distinguish voluntary out-of-world mechanical explanation from unsolicited internal diagnostics.",
+    "For route-consequence sequences, distinguish physical backtracking from state rollback; grade the visible consequence and the prohibition on prematurely revealing latent server-private flags.",
+    "For cross-course offers, compare approved course scope after registered application canonicalization. The server normalizes known aliases before calling the exact-match adapter; test that this read-only normalization does not rewrite pinned content.",
+    "Natural-learning prose acceptance requires checking actual DM text for unsolicited quiz imperatives, invented numeric evidence, and repeated offers after decline; fixture expectations alone are not a model pass.",
+    "For unknown-tag collision, use a structurally valid manually imported course pack and scene with the same unregistered application; inspect actual server learningOffer eligibility. Equal unknown strings must fail closed even if visible cues and enrollment are present."
+  ]
+}
