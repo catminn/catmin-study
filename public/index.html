@@ -2104,7 +2104,7 @@ async function ensureArc(subj){if(subj==="engl"||!SAMPLE)return;const T=tale(sub
 世界：${w.name}。设定：${w.desc}
 这个世界里她要靠 ${SUBJ[subj].full} 的知识闯关，会用到的知识点依次是：${topics}。
 要求：有一个能勾住人的核心悬念和明确的通关目标；3 到 4 个有名字、有性格、有隐藏动机的角色（至少一个同伴、一个竞争玩家或反派）；5 幕结构，每幕有一个具体事件和一个反转或惊喜，最后一幕有大反转；再给一条和零的身世有关的记忆碎片。全部用中文，不用破折号。
-只回复 JSON：{"premise":"开场处境，60 字内","goal":"通关目标","mystery":"核心悬念","cast":[{"name":"名字","role":"身份和性格","secret":"隐藏动机"}],"acts":["第一幕：……","第二幕：……","第三幕：……","第四幕：……","第五幕：……"],"zero":"零的记忆碎片"}`,{cache:false});
+只回复 JSON：{"premise":"开场处境，60 字内","goal":"通关目标","mystery":"核心悬念","cast":[{"name":"名字","role":"身份和性格","secret":"隐藏动机"}],"acts":["第一幕：……","第二幕：……","第三幕：……","第四幕：……","第五幕：……"],"zero":"零的记忆碎片"}`,{modelTier:"complex",cache:false});
     if(j&&Array.isArray(j.acts)&&j.acts.length){T.arc={world:w.name,premise:String(j.premise||""),goal:String(j.goal||""),mystery:String(j.mystery||""),cast:(j.cast||[]).slice(0,4),acts:j.acts.map(String).slice(0,5),zero:String(j.zero||"")};T.beat=0;T.turns=0;
       for(const c of T.arc.cast){if(c&&c.name)T.npcs[String(c.name).slice(0,10)]=String(c.role||"").slice(0,24)}save()}}catch(e){}}
 function advanceBeat(subj,force){const T=tale(subj);if(!T.arc)return;T.turns=(T.turns||0)+1;if(force||T.turns>=5){if((T.beat||0)<T.arc.acts.length-1){T.beat=(T.beat||0)+1;T.turns=0;FXQ.push({t:"loc",subj,name:"第 "+(T.beat+1)+" 幕",desc:T.arc.acts[T.beat].replace(/^第.幕[：:]/,"").slice(0,30)})}}}
@@ -2297,7 +2297,7 @@ async function zwSend(text,show){text=(text||$("#zwInput").value).trim();const h
   for(const t of ZW.turns.slice(0,-12))if(t.docs&&budget>0&&hist.length){for(const d of t.docs){const x=d.text.slice(0,budget);budget-=x.length;hist[0].content="【她之前发过的附件 "+d.name+"】\n"+x+"\n\n"+hist[0].content}}
   const mem=await smSearch(subj,text);
   const input=[{role:"user",content:zwContext(subj)},{role:"assistant",content:"收到。"},...hist];{const last=input[input.length-1];last.content+="\n\n"+zwNowNote()+(mem?"\n\n共享记忆里相关的内容（参考）：\n"+mem:"")}
-  const dT=driveTools();if(dT||window.__SITE){const l=input[input.length-1];l.content+=dcBlock(ZW.subj)+DRIVE_HINT}DSUBJ=ZW.subj;const opts={cache:false,modelTier:"complex",siteModel:"claude-haiku-5-5",...(dT?{tools:dT}:{}),...(window.__SITE?{serverTools:["drive"],onFiles:fs=>fs.forEach(f=>{DTITLE[f.id]=f.title;dcPut(f.id,f.text,subj)})}:{}),signal:ZW.ctl.signal,onText:({text})=>{const at=zwAtBottom();bub.textContent=text.replace(TAG_RE,"").trim();if(at)log.scrollTop=log.scrollHeight;else{ZW.unread=true;zwJumpBtn()}}};ZW.imgMem=ZW.imgMem||{};const old=(ZW.imgMem[subj]||[]).filter(f=>!imgs.includes(f));const send=[...imgs,...old.slice(0,2)].slice(0,5);opts.siteModel="claude-opus-5-5";if(send.length){opts.images=send;if(send.length>imgs.length){const last=input[input.length-1];last.content+="\n\n（附带的图片里，"+(imgs.length?"前 "+imgs.length+" 张是这次发的，后面":"全部")+"是她之前发过的）"}}
+  const dT=driveTools();if(dT||window.__SITE){const l=input[input.length-1];l.content+=dcBlock(ZW.subj)+DRIVE_HINT}DSUBJ=ZW.subj;const opts={cache:false,modelTier:"complex",...(dT?{tools:dT}:{}),...(window.__SITE?{serverTools:["drive"],onFiles:fs=>fs.forEach(f=>{DTITLE[f.id]=f.title;dcPut(f.id,f.text,subj)})}:{}),signal:ZW.ctl.signal,onText:({text})=>{const at=zwAtBottom();bub.textContent=text.replace(TAG_RE,"").trim();if(at)log.scrollTop=log.scrollHeight;else{ZW.unread=true;zwJumpBtn()}}};ZW.imgMem=ZW.imgMem||{};const old=(ZW.imgMem[subj]||[]).filter(f=>!imgs.includes(f));const send=[...imgs,...old.slice(0,2)].slice(0,5);opts.siteModel="claude-opus-5-5";if(send.length){opts.images=send;if(send.length>imgs.length){const last=input[input.length-1];last.content+="\n\n（附带的图片里，"+(imgs.length?"前 "+imgs.length+" 张是这次发的，后面":"全部")+"是她之前发过的）"}}
   if(imgs.length){const last=input[input.length-1];last.content+="\n\n（她这次发了图片。请在回复最后写一行 [图片]，把图里的题目文字、选项和数字原样记下来，看不清的写“?”。这行不会显示给她，是给你之后回看用的。）"}
   ZW.imgMem[subj]=[...imgs,...(ZW.imgMem[subj]||[])].filter((f,i,a)=>a.indexOf(f)===i).slice(0,4);
   try{const r=await SAMPLE(input,opts);let raw=r.text,sw=null;raw=raw.replace(/^\s*\[科目\]\s*(math|chem|engri|engl)\s*$/m,(_,k)=>{sw=k;return""});const keep=[];raw=raw.replace(/^\s*\[记住\]\s*(.+)$/gm,(_,x)=>{keep.push(x.trim());return""});
@@ -2331,7 +2331,7 @@ ${exTxt}
 ${(()=>{const pt=planToday(subj);if(pt)return"今天考前计划里的知识点是「"+pt.it.topic+"」（"+pt.it.task+"），就教这个。\n";const pk=dqPick(subj);if(pk)return"今天要教的是「"+pk.t+"」（"+pk.why+"），就教这一节里最核心的一个点，topic 写成这一节的名字。\n";return"先挑一个她现在最需要的知识点：最近 10 天内有考试或 quiz 的，就从它的范围里挑她最可能不会的一个点；没有的话，挑主线上接下来要学的一个点。"})()}${hw?"\n她作业里的原题（可以直接拿一道来当例题教）：\n"+hw:""}
 然后像家教一样从零教这一个点：先一两句说清是什么、什么时候用，再用一道具体的例题（最好是作业原题或考试题型）一步一步做给她看，每一步说做什么、为什么。整体 300 字以内，分 3 到 5 小段，公式用 $...$。${subj==="chem"?"例题和术语用英文，讲解用中文。":""}
 最后出一道检查题，考刚教的这个点，换个数字或问法，3 分钟能做完。能用选择题考的就出 4 个选项的单选题；需要算一个数或写一句话的就出简答题。
-只回复 JSON：{"client":"委托人，当前世界里的一个人或势力，10 字以内","brief":"委托背景一两句，60 字以内","topic":"知识点名称，15 字以内","lesson":"教学内容，段落之间用 \\n\\n 隔开","q":"检查题","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解"}`,{cache:false,signal:DQ_CTL.signal});
+只回复 JSON：{"client":"委托人，当前世界里的一个人或势力，10 字以内","brief":"委托背景一两句，60 字以内","topic":"知识点名称，15 字以内","lesson":"教学内容，段落之间用 \\n\\n 隔开","q":"检查题","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解"}`,{modelTier:"complex",cache:false,signal:DQ_CTL.signal});
       if(!j||!j.q)throw{code:"invalid_json"};dq={day:dayKey(),subj,q:String(j.q),type:j.type==="choice"&&Array.isArray(j.options)&&j.options.length>=2?"choice":"short",options:(j.options||[]).map(String),answer:j.answer,explain:String(j.explain||""),topic:String(j.topic||"").slice(0,30),tid:(()=>{const pt=planToday(subj);if(pt)return null;const pk=dqPick(subj);return pk?pk.id:null})(),lesson:String(j.lesson||""),client:String(j.client||"").slice(0,16),brief:String(j.brief||"").slice(0,120)};S.dqHist=[...(S.dqHist||[]),(dq.client?dq.client+"："+dq.brief:dq.brief).slice(0,60)].filter(Boolean).slice(-8);
       if(dq.type==="choice"){const ci=+dq.answer;const right=dq.options[ci]!=null?dq.options[ci]:dq.options[0];const sh=dq.options.slice();for(let i=sh.length-1;i>0;i--){const r=Math.floor(Math.random()*(i+1));[sh[i],sh[r]]=[sh[r],sh[i]]}dq.options=sh;dq.answer=sh.indexOf(right)}
       S.dailyQ=dq;save()}
@@ -2349,7 +2349,7 @@ ${(()=>{const pt=planToday(subj);if(pt)return"今天考前计划里的知识点�
     else if(!dq.done){const ta=h("textarea",{class:"dsearch",rows:3,placeholder:"写答案，或者拍照"});let img=null;const st=h("div",{class:"muted"});
       const pic=IMG_OK?h("label",{class:"btn sm",style:{cursor:"pointer"}},"拍照作答",h("input",{type:"file",accept:"image/*",hidden:true,onchange:e=>{img=e.target.files[0]||null;st.textContent=img?"已附图片":""}})):null;
       const go=h("button",{class:"btn go",onclick:async()=>{const ans=ta.value.trim();if(!ans&&!img)return;go.disabled=true;st.textContent="零在批改…";DQ_CTL=new AbortController();
-        try{const r=await SAMPLE.json(`批改一道学习题。题目：${dq.q}\n标准答案：${dq.answer}\n讲解：${dq.explain}\n学生的回答：${ans||"（见图片）"}\n判断她答得对不对（意思对、数值在合理误差内就算对；方法对但最后算错算错）。用中文写一两句反馈，指出错在哪。只回复 JSON：{"correct":true,"feedback":"…"}`,{cache:false,signal:DQ_CTL.signal,...(img?{images:[img]}:{})});
+        try{const r=await SAMPLE.json(`批改一道学习题。题目：${dq.q}\n标准答案：${dq.answer}\n讲解：${dq.explain}\n学生的回答：${ans||"（见图片）"}\n判断她答得对不对（意思对、数值在合理误差内就算对；方法对但最后算错算错）。用中文写一两句反馈，指出错在哪。只回复 JSON：{"correct":true,"feedback":"…"}`,{modelTier:"complex",cache:false,signal:DQ_CTL.signal,...(img?{images:[img]}:{})});
           dq.mine=ans||"（图片）";finish(!!(r&&r.correct),r&&r.feedback)}catch(e){go.disabled=false;st.textContent=e&&e.code==="cancelled"?"":sampleErr(e)}finally{DQ_CTL=null}}},"提交");
       kids.push(ta,h("div",{class:"row",style:{gap:"8px"}},go,pic),st);setTimeout(()=>ta.focus(),30)}
     if(dq.done){if(dq.type==="short"&&dq.mine)kids.push(h("div",{class:"muted"},"你的回答："+dq.mine));
@@ -2364,7 +2364,7 @@ async function startQuiz(){if(!SAMPLE||CTL)return;const subj=CUR;CTL=new AbortCo
   const prompt=contextTurn(subj)+`\n\n现在给她出一套小测验：5 道单选题，${QUIZ_TOPIC[subj]?"主题是「"+QUIZ_TOPIC[subj]+"」，":""}覆盖她最近学的内容、当前主线关卡附近的知识点和没打败的错题，难度适中，每题 4 个选项。数学公式用 LaTeX。${subj==="chem"?"题干和选项用英文，解析用中文。":""}题干可以用当前世界的一句话包装，但别太长。
 只回复一个 JSON 对象：{"questions":[{"q":"题干","options":["选项1","选项2","选项3","选项4"],"answer":0,"explain":"为什么选它，中文两三句"}]}，answer 是正确选项的下标（从 0 开始）。`;
   let made=null;
-  try{const j=await SAMPLE.json(prompt,{cache:false,signal:CTL.signal});
+  try{const j=await SAMPLE.json(prompt,{modelTier:"complex",cache:false,signal:CTL.signal});
     const qs=((j&&j.questions)||[]).filter(x=>x&&x.q&&Array.isArray(x.options)&&x.options.length>=2&&Number.isInteger(x.answer)&&x.answer>=0&&x.answer<x.options.length).slice(0,5)
       .map(x=>{const opts=x.options.map(String);const correct=opts[x.answer];const idx=opts.map((_,i)=>i);for(let i=idx.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]]}
         const sh=idx.map(i=>opts[i]);const ex=String(x.explain||"").replace(/(选|答案是|正确答案是|应选)\s*[A-DＡ-Ｄ]\b/g,"$1这个");return{q:String(x.q),options:sh,answer:sh.indexOf(correct),explain:ex}});
@@ -3073,6 +3073,14 @@ const PLAN_PTS=5;
    排之前先问：哪几天有空、每天多久、哪几节没把握；每天可以排 0～几项。
    每项 {id,day,topic,task,min,kind}；kind=mock（模拟卷）/final（错题和公式）固定不动，其他没做完的过了日子自动往后挪。 */
 const planKey=(id,d)=>"plan:"+id+":"+(d.id||d.day);
+/* 节号：「§16.4-16.5」→ 16.4、16.5；用来检查计划有没有漏掉考试范围里的节 */
+function secsOf(str){const out=new Set();const re=/(\d{1,2})\.(\d{1,2})(?:\s*[-–~到]\s*(?:(\d{1,2})\.)?(\d{1,2}))?/g;let m;
+  while((m=re.exec(String(str||"")))){const c=+m[1],a=+m[2];if(m[4]!=null&&(m[3]==null||+m[3]===c)){const z=+m[4];for(let i=a;i<=Math.min(z,a+9);i++)out.add(c+"."+i)}else{out.add(c+"."+a);if(m[3]!=null&&m[4]!=null)out.add(+m[3]+"."+(+m[4]))}}return out}
+const secN=s=>{const[a,b]=s.split(".").map(Number);return a*100+b};
+function scopeSecs(b){const D=S.dyn&&S.dyn.data&&S.dyn.data[b.subj];const all=new Set();for(const t of (D&&D.topics)||[])for(const x of secsOf(t.t))all.add(x);
+  const r=/(\d{1,2}\.\d{1,2})\s*[-–~到]\s*(\d{1,2}\.\d{1,2})/.exec(b.scope||"");let L=[...all];if(r){const lo=secN(r[1]),hi=secN(r[2]);L=L.filter(x=>secN(x)>=lo&&secN(x)<=hi)}
+  return L.sort((x,y)=>secN(x)-secN(y))}
+function planMissing(b,items){const need=scopeSecs(b);if(!need.length)return[];const have=new Set();for(const d of items.filter(d=>!d.kind||d.kind==="learn"))for(const x of secsOf(d.topic+" "+(d.task||"")))have.add(x);return need.filter(x=>!have.has(x))}
 function planDays(b){const days=[];for(let k=dayKey();keyToDate(k).getTime()<b.due-12*HOUR&&days.length<12;k=addDays(k,1))days.push(k);return days}
 function planShift(id){const p=(S.examPlan||{})[id];if(!p||!p.avail)return 0;const today=dayKey();
   const mv=p.days.filter(d=>!d.kind||d.kind==="learn");const late=mv.filter(d=>d.day<today&&!S.done[planKey(id,d)]);if(!late.length)return 0;
@@ -3113,16 +3121,17 @@ async function makePlan(id,b,btn,o){if(!SAMPLE){toast("需要在 Claude 里打�
   try{const j=await SAMPLE.json(contextTurn(b.subj)+`\n\n给「${b.title}」（${fmtDue(b.due)}${b.scope?"，范围 "+b.scope:b.where?"，"+b.where:""}）排考前计划，不要剧情。
 她每天能复习的时间（分钟）：${days.map(k=>k+" "+avail[k]).join("、")}。只能排在这些日子里，每一项大约 45–60 分钟，按当天时间决定排几项（30 分钟的日子只排一个小点或错题回顾）。
 ${o.weak.length?"她说最没把握的：「"+o.weak.join("」「")+"」，这些多给时间、排在前面。":""}${o.note?"\n她补充：「"+o.note+"」":""}
-排法：先覆盖整个考试范围（她做得慢，先教会再做 2–3 道题），按考试分量和她的薄弱处排序；最后两个复习日：倒数第二个做一套模拟卷（kind 写 mock），最后一个只过错题和公式纸（kind 写 final）；其余 kind 写 learn。${mis?"\n她没解决的错题：\n"+mis:""}
-只回 JSON：{"items":[{"day":"YYYY-MM-DD","topic":"知识点（短）","task":"具体做什么（一句话）","min":60,"kind":"learn"}]}`,{cache:false});
+${(()=>{const n=scopeSecs(b);return n.length?"必须覆盖的节（每一节都要出现在某一项的 topic 里，用 § 写清节号，一节都不能漏）："+n.map(x=>"§"+x).join("、")+"\n":""})()}${o.miss&&o.miss.length?"上一版漏掉了："+o.miss.map(x=>"§"+x).join("、")+"，这次一定排上。\n":""}排法：先覆盖整个考试范围（她做得慢，先教会再做 2–3 道题），按考试分量和她的薄弱处排序；最后两个复习日：倒数第二个做一套模拟卷（kind 写 mock），最后一个只过错题和公式纸（kind 写 final）；其余 kind 写 learn。${mis?"\n她没解决的错题：\n"+mis:""}
+只回 JSON：{"items":[{"day":"YYYY-MM-DD","topic":"知识点（短）","task":"具体做什么（一句话）","min":60,"kind":"learn"}]}`,{modelTier:"complex",cache:false});
     const list=(j&&(j.items||j.days)||[]).filter(d=>d&&days.includes(d.day)&&d.topic).map((d,i)=>({id:"i"+Date.now().toString(36)+i,day:d.day,topic:String(d.topic).slice(0,40),task:String(d.task||"").slice(0,140),min:Math.max(15,Math.min(180,+d.min||60)),kind:/^(mock|final)$/.test(d.kind)?d.kind:"learn"}))
       .sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);
-    if(!list.length)throw 0;S.examPlan=S.examPlan||{};S.examPlan[id]={at:Date.now(),avail,weak:o.weak,days:list};save();toast("计划排好了");openBossSheet(id);renderAll()}
+    if(!list.length)throw 0;const miss=planMissing(b,list);if(miss.length&&!o.retried){btn.disabled=false;return makePlan(id,b,btn,Object.assign({},o,{miss,retried:true}))}
+    S.examPlan=S.examPlan||{};S.examPlan[id]={at:Date.now(),avail,weak:o.weak,note:o.note,days:list};save();toast("计划排好了");openBossSheet(id);renderAll()}
   catch(e){toast("计划没排出来，再试一次");btn.disabled=false;btn.textContent="让零排计划"}}
 function planBlock(id,b){const left=b.due-Date.now();if(left>12*DAY||left<0)return null;const p=(S.examPlan||{})[id];
   if(!p)return h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>planSetup(id,b)},"排考前计划"),h("span",{class:"dim small"},"先问你几个问题，再按天排好；每天进副本说「复习」就按计划教"));
-  planShift(id);const today=dayKey();
-  return h("div",null,h("div",{class:"row between",style:{marginBottom:"6px"}},h("div",{class:"eyebrow"},"考前计划"+(p.moved?" · 没做完的已往后挪":"")),h("button",{class:"btn sm flat",onclick:()=>planSetup(id,b)},"重排")),
+  planShift(id);const today=dayKey();const miss=planMissing(b,p.days);
+  return h("div",null,miss.length?h("div",{class:"row",style:{marginBottom:"8px",gap:"8px",alignItems:"center"}},h("span",{class:"small",style:{color:"var(--late,#c0392b)"}},"计划漏了 "+miss.map(x=>"§"+x).join("、")),h("button",{class:"btn sm go",onclick:e=>makePlan(id,b,e.currentTarget,{avail:p.avail||Object.fromEntries(p.days.map(d=>[d.day,60])),weak:p.weak||[],note:p.note||"",miss})},"让零补上重排")):null,h("div",{class:"row between",style:{marginBottom:"6px"}},h("div",{class:"eyebrow"},"考前计划"+(p.moved?" · 没做完的已往后挪":"")),h("button",{class:"btn sm flat",onclick:()=>planSetup(id,b)},"重排")),
     h("div",{class:"checklist"},p.days.map(d=>{const k=planKey(id,d);const dn=S.done[k];const td=d.day===today;
       return h("button",{class:(dn?"done":"")+(td?" today":""),disabled:!!dn,title:d.task,onclick:()=>{if(td&&!dn){closeSheet();planGo(id,d);return}planDone(id,d);openBossSheet(id)}},
         h("span",null,(dn?"✓ ":"")+d.day.slice(5).replace("-","/")+" "+(d.kind==="mock"?"模拟卷 · ":d.kind==="final"?"错题和公式 · ":"")+d.topic+(td&&!dn&&d.task?" — "+d.task:"")),h("span",{class:"rw"},td&&!dn?"开始 →":"+"+(dn?dn.pts:R(PLAN_PTS))))})),
