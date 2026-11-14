@@ -730,7 +730,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
 <canvas id="fxCv" aria-hidden="true"></canvas><div id="fxLayer" aria-hidden="true"></div>
 <nav class="tabbar" aria-label="页面"><div class="wrap">
   <a href="#now" data-v="now"><svg><use href="#i-star"/></svg>现在</a>
-  <a href="#map" data-v="map"><svg><use href="#i-map"/></svg>进度</a>
+  <a href="#map" data-v="map"><svg><use href="#i-map"/></svg>地图</a>
   <a href="#cal" data-v="cal"><svg><use href="#i-cal"/></svg>日历</a>
   <a href="#read" data-v="read"><svg><use href="#i-book"/></svg>读书</a>
   <a href="#shop" data-v="shop"><svg><use href="#i-coin"/></svg>商店</a>
@@ -1097,7 +1097,7 @@ Exam 1（9/24）77/150。Prelim 2 已在 10/22 考完（第 12–22 讲，第 5�
 她的偏好：考试导向，按例题题型学，只讲解这类题需要的知识，跳过不考的原理，假设零基础；例题题目用英文出，讲解用中文，关键术语保留英文，或写成 中文（English）；每一步讲清楚做什么、为什么、在这题里怎么用，别太简略。`,
 engri:`科目：ENGRI 1170 Introduction to Mechanical Engineering，Prof. Zhiting Tian。
 讲课周一、周三 9:05，实验周五 14:00–16:30。作业如果有，一般周日截止（周一早上交）。Prelim 2：10/26 周一 9:05。
-具体讲到哪里你不知道，开新课时先问她这节课讲了什么（可以让她拍讲义），再用剧情教。`,
+没有课本，用 course packet（第 9 章流体力学、第 10 章传热）。课表：11/2 流体力学入门、11/4 压强与液压、11/9 雷诺数、11/11 平板流与管流、11/16 比热与热力学第一定律、11/18 热传导、11/23 热对流、12/2 其他传热话题；Final 时间待定。`,
 engl:`科目：ENGL 1111 (104) Modern Fantasy Media，第一年写作研讨课。每周一、周三晚在 Canvas 写 reading response discussion。
 当前大作业 Assignment 3：Close Reading Essay II: Visual Analysis。从课表上的一部视觉叙事作品里选一两个场景做视觉细读（角色设计、服装、剪辑、摄影、特效、场景、动画风格、视觉象征等），必须同时讨论画面和语言，1200–1500 词，至少 2 张截图和 1 处引文，引用带时间戳或页码，有标题和页码。不能用 Assignment 1 的场景或课上深入讨论过的场景。可选作品：Frankenstein (2025)、The Hobbit: An Unexpected Journey、Baldur's Gate 3、The Wizard of Oz (1939)、The Wiz (1978)、Agatha All Along、Wicked: Part One、The Legend of Vox Machina、Delicious in Dungeon、D&D 5e Player's Handbook、House of the Dragon、Rogue One、Spirited Away。初稿 10/30 周五午夜，终稿 11/13 周五午夜。Assignment 1 她写的是 Agatha All Along 的 Ballad of the Witches' Road。
 你可以直接帮她写 discussion 帖子和论文内容。动笔前先确认这次的阅读材料或题目要求（她可以贴 prompt 或截图），没有就先问。写出来要像她本人：自然的美式英语，具体，从细节出发。
@@ -1124,7 +1124,8 @@ const WEEKLY=[
 const BASE_MAIN={
   math:[{id:"155",t:"§15.5 梯度与方向导数",lec:at(2026,9,28,11,0)},{id:"156",t:"§15.6 链式法则",lec:at(2026,10,5,11,0)},{id:"157",t:"§15.7 最优化",lec:at(2026,10,7,11,0)},{id:"158",t:"§15.8 拉格朗日乘数",lec:at(2026,10,14,11,0)},{id:"161",t:"§16.1–16.2 二重积分",lec:at(2026,10,19,11,0)},{id:"163",t:"§16.3 三重积分",lec:at(2026,10,21,11,0)},{id:"164",t:"§16.4 极、柱、球坐标积分",lec:at(2026,10,23,11,0)},{id:"165",t:"§16.5 积分的应用",lec:at(2026,10,26,11,0)},{id:"171",t:"§17.1–17.2 向量场与线积分",lec:at(2026,11,2,11,0)},{id:"173",t:"§17.3 保守向量场",lec:at(2026,11,6,11,0)},{boss:"math-p2"}],
   chem:[{id:"g1",t:"气体定律与分压"},{id:"g2",t:"气体动理论：v_rms 与扩散"},{id:"t1",t:"热化学与盖斯定律"},{id:"t2",t:"键能与量热"},{id:"e1",t:"化学平衡与 K"},{id:"e2",t:"勒夏特列原理"},{id:"a1",t:"弱酸弱碱 pH"},{id:"a2",t:"缓冲溶液"},{id:"s1",t:"溶解度与沉淀"},{id:"f1",t:"自由能与熵"},{boss:"chem-e3"}],
-  engri:[{boss:"engri-p2"},{id:"l1",t:"新课剧情",edit:1,blank:1},{id:"l2",t:"新课剧情",edit:1,blank:1},{id:"l3",t:"新课剧情",edit:1,blank:1},{id:"l4",t:"新课剧情",edit:1,blank:1},{id:"l5",t:"新课剧情",edit:1,blank:1},{id:"l6",t:"新课剧情",edit:1,blank:1}],
+  /* ENGRI：按 syllabus 的课表和 course packet 的章节（Prelim II 之后：第 9 章流体力学、第 10 章传热） */
+  engri:[{boss:"engri-p2"},{id:"p91",t:"§9.1–9.2.1 流体与压强、压力计",lec:at(2026,11,2,10,0)},{id:"p92",t:"§9.2.2–9.2.3 浮力与液压系统",lec:at(2026,11,4,10,0)},{id:"p93",t:"§9.3.1–9.3.2 牛顿流体与雷诺数",lec:at(2026,11,9,10,0)},{id:"p94",t:"§9.3.3–9.3.4 管流与阻力",lec:at(2026,11,11,10,0)},{id:"p102",t:"§10.1–10.2 比热与热力学第一定律",lec:at(2026,11,16,10,0)},{id:"p103",t:"§10.3 热传导",lec:at(2026,11,18,10,0)},{id:"p104",t:"§10.4 热对流",lec:at(2026,11,23,10,0)},{id:"p105",t:"其他传热话题",lec:at(2026,12,2,10,0)}],
   engl:[{id:"s1",t:"选定作品和场景",due:at(2026,10,26),pts:30,write:1},{id:"s2",t:"写出 thesis",due:at(2026,10,27),pts:30,write:1},{id:"s3",t:"截图和引文证据",due:at(2026,10,28),pts:30,write:1},{id:"s4",t:"写完初稿",due:at(2026,10,29),pts:40,write:1},{boss:"engl-a3r"},{id:"f1",t:"按反馈改结构",due:at(2026,11,8),pts:30,write:1},{id:"f2",t:"按写作规则逐句检查",due:at(2026,11,11),pts:30,write:1},{boss:"engl-a3f"}]
 };
 let MAIN=BASE_MAIN;
@@ -1621,10 +1622,9 @@ function openNodeSheet(subj,n,idx){const done=nodeIsDone(subj,n);const cur=idx==
     n.due?h("div",null,"目标 "+fmtDue(n.due)+" · ",h("b",null,fmtLeft(n.due-Date.now()))):null,
     n.lec?h("div",{class:"small "+(n.lec<Date.now()&&!done?"":"dim")},n.lec<Date.now()?"课上 "+fmtDue(n.lec).replace(/ \d\d:\d\d$/,"")+" 已经讲过"+(done?"。":"，这一关算欠账，早点补上。"):"课上预计 "+fmtDue(n.lec).replace(/ \d\d:\d\d$/,"")+" 讲"):null,
     done?doneBox("已通关 +"+((S.done[nodeKey(subj,n)]||{}).pts||0)):rewardBox(n.pts||NODE_PTS,n.due||null,0),
-    storyRow(subj,n,idx,done),
     nameIn?h("div",{class:"row"},nameIn,h("button",{class:"btn sm",onclick:()=>{const v=nameIn.value.trim().slice(0,30);if(v)S.nodeNames[subj+":"+n.id]=v;else delete S.nodeNames[subj+":"+n.id];save();renderAll();openNodeSheet(subj,n,idx)}},"改名")):null,
-    h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>startNode(subj,n)},done?"再学一遍":n.write?"开始这一步":"进入剧情学这一课"),
-      !done?h("button",{class:"btn",onclick:()=>completeNode(subj,n)},"学完了，领奖励"):null))}
+    h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>startNode(subj,n)},done?"去 Claude 再学一遍":n.write?"去 Claude 做这一步":"去 Claude 学这一课")),
+    done?null:h("div",{class:"dim small"},"学完、答对检查题后 Claude 会记一笔，这里自动通关加分。"))}
 function openBossSheet(id){const b=BOSSES()[id];const fin=S.done["boss:"+id+":final"];const now=Date.now();const canFinish=b.submit||(b.due&&now>=b.due-HOUR);
   sheet(b.subj,h("div",{class:"row"},h("span",{class:"kind boss"},icon("skull"),"Boss · "+SUBJ[b.subj].name)),h("h2",null,b.title),
     h("div",null,b.due?fmtDue(b.due)+" · ":"",h("b",null,b.due?fmtLeft(b.due-now):"时间待定，去背包的设置里填"),b.where?h("div",{class:"dim small"},b.where):null),
@@ -1753,30 +1753,57 @@ async function learnPull(){if((EMBED&&EMBED!=="todo")||LEARN_BUSY)return;LEARN_B
 if(!window.__SITE)setInterval(learnPull,30000);
 setTimeout(learnPull,4000);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")setTimeout(learnPull,800)});
 
-/* ============ 学习进度（原来的地图）：每一讲一行，去 Claude 学，学完自动打勾 ============ */
+/* ============ map ============ */
 let MAPSUBJ="math";
-function worldTabs(el,cur,onpick){el.replaceChildren(...Object.keys(SUBJ).map(k=>{const due=occurrences().filter(o=>o.subj===k&&isOpen(o)&&o.soft-Date.now()<2*DAY).length+reviveDue(k).length;
-  const b=h("button",{class:"wt","aria-pressed":String(k===cur),onclick:()=>onpick(k)},h("b",null,SUBJ[k].name,due?dueDot(k,due):null));b.style.setProperty("--tint",worldOf(k).tint);return b}))}
-function renderMap(){const subj=MAPSUBJ;$("#v-map").style.setProperty("--tint",worldOf(subj).tint);
-  worldTabs($("#worldTabs"),subj,k=>{MAPSUBJ=k;renderMap()});
-  const arr=MAIN[subj],now=Date.now(),lessons=arr.filter(n=>!n.boss);const doneN=lessons.filter(n=>nodeIsDone(subj,n)).length;const debtN=lessons.filter(n=>n.lec&&n.lec<now&&!nodeIsDone(subj,n)).length;
-  $("#mEyebrow").textContent=SUBJ[subj].full;$("#mWorld").textContent="已学 "+doneN+" / "+lessons.length+(debtN?" · 课上讲过还没学 "+debtN+" 节":"");
-  $("#mDesc").textContent="在 Claude 里学完、答对检查题，这里自动打勾加分。";
-  const pub=SIDE.filter(q=>!q.subj&&!S.done["cv-"+q.id]);const pb=$("#pubBtn");pb.textContent="公共支线 "+pub.length;pb.hidden=!CAL_OK||!pub.length;
-  const tc=$("#toCur");if(tc)tc.hidden=true;const lg=document.querySelector("#v-map .legend");if(lg)lg.hidden=true;
-  const ci=lessons.findIndex(n=>!nodeIsDone(subj,n));
-  const row=(ic,cls,title,sub,right)=>h("div",{class:"pl-row"+(cls?" "+cls:"")},h("span",{class:"pl-ic"},icon(ic)),h("div",{class:"pl-t"},h("b",null,title),sub?h("span",null,sub):null),right);
-  const rows=arr.map(n=>{if(n.boss){const b=BOSSES()[n.boss];if(!b)return null;const d=bossDone(n.boss);
-      return row(d?"crown":"skull",d?"done":"boss",b.title,d?"已击败":b.exam&&b.due&&b.due<now?"已考完，出分后在背包里录入":b.due?fmtDue(b.due).replace(/ \d\d:\d\d$/,"")+" · "+fmtLeft(b.due-now).replace("还剩 ","剩 "):"时间待定",h("button",{class:"btn sm",onclick:()=>openBossSheet(n.boss)},d?"看看":b.exam?"复习":"打开"))}
-    const d=nodeIsDone(subj,n),rec=S.done[nodeKey(subj,n)],debt=!d&&n.lec&&n.lec<now,cur=!d&&lessons[ci]===n;const nm=n.blank&&!S.nodeNames[subj+":"+n.id]?"下一节新课（学的时候告诉 Claude 讲了什么）":nodeName(subj,n);
-    const sub=d?"学完了"+(rec&&rec.pts?" · +"+rec.pts:""):n.lec?"课上 "+fmtDue(n.lec).replace(/ \d\d:\d\d$/,"")+(n.lec<now?" 讲过":" 要讲"):n.due?"目标 "+fmtDue(n.due).replace(/ \d\d:\d\d$/,""):"";
-    return row(d?"star":"book",(d?"done":"")+(debt?" debt":"")+(cur?" cur":""),nm,sub,d?h("button",{class:"btn sm flat",onclick:()=>startNode(subj,n)},"再学"):h("button",{class:"btn sm"+(cur?" go":""),onclick:()=>startNode(subj,n)},"去 Claude 学"+(" +"+preview(n.pts||NODE_PTS,n.due||null,0).total)))});
+function worldTabs(el,cur,onpick){el.replaceChildren(...Object.keys(SUBJ).map(k=>{const w=worldOf(k);const due=occurrences().filter(o=>o.subj===k&&isOpen(o)&&o.soft-Date.now()<2*DAY).length+reviveDue(k).length;
+  const b=h("button",{class:"wt","aria-pressed":String(k===cur),onclick:()=>onpick(k)},h("b",null,SUBJ[k].name,due?dueDot(k,due):null),h("span",{class:"w"},w.name));b.style.setProperty("--tint",w.tint);return b}))}
+function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.setProperty("--tint",w.tint);
+  worldTabs($("#worldTabs"),subj,k=>{MAPSUBJ=k;renderMap();setTimeout(scrollToCur,30)});
+  const arr=MAIN[subj];const ci=curIndex(subj);const doneN=arr.filter(n=>nodeIsDone(subj,n)).length;const now=Date.now();
+  const debtN=arr.filter(n=>n.lec&&n.lec<now&&!nodeIsDone(subj,n)).length;
+  $("#mEyebrow").textContent=SUBJ[subj].full+" · 第 "+worldNo(subj)+" 个世界 · 主线 "+doneN+"/"+arr.length+(debtN?" · 课上已讲、还没学的 "+debtN+" 关":"");$("#mWorld").textContent=w.name;$("#mDesc").textContent=w.desc;
+  const pub=SIDE.filter(q=>!q.subj&&!S.done["cv-"+q.id]);const pb=$("#pubBtn");pb.textContent="公共支线 "+pub.length;pb.hidden=!CAL_OK;
   const recent=k=>S.done[k]&&now-S.done[k].at<12*HOUR;
-  const extra=[...occurrences().filter(o=>o.subj===subj&&!S.skipped[o.key]&&(!S.done[o.key]||recent(o.key))).map(o=>{const d=S.done[o.key];return row(d?"star":"scroll",d?"done":"",o.title,d?"已完成":fmtDue(o.soft).replace(/ \d\d:\d\d$/,"")+" · "+fmtLeft(o.soft-now).replace("还剩 ","剩 "),h("button",{class:"btn sm",onclick:()=>openTaskSheet(o)},"打开"))}),
-    ...SIDE.filter(q=>q.subj===subj&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>{const d=S.done["cv-"+q.id];return row(d?"star":"scroll",d?"done":"",q.title,"Canvas · "+fmtLeft(q.due-now).replace("还剩 ","剩 "),h("button",{class:"btn sm",onclick:()=>openSideQuestSheet(q)},"打开"))}),
-    ...reviveDue(subj).slice(0,6).map(m=>row("skull","boss","错题："+m.text.slice(0,30)+(m.text.length>30?"…":""),"打掉 +15",h("button",{class:"btn sm",onclick:()=>fightMistake(m)},"去 Claude 打")))];
-  $("#map").replaceChildren(h("div",{class:"pl"},rows.filter(Boolean)),extra.length?h("div",{class:"pl"},h("div",{class:"eyebrow",style:{margin:"14px 0 4px"}},"作业和错题"),extra):null)}
-function scrollToCur(){}
+  const sides=[...occurrences().filter(o=>o.subj===subj&&!S.skipped[o.key]&&(!S.done[o.key]||recent(o.key))).map(o=>({kind:"task",o})),
+    ...SIDE.filter(q=>q.subj===subj&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>({kind:"canvas",q})),
+    ...reviveDue(subj).slice(0,4).map(m=>({kind:"monster",m}))];
+  const c=chestStatus();if(c.of)sides.push({kind:"chest",c});
+  const map=$("#map");map.replaceChildren();const W=map.clientWidth||600;const narrow=W<520;const L=narrow?30:33,R=100-L,SL=narrow?20:16,SR=100-SL;
+  const STEP=narrow?160:150,TOP=160;const xOf=i=>(i%2?R:L)+(narrow?1.5:3)*Math.sin(i*1.7);const cm=SAGA[subj]?chapMap(subj):null;const extra=[];{let e=0,pw=null;arr.forEach((n,i)=>{const wi=(cm&&!n.boss)?worldIdxOfCh(subj,cm[n.id]):null;if(wi!=null){if(pw!=null&&wi!==pw)e+=70;pw=wi}extra[i]=e})}
+  const yOf=i=>TOP+i*STEP+(extra[Math.min(i,extra.length-1)]||0);
+  const pos=sides.map((s,k)=>{const a=ci+k;const y=yOf(a);const mx=a<arr.length?xOf(a):(a%2?R:L);return[mx>50?SL:SR,y,a]});
+  const lastY=Math.max(yOf(arr.length-1),pos.length?pos[pos.length-1][1]:0)+150;map.style.height=lastY+"px";
+  const svg=document.createElementNS(NS,"svg");svg.setAttribute("class","paths");svg.setAttribute("viewBox","0 0 100 "+lastY);svg.setAttribute("preserveAspectRatio","none");
+  const mk=(tag,a)=>{const e=document.createElementNS(NS,tag);for(const k in a)e.setAttribute(k,a[k]);return e};
+  const pathTo=n=>{let d="M"+xOf(0)+" "+(yOf(0)-90)+" L"+xOf(0)+" "+yOf(0);for(let i=1;i<=n;i++)d+=" C"+xOf(i-1)+" "+(yOf(i-1)+STEP/2)+" "+xOf(i)+" "+(yOf(i)-STEP/2)+" "+xOf(i)+" "+yOf(i);return d};
+  const full=pathTo(arr.length-1);
+  svg.append(mk("path",{d:full,fill:"none",stroke:"var(--path)","stroke-width":"14","stroke-linecap":"round","vector-effect":"non-scaling-stroke"}));
+  svg.append(mk("path",{d:pathTo(ci),fill:"none",stroke:w.tint,"stroke-width":"14","stroke-linecap":"round","vector-effect":"non-scaling-stroke",opacity:".9"}));
+  svg.append(mk("path",{d:full,fill:"none",stroke:"var(--panel)","stroke-width":"2.5","stroke-dasharray":"2 12","stroke-linecap":"round","vector-effect":"non-scaling-stroke"}));
+  for(const[x,y,a]of pos){if(a<arr.length)svg.append(mk("line",{x1:xOf(a),y1:y,x2:x,y2:y,stroke:"var(--line2)","stroke-width":"3","stroke-dasharray":"6 6","vector-effect":"non-scaling-stroke"}))}
+  map.append(svg);
+  {const fn=arr.find(n=>!n.boss);const fm=cm&&fn?mapWorldAt(subj,cm[fn.id]):null;map.append(h("div",{class:"node",style:{left:xOf(0)+"%",top:"34px"}},h("span",{class:"cap"},"传送点 · "+(fm?(fm.lock?"未知世界":fm.w.name):w.name))))}
+  arr.forEach((n,i)=>{const isDone=nodeIsDone(subj,n);const cls="node"+(n.boss?" boss":"")+(isDone?" done":i===ci?" cur":i>ci?" locked":"");let cap,sub,rw;
+    if(n.boss){const b=BOSSES()[n.boss];cap=b.title;sub=isDone?"已击败":b.due?fmtLeft(b.due-now).replace("还剩 ","剩 "):"时间待定";rw=isDone?null:"+"+PT(BOSS_PTS)}
+    else{cap=nodeName(subj,n);sub=isDone?"已通关":n.due?"目标 "+fmtDue(n.due).replace(/ \d\d:\d\d$/,""):i===ci?"当前关卡":"第 "+(i+1)+" 关";rw=isDone?null:"+"+preview(n.pts||NODE_PTS,n.due||null,0).total}
+    const debt=!isDone&&n.lec&&n.lec<now;
+    map.append(h("button",{class:cls+(debt?" debt":""),style:{left:xOf(i)+"%",top:yOf(i)+"px"},onclick:()=>n.boss?openBossSheet(n.boss):openNodeSheet(subj,n,i),"aria-label":cap},
+      h("span",{class:"disc"},icon(n.boss?(isDone?"crown":"skull"):isDone?"star":(i>ci&&!debt)?"lock":"book")),h("span",{class:"cap"},cap,h("span",{class:"sub"},sub)),debt?h("span",{class:"debtflag"},"课上已讲"):null,rw?h("span",{class:"rw"},rw):null));
+    if(i===ci)map.append(h("div",{class:"you",id:"youMark",style:{left:xOf(i)+"%",top:(yOf(i)-(n.boss?66:46))+"px"}},"你在这里"))});
+  if(cm)arr.forEach((n,i)=>{if(i>0&&extra[i]>(extra[i-1]||0)){const mw=mapWorldAt(subj,cm[n.id]);if(!mw)return;
+    const b=h("div",{class:"wbanner"+(mw.lock?" lock":""),style:{top:((yOf(i-1)+yOf(i))/2)+"px"}},icon(mw.lock?"lock":"portal"),mw.lock?"未知世界":mw.w.name,h("small",null,mw.lock?"通关前面的关卡后解锁":mw.w.desc));
+    if(!mw.lock)b.style.setProperty("--tint",mw.w.tint);map.append(b)}});
+  sides.forEach((s,k)=>{const[x,y]=pos[k];let el;
+    if(s.kind==="task"){const o=s.o;const d=S.done[o.key];const mf=multFor(o.soft,o.r.grace||0,Date.now(),o.self);
+      el=h("button",{class:"node side "+(d?"done":mf.cls),onclick:()=>openTaskSheet(o),"aria-label":o.title},h("span",{class:"disc"},icon(d?"star":"scroll")),
+        h("span",{class:"cap"},o.title,h("span",{class:"sub"},d?"已完成":fmtDue(o.soft).replace(/ \d\d:\d\d$/,"")+" · "+fmtLeft(o.soft-now).replace("还剩 ","剩 "))),h("span",{class:"rw"},d?"+"+d.pts:"+"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total+" "+mf.label.split(" ")[0]))}
+    else if(s.kind==="canvas"){const q=s.q;const d=S.done["cv-"+q.id];const mf=multFor(q.due,0);
+      el=h("button",{class:"node side "+(d?"done":mf.cls),onclick:()=>openSideQuestSheet(q)},h("span",{class:"disc"},icon(d?"star":"scroll")),h("span",{class:"cap"},q.title,h("span",{class:"sub"},"Canvas · "+fmtLeft(q.due-now).replace("还剩 ","剩 "))),h("span",{class:"rw"},d?"+"+d.pts:"+"+preview(SIDE_PTS,q.due,0).total))}
+    else if(s.kind==="monster"){const m=s.m;el=h("button",{class:"node side monster",onclick:()=>openMonsterSheet(m)},h("span",{class:"disc"},icon("skull")),h("span",{class:"cap"},"错题怪",h("span",{class:"sub"},m.text.slice(0,16)+(m.text.length>16?"…":""))),h("span",{class:"rw"},"+15"))}
+    else{const c=s.c;el=h("button",{class:"node side"+(c.opened?" done":c.ok?" ontime":""),onclick:()=>{if(c.ok)openChest();else toast(c.opened?"本周宝箱已开":"这周周常全部提前完成才能开（现在 "+c.n+"/"+c.of+"）")}},
+      h("span",{class:"disc"},icon("gift")),h("span",{class:"cap"},"全周提前宝箱",h("span",{class:"sub"},c.opened?"已开启":"提前完成 "+c.n+"/"+c.of)),h("span",{class:"rw"},"+80"))}
+    el.style.left=x+"%";el.style.top=y+"px";map.append(el)})}
+function scrollToCur(){const y=$("#youMark");if(!y||curView()!=="map")return;const r=y.getBoundingClientRect();window.scrollTo({top:Math.max(0,scrollY+r.top-innerHeight*0.3),behavior:reduced()?"auto":"smooth"})}
 
 /* ============ calendar ============ */
 let CV="week",CANCHOR=localKey(new Date());const EVC=new Map();let calSeq=0;
@@ -2294,7 +2321,7 @@ function zwSave(){const hist={};for(const k of Object.keys(SUBJ))hist[k]=zwT(k).
 async function zwLoad(){try{let d=null;if(DB&&UID){const c=await DB.doc("data/users/"+UID+"/chat-zero").get();liveSaw("chat-zero",c);if(c.exists)d=clone(c.data())}else d=JSON.parse(localStorage.getItem("zs-chat-zero")||"null");
   if(d){if(d.subj&&(SUBJ[d.subj]||d.subj==="life"))ZW.subj=d.subj;if(d.hist&&typeof d.hist==="object"){for(const k in d.hist)if((SUBJ[k]||k==="life")&&Array.isArray(d.hist[k]))ZW.hist[k]=d.hist[k]}else if(Array.isArray(d.turns))ZW.hist[ZW.subj]=d.turns}}catch(e){}zwRender()}
 /* 每轮都变的东西（几点、在哪页、共享记忆搜到的）放在最后一条消息里，前面的背景说明保持不变，才能命中提示缓存 */
-function zwNowNote(){const now=new Date();return"（现在 "+pad(now.getHours())+":"+pad(now.getMinutes())+"，她在网站的「"+({now:"现在",map:"进度",cal:"日历",read:"读书",shop:"商店",bag:"背包"}[curView()]||"")+"」页）"}
+function zwNowNote(){const now=new Date();return"（现在 "+pad(now.getHours())+":"+pad(now.getMinutes())+"，她在网站的「"+({now:"现在",map:"地图",cal:"日历",read:"读书",shop:"商店",bag:"背包"}[curView()]||"")+"」页）"}
 /* 日常模式（非学习）：零当随身助手，不带科目和教学规则 */
 const LIFE_RULES=`你是「零」，Catherine 的随身小助手，现在是日常模式（不是学习模式）。她是 Cornell 大一新生；时间一律按她电脑现在的时区（${TZID}）说。
 - 用中文，简洁、直接、像靠谱的朋友。不写剧情，不出题，不讲课，不提醒学习，除非她问。
