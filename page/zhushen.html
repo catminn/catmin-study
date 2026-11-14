@@ -274,11 +274,12 @@ input[type=text],input[type=number],input[type=datetime-local],textarea.plain,se
 .thumb img{width:100%;height:100%;object-fit:cover}
 .thumb button{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;border:0;background:var(--fg);color:var(--bg);font-size:12px;line-height:20px;padding:0}
 
-.shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.item{display:flex;flex-direction:column;gap:8px;background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 4px 0 var(--line)}.item.playbar{grid-column:1/-1;flex-direction:row;align-items:center;gap:14px}.playbar .pb-t{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}.playbar .pb-t b{font-size:16px}.playbar .pb-t .dim{font-size:13px}
+.shop{display:flex;flex-direction:column;gap:12px}
+.item{display:flex;align-items:center;gap:12px;background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 4px 0 var(--line)}.item.playbar{grid-column:1/-1;flex-direction:row;align-items:center;gap:14px}.playbar .pb-t{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}.playbar .pb-t b{font-size:16px}.playbar .pb-t .dim{font-size:13px}
 .item .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--warn)}
 .item .ic svg{width:26px;height:26px}
 .item p{margin:0;font-size:14px;color:var(--dim);flex:1}
+.item .it-t{flex:1;min-width:0;display:flex;flex-direction:column}.item .it-t b{font-size:16px}.item .it-t small{font-size:13px;color:var(--dim)}
 .price{font-family:var(--mono);font-weight:700;color:var(--warn);font-size:18px}
 .timer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .timer b{font-family:var(--mono);font-size:30px;color:var(--early)}
@@ -602,6 +603,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
 :root:not([data-theme="dark"]) .dg .turn .zw-figdl{background:rgba(27,31,59,.06);border-color:rgba(27,31,59,.2);color:#1b1f3b}
 }
 /* 电脑横屏：铺开用两栏 */
+.cols2{display:flex;flex-direction:column;gap:16px}
 .cols2>.col{display:flex;flex-direction:column;gap:16px;min-width:0}
 @media (min-width:1100px){
   .wrap{max-width:1320px}
@@ -722,7 +724,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
     <div class="card"><div class="row between"><h2>背包</h2><span class="dim small" id="bagSum"></span></div><div class="shop" id="bagItems" style="margin-top:12px"></div></div>
     <div class="card" hidden><div class="row between"><h2>剧情档案</h2><span class="dim small" id="arcSum"></span></div><div class="list" id="storyArchive" style="margin-top:12px"></div></div>
     <div class="card"><h2 style="margin-bottom:10px">成绩档案</h2><div id="scoreList"></div></div>
-    <div class="card"><div class="row between" style="margin-bottom:10px"><h2>错题图鉴</h2><button class="btn sm" id="mSyncBtn">同步到共享记忆</button></div><div class="list" id="mistakeList"></div></div>
+    <div class="card"><div class="row between" style="margin-bottom:10px"><h2>错题图鉴</h2><button class="btn sm" id="mSyncBtn" hidden>同步到共享记忆</button></div><div class="list" id="mistakeList"></div></div>
     <div hidden><div class="list" id="progressList"></div></div>
     <div class="card"><h2 style="margin-bottom:10px">设置</h2>
       <div class="list">
@@ -2450,10 +2452,10 @@ function buy(it,real){const timerOn=S.timer&&S.timer.end>Date.now();
   
   earn(-it.price,"兑换 · "+it.name);if(it.mins)S.timer={label:it.name,end:Date.now()+it.mins*MIN};else if(!real&&S.cards[it.id]!=null)S.cards[it.id]++;
   save();renderAll();toast(it.mins?"开始计时，玩得开心":"已兑换 "+it.name)}
-function itemCard(it,real){const free=it.mins&&isRestToday();return h("div",{class:"item"},h("div",{class:"row between"},h("div",{class:"ic"},icon(it.ic||"gift")),h("span",{class:"price"},free?"免费":it.price)),h("h3",null,it.name),h("p",null,it.desc||""),
-  !real&&S.cards[it.id]!=null?h("div",{class:"dim small"},"持有 "+S.cards[it.id]):null,
-  h("div",{class:"row"},h("button",{class:"btn sm"+((S.points>=it.price||free)?" go":""),onclick:()=>buy(it,real)},free?"免费开玩":S.points>=it.price?"兑换":"还差 "+fp(it.price-S.points)),
-    it.custom?h("button",{class:"btn sm flat",onclick:()=>{S.customRewards=S.customRewards.filter(x=>x.id!==it.id);save();renderAll()}},"删除"):null))}
+function itemCard(it,real){const free=it.mins&&isRestToday();const own=!real&&S.cards[it.id]!=null?"持有 "+S.cards[it.id]:"";const sub=[it.desc,own].filter(Boolean).join(" · ");
+  return h("div",{class:"item"},h("div",{class:"ic"},icon(it.ic||"gift")),h("div",{class:"it-t"},h("b",null,it.name),sub?h("small",null,sub):null),
+    it.custom?h("button",{class:"btn sm flat",onclick:()=>{S.customRewards=S.customRewards.filter(x=>x.id!==it.id);save();renderAll()}},"删除"):null,
+    h("button",{class:"btn sm"+((S.points>=it.price||free)?" go":""),onclick:()=>buy(it,real)},free?"免费":S.points>=it.price?it.price+" 分":"差 "+fp(it.price-S.points)))}
 function openWorldPicker(it){const sel=h("select",{id:"wsub"},Object.keys(SUBJ).map(k=>h("option",{value:k},SUBJ[k].name+" · 现在在 "+worldOf(k).name)));
   sheet(null,h("h2",null,"换一个世界"),sel,
     h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{const k=sel.value;earn(-it.price,"换世界 · "+SUBJ[k].name);nextWorld(k,false);save();closeSheet();renderAll();toast(SUBJ[k].name+" 进入 "+worldOf(k).name)}},"传送")))}
@@ -2472,14 +2474,14 @@ function spendCost(){const a=+SPEND.amt;if(!(a>0))return 0;return Math.max(1,Mat
 let SPEND_EL=null; /* 现在页的记账弹窗借用这张卡 */
 function renderSpend(){const el=SPEND_EL&&SPEND_EL.isConnected?SPEND_EL:$("#spendCard");if(!el)return;
   const out=h("div",{class:"small dim"});
-  const amt=h("input",{type:"number",min:"0",step:"0.01",inputmode:"decimal",placeholder:"花了多少",value:SPEND.amt,style:{flex:"1 1 120px"},oninput:e=>{SPEND.amt=e.target.value;upd()}});
-  const note=h("select",{style:{flex:"1 1 100px"},onchange:e=>{SPEND.cat=e.target.value;upd()}},SPEND_CATS.map(c=>{const o=h("option",{value:c},c);if(c===spendWhy())o.selected=true;return o}));
+  const amt=h("input",{type:"number",min:"0",step:"0.01",inputmode:"decimal",placeholder:"花了多少",value:SPEND.amt,style:{flex:"1 1 60px",minWidth:"0"},oninput:e=>{SPEND.amt=e.target.value;upd()}});
+  const note=h("select",{style:{flex:"0 0 auto",width:"auto"},onchange:e=>{SPEND.cat=e.target.value;upd()}},SPEND_CATS.map(c=>{const o=h("option",{value:c},c);if(c===spendWhy())o.selected=true;return o}));
   const cur=h("button",{class:"btn sm",title:"切换币种",onclick:()=>{SPEND.cur=SPEND.cur==="cny"?"usd":"cny";SPEND.cat="";renderSpend()}},SPEND.cur==="cny"?"¥":"$");
   const go=h("button",{class:"btn sm go",onclick:()=>{const c=spendCost();if(!c){toast("先填金额");return}if(S.points<c){toast("积分不够，还差 "+fp(c-S.points));return}
     const why=spendWhy();S.spend=S.spend||[];S.spend.push({id:uid(),at:Date.now(),cur:SPEND.cur,amt:+(+SPEND.amt).toFixed(2),cat:why,note:"",pts:c});
     earn(-c,"花费 · "+why+" · "+(SPEND.cur==="cny"?"¥":"$")+(+SPEND.amt));SPEND.amt="";SPEND.cat="";if(SPEND_EL&&SPEND_EL.isConnected){SPEND_EL=null;closeSheet()}save();renderAll();toast("记上了，扣 "+fp(c)+" 分")}},"记账");
   function upd(){const c=spendCost();out.textContent=c?"扣 "+fp(c)+" 分"+(spendW()<1?"（按 "+Math.round(spendW()*10)+" 成）":"")+(S.points<c?" · 还差 "+fp(c-S.points):""):""}
-  el.replaceChildren(h("h3",{style:{margin:"0 0 8px"}},"记账"),h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap"}},cur,amt,note,go),out,spendBook());upd();if(SPEND_EL===el)setTimeout(()=>amt.focus(),50)}
+  el.replaceChildren(h("h3",{style:{margin:"0 0 8px"}},"记账"),h("div",{class:"row",style:{gap:"6px",flexWrap:"nowrap"}},cur,amt,note,go),out,spendBook());upd();if(SPEND_EL===el)setTimeout(()=>amt.focus(),50)}
 function spendBook(){const L=(S.spend||[]).slice().sort((a,b)=>b.at-a.at);if(!L.length)return h("div");
   const mk=t=>{const d=new Date(t);return d.getFullYear()+"-"+pad(d.getMonth()+1)};const months=[...new Set(L.map(x=>mk(x.at)))];const sel=SPEND.month&&months.includes(SPEND.month)?SPEND.month:months[0];
   const rows=L.filter(x=>mk(x.at)===sel);const sum=c=>r1(rows.filter(x=>x.cur===c).reduce((s,x)=>s+x.amt,0)*10)/10;
@@ -2499,7 +2501,7 @@ function renderBag(){renderSyncRow();renderArchive();$("#scoreList").replaceChil
   const inv=[["makeup","补签卡","ticket",""]];
   $("#bagItems").replaceChildren(...inv.map(([k,n,ic,d])=>h("div",{class:"item"},h("div",{class:"row between"},h("div",{class:"ic"},icon(ic)),h("span",{class:"price"},"×"+S.cards[k])),h("h3",null,n),h("p",null,d))));
   const ml=$("#mistakeList");ml.replaceChildren();const ms=S.mistakes.slice().reverse();if(!ms.length)ml.append(h("div",{class:"dim"},"暂无"));
-  for(const m of ms)ml.append(h("div",{class:"li"},h("div",{class:"t"},h("div",{class:"mtext"},h("span",{class:"tag"},SUBJ[m.subj].name),renderMd(m.text)),h("div",{class:"dim small"},(m.killed?"已击败":"复活日 "+m.revive)+" · "+(m.sm?"已存进共享记忆":m.smBusy?"上传中…":"未上传"))),m.killed?null:h("div",{class:"row",style:{flex:"none",gap:"6px"}},h("button",{class:"btn sm",style:{whiteSpace:"nowrap"},title:"上传到共享记忆",onclick:()=>{if(!syncMistake(m,true))toast("共享记忆没连上");renderBag()}},m.sm?"再传":"上传"),h("button",{class:"btn sm",style:{whiteSpace:"nowrap",flex:"none"},onclick:()=>fightMistake(m)},"现在打"))));
+  for(const m of ms)ml.append(h("div",{class:"li"},h("div",{class:"t"},h("div",{class:"mtext"},h("span",{class:"tag"},SUBJ[m.subj].name),renderMd(m.text)),h("div",{class:"dim small"},(m.killed?"已击败":"复活日 "+m.revive))),m.killed?null:h("div",{class:"row",style:{flex:"none",gap:"6px"}},h("button",{class:"btn sm",style:{whiteSpace:"nowrap",flex:"none"},onclick:()=>fightMistake(m)},"现在打"))));
   typeset(ml);const sb=$("#mSyncBtn");if(sb){const n=S.mistakes.filter(m=>!m.killed&&!m.sm).length;sb.textContent=n?"上传 "+n+" 条到共享记忆":"全部已同步";sb.disabled=!n||!MCP;sb.onclick=()=>{const k=syncAllMistakes(false);toast(k?"正在上传 "+k+" 条":"共享记忆没连上");renderBag()}}
   const pl=$("#progressList");pl.replaceChildren();for(const k in SUBJ){const arr=S.progress[k]||[];pl.append(h("div",{class:"li",style:{display:"block"}},h("h3",null,SUBJ[k].full),
     arr.length?h("ul",{style:{margin:"4px 0 0",paddingLeft:"20px"}},arr.slice().reverse().map(p=>h("li",null,p.t+" ",h("span",{class:"dim small"},p.d)))):h("div",{class:"dim small"},"暂无")))}
