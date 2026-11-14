@@ -69,7 +69,22 @@ button.pill{cursor:pointer}
 .themebtn{border:2px solid var(--line);background:var(--panel2);border-radius:999px;width:36px;height:36px;display:grid;place-items:center;color:var(--fg)}
 
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:9;background:var(--panel);border-top:2px solid var(--line);padding:6px max(16px,env(safe-area-inset-left,0px)) calc(6px + env(safe-area-inset-bottom,0px))}
-.tabbar .wrap{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.tabbar .wrap{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.rd-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 8px}
+.rd-stats div{background:var(--panel2);border:2px solid var(--line);border-radius:12px;padding:6px 4px;text-align:center}
+.rd-stats b{display:block;font-size:22px;line-height:1.2}.rd-stats span{font-size:12px;color:var(--dim)}
+.rd-now{display:grid;gap:12px}@media (min-width:700px){.rd-now{grid-template-columns:1fr 1fr}}
+.rd-book{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 4px 0 var(--line)}
+.rd-book.main{border-color:var(--accent);box-shadow:0 4px 0 var(--accent)}
+.rd-book .rd-t b{font-size:19px}
+.rd-list{display:flex;flex-direction:column;margin-top:6px}
+.rd-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}.rd-row:first-child{border-top:0}
+.rd-t{flex:1;min-width:0;cursor:pointer}.rd-t b{display:block;font-weight:700}.rd-t span{display:block;font-size:13px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rd-mv{display:flex;flex-direction:column;gap:3px;flex:none}.rd-mv button{border:1.5px solid var(--line);background:var(--panel2);color:var(--dim);border-radius:8px;font-size:10px;line-height:1;width:30px;height:22px;padding:0}.rd-mv button:disabled{opacity:.3}
+.rd-lang{display:inline-block;font-size:11px;font-weight:700;border:1.5px solid var(--line2);border-radius:999px;padding:0 7px;color:var(--dim);margin-left:6px;vertical-align:2px}
+.rd-days{display:flex;gap:4px;margin-bottom:8px}.rd-days i{flex:1;height:8px;border-radius:4px;background:var(--line)}.rd-days i.on{background:var(--early)}
+.rdsheet input[type=text]{width:100%}
+.rd-bar{height:8px;border-radius:4px;background:var(--panel2);border:1px solid var(--line);overflow:hidden}.rd-bar i{display:block;height:100%;background:var(--early)}
 .tabbar a{display:flex;flex-direction:column;align-items:center;gap:1px;text-decoration:none;color:var(--dim);font-size:12px;font-weight:700;padding:4px 0;border-radius:12px}
 .tabbar a svg{width:24px;height:24px}
 .tabbar a[aria-current="page"]{color:var(--accent);background:var(--accent-soft)}
@@ -678,6 +693,8 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
     <div class="shop" id="shopStory"></div>
   </section>
 
+  <section class="screen" id="v-read" hidden></section>
+
   <section class="screen" id="v-bag" hidden>
     <div class="card"><div class="row between"><h2>背包</h2><span class="dim small" id="bagSum"></span></div><div class="shop" id="bagItems" style="margin-top:12px"></div></div>
     <div class="card"><div class="row between"><h2>剧情档案</h2><span class="dim small" id="arcSum"></span></div><div class="list" id="storyArchive" style="margin-top:12px"></div></div>
@@ -711,6 +728,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
   <a href="#map" data-v="map"><svg><use href="#i-map"/></svg>地图</a>
   <a href="#cal" data-v="cal"><svg><use href="#i-cal"/></svg>日历</a>
   <a href="#dungeon" data-v="dungeon"><svg><use href="#i-sword"/></svg>副本</a>
+  <a href="#read" data-v="read"><svg><use href="#i-book"/></svg>读书</a>
   <a href="#shop" data-v="shop"><svg><use href="#i-coin"/></svg>商店</a>
   <a href="#bag" data-v="bag"><svg><use href="#i-bag"/></svg>背包</a>
 </div></nav>
@@ -2572,11 +2590,108 @@ function sleepUsed(){const s=S.sleep;if(!s)return;const now=Date.now();if(now>=s
 document.addEventListener("visibilitychange",()=>{if(!FOCUS)return;if(document.visibilityState==="hidden"){clearTimeout(FOCUS_HIDE);FOCUS_HIDE=setTimeout(()=>{if(document.visibilityState==="hidden")focusFail("切走了网页")},FOCUS_AWAY)}else clearTimeout(FOCUS_HIDE)});
 window.addEventListener("pagehide",()=>{if(FOCUS){S.focusLive={start:FOCUS.start,min:FOCUS.min};save()}});
 
+/* ============ 读书 ============ */
+const RD_PH=["2026 秋","寒假（26–27）","2027 春","2027 暑假","2027 秋","寒假（27–28）","2028 春","2028 暑假","以后再说"];
+const RD_LANG=["中文","英文","古文"];
+const RD_CAP=25,RD_MAIN=80,RD_FRAG=40,RD_WEEK7=20;
+const RD_UNITS={"章":5,"篇":5,"回":5,"节":5,"%":1,"页":0.25};
+const rdRate=b=>RD_UNITS[b.unit]||5;
+const rdFmt=(b,n)=>b.unit==="%"?n+"%":n+" "+(b.unit||"章");
+function rdProg(b){const r=b.read||0;if(b.unit==="%")return"读到 "+r+"%";if(b.total)return"第 "+r+" / "+b.total+" "+b.unit;return r?"已读 "+r+" "+(b.unit||"章"):""}
+function rdPct(b){const t=b.unit==="%"?100:b.total;return t?Math.min(100,Math.round((b.read||0)/t*100)):null}
+function rdSeed(){const L=[
+ [0,"明朝那些事儿","当年明月","中文","","main"],[0,"解忧杂货店","东野圭吾","中文","","frag"],[0,"福尔摩斯探案集 · 冒险史","柯南·道尔","中文","解忧读完接上，当碎片书"],
+ [1,"基督山伯爵","大仲马","中文","周克希或蒋学模译"],[1,"Animal Farm","George Orwell","英文","以前读过，忘了"],
+ [2,"三体（第一部）","刘慈欣","中文","开头慢，读到三体游戏就好了"],[2,"Piranesi","Susanna Clarke","英文",""],[2,"我的阿勒泰","李娟","中文","碎片书"],[2,"长安的荔枝","马伯庸","中文","碎片书"],
+ [3,"指环王","托尔金","中文","和《飘》二选一"],[3,"1984","George Orwell","英文",""],[3,"世说新语","","古文","白话对照"],[3,"东京梦华录","孟元老","古文","挑夜市、节日、美食的章节"],
+ [4,"活着","余华","中文",""],[4,"傲慢与偏见","简·奥斯汀","中文",""],[4,"Foundation","Isaac Asimov","英文","银河帝国 · 基地第一部"],[4,"人间草木","汪曾祺","中文","碎片书"],
+ [5,"三体（第二、三部）","刘慈欣","中文","喜欢第一部的话"],[5,"大师与玛格丽特","布尔加科夫","中文","不读三体续集就读这本"],
+ [6,"月亮与六便士","毛姆","中文",""],[6,"边城","沈从文","中文",""],[6,"棋王","阿城","中文",""],[6,"Klara and the Sun","Kazuo Ishiguro","英文",""],[6,"史记（选读）","司马迁","古文","白话对照"],
+ [7,"飘","玛格丽特·米切尔","中文","和《指环王》二选一，读剩下那本"],[7,"看不见的城市","卡尔维诺","中文",""],[7,"虚构集","博尔赫斯","中文",""],[7,"古文观止（选篇）","","古文",""],
+ [8,"The Hobbit","J.R.R. Tolkien","英文","英文线备选"],[8,"挽救计划","安迪·威尔","中文","电影看过"],[8,"The Martian","Andy Weir","英文","电影看过"]];
+ return L.map((x,i)=>({id:"b"+i.toString(36)+uid().slice(0,3),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:x[5]?"reading":"queue",slot:x[5]||"",at:Date.now(),start:x[5]==="main"?at(2026,11,13,1,40):null}))}
+function RD(){let r=S.reading;if(!r||!Array.isArray(r.books)){r=S.reading={books:rdSeed(),log:[],mt:Date.now()};save()}if(!Array.isArray(r.log))r.log=[];
+  if(!r.v2){const pre={"明朝那些事儿":["章",0],"解忧杂货店":["章",5],"福尔摩斯探案集 · 冒险史":["篇",12]};for(const b of r.books){if(!b.unit){const p=pre[b.t]||["章",0];b.unit=p[0];if(p[1])b.total=p[1]}if(typeof b.read!=="number")b.read=0}r.v2=1;r.mt=Date.now();save()}
+  if(!r.v3){const m=r.books.find(b=>b.t==="明朝那些事儿");if(m&&m.unit==="%"){m.unit="章";delete m.total;m.read=0}r.v3=1;r.mt=Date.now();save()}
+  if(!r.v4){const i=r.books.findIndex(b=>b.t==="明朝那些事儿");if(i>=0){const m=r.books[i];const N="一二三四五六七八九";m.t="明朝那些事儿 · 第一部";m.ser="明朝";m.no=1;const add=[];
+    for(let k=2;k<=9;k++)add.push({id:"b"+uid(),ph:m.ph,t:"明朝那些事儿 · 第"+N[k-1]+"部",by:m.by,lang:"中文",note:"",st:"queue",slot:"",unit:"章",read:0,ser:"明朝",no:k,at:Date.now()});r.books.splice(i+1,0,...add)}r.v4=1;r.mt=Date.now();save()}
+  if(!r.v5){const A=[[1,"呼兰河传","萧红","中文","文笔推荐","章",7],[2,"倾城之恋","张爱玲","中文","碎片书 · 文笔推荐","章",0],[3,"额尔古纳河右岸","迟子建","中文","文笔推荐","章",0],[4,"台北人","白先勇","中文","碎片书 · 文笔推荐","篇",14],[5,"The Great Gatsby","F. Scott Fitzgerald","英文","文笔推荐","章",9],[6,"情人","杜拉斯","中文","王道乾译","页",0],[7,"雪国","川端康成","中文","节奏慢，放假读","章",0]];
+    for(const x of A)if(!r.books.some(b=>b.t===x[1])){const b={id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:"queue",slot:"",unit:x[5],read:0,at:Date.now()};if(x[6])b.total=x[6];r.books.push(b)}r.v5=1;r.mt=Date.now();save()}
+  if(!r.v6){const A=[[1,"嫌疑人 X 的献身","东野圭吾","中文","东野入门首选，一口气读完","章",0],[2,"恶意","东野圭吾","中文","短，结构很妙","章",0],[3,"白夜行","东野圭吾","中文","代表作，长且压抑","章",13],[4,"新参者","东野圭吾","中文","碎片书 · 一章一个小故事","章",9]];
+    for(const x of A)if(!r.books.some(b=>b.t===x[1])){const b={id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:"queue",slot:"",unit:x[5],read:0,at:Date.now()};if(x[6])b.total=x[6];r.books.push(b)}r.v6=1;r.mt=Date.now();save()}return r}
+function rdSave(){RD().mt=Date.now();save();renderAll()}
+function rdToday(){const d=dayKey();return RD().log.filter(x=>x.day===d)}
+function rdStreak(){const set=new Set(RD().log.map(x=>x.day));let k=dayKey();if(!set.has(k))k=addDays(k,-1);let n=0;while(set.has(k)){n++;k=addDays(k,-1)}return n}
+function rdWeekDays(){const wk=weekKey();return new Set(RD().log.filter(x=>x.day>=wk).map(x=>x.day)).size}
+function rdLog(b,n){n=Math.round(n*10)/10;if(!(n>0))return;const r=RD();const first=!rdToday().length;const got=rdToday().reduce((s,x)=>s+(x.pts||0),0);const full=Math.round(n*rdRate(b));
+  const pts=Math.max(0,full);const e={day:dayKey(),n,unit:b.unit,id:b.id,pts,bn:0,at:Date.now()};r.log.push(e);if(r.log.length>800)r.log=r.log.slice(-800);
+  b.read=Math.round(((b.read||0)+n)*10)/10;if(b.unit==="%")b.read=Math.min(100,b.read);if(!b.start)b.start=Date.now();
+  const lines=["《"+b.t+"》+"+rdFmt(b,n)+(rdProg(b)?" · "+rdProg(b):"")];
+  if(first){const k=rdStreak();lines.push("连续读书 "+k+" 天");if(k>0&&k%7===0){e.bn=RD_WEEK7;lines.push("连读 7 天 +"+RD_WEEK7)}}
+  const tot=pts+e.bn;const before=levelOf(S.xp).L;const lab="读书 · 《"+b.t+"》+"+rdFmt(b,n);if(tot>0)earn(tot,lab);else S.ledger.push({at:Date.now(),d:0,t:lab});
+  const T=b.unit==="%"?100:b.total;const end=!!T&&b.read>=T;rdSave();if(end)AFTER.push(()=>rdFinishAsk(b));
+  if(tot>0)showReward(tot,"读书",lines,levelOf(S.xp).L>before?levelOf(S.xp).L:0);else{toast("记上了 · +"+rdFmt(b,n));if(end)runAfter()}}
+function rdSetTo(b,v){v=Math.max(0,Math.round(v*10)/10);if(b.unit==="%")v=Math.min(100,v);const d=v-(b.read||0);if(d>0){rdLog(b,d);return}b.read=v;rdSave();toast("改好了")}
+function rdFinishAsk(b){if(b.st==="done")return;sheet(null,h("h2",null,"《"+b.t+"》读完了？"),h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>rdFinish(b)},"读完了 +"+(b.slot==="main"?RD_MAIN:RD_FRAG)),h("button",{class:"btn flat",onclick:closeSheet},"还没有")))}
+function rdUndo(){const r=RD();const d=dayKey();let i=-1;for(let k=r.log.length-1;k>=0;k--)if(r.log[k].day===d){i=k;break}if(i<0)return;const x=r.log.splice(i,1)[0];const v=(x.pts||0)+(x.bn||0);
+  const b=r.books.find(y=>y.id===x.id);if(b&&x.n)b.read=Math.max(0,Math.round(((b.read||0)-x.n)*10)/10);
+  if(v>0){earn(-v,"撤销 · 读书");S.xp=Math.max(0,S.xp-Math.round(v*XP_PER))}rdSave();toast("撤销了")}
+function rdSetSlot(b,slot){for(const x of RD().books)if(x!==b&&x.st==="reading"&&x.slot===slot){x.st="queue";x.slot=""}b.st="reading";b.slot=slot;if(slot==="main"&&!b.start)b.start=Date.now();rdSave()}
+function rdFinish(b){if(b.st==="done")return;const was=b.slot;const pts=was==="main"?RD_MAIN:RD_FRAG;const pay=!b.paid;b.st="done";b.done=Date.now();b.slot="";closeSheet();
+  if(b.ser&&was){const nx=RD().books.find(x=>x.ser===b.ser&&x.no===b.no+1&&x.st==="queue");if(nx){for(const x of RD().books)if(x!==nx&&x.st==="reading"&&x.slot===was){x.st="queue";x.slot=""}nx.st="reading";nx.slot=was;if(!nx.start)nx.start=Date.now();setTimeout(()=>toast("接上《"+nx.t+"》"),2200)}}
+  if(!pay){rdSave();return}b.paid=pts;const before=levelOf(S.xp).L;earn(pts,"读完《"+b.t+"》");rdSave();try{fxBanner("读完了","《"+b.t+"》","#2fa865")}catch(e){}
+  showReward(pts,"读完《"+b.t+"》",[was==="main"?"主书 +"+RD_MAIN:"+"+RD_FRAG],levelOf(S.xp).L>before?levelOf(S.xp).L:0)}
+function rdMove(b,dir){const L=RD().books;const same=L.filter(x=>x.ph===b.ph&&x.st==="queue");const i=same.indexOf(b),j=i+dir;
+  if(j>=0&&j<same.length){const a=L.indexOf(b),c=L.indexOf(same[j]);[L[a],L[c]]=[L[c],L[a]]}
+  else{const np=b.ph+dir;if(np<0||np>=RD_PH.length)return;L.splice(L.indexOf(b),1);b.ph=np;if(dir<0)L.push(b);else{const f=L.findIndex(x=>x.ph===np&&x.st==="queue");L.splice(f<0?L.length:f,0,b)}toast("挪到「"+RD_PH[np]+"」")}
+  rdSave()}
+function rdEdit(b){const isNew=!b;b=b||{ph:0,t:"",by:"",lang:"中文",note:"",st:"queue",slot:""};
+  const t=h("input",{type:"text",value:b.t,placeholder:"书名"}),by=h("input",{type:"text",value:b.by||"",placeholder:"作者（可不填）"});
+  const ph=h("select",null,RD_PH.map((p,i)=>{const o=h("option",{value:i},p);if(i===b.ph)o.selected=true;return o}));
+  const lg=h("select",null,RD_LANG.map(l=>{const o=h("option",{value:l},l);if(l===b.lang)o.selected=true;return o}));
+  const nt=h("input",{type:"text",value:b.note||"",placeholder:"备注（译本、为什么想读）"});
+  const un=h("select",null,Object.keys(RD_UNITS).map(u=>{const o=h("option",{value:u},u==="%"?"按百分比":"按"+u);if(u===(b.unit||"章"))o.selected=true;return o}));
+  const tot=h("input",{type:"number",min:"0",value:b.total||"",placeholder:"一共多少（可不填，百分比不用填）",style:{width:"100%"}});const rdn=h("input",{type:"number",min:"0",value:b.read||"",placeholder:"已经读了多少",style:{width:"100%"}});
+  const saveIt=()=>{const name=t.value.trim();if(!name){toast("书名没填");return}Object.assign(b,{t:name.slice(0,40),by:by.value.trim().slice(0,30),ph:+ph.value,lang:lg.value,note:nt.value.trim().slice(0,80),unit:un.value,total:Math.max(0,+tot.value||0),read:Math.max(0,+rdn.value||0)});
+    if(isNew){b.id="b"+uid();b.at=Date.now();RD().books.push(b)}rdSave();closeSheet()};
+  let arm=false;const del=h("button",{class:"btn sm flat",onclick:e=>{if(!arm){arm=true;e.currentTarget.textContent="再点一下删除";return}RD().books=RD().books.filter(x=>x!==b);rdSave();closeSheet()}},"删除");
+  const rd=b.st==="reading";const acts=isNew?null:h("div",{class:"row"},
+    !(rd&&b.slot==="main")?h("button",{class:"btn sm",onclick:()=>{rdSetSlot(b,"main");closeSheet()}},"设为主书"):null,
+    !(rd&&b.slot==="frag")?h("button",{class:"btn sm",onclick:()=>{rdSetSlot(b,"frag");closeSheet()}},"设为碎片书"):null,
+    rd?h("button",{class:"btn sm",onclick:()=>{b.st="queue";b.slot="";rdSave();closeSheet()}},"放回清单"):null,
+    b.st!=="done"?h("button",{class:"btn sm ok",onclick:()=>rdFinish(b)},"读完了"+(b.paid?"":" +"+(b.slot==="main"?RD_MAIN:RD_FRAG))):h("button",{class:"btn sm",onclick:()=>{b.st="queue";rdSave();closeSheet()}},"改回没读完"),
+    b.st!=="drop"&&b.st!=="done"?h("button",{class:"btn sm flat",onclick:()=>{b.st="drop";b.slot="";rdSave();closeSheet()}},"不读了"):b.st==="drop"?h("button",{class:"btn sm flat",onclick:()=>{b.st="queue";rdSave();closeSheet()}},"放回清单"):null,del);
+  const sh=sheet(null,h("h2",null,isNew?"加一本书":"《"+b.t+"》"),t,by,h("div",{class:"row"},ph,lg,un),nt,tot,isNew?null:rdn,h("button",{class:"btn go",onclick:saveIt},"保存"),acts);sh.classList.add("rdsheet");if(isNew)setTimeout(()=>t.focus(),50)}
+function renderRead(){const box=$("#v-read");if(!box)return;const B=RD().books;const today=rdToday();const tMin=today.reduce((s,x)=>s+x.min,0),tPts=today.reduce((s,x)=>s+(x.pts||0),0);
+  const days=new Set(RD().log.map(x=>x.day));const last14=Array.from({length:14},(_,i)=>addDays(dayKey(),i-13));
+  const head=h("div",{class:"card"},h("div",{class:"row between"},h("h2",null,"读书"),h("button",{class:"btn sm go",onclick:()=>rdEdit(null)},"＋ 加书")),
+    h("div",{class:"rd-stats"},h("div",null,h("b",{class:"num"},String(rdStreak())),h("span",null,"连续天数")),h("div",null,h("b",{class:"num"},rdWeekDays()+"/7"),h("span",null,"本周读了")),
+      h("div",null,h("b",{class:"num"},String(tPts)),h("span",null,"今天积分")),h("div",null,h("b",{class:"num"},String(B.filter(b=>b.st==="done").length)),h("span",null,"读完"))),
+    h("div",{class:"rd-days",title:"最近 14 天"},last14.map(k=>h("i",{class:days.has(k)?"on":""}))),
+    h("div",{class:"dim small"},"每章 / 篇 +5，百分比每 1% +1，页数每 20 页 +5 · 连读 7 天 +"+RD_WEEK7+" · 读完主书 +"+RD_MAIN+"，其他 +"+RD_FRAG),
+    today.length?h("button",{class:"btn sm flat",style:{marginTop:"8px"},onclick:rdUndo},"撤销刚才那次"):null);
+  const cur=["main","frag"].map(sl=>B.find(b=>b.st==="reading"&&b.slot===sl)).filter(Boolean);
+  const quick=b=>b.unit==="%"?[5,10]:b.unit==="页"?[10,30]:[1,2];
+  const card=b=>{const inp=h("input",{type:"number",min:"0",placeholder:b.unit==="%"?"读到 %":"读到第几"+(b.unit||"章"),style:{width:"120px"}});const pc=rdPct(b);
+    return h("div",{class:"rd-book"+(b.slot==="main"?" main":"")},
+    h("div",{class:"row between",style:{flexWrap:"nowrap"}},h("div",{class:"rd-t",onclick:()=>rdEdit(b)},h("div",{class:"eyebrow"},b.slot==="main"?"主书":"碎片书"),h("b",null,"《"+b.t+"》"),h("span",null,[b.by,rdProg(b)].filter(Boolean).join(" · ")||" ")),h("button",{class:"btn sm flat",onclick:()=>rdEdit(b)},"编辑")),
+    pc!=null?h("div",{class:"rd-bar"},h("i",{style:{width:pc+"%"}})):null,
+    h("div",{class:"row"},quick(b).map((n,i)=>h("button",{class:"btn sm"+(i===0?" go":""),onclick:()=>rdLog(b,n)},"+"+rdFmt(b,n))),inp,h("button",{class:"btn sm",onclick:()=>{if(inp.value===""||!(+inp.value>=0)){toast("填一个数");return}rdSetTo(b,+inp.value)}},"记上")))};
+  const phases=RD_PH.map((p,i)=>{const L=B.filter(b=>b.ph===i&&b.st==="queue");if(!L.length)return null;
+    return h("div",{class:"card"},h("div",{class:"row between"},h("h3",null,p),h("span",{class:"dim small"},L.length+" 本")),
+      h("div",{class:"rd-list"},L.map((b,k)=>h("div",{class:"rd-row"},
+        h("div",{class:"rd-mv"},h("button",{"aria-label":"往前",disabled:i===0&&k===0,onclick:()=>rdMove(b,-1)},"▲"),h("button",{"aria-label":"往后",disabled:i===RD_PH.length-1&&k===L.length-1,onclick:()=>rdMove(b,1)},"▼")),
+        h("div",{class:"rd-t",onclick:()=>rdEdit(b)},h("b",null,"《"+b.t+"》",b.lang&&b.lang!=="中文"?h("span",{class:"rd-lang"},b.lang):null),b.by||b.note?h("span",null,[b.by,b.note].filter(Boolean).join(" · ")):null)))))});
+  const done=B.filter(b=>b.st==="done").sort((a,b)=>(b.done||0)-(a.done||0)),drop=B.filter(b=>b.st==="drop");const md=t=>{const d=new Date(t);return(d.getMonth()+1)+"/"+d.getDate()};
+  const fin=done.length||drop.length?h("details",{class:"card"},h("summary",{style:{fontWeight:700,cursor:"pointer"}},"读完 "+done.length+" 本"+(drop.length?" · 没读下去 "+drop.length+" 本":"")),
+    h("div",{class:"rd-list",style:{marginTop:"8px"}},[...done,...drop].map(b=>h("div",{class:"rd-row"},h("div",{class:"rd-t",onclick:()=>rdEdit(b)},h("b",null,"《"+b.t+"》"),h("span",null,b.st==="done"?(b.done?md(b.done)+" 读完":"读完"):"没读下去")))))):null;
+  box.replaceChildren(head,cur.length?h("div",{class:"rd-now"},cur.map(card)):h("div",{class:"card dim"},"现在没有在读的书"),...phases.filter(Boolean),fin)}
+
 /* ============ HUD / routing ============ */
 function renderHud(){renderGuideFab();{const b=$("#hSleep");if(b){b.textContent=sleepAwake()?"起床":S.sleep?"已晚安":"晚安";b.classList.toggle("go",sleepAwake());const a=sleepAvg();b.title=(S.sleep?"已经点过晚安，点错了就连点两下撤销":"准备睡了就点：记下几点睡，00:30 前有奖励")+(a!=null?"。最近 7 晚平均 "+fmtBed(a)+" 睡":"")}}const lv=levelOf(S.xp);$("#hLv").textContent=lv.L;$("#hTitle").textContent=lv.title;$("#hXp").textContent=(S.xp-lv.lo)+" / "+(lv.hi-lv.lo)+" XP";
   $("#hXpBar").style.width=Math.round((S.xp-lv.lo)/(lv.hi-lv.lo)*100)+"%";$("#hPts").textContent=fp(S.points);$("#hStreakN").textContent=streak()+(checkedToday()?"":" · 未签");
   $("#hStreak").title=checkedToday()?"今天已签到":"今天还没签到，点开签到日历";$("#hCards").textContent=S.cards.makeup}
-const VIEWS=["now","map","cal","dungeon","shop","bag"];
+const VIEWS=["now","map","cal","dungeon","read","shop","bag"];
 function curView(){const v=(location.hash||"#now").slice(1);return VIEWS.includes(v)?v:"now"}
 let NI=0;
 function renderNow(){const steps=nextSteps();if(NI>=steps.length)NI=0;const st=steps[NI];const tint=st.subj?worldOf(st.subj).tint:"#2fa865";
@@ -2588,7 +2703,7 @@ function renderNow(){const steps=nextSteps();if(NI>=steps.length)NI=0;const st=s
     h("div",{class:"todaybar",title:"今天完成"},Array.from({length:Math.max(5,doneToday)},(_,i)=>h("i",{class:i<doneToday?"on":""}))))}
 function route(){const v=curView();document.body.classList.toggle("dg-on",v==="dungeon");measureBars();for(const x of VIEWS)$("#v-"+x).hidden=x!==v;document.querySelectorAll(".tabbar a").forEach(a=>a.setAttribute("aria-current",a.dataset.v===v?"page":"false"));renderHud();renderView(v);
   if(v==="map")setTimeout(scrollToCur,40);else window.scrollTo(0,0)}
-function renderView(v){if(v==="now")renderNow();else if(v==="map")renderMap();else if(v==="cal")renderCal();else if(v==="dungeon")renderDungeon();else if(v==="shop")renderShop();else renderBag()}
+function renderView(v){if(v==="now")renderNow();else if(v==="map")renderMap();else if(v==="cal")renderCal();else if(v==="dungeon")renderDungeon();else if(v==="shop")renderShop();else if(v==="read")renderRead();else renderBag()}
 function renderAll(){if(EMBED==="zero")setTimeout(pendingPdfs,3000);renderHud();renderView(curView());if(EMBED==="todo")renderTodoEmbed();if(EMBED==="zero")deskBadge()}
 function softRefresh(){renderHud();const v=curView();if(v==="map"||v==="cal")renderView(v)}
 
@@ -2686,7 +2801,7 @@ let resizeT;window.addEventListener("resize",()=>{clearTimeout(resizeT);resizeT=
 /* ============ boot ============ */
 /* ============ 云端存档同步（测试版）：进度存到 共享记忆 的 study_state，网站和这里共用一份 ============ */
 const CLOUD={ver:{},timer:{},pending:{},busy:{},conflict:null,state:"",at:0};const CHAT_AT={};
-function cloudOn(){return !!MCP&&S.sharedMem!==false}
+function cloudOn(){return !window.__SITE&&!!MCP&&S.sharedMem!==false}
 function cloudParse(p){if(p==null)return null;if(typeof p==="string"){try{return JSON.parse(p)}catch(e){return null}}if(p&&Array.isArray(p.content)&&p.content[0]&&typeof p.content[0].text==="string"){try{return JSON.parse(p.content[0].text)}catch(e){return null}}return p}
 async function cloudGet(key){const r=await MCP.callTool(SM,"study_state_get",{key},{cache:false});const o=cloudParse(r.payload);if(!o||typeof o.version!=="number")throw{code:"bad_reply"};return o}
 async function cloudPut(key,value,force){const r=await MCP.callTool(SM,"study_state_put",{key,value,base_version:CLOUD.ver[key]||0,force:!!force,source:"artifact"},{cache:false});const o=cloudParse(r.payload);
@@ -2953,8 +3068,8 @@ ${text?"开头的内容：\n"+text.slice(0,1800):"（读不出文字，只能看
 
 
 /* ============ 当前任务：从待办点 ▶ 开始，零进入“正在做”状态 ============ */
-// S.cur = {key, kind:"occ"|"cv"|"todo", subj, title, start, spent}
-function curItem(){const c=S.cur;if(!c)return null;if(c.kind==="occ")return occurrences().find(o=>o.key===c.key)||null;if(c.kind==="cv")return SIDE.find(q=>"cv-"+q.id===c.key)||null;return(S.todos||[]).find(t=>t.id===c.key)||null}
+// S.cur = {key, kind:"occ"|"cv"|"todo"|"boss", subj, title, start, spent}
+function curItem(){const c=S.cur;if(!c)return null;if(c.kind==="occ")return occurrences().find(o=>o.key===c.key)||null;if(c.kind==="cv")return SIDE.find(q=>"cv-"+q.id===c.key)||null;if(c.kind==="boss")return BOSSES()[c.key.split(":")[1]]||null;return(S.todos||[]).find(t=>t.id===c.key)||null}
 function curMinutes(){const c=S.cur;if(!c)return 0;return Math.round(((c.spent||0)+(c.start?Date.now()-c.start:0))/MIN)}
 function zwSay(text){ZW.turns.push({role:"assistant",content:text,at:Date.now()});zwSave();zwRender()}
 /* 收纳提示后面的「撤销」：文件搬回下载文件夹，资料架里这次加的也拿掉；以后不再自动收它 */
@@ -2984,6 +3099,7 @@ async function finishTask(){const c=S.cur;if(!c)return;const min=curMinutes();co
   if(c.kind==="occ"&&it&&!S.done[it.key]){const before=S.points;completeTask(it);pts="，+"+fp(S.points-before)}
   else if(c.kind==="cv"&&it&&!S.done[c.key]){const p=award(SIDE_PTS,it.due,0,"支线 · "+it.title);S.done[c.key]={at:Date.now(),pts:p};pts="，+"+p}
   else if(c.kind==="todo"&&it&&!it.done)toggleTodo(it);
+  else if(c.kind==="boss"&&it&&!S.done[c.key]){const before=S.points;finishBoss(c.key.split(":")[1]);pts="，+"+fp(S.points-before)}
   zwSay("「"+c.title+"」做完了，用时 "+min+" 分钟"+pdf+pts+"。");save();renderAll();
   if(real.length&&(!DESK||EMBED==="zero")){const go=await zwChoose("要把这次收的 "+real.length+" 道题整理成一份 PDF 吗？",[{t:"整理",v:1,go:true},{t:"不用",v:0}]);
     if(go){const a={id:"h"+uid(),subj:c.subj,title:c.title.replace(/^(数学|化学|机械|英文)\s*/,""),items:real.slice(),at:Date.now()};S.hwArchive=S.hwArchive||[];S.hwArchive.push(a);dropDraft(c.subj,c.key);save();await hwExport(a)}
@@ -3151,6 +3267,8 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
   const dueOf=o=>o.soft<now&&o.hard>now?o.hard:o.soft;
   const items=[...occurrences().filter(o=>!S.skipped[o.key]&&(!S.done[o.key]||recent(o.key))&&dueOf(o)<now+5*DAY).map(o=>{const t=SUBJ[o.subj].name+" "+o.title;return{t,due:dueOf(o),done:!!S.done[o.key],go:()=>S.done[o.key]?undoDone(o.key,t):completeTask(o),start:()=>beginTask("occ",o.key,o.subj,t),key:o.key,setDue:v=>setDueFix(o.key,v),due0:dueOf(o)}}),
     ...SIDE.filter(q=>q.due<now+5*DAY&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>{const k="cv-"+q.id;return{t:q.title,due:q.due,done:!!S.done[k],go:()=>{if(S.done[k]){undoDone(k,q.title);return}const pts=award(SIDE_PTS,q.due,0,"支线 · "+q.title);S.done[k]={at:Date.now(),pts,sh:LAST_SH};save();renderAll()},start:()=>beginTask("cv",k,q.subj,q.title),key:k,setDue:v=>setDueFix(k,v)}}),
+    /* 要交的 Boss（论文等）也进待办；Canvas 那条被去重滤掉了，不加就两边都没有 */
+    ...Object.entries(BOSSES()).filter(([id,b])=>b.submit&&b.due&&b.due>now-DAY&&b.due<now+5*DAY&&(!S.done["boss:"+id+":final"]||recent("boss:"+id+":final"))).map(([id,b])=>{const k="boss:"+id+":final",t=SUBJ[b.subj].name+" "+b.title;return{t,due:b.due,done:!!S.done[k],go:()=>S.done[k]?undoDone(k,t):finishBoss(id),start:()=>beginTask("boss",k,b.subj,t),key:k}}),
     ...(S.todos||[]).filter(t=>!t.done||now-t.done<12*HOUR).map(t=>({t:t.t,due:t.due||now+30*DAY,nodue:!t.due,done:!!t.done,go:()=>toggleTodo(t),del:()=>removeTodo(t),start:()=>beginTask("todo",t.id,t.subj,t.t),key:t.id,setDue:v=>setTodoDue(t,v)}))].sort((a,b)=>(a.done-b.done)||(a.due-b.due));
   for(const it of items)rows.push(line(it.t,it.nodue?"":wk(it.due),it.due-now<24*HOUR,it.done,it.go,it.del,it.start,S.cur&&S.cur.key===it.key,it.setDue));
   if(sleepAwake())rows.push(line("起床","",true,false,wakeUp));
@@ -3229,6 +3347,7 @@ function syncMerge(a,b){if(!a)return clone(b);if(!b)return clone(a);const o=clon
   for(const m of o.mistakes||[]){const r=(b.mistakes||[]).find(x=>x.id===m.id);if(r&&r.killed)m.killed=r.killed}
   if((b.sleepMt||0)>(o.sleepMt||0)){o.sleep=b.sleep;o.sleepMt=b.sleepMt}
   if((b.timerMt||0)>(o.timerMt||0)){o.timer=b.timer;o.timerMt=b.timerMt}
+  if(b.reading&&(!o.reading||(b.reading.mt||0)>(o.reading.mt||0)))o.reading=b.reading;
   staleTimer(o);
   o.savedAt=Math.max(o.savedAt||0,b.savedAt||0);return o}
 const sameState=(x,y)=>{try{return JSON.stringify(x)===JSON.stringify(y)}catch(e){return false}};
