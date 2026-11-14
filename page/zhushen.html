@@ -629,8 +629,8 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
     </div>
     <div class="res">
       <span class="pill gold" title="积分"><svg class="i"><use href="#i-coin"/></svg><span id="hPts">0</span></span>
-      <button class="pill fire" id="hStreak" title="签到日历"><svg class="i"><use href="#i-flame"/></svg><span id="hStreakN">0</span></button>
-      <span class="pill" title="补签卡"><svg class="i"><use href="#i-ticket"/></svg><span id="hCards">0</span></span>
+      <button class="pill fire" id="hStreak" hidden title="签到日历"><svg class="i"><use href="#i-flame"/></svg><span id="hStreakN">0</span></button>
+      <span class="pill" hidden title="补签卡"><svg class="i"><use href="#i-ticket"/></svg><span id="hCards">0</span></span>
       <button class="themebtn" id="themeBtn" title="切换浅色 / 深色"></button>
       <button class="pill" id="hSleep" hidden title="准备睡了就点：记下几点睡，00:30 前有奖励">晚安</button><a class="pill swpill" id="hSwitch" target="_blank" rel="noopener" hidden></a>
     </div>
@@ -1708,7 +1708,7 @@ function openCheckin(){const today=dayKey();if(!CK_MONTH)CK_MONTH=today.slice(0,
   sheet(null,h("div",{class:"row between"},h("div",null,h("div",{class:"eyebrow"},"每日委托"),h("h2",null,done?(isRestToday()?"今天是休息日":"今天已签到"):"今天还没签到")),
       h("div",{class:"pill fire",style:{fontSize:"20px"}},icon("flame"),n+" 天")),
     h("div",{class:"row between"},h("button",{class:"btn sm flat",onclick:()=>{CK_MONTH=shiftMonth(CK_MONTH,-1);openCheckin()},"aria-label":"上个月"},"‹"),h("b",null,y+" 年 "+m+" 月"),h("button",{class:"btn sm flat",onclick:()=>{CK_MONTH=shiftMonth(CK_MONTH,1);openCheckin()},"aria-label":"下个月"},"›")),
-    grid,mk,
+    grid,S.cards.makeup>0?h("div",{class:"dim small"},"补签卡 "+S.cards.makeup+" 张，点漏签的那天补"):null,mk,
     done?null:(()=>{const a=dailyArgs(sugg);return h("div",{class:"row"},claudeLink(a[0],a[1],a[2],"去 Claude · "+SUBJ[a[0]].name+" · +"+ckReward(streak()+1)))})())}
 function shiftMonth(ym,n){const[y,m]=ym.split("-").map(Number);const d=new Date(y,m-1+n,1);return d.getFullYear()+"-"+pad(d.getMonth()+1)}
 function examInfo(subj){const now=Date.now();return Object.values(BOSSES()).filter(b=>b.subj===subj&&b.exam&&b.due>now).sort((a,b)=>a.due-b.due)[0]||null}
