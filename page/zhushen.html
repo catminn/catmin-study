@@ -2627,6 +2627,7 @@ function rdSeed(){const L=[
  return L.map((x,i)=>({id:"b"+i.toString(36)+uid().slice(0,3),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:x[5]?"reading":"queue",slot:x[5]||"",at:Date.now(),start:x[5]==="main"?at(2026,11,13,1,40):null}))}
 function RD(){let r=S.reading;if(!r||!Array.isArray(r.books)){r=S.reading={books:rdSeed(),log:[],mt:Date.now()};save()}if(!Array.isArray(r.log))r.log=[];
   if(!r.v2){const pre={"明朝那些事儿":["章",0],"解忧杂货店":["章",5],"福尔摩斯探案集 · 冒险史":["篇",12]};for(const b of r.books){if(!b.unit){const p=pre[b.t]||["章",0];b.unit=p[0];if(p[1])b.total=p[1]}if(typeof b.read!=="number")b.read=0}r.v2=1;r.mt=Date.now();save()}
+  if(!r.v5){for(const b of r.books)if(b.unit==="页"&&b.total>0&&b.total<20)delete b.total;r.v5=1;r.mt=Date.now();save()}
   if(!r.v3){const m=r.books.find(b=>b.t==="明朝那些事儿");if(m&&m.unit==="%"){m.unit="章";delete m.total;m.read=0}r.v3=1;r.mt=Date.now();save()}
   if(!r.v4){const i=r.books.findIndex(b=>b.t==="明朝那些事儿");if(i>=0){const m=r.books[i];const N="一二三四五六七八九";m.t="明朝那些事儿 · 第一部";m.ser="明朝";m.no=1;const add=[];
     for(let k=2;k<=9;k++)add.push({id:"b"+uid(),ph:m.ph,t:"明朝那些事儿 · 第"+N[k-1]+"部",by:m.by,lang:"中文",note:"",st:"queue",slot:"",unit:"章",read:0,ser:"明朝",no:k,at:Date.now()});r.books.splice(i+1,0,...add)}r.v4=1;r.mt=Date.now();save()}
@@ -2689,6 +2690,8 @@ function rdEdit(b){const isNew=!b;b=b||{ph:0,t:"",by:"",lang:"中文",note:"",st
   const nt=h("input",{type:"text",value:b.note||"",placeholder:"备注（译本、为什么想读）"});
   const un=h("select",null,Object.keys(RD_UNITS).map(u=>{const o=h("option",{value:u},u==="%"?"按百分比":"按"+u);if(u===(b.unit||"章"))o.selected=true;return o}));
   const tot=h("input",{type:"number",min:"0",value:b.total||"",placeholder:"一共多少（可不填，百分比不用填）",style:{width:"100%"}});const rdn=h("input",{type:"number",min:"0",value:b.read||"",placeholder:"已经读了多少",style:{width:"100%"}});
+  /* 换了单位，旧的总数和进度是按旧单位算的，清空让她重填；换回来再恢复 */
+  const u0=b.unit||"章",t0=tot.value,r0=rdn.value;un.onchange=()=>{const same=un.value===u0;tot.value=same?t0:"";rdn.value=same?r0:"";tot.placeholder=un.value==="%"?"百分比不用填":"一共多少"+un.value+"（可不填）"};
   const saveIt=()=>{const name=t.value.trim();if(!name){toast("书名没填");return}Object.assign(b,{t:name.slice(0,40),by:by.value.trim().slice(0,30),ph:+ph.value,lang:lg.value,note:nt.value.trim().slice(0,80),unit:un.value,total:Math.max(0,+tot.value||0),read:Math.max(0,+rdn.value||0)});
     if(isNew){b.id="b"+uid();b.at=Date.now();RD().books.push(b)}rdSave();closeSheet()};
   let arm=false;const del=h("button",{class:"btn sm flat",onclick:e=>{if(!arm){arm=true;e.currentTarget.textContent="再点一下删除";return}RD().books=RD().books.filter(x=>x!==b);rdSave();closeSheet()}},"删除");
