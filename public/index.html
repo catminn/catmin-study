@@ -1,4 +1,5 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
+</style></head><body>
 <title>学习空间</title>
 <link rel="apple-touch-icon" href="https://study.catmin.io/icon-180.png"><link rel="icon" href="https://study.catmin.io/icon-192.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="apple-mobile-web-app-title" content="小助手"><meta name="theme-color" content="#141a35">
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -593,6 +594,19 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
 :root:not([data-theme="dark"]) .dg .turn .zw-fig{background:#fff;border-color:rgba(27,31,59,.14)}
 :root:not([data-theme="dark"]) .dg .turn .zw-figdl{background:rgba(27,31,59,.06);border-color:rgba(27,31,59,.2);color:#1b1f3b}
 }
+/* 电脑横屏：铺开用两栏 */
+.cols2>.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+@media (min-width:1100px){
+  .wrap{max-width:1320px}
+  .tabbar .wrap{max-width:900px}
+  .cols2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+  .rd-cols{grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr)}
+  .rd-side{position:sticky;top:120px;max-height:calc(100vh - 220px);overflow:auto}
+  #v-bag:not([hidden]){display:block;column-count:2;column-gap:20px}
+  #v-bag>.card{break-inside:avoid;margin:0 0 20px;display:block}
+  #v-map{max-width:1000px;margin-inline:auto}
+  #v-now{max-width:900px;margin-inline:auto}
+}
 </style>
 
 <script>window.MathJax={tex:{inlineMath:[["$","$"],["\\(","\\)"]],displayMath:[["$$","$$"],["\\[","\\]"]]},svg:{fontCache:"global"},startup:{typeset:false,pageReady:()=>MathJax.startup.defaultPageReady().then(()=>{const c=document.getElementById("chat");return c?MathJax.typesetPromise([c]):null}).catch(()=>{})}};</script>
@@ -611,7 +625,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
       <button class="pill fire" id="hStreak" title="签到日历"><svg class="i"><use href="#i-flame"/></svg><span id="hStreakN">0</span></button>
       <span class="pill" title="补签卡"><svg class="i"><use href="#i-ticket"/></svg><span id="hCards">0</span></span>
       <button class="themebtn" id="themeBtn" title="切换浅色 / 深色"></button>
-      <button class="pill" id="hSleep" title="准备睡了就点：记下几点睡，00:30 前有奖励">晚安</button><a class="pill swpill" id="hSwitch" target="_blank" rel="noopener" hidden></a>
+      <button class="pill" id="hSleep" hidden title="准备睡了就点：记下几点睡，00:30 前有奖励">晚安</button><a class="pill swpill" id="hSwitch" target="_blank" rel="noopener" hidden></a>
     </div>
   </div>
 </header>
@@ -625,13 +639,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
     <div class="worldtabs" id="worldTabs"></div>
     <div class="maphead">
       <div><div class="eyebrow" id="mEyebrow">当前世界</div><div class="wname" id="mWorld"></div><div class="dim small" id="mDesc"></div></div>
-      <div class="row"><button class="btn sm flat" id="pubBtn"></button><button class="btn sm" id="toCur">回到当前关卡</button></div>
-    </div>
-    <div class="legend">
-      <span><i style="border-color:var(--tint);background:var(--tint)"></i>主线</span>
-      <span><i style="border-color:var(--early)"></i>作业</span>
-      <span><i style="border-color:var(--late);background:var(--late)"></i>错题怪</span>
-      <span><i style="border-color:var(--late);border-radius:3px"></i>Boss</span>
+      <div class="row"><button class="btn sm flat" id="pubBtn"></button></div>
     </div>
     <div class="map" id="map"></div>
   </section>
@@ -689,8 +697,8 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
 
   <section class="screen" id="v-shop" hidden>
     <div class="card timer" id="timerCard" hidden><div><div class="eyebrow" id="tLabel">游戏时间</div><b id="tLeft">00:00</b></div><button class="btn sm" id="tStop">结束计时</button></div>
-    <div class="row between"><h2>现实奖励</h2><span class="dim small">积分不能透支</span></div>
-    <div class="card" id="spendCard"></div>
+    <div class="cols2"><div class="col"><div class="card" id="spendCard"></div></div><div class="col">
+    <h2>现实奖励</h2>
     <div class="shop" id="shopReal"></div>
     <details class="card"><summary style="font-weight:700;cursor:pointer">添加自己的奖励</summary>
       <div class="row" style="margin-top:10px"><input type="text" id="crName" placeholder="比如：一杯奶茶" style="flex:2 1 160px"><input type="number" id="crPrice" placeholder="美元" min="0.1" step="0.1" style="width:100px"><button class="btn sm" id="crAdd">添加</button></div>
@@ -698,6 +706,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
     <h2>道具</h2>
     <div class="shop" id="shopItems"></div>
     <div class="shop" id="shopStory" hidden></div>
+    </div></div>
   </section>
 
   <section class="screen" id="v-read" hidden></section>
@@ -707,12 +716,12 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
     <div class="card" hidden><div class="row between"><h2>剧情档案</h2><span class="dim small" id="arcSum"></span></div><div class="list" id="storyArchive" style="margin-top:12px"></div></div>
     <div class="card"><h2 style="margin-bottom:10px">成绩档案</h2><div id="scoreList"></div></div>
     <div class="card"><div class="row between" style="margin-bottom:10px"><h2>错题图鉴</h2><button class="btn sm" id="mSyncBtn">同步到共享记忆</button></div><div class="list" id="mistakeList"></div></div>
-    <div class="card"><h2 style="margin-bottom:10px">学习笔记</h2><div class="list" id="progressList"></div></div>
+    <div hidden><div class="list" id="progressList"></div></div>
     <div class="card"><h2 style="margin-bottom:10px">设置</h2>
       <div class="list">
         <div class="li"><div class="t"><b>课程信息</b><div class="dim small" id="syncNote"></div></div><button class="btn sm" id="syncBtn">立即同步</button></div>
         <div class="li"><div class="t"><label for="smToggle"><b>连接共享记忆</b></label><div class="dim small" id="smNote"></div><div class="dim small" id="smInfo"></div></div><button class="btn sm" id="smNowBtn" style="white-space:nowrap">现在同步</button><input type="checkbox" id="smToggle" style="width:22px;height:22px"></div>
-        <div class="li" id="bakRow" hidden><div class="t"><b>存档备份</b><div class="dim small">每天自动留一份，保留 14 天。点错、数据乱了可以退回去</div></div><button class="btn sm" id="bakBtn">看备份</button></div>
+        <div class="li" id="bakRow" hidden><div class="t"><b>存档备份</b></div><button class="btn sm" id="bakBtn">看备份</button></div>
         <div class="li"><div class="t"><b>考试临近时多推这门课</b><div class="dim small" id="biasNote"></div></div><div class="seg" id="biasSeg" style="flex:none"><button data-v="0">少</button><button data-v="1">中</button><button data-v="2">多</button></div></div></div>
     </div>
     <div class="card"><h2 style="margin-bottom:10px">积分流水</h2><div class="log" id="ledger"></div></div>
@@ -1213,7 +1222,7 @@ function playCard(){const on=playing(),b=playedToday(),am=affordMin();
   return h("div",{class:"item playbar",title:tip},h("div",{class:"ic"},icon("game")),h("div",{class:"pb-t"},h("b",null,"玩游戏"),h("span",{class:"dim"},(am>0?"够玩约 "+am+" 分钟"+(b>=1?" · 今天已玩 "+Math.round(b)+" 分钟":""):"积分不够")+" · "+bi.label)),h("button",{class:"btn"+(am>0?" go":""),onclick:startPlay},"开始玩"))}
 const CNY_TIERS=[["6",6],["15",15],["30",30],["60",60],["100",100],["180",180],["300",300],["600",600],["月卡",30],["战令",68],["战令",128]];
 const SHOP_ITEMS=[
-  {id:"makeup",name:"补签卡",price:35,ic:"ticket",desc:"补上漏掉的一天签到"},
+  {id:"makeup",name:"补签卡",price:35,ic:"ticket",desc:""},
 ];
 
 /* ============ state ============ */
@@ -1589,7 +1598,7 @@ function sheet(subj,...kids){closeSheet();const sh=h("div",{class:"sheet"},h("di
 function ladder(due,grace,self){const mf=multFor(due,grace,Date.now(),self);return h("div",{class:"ladder"},["×2.5","×2","×1.5","×1","迟交 ×0.5+"].map((s,i)=>h("div",{class:i===mf.step?"on":""},s)))}
 function rewardBox(base,due,grace,self){const p=preview(base,due,grace,self);
   return h("div",{class:"reward"},h("div",{class:"eyebrow"},"现在完成可得"),h("div",{class:"big"},"+"+p.total+" 积分"),
-    h("div",{class:"calc"},p.mf?R(base)+" 基础 "+p.mf.label+" = "+p.total:R(base)+" 基础"),p.extra.length?h("div",{class:"small"},"另外："+p.extra.join("，")):null,p.mf?ladder(due,grace,self):null)}
+    h("div",{class:"calc"},p.mf?R(base)+" 基础 "+p.mf.label+" = "+p.total:R(base)+" 基础"),p.extra.length?h("div",{class:"small"},"另外："+p.extra.join("，")):null)}
 function doneBox(text){return h("div",{class:"reward"},h("div",{class:"big"},text))}
 function taskPrompt(o){const id=o.r.id,t=o.title;
   if(id==="chem-prelab")return"【Pre-lab】这周要交「"+t+"」。按实验流程来：先请我把这次实验的讲义（manual）拖到转盘「实验」格，再发 pre-lab 题目截图。";
@@ -1612,11 +1621,10 @@ function openTaskSheet(o){const d=S.done[o.key];const early=(o.soft-Date.now())>
     d?doneBox("已完成 +"+d.pts):rewardBox(o.r.base,o.soft,o.r.grace||0,o.self),
     passed?h("div",{class:"row"},h("span",{class:"dim"},"这篇跳过了"),h("button",{class:"btn sm flat",onclick:()=>{delete S.skipped[o.key];save();renderAll();openTaskSheet(o)}},"撤销")):
     !d?h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>completeTask(o)},"完成，领奖励"),
-      h("button",{class:"btn flat",onclick:()=>goDungeon(o.subj,taskPrompt(o))},"去 Claude 问"),
       disc?h("button",{class:"btn flat",onclick:()=>{if(S.cur&&S.cur.key===o.key){S.cur=null}S.skipped[o.key]={at:Date.now(),pass:1};save();closeSheet();renderAll();toast("跳过「"+o.title+"」")}},"跳过这篇"):
       h("button",{class:"btn flat",onclick:()=>skipTask(o)},"这次没有")):null,
     disc?(()=>{const n=discCount();return h("div",{class:"small "+(n>=DISC_NEED?"":"dim")},"这学期已写 "+n+" / "+DISC_NEED+" 篇"+(n>=DISC_NEED?"，写够了，剩下的不再出现":"，还差 "+(DISC_NEED-n)+" 篇，可以自己挑"))})():null,
-    o.r.num?h("div",{class:"row"},h("span",{class:"dim small"},"编号不对？"),(()=>{const inp=h("input",{type:"number",min:"1",value:String(seqNum(o.r.num,o.day)),style:{width:"80px"}});return[inp,h("button",{class:"btn sm flat",onclick:()=>{setNum(o,Math.round(+inp.value));openTaskSheet(occOnDay(o.day).find(x=>x.key===o.key)||o)}},"改")]})()):null)}
+    null)}
 function openNodeSheet(subj,n,idx){const done=nodeIsDone(subj,n);const cur=idx===curIndex(subj);const name=nodeName(subj,n);
   const nameIn=n.edit?h("input",{type:"text",id:"nodeName",value:S.nodeNames[subj+":"+n.id]||"",placeholder:"按这节课的内容改名",style:{flex:"1"}}):null;
   sheet(subj,h("div",{class:"row"},h("span",{class:"kind main"},icon("book"),"主线 · 第 "+(idx+1)+" 关"),done?h("span",{class:"kind side"},"已通关"):cur?h("span",{class:"kind"},"当前关卡"):null),
@@ -1763,7 +1771,7 @@ function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.
   worldTabs($("#worldTabs"),subj,k=>{MAPSUBJ=k;renderMap();setTimeout(scrollToCur,30)});
   const arr=MAIN[subj];const ci=curIndex(subj);const doneN=arr.filter(n=>nodeIsDone(subj,n)).length;const now=Date.now();
   const debtN=arr.filter(n=>n.lec&&n.lec<now&&!nodeIsDone(subj,n)).length;
-  $("#mEyebrow").textContent=SUBJ[subj].full+" · 第 "+worldNo(subj)+" 个世界 · 主线 "+doneN+"/"+arr.length+(debtN?" · 课上已讲、还没学的 "+debtN+" 关":"");$("#mWorld").textContent=w.name;$("#mDesc").textContent=w.desc;
+  $("#mEyebrow").textContent=SUBJ[subj].full+" · "+doneN+"/"+arr.length;$("#mWorld").textContent=w.name;$("#mDesc").textContent="";
   const pub=SIDE.filter(q=>!q.subj&&!S.done["cv-"+q.id]);const pb=$("#pubBtn");pb.textContent="公共支线 "+pub.length;pb.hidden=!CAL_OK;
   const recent=k=>S.done[k]&&now-S.done[k].at<12*HOUR;
   const sides=[...occurrences().filter(o=>o.subj===subj&&!S.skipped[o.key]&&(!S.done[o.key]||recent(o.key))).map(o=>({kind:"task",o})),
@@ -1784,16 +1792,16 @@ function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.
   svg.append(mk("path",{d:full,fill:"none",stroke:"var(--panel)","stroke-width":"2.5","stroke-dasharray":"2 12","stroke-linecap":"round","vector-effect":"non-scaling-stroke"}));
   for(const[x,y,a]of pos){if(a<arr.length)svg.append(mk("line",{x1:xOf(a),y1:y,x2:x,y2:y,stroke:"var(--line2)","stroke-width":"3","stroke-dasharray":"6 6","vector-effect":"non-scaling-stroke"}))}
   map.append(svg);
-  {const fn=arr.find(n=>!n.boss);const fm=cm&&fn?mapWorldAt(subj,cm[fn.id]):null;map.append(h("div",{class:"node",style:{left:xOf(0)+"%",top:"34px"}},h("span",{class:"cap"},"传送点 · "+(fm?(fm.lock?"未知世界":fm.w.name):w.name))))}
+  {const fn=arr.find(n=>!n.boss);const fm=cm&&fn?mapWorldAt(subj,cm[fn.id]):null;void fm}
   arr.forEach((n,i)=>{const isDone=nodeIsDone(subj,n);const cls="node"+(n.boss?" boss":"")+(isDone?" done":i===ci?" cur":i>ci?" locked":"");let cap,sub,rw;
     if(n.boss){const b=BOSSES()[n.boss];cap=b.title;sub=isDone?"已击败":b.due?fmtLeft(b.due-now).replace("还剩 ","剩 "):"时间待定";rw=isDone?null:"+"+PT(BOSS_PTS)}
-    else{cap=nodeName(subj,n);sub=isDone?"已通关":n.due?"目标 "+fmtDue(n.due).replace(/ \d\d:\d\d$/,""):i===ci?"当前关卡":"第 "+(i+1)+" 关";rw=isDone?null:"+"+preview(n.pts||NODE_PTS,n.due||null,0).total}
+    else{cap=nodeName(subj,n);sub=isDone?"已通关":n.due?"目标 "+fmtDue(n.due).replace(/ \d\d:\d\d$/,""):"";rw=isDone?null:"+"+preview(n.pts||NODE_PTS,n.due||null,0).total}
     const debt=!isDone&&n.lec&&n.lec<now;
     map.append(h("button",{class:cls+(debt?" debt":""),style:{left:xOf(i)+"%",top:yOf(i)+"px"},onclick:()=>n.boss?openBossSheet(n.boss):openNodeSheet(subj,n,i),"aria-label":cap},
       h("span",{class:"disc"},icon(n.boss?(isDone?"crown":"skull"):isDone?"star":(i>ci&&!debt)?"lock":"book")),h("span",{class:"cap"},cap,h("span",{class:"sub"},sub)),debt?h("span",{class:"debtflag"},"课上已讲"):null,rw?h("span",{class:"rw"},rw):null));
     if(i===ci)map.append(h("div",{class:"you",id:"youMark",style:{left:xOf(i)+"%",top:(yOf(i)-(n.boss?66:46))+"px"}},"你在这里"))});
-  if(cm)arr.forEach((n,i)=>{if(i>0&&extra[i]>(extra[i-1]||0)){const mw=mapWorldAt(subj,cm[n.id]);if(!mw)return;
-    const b=h("div",{class:"wbanner"+(mw.lock?" lock":""),style:{top:((yOf(i-1)+yOf(i))/2)+"px"}},icon(mw.lock?"lock":"portal"),mw.lock?"未知世界":mw.w.name,h("small",null,mw.lock?"通关前面的关卡后解锁":mw.w.desc));
+  if(cm)arr.forEach((n,i)=>{if(i>0&&extra[i]>(extra[i-1]||0)){const mw=mapWorldAt(subj,cm[n.id]);if(!mw||mw.lock)return;
+    const b=h("div",{class:"wbanner"+(mw.lock?" lock":""),style:{top:((yOf(i-1)+yOf(i))/2)+"px"}},icon(mw.lock?"lock":"portal"),mw.lock?"未知世界":mw.w.name,null);
     if(!mw.lock)b.style.setProperty("--tint",mw.w.tint);map.append(b)}});
   sides.forEach((s,k)=>{const[x,y]=pos[k];let el;
     if(s.kind==="task"){const o=s.o;const d=S.done[o.key];const mf=multFor(o.soft,o.r.grace||0,Date.now(),o.self);
@@ -2463,13 +2471,13 @@ function renderSpend(){const el=$("#spendCard");if(!el)return;const cost=spendCo
     const what=(SPEND.note.trim()||SPEND.cat).slice(0,30);
     S.spend=S.spend||[];S.spend.push({id:uid(),at:Date.now(),cur:SPEND.cur,amt:+(+SPEND.amt).toFixed(2),cat:SPEND.cat,note:SPEND.note.trim().slice(0,30),pts:c});
     earn(-c,"花费 · "+SPEND.cat+(SPEND.note.trim()?" · "+what:"")+" · "+(SPEND.cur==="cny"?"¥":"$")+(+SPEND.amt));SPEND.amt="";SPEND.note="";save();renderAll();toast("已记账，扣 "+fp(c)+" 分")}},"记账扣分");
-  function upd(){const c=spendCost();out.textContent=c?"要扣 "+fp(c)+" 分"+(S.points<c?"，还差 "+fp(c-S.points):"，扣完剩 "+fp(S.points-c)):(SPEND.cur==="cny"?"实付人民币 × 2.5 = 扣的分（¥4 = $1 = 10 分）；福利金减免的部分不算。":"实付美元 × 10 = 扣的分（含税和小费）；外卖只扣 3 成、吃饭 2 成、购物 6 成，奶茶和其他全额。")+(c&&spendW()<1?"（"+SPEND.cat+"按 "+Math.round(spendW()*10)+" 成算）":"")}
+  function upd(){const c=spendCost();out.textContent=c?"要扣 "+fp(c)+" 分"+(S.points<c?"，还差 "+fp(c-S.points):"，扣完剩 "+fp(S.points-c)):""+(c&&spendW()<1?"（"+SPEND.cat+"按 "+Math.round(spendW()*10)+" 成算）":"")}
   const tab=(k,t)=>h("button",{class:"btn sm"+(SPEND.cur===k?" go":" flat"),onclick:()=>{SPEND.cur=k;SPEND.amt="";SPEND.cat=SPEND_CAT[k][0];renderSpend()}},t);
   const cats=h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap",margin:"8px 0 0"}},SPEND_CAT[SPEND.cur].map(c=>h("button",{class:"btn sm"+(SPEND.cat===c?" go":" flat"),onclick:()=>{SPEND.cat=c;renderSpend()}},c)));
   el.replaceChildren(h("div",{class:"row between"},h("h3",{style:{margin:0}},"花钱记账"),h("div",{class:"row"},tab("cny","人民币 · 游戏充值"),tab("usd","美元 · 外卖奶茶购物"))),
     cats,SPEND.cur==="cny"?h("div",{class:"row",style:{flexWrap:"wrap",gap:"6px",margin:"8px 0"}},CNY_TIERS.map(([t,v])=>h("button",{class:"btn sm flat",onclick:()=>{SPEND.amt=String(v);if(!/^\d+$/.test(t))SPEND.note=t+" ¥"+v;renderSpend()}},/^\d+$/.test(t)?"¥"+t:t+" ¥"+v))):h("div",{style:{height:"8px"}}),
     h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap"}},amt,note,go),out,spendBook());upd()}
-function spendBook(){const L=(S.spend||[]).slice().sort((a,b)=>b.at-a.at);if(!L.length)return h("div",{class:"dim small",style:{marginTop:"8px"}},"记过的账会列在这里，按月汇总。");
+function spendBook(){const L=(S.spend||[]).slice().sort((a,b)=>b.at-a.at);if(!L.length)return h("div");
   const mk=t=>{const d=new Date(t);return d.getFullYear()+"-"+pad(d.getMonth()+1)};const months=[...new Set(L.map(x=>mk(x.at)))];const sel=SPEND.month&&months.includes(SPEND.month)?SPEND.month:months[0];
   const rows=L.filter(x=>mk(x.at)===sel);const sum=c=>r1(rows.filter(x=>x.cur===c).reduce((s,x)=>s+x.amt,0)*10)/10;
   const byCat={};for(const x of rows){const k=(x.cur==="cny"?"¥":"$")+" "+x.cat;byCat[k]=r1(((byCat[k]||0)+x.amt)*10)/10}
@@ -2484,7 +2492,7 @@ function renderShop(){renderSpend();$("#shopReal").replaceChildren(playCard(),..
 function renderTimer(){const c=$("#timerCard");if(!S.timer){c.hidden=true;return}c.hidden=false;
   if(S.timer.meter){const {m,cost}=playNow();$("#tLabel").textContent=S.timer.label;c.classList.remove("over");$("#tLeft").textContent=pad(Math.floor(m))+":"+pad(Math.floor(m*60%60))+(S.timer.free?"":" · "+cost+" 分");$("#tStop").textContent="玩完了";return}const left=S.timer.end-Date.now();$("#tLabel").textContent=S.timer.label;c.classList.toggle("over",left<=0);
   if(left<=0){$("#tLeft").textContent="时间到";$("#tStop").textContent="收起"}else{$("#tLeft").textContent=pad(Math.floor(left/MIN))+":"+pad(Math.floor(left%MIN/1e3));$("#tStop").textContent="提前结束"}}
-function renderBag(){renderSyncRow();renderArchive();$("#scoreList").replaceChildren(scoresBlock());$("#bagSum").textContent="积分 "+fp(S.points)+" · 时间碎片 "+S.shards+"/3";
+function renderBag(){renderSyncRow();renderArchive();$("#scoreList").replaceChildren(scoresBlock());$("#bagSum").textContent="";
   const inv=[["makeup","补签卡","ticket",""]];
   $("#bagItems").replaceChildren(...inv.map(([k,n,ic,d])=>h("div",{class:"item"},h("div",{class:"row between"},h("div",{class:"ic"},icon(ic)),h("span",{class:"price"},"×"+S.cards[k])),h("h3",null,n),h("p",null,d))));
   const ml=$("#mistakeList");ml.replaceChildren();const ms=S.mistakes.slice().reverse();if(!ms.length)ml.append(h("div",{class:"dim"},"暂无"));
@@ -2494,9 +2502,9 @@ function renderBag(){renderSyncRow();renderArchive();$("#scoreList").replaceChil
     arr.length?h("ul",{style:{margin:"4px 0 0",paddingLeft:"20px"}},arr.slice().reverse().map(p=>h("li",null,p.t+" ",h("span",{class:"dim small"},p.d)))):h("div",{class:"dim small"},"暂无")))}
   {const bv=S.examBias==null?1:S.examBias;document.querySelectorAll("#biasSeg button").forEach(b=>{b.setAttribute("aria-pressed",String(+b.dataset.v===bv));b.onclick=()=>{S.examBias=+b.dataset.v;save();renderBag()}});
     const ws=["math","chem","engri"].map(k=>({k,w:subjWeight(k),b:examInfo(k)}));const tot=ws.reduce((a,x)=>a+x.w,0);
-    $("#biasNote").textContent="签到题和小测验的科目比例："+ws.map(x=>SUBJ[x.k].name+" "+Math.round(x.w/tot*100)+"%").join(" · ")}
+    $("#biasNote").textContent=""}
   $("#smToggle").checked=S.sharedMem!==false;{const pend=(S.smLog||[]).filter(e=>e.at>(S.smEvAt||0)).length+Object.keys(SUBJ).reduce((a,k)=>a+CHATS[k].filter(t=>t.at&&t.at>((S.smSeen||{})[k]||0)).length,0);
-    $("#smInfo").textContent="学习对话会整理成学习记录，完成任务、成绩、资料、错题会记成动态，自动同步。"+(S.smLast?"上次同步 "+new Date(S.smLast).toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})+"。":"")+(pend?"有 "+pend+" 条待同步。":"");$("#smNowBtn").disabled=!MCP||S.sharedMem===false}$("#smNote").textContent=!MCP?"在 Claude 里打开才能连共享记忆。":S.sharedMem===false?"已关闭。":SM_STATE==="ok"?"已连上":SM_STATE==="unknown"?"":SM_STATE;
+    $("#smInfo").textContent=""+(S.smLast?"上次同步 "+new Date(S.smLast).toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})+"。":"")+(pend?"有 "+pend+" 条待同步。":"");$("#smNowBtn").disabled=!MCP||S.sharedMem===false}$("#smNote").textContent=!MCP?"在 Claude 里打开才能连共享记忆。":S.sharedMem===false?"已关闭。":SM_STATE==="ok"?"已连上":SM_STATE==="unknown"?"":SM_STATE;
   const lg=$("#ledger");lg.replaceChildren(...S.ledger.slice().reverse().slice(0,200).map(e=>{const d=new Date(e.at);return h("div",null,h("span",{class:"num dim"},(d.getMonth()+1)+"/"+d.getDate()),h("span",null,e.t),h("span",{class:"num "+(e.d>0?"plus":e.d<0?"minus":"dim")},e.d>0?"+"+e.d:e.d||"·"))}));
   if(!S.ledger.length)lg.append(h("div",{class:"dim",style:{display:"block"}},"还没有记录。"))}
 
@@ -2542,7 +2550,7 @@ function nextSteps(){const out=[];const now=Date.now();
   if(sleepAwake())out.push({ic:"moon",title:"起床",meta:"真的起床了再点 · 睡够 7 小时、8 点前起都有奖励",btn:"起床",label:"起床打卡",say:"起床了就点一下，不要在床上点。",go:wakeUp,sleep:9});
   {const hr=new Date(now).getHours();if(!S.sleep&&(hr>=21||hr<6)){const ok=sleepWindow(now).ok,late=hr<21||hr>=23&&new Date(now).getMinutes()>=30;
     out.push({ic:"moon",title:"晚安",meta:ok?"00:30 前点 · 明早 +"+(sleepStreak()>=2?SLEEP_STREAK_PTS:SLEEP_PTS):"现在点也会记下来，比平时早有进步奖励",btn:"晚安",label:"晚安打卡",say:"准备睡了就点晚安。之后别再用电脑，明早打开自动记起床、发奖励。",go:goodnight,sleep:late?0.5:8})}}
-  if(!checkedToday()){const sg=suggestSubj();out.push({subj:sg,ic:"flame",title:"每日委托",meta:"去 Claude 学一小块 "+SUBJ[sg].name+" · +"+ckReward(streak()+1),label:"做一道签到题",say:"今天还没签到。去 Claude 学一小块"+SUBJ[sg].name+"，答对检查题自动签到，+"+ckReward(streak()+1)+" 分。",go:()=>openDaily(sg)})}
+  if(!checkedToday()){const sg=suggestSubj();out.push({subj:sg,ic:"flame",title:"每日委托",meta:SUBJ[sg].name+" · +"+ckReward(streak()+1),label:"做一道签到题",say:"今天还没签到。去 Claude 学一小块"+SUBJ[sg].name+"，答对检查题自动签到，+"+ckReward(streak()+1)+" 分。",go:()=>openDaily(sg)})}
   const urgent=occurrences().filter(o=>isOpen(o)&&o.soft>now-HOUR&&o.soft-now<40*HOUR);
   for(const o of urgent.slice(0,2))out.push({subj:o.subj,ic:"scroll",title:o.title,meta:SUBJ[o.subj].name+" · "+fmtLeft(o.soft-now)+" · +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total,label:SUBJ[o.subj].name+" "+o.title,say:SUBJ[o.subj].name+"的「"+o.title+"」"+fmtLeft(o.soft-now).replace("还剩","还剩")+"。先做第一步：把第一题发进来。",go:()=>openTaskSheet(o)});
   const mons=reviveDue();if(mons.length)out.push({subj:mons[0].subj,ic:"skull",title:"错题怪",meta:SUBJ[mons[0].subj].name+" · "+(/[$\\]/.test(mons[0].text)?"上次做错的题":mons[0].text.slice(0,24))+" · +"+R(15),label:"打一只错题怪",say:"有 "+mons.length+" 只错题怪复活了。打一只，+"+R(15)+" 分。",go:()=>{fightMistake(mons[0])}});
@@ -2699,7 +2707,6 @@ function renderRead(){const box=$("#v-read");if(!box)return;const B=RD().books;c
     h("div",{class:"rd-stats"},h("div",null,h("b",{class:"num"},String(rdStreak())),h("span",null,"连续天数")),h("div",null,h("b",{class:"num"},rdWeekDays()+"/7"),h("span",null,"本周读了")),
       h("div",null,h("b",{class:"num"},String(tPts)),h("span",null,"今天积分")),h("div",null,h("b",{class:"num"},String(B.filter(b=>b.st==="done").length)),h("span",null,"读完"))),
     h("div",{class:"rd-days",title:"最近 14 天"},last14.map(k=>h("i",{class:days.has(k)?"on":""}))),
-    h("div",{class:"dim small"},"每章 / 篇 +5，百分比每 1% +1，页数每 20 页 +5 · 连读 7 天 +"+RD_WEEK7+" · 读完主书 +"+RD_MAIN+"，其他 +"+RD_FRAG),
     today.length?h("button",{class:"btn sm flat",style:{marginTop:"8px"},onclick:rdUndo},"撤销刚才那次"):null);
   const cur=["main","frag"].map(sl=>B.find(b=>b.st==="reading"&&b.slot===sl)).filter(Boolean);
   const quick=b=>b.unit==="%"?[5,10]:b.unit==="页"?[10,30]:[1,2];
@@ -2708,7 +2715,7 @@ function renderRead(){const box=$("#v-read");if(!box)return;const B=RD().books;c
     h("div",{class:"row between",style:{flexWrap:"nowrap"}},h("div",{class:"rd-t",onclick:()=>rdEdit(b)},h("div",{class:"eyebrow"},b.slot==="main"?"主书":"碎片书"),h("b",null,"《"+b.t+"》"),h("span",null,[b.by,rdProg(b)].filter(Boolean).join(" · ")||" ")),h("button",{class:"btn sm flat",onclick:()=>rdEdit(b)},"编辑")),
     pc!=null?h("div",{class:"rd-bar"},h("i",{style:{width:pc+"%"}})):null,
     h("div",{class:"row"},quick(b).map((n,i)=>h("button",{class:"btn sm"+(i===0?" go":""),onclick:()=>rdLog(b,n)},"+"+rdFmt(b,n))),inp,h("button",{class:"btn sm",onclick:()=>{if(inp.value===""||!(+inp.value>=0)){toast("填一个数");return}rdSetTo(b,+inp.value)}},"记上")))};
-  const phases=RD_PH.map((p,i)=>{const L=B.filter(b=>b.ph===i&&b.st==="queue");if(!L.length)return null;
+  const phases=RD_PH.map((p,i)=>{const L=B.filter(b=>b.ph===i&&b.st==="queue");if(!L.length)return h("div");
     return h("div",{class:"card"},h("div",{class:"row between"},h("h3",null,p),h("span",{class:"dim small"},L.length+" 本")),
       h("div",{class:"rd-list"},L.map((b,k)=>h("div",{class:"rd-row"},
         h("div",{class:"rd-mv"},h("button",{"aria-label":"往前",disabled:i===0&&k===0,onclick:()=>rdMove(b,-1)},"▲"),h("button",{"aria-label":"往后",disabled:i===RD_PH.length-1&&k===L.length-1,onclick:()=>rdMove(b,1)},"▼")),
@@ -2716,7 +2723,7 @@ function renderRead(){const box=$("#v-read");if(!box)return;const B=RD().books;c
   const done=B.filter(b=>b.st==="done").sort((a,b)=>(b.done||0)-(a.done||0)),drop=B.filter(b=>b.st==="drop");const md=t=>{const d=new Date(t);return(d.getMonth()+1)+"/"+d.getDate()};
   const fin=done.length||drop.length?h("details",{class:"card"},h("summary",{style:{fontWeight:700,cursor:"pointer"}},"读完 "+done.length+" 本"+(drop.length?" · 没读下去 "+drop.length+" 本":"")),
     h("div",{class:"rd-list",style:{marginTop:"8px"}},[...done,...drop].map(b=>h("div",{class:"rd-row"},h("div",{class:"rd-t",onclick:()=>rdEdit(b)},h("b",null,"《"+b.t+"》"),h("span",null,b.st==="done"?(b.done?md(b.done)+" 读完":"读完"):"没读下去")))))):null;
-  box.replaceChildren(head,cur.length?h("div",{class:"rd-now"},cur.map(card)):h("div",{class:"card dim"},"现在没有在读的书"),...phases.filter(Boolean),...[fin,fmCard()].filter(Boolean))}
+  box.replaceChildren(head,cur.length?h("div",{class:"rd-now"},cur.map(card)):h("div",{class:"card dim"},"现在没有在读的书"),h("div",{class:"cols2 rd-cols"},h("div",{class:"col"},...phases.filter(Boolean),...[fin].filter(Boolean)),h("div",{class:"col rd-side"},fmCard())))}
 
 /* ============ HUD / routing ============ */
 function renderHud(){renderGuideFab();{const b=$("#hSleep");if(b){b.textContent=sleepAwake()?"起床":S.sleep?"已晚安":"晚安";b.classList.toggle("go",sleepAwake());const a=sleepAvg();b.title=(S.sleep?"已经点过晚安，点错了就连点两下撤销":"准备睡了就点：记下几点睡，00:30 前有奖励")+(a!=null?"。最近 7 晚平均 "+fmtBed(a)+" 睡":"")}}const lv=levelOf(S.xp);$("#hLv").textContent=lv.L;$("#hTitle").textContent=lv.title;$("#hXp").textContent=(S.xp-lv.lo)+" / "+(lv.hi-lv.lo)+" XP";
@@ -2754,7 +2761,7 @@ $("#zwInput").addEventListener("input",e=>{focusTouch();const t=e.target;t.style
 $("#zwImg").onchange=e=>{const fs=[...e.target.files];e.target.value="";zwAddFiles(fs)};
 $("#zwInput").addEventListener("paste",e=>{const fs=pastedImages(e);if(fs.length&&IMG_OK){e.preventDefault();e.stopPropagation();for(const f of fs)if(ZW.imgs.length<5)ZW.imgs.push(f);zwRender()}});
 $("#hStreak").onclick=()=>{CK_MONTH=null;openCheckin()};
-$("#toCur").onclick=scrollToCur;$("#pubBtn").onclick=openPublicSheet;
+$("#pubBtn").onclick=openPublicSheet;
 $("#cvWeek").onclick=()=>{CV="week";renderCal()};$("#cvMonth").onclick=()=>{CV="month";renderCal()};
 $("#calPrev").onclick=()=>{CANCHOR=CV==="week"?addDays(CANCHOR,-7):shiftMonth(CANCHOR.slice(0,7),-1)+"-01";renderCal()};
 $("#calNext").onclick=()=>{CANCHOR=CV==="week"?addDays(CANCHOR,7):shiftMonth(CANCHOR.slice(0,7),1)+"-01";renderCal()};
@@ -3276,7 +3283,7 @@ ${(()=>{const n=scopeSecs(b);return n.length?"必须覆盖的节（每一节都�
     S.examPlan=S.examPlan||{};S.examPlan[id]={at:Date.now(),avail,weak:o.weak,note:o.note,days:list};save();toast("计划排好了");openBossSheet(id);renderAll()}
   catch(e){toast("计划没排出来，再试一次");btn.disabled=false;btn.textContent="让零排计划"}}
 function planBlock(id,b){const left=b.due-Date.now();if(left>12*DAY||left<0)return null;const p=(S.examPlan||{})[id];
-  if(!p)return h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>planSetup(id,b)},"排考前计划"),h("span",{class:"dim small"},"先问你几个问题，再按天排好；每天进副本说「复习」就按计划教"));
+  if(!p)return h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>planSetup(id,b)},"排考前计划"));
   planShift(id);const today=dayKey();const miss=planMissing(b,p.days);
   return h("div",null,miss.length?h("div",{class:"row",style:{marginBottom:"8px",gap:"8px",alignItems:"center"}},h("span",{class:"small",style:{color:"var(--late,#c0392b)"}},"计划漏了 "+miss.map(x=>"§"+x).join("、")),h("button",{class:"btn sm go",onclick:e=>makePlan(id,b,e.currentTarget,{avail:p.avail||Object.fromEntries(p.days.map(d=>[d.day,60])),weak:p.weak||[],note:p.note||"",miss})},"让零补上重排")):null,h("div",{class:"row between",style:{marginBottom:"6px"}},h("div",{class:"eyebrow"},"考前计划"+(p.moved?" · 没做完的已往后挪":"")),h("button",{class:"btn sm flat",onclick:()=>planSetup(id,b)},"重排")),
     h("div",{class:"checklist"},p.days.map(d=>{const k=planKey(id,d);const dn=S.done[k];const td=d.day===today;
