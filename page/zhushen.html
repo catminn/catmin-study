@@ -521,15 +521,15 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 @media (min-width:1000px){body.zw-open .qz{justify-items:start;padding-left:max(16px,calc(50vw - 620px))}}
 @media (max-width:560px){.zw-panel{height:min(62vh,calc(100vh - var(--hudH,70px) - var(--tabH,70px) - 90px))}body.dg-on .zw{bottom:calc(var(--tabH,70px) + 190px)}}
 /* now screen */
-.nowwrap{width:100%;max-width:640px;display:flex;flex-direction:column;align-items:center;gap:36px}
-.quick{width:100%;display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.nowwrap{width:100%;max-width:720px;display:flex;flex-direction:column;align-items:center;gap:36px}
+.quick{width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .qk.rec{grid-column:1/-1;flex-direction:row;justify-content:flex-start;gap:14px;padding:16px 18px;text-align:left}.qk.rec .tx{display:flex;flex-direction:column;align-items:flex-start;min-width:0}.qk.rec small{min-height:0;text-align:left;-webkit-line-clamp:1}.qk.rec b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .qk{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 6px 16px;border-radius:18px;border:2px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;cursor:pointer;box-shadow:0 4px 0 var(--line);transition:transform .08s}
 .qk:active{transform:translateY(3px);box-shadow:0 1px 0 var(--line)}
 .qk .ic{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;background:var(--qc,#8b9cf0);color:#fff}.qk .ic svg{width:30px;height:30px}
 .qk b{font-size:18px;font-weight:800}.qk small{font-size:12px;color:var(--dim);line-height:1.3;text-align:center;min-height:2.6em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .qk.on{border-color:var(--qc);box-shadow:0 4px 0 var(--qc)}.qk.done .ic{background:var(--line2)}
-@media (max-width:640px){.quick{grid-template-columns:1fr 1fr}.qk{padding:22px 8px 16px}}
+@media (max-width:640px){.quick{grid-template-columns:1fr 1fr;gap:10px}.nowwrap{gap:0}.qk{padding:14px 8px 10px;gap:6px}.qk .ic{width:46px;height:46px;border-radius:15px}.qk .ic svg{width:26px;height:26px}.qk b{font-size:17px}.qk.rec{padding:12px 14px}}
 .now{min-height:calc(100vh - var(--hudH,70px) - var(--tabH,70px));display:grid;place-items:center;padding-block:24px}
 .nowcard{width:100%;max-width:520px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px}
 .nowcard .big-ic{width:96px;height:96px;border-radius:28px;display:grid;place-items:center;background:var(--tint);color:#fff;box-shadow:0 6px 0 color-mix(in oklab,var(--tint) 55%,black)}
@@ -2471,13 +2471,14 @@ const SPEND_CAT={cny:["游戏","其他"],usd:["外卖","奶茶","吃饭","购物
 /* 吃饭是刚需，只把「多花的那部分」算作奖励：外卖按 3 成扣、堂食 2 成、购物 6 成；奶茶、游戏充值这种纯享受全额扣 */
 const SPEND_W={"外卖":.3,"吃饭":.2,"购物":.6};const spendW=()=>SPEND.cur==="usd"&&SPEND_W[SPEND.cat]!=null?SPEND_W[SPEND.cat]:1;
 function spendCost(){const a=+SPEND.amt;if(!(a>0))return 0;return Math.max(1,Math.round((SPEND.cur==="cny"?a/CNY_PER_PT:a*PER_USD)*spendW()))}
-function renderSpend(){const el=$("#spendCard");if(!el)return;const cost=spendCost();
+let SPEND_EL=null; /* 现在页的记账弹窗借用这张卡 */
+function renderSpend(){const el=SPEND_EL&&SPEND_EL.isConnected?SPEND_EL:$("#spendCard");if(!el)return;const cost=spendCost();
   const amt=h("input",{type:"number",min:"0",step:"0.01",placeholder:SPEND.cur==="cny"?"实付人民币":"实付美元（含税和小费）",value:SPEND.amt,style:{flex:"1 1 140px"},oninput:e=>{SPEND.amt=e.target.value;upd()}});
   const note=h("input",{type:"text",placeholder:SPEND.cur==="cny"?"买了什么（可不填）":"比如：奶茶、外卖",value:SPEND.note,style:{flex:"2 1 160px"},oninput:e=>{SPEND.note=e.target.value}});
   const out=h("div",{class:"small"});const go=h("button",{class:"btn sm go",onclick:()=>{const c=spendCost();if(!c){toast("先填实付金额");return}if(S.points<c){toast("积分不够，还差 "+fp(c-S.points));return}
     const what=(SPEND.note.trim()||SPEND.cat).slice(0,30);
     S.spend=S.spend||[];S.spend.push({id:uid(),at:Date.now(),cur:SPEND.cur,amt:+(+SPEND.amt).toFixed(2),cat:SPEND.cat,note:SPEND.note.trim().slice(0,30),pts:c});
-    earn(-c,"花费 · "+SPEND.cat+(SPEND.note.trim()?" · "+what:"")+" · "+(SPEND.cur==="cny"?"¥":"$")+(+SPEND.amt));SPEND.amt="";SPEND.note="";save();renderAll();toast("已记账，扣 "+fp(c)+" 分")}},"记账扣分");
+    earn(-c,"花费 · "+SPEND.cat+(SPEND.note.trim()?" · "+what:"")+" · "+(SPEND.cur==="cny"?"¥":"$")+(+SPEND.amt));SPEND.amt="";SPEND.note="";if(SPEND_EL&&SPEND_EL.isConnected){SPEND_EL=null;closeSheet()}save();renderAll();toast("已记账，扣 "+fp(c)+" 分")}},"记账扣分");
   function upd(){const c=spendCost();out.textContent=c?"要扣 "+fp(c)+" 分"+(S.points<c?"，还差 "+fp(c-S.points):"，扣完剩 "+fp(S.points-c)):""+(c&&spendW()<1?"（"+SPEND.cat+"按 "+Math.round(spendW()*10)+" 成算）":"")}
   const tab=(k,t)=>h("button",{class:"btn sm"+(SPEND.cur===k?" go":" flat"),onclick:()=>{SPEND.cur=k;SPEND.amt="";SPEND.cat=SPEND_CAT[k][0];renderSpend()}},t);
   const cats=h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap",margin:"8px 0 0"}},SPEND_CAT[SPEND.cur].map(c=>h("button",{class:"btn sm"+(SPEND.cat===c?" go":" flat"),onclick:()=>{SPEND.cat=c;renderSpend()}},c)));
@@ -2751,10 +2752,23 @@ function renderQuick(){const el=$("#quickRow");if(!el)return;const now=Date.now(
   let gm;if(playing()){const {m,cost}=playNow();gm=quickTile("game","#d0567a","玩完了","已玩 "+Math.round(m)+" 分"+(cost?" · -"+cost:""),stopPlay,"on")}
   else if(S.timer&&S.timer.end>now)gm=quickTile("game","#d0567a","计时中","剩 "+Math.ceil((S.timer.end-now)/MIN)+" 分",()=>{location.hash="#shop"},"on");
   else gm=quickTile("game","#d0567a","打游戏","够玩约 "+affordMin()+" 分",startPlay);
+  const dl=dueList(),d0=dl[0];
+  const dt=quickTile("scroll","#3d8be8","截止",d0?d0.t+" · "+fmtLeft(d0.due-now).replace("还剩 ","剩 ").replace("已超时 ","超时 "):"最近没有",openDueSheet,d0&&d0.due-now<DAY?"on":"");
+  const sp=quickTile("coin","#c9952b","记账","有 "+fp(S.points)+" 分",openSpendSheet);
   const steps=nextSteps().filter(x=>!x.rest),st=steps[0];
   const rc=h("button",{class:"qk rec",onclick:()=>openRec(0)},h("span",{class:"ic"},icon(st?st.ic||"star":"star")),h("span",{class:"tx"},h("small",null,"推荐"),h("b",null,st?st.title:"今天没别的事了"),st?h("small",null,st.meta):null));
   rc.style.setProperty("--qc",st&&st.subj?worldOf(st.subj).tint:"#2fa865");if(!st)rc.onclick=null;
-  el.replaceChildren(sl,ck,rd,gm,rc)}
+  el.replaceChildren(sl,ck,rd,gm,dt,sp,rc)}
+/* 接下来要交的：网站作业、Canvas 支线、要交的 Boss，按截止排 */
+function dueList(){const now=Date.now(),B=BOSSES();return[
+  ...occurrences().filter(o=>isOpen(o)&&o.soft>now-3*DAY).map(o=>({t:SUBJ[o.subj].name+" "+o.title,due:o.soft,go:()=>openTaskSheet(o)})),
+  ...SIDE.filter(q=>!S.done["cv-"+q.id]&&q.due>now-DAY).map(q=>({t:(q.subj?SUBJ[q.subj].name+" ":"")+q.title,due:q.due,go:()=>openSideQuestSheet(q)})),
+  ...Object.entries(B).filter(([id,b])=>b.submit&&b.due&&b.due>now-DAY&&!bossDone(id)).map(([id,b])=>({t:SUBJ[b.subj].name+" "+b.title,due:b.due,go:()=>openBossSheet(id)}))
+].sort((a,b)=>a.due-b.due)}
+function openDueSheet(){const L=dueList().slice(0,8),now=Date.now();if(!L.length){toast("最近没有要交的");return}
+  sheet(null,h("h2",null,"接下来要交的"),h("div",{class:"pl"},L.map(x=>h("div",{class:"pl-row",style:{cursor:"pointer"},onclick:()=>{closeSheet();x.go()}},
+    h("div",{class:"pl-t"},h("b",null,x.t),h("span",{style:x.due<now?{color:"var(--late)"}:null},fmtDue(x.due)+" · "+fmtLeft(x.due-now)))))))}
+function openSpendSheet(){const box=h("div");SPEND_EL=box;sheet(null,box);renderSpend()}
 function openRec(i){const steps=nextSteps().filter(x=>!x.rest);if(!steps.length)return;i=i%steps.length;const st=steps[i];
   sheet(st.subj||null,h("div",{class:"eyebrow"},"推荐 "+(i+1)+" / "+steps.length),h("h2",null,st.title),h("div",{class:"dim"},st.meta),
     h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();st.go()}},st.btn||"开始"),steps.length>1?h("button",{class:"btn flat",onclick:()=>openRec(i+1)},"换一个"):null))}
