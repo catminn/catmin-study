@@ -1814,7 +1814,12 @@ function calItemsOn(k){const items=[];
   for(const subj in MAIN)MAIN[subj].forEach((n,i)=>{if(n.due&&localKey(new Date(n.due))===k)items.push({t:SUBJ[subj].name+" "+nodeName(subj,n),cls:nodeIsDone(subj,n)?"done":multFor(n.due,0).cls,click:()=>openNodeSheet(subj,n,i),time:n.due})});
   for(const q of SIDE)if(localKey(new Date(q.due))===k)items.push({t:q.course+" "+q.title,cls:S.done["cv-"+q.id]?"done":"canvas",click:()=>openSideQuestSheet(q),time:q.due});
   for(const t of S.todos||[])if(t.due&&localKey(new Date(t.due))===k)items.push({t:"📝 "+t.t,cls:t.done?"done":t.due<Date.now()?"late":"ontime",click:()=>openDaySheet(k),time:t.due,todo:t});
+  {const near=[...items];for(const d of[addDays(k,-1),addDays(k,1)])if(GTASKS.some(t=>t.due===k))near.push(...calItemsBase(d));
+    for(const t of GTASKS){if(t.due!==k)continue;const g=gtSig(t.title);
+      if(near.some(it=>{const x=gtSig(it.t);return g.raw===x.raw||(g.key&&g.key===x.key&&(!g.subj||!x.subj||g.subj===x.subj))}))continue;
+      items.push({t:"☑ "+t.title,cls:t.done?"done":k<dayKey()?"late":"ontime",click:()=>toast("Google Tasks · "+(t.list||"")+(t.notes?" · "+t.notes.slice(0,60):"")),time:keyToDate(k).getTime()+DAY-MIN})}}
   return items.sort((a,b)=>a.time-b.time)}
+function calItemsBase(k){const G=GTASKS;GTASKS=[];try{return calItemsOn(k)}finally{GTASKS=G}}
 async function fetchEvents(startK,endK){if(!MCP||!S.calendar)return null;const ck=startK+"|"+endK;if(EVC.has(ck))return EVC.get(ck);
   const out=[];let err=null,okAny=false;
   for(const[kind,id]of[["class",CAL.cornell],["personal",CAL.personal]]){try{const r=await MCP.callTool("Google Calendar","list_events",{calendarId:id,startTime:startK+"T00:00:00",endTime:endK+"T00:00:00",orderBy:"startTime",pageSize:250},{cache:{staleTime:10*MIN,gcTime:DAY}});okAny=true;
@@ -1862,6 +1867,14 @@ function applyCanvas(payload){const now=Date.now();SIDE=((payload&&payload.event
     return{id:e.id,title:(e.summary||"").replace(/\s*\[[A-Z]+\d+\]\s*$/,""),course:code,subj:CODE2SUBJ[code]||null,due:evTime(e)}})
   .filter(q=>q.id&&q.due&&q.due>now-DAY&&q.due<now+14*DAY&&!/Assignment 3/.test(q.title)&&!/^(Attendance|Reading Responses)$/i.test(q.title))}
 function applyPersonal(payload){const today=dayKey();BUSY=((payload&&payload.events)||[]).filter(e=>e.start&&e.start.dateTime&&dayKey(new Date(e.start.dateTime).getTime())===today&&e.transparency!=="transparent").map(e=>e.summary||"安排")}
+/* Google Tasks（Assignments 等清单）：只在网站版读；网站已经有的同一份作业不重复显示 */
+let GTASKS=[];
+async function pullTasks(){if(!MCP||!window.__SITE)return;const now=Date.now();
+  try{const r=await MCP.callTool("Google Tasks","list_tasks",{dueMin:isoLocal(now-30*DAY),dueMax:isoLocal(now+90*DAY)},{cache:false});const o=r&&r.payload;GTASKS=(o&&o.items||[]).filter(t=>t.due);EVC.clear();softRefresh()}catch(e){}}
+if(window.__SITE){setTimeout(pullTasks,3000);setInterval(pullTasks,10*MIN);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")pullTasks()})}
+const GT_SUBJ=[[/engri|机械|mech/i,"engri"],[/chem|化学/i,"chem"],[/math|数学|calc/i,"math"],[/engl|英文|英语|writing/i,"engl"]];
+function gtSig(t){const s=String(t).toLowerCase().replace(/\s+/g,"");const subj=(GT_SUBJ.find(([re])=>re.test(s))||[])[1]||"";const m=/(pre-?lab|lab|hw|ps|problemset|discussion|disc|quiz|report)#?(\d+)/.exec(s);
+  const kind=m?({"prelab":"prelab","pre-lab":"prelab","problemset":"ps","disc":"discussion"}[m[1]]||m[1]):"";return{subj,key:m?kind+m[2]:"",raw:s}}
 async function connectCalendar(fromClick){if(!MCP)return;const now=Date.now();
   const a={calendarId:CAL.canvas,startTime:isoLocal(now-DAY),endTime:isoLocal(now+14*DAY),orderBy:"startTime",pageSize:80};
   const b={calendarId:CAL.personal,startTime:isoLocal(now-4*HOUR),endTime:isoLocal(now+DAY),orderBy:"startTime",pageSize:40};

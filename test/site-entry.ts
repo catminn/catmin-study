@@ -47,6 +47,10 @@ function fakeGoogle(url: string, init?: any): Response | null {
     return gj({ error: "invalid_grant" }, 400);
   }
   if (u.host === "oauth2.googleapis.com" && u.pathname === "/revoke") { (globalThis as any).__gcalls.push("revoke"); return gj({}); }
+  if (u.host === "tasks.googleapis.com") {
+    if (u.pathname.endsWith("/users/@me/lists")) return gj({ items: [{ id: "L1", title: "Assignments" }] });
+    return gj({ items: [{ id: "t1", title: "engri补充作业", due: "2026-11-15T00:00:00.000Z", status: "needsAction" }, { id: "t2", title: "ENGRI HW9", due: "2026-11-15T00:00:00.000Z", status: "needsAction" }, { id: "t3", title: "CHEM PS10", due: "2026-11-18T00:00:00.000Z", status: "completed" }] });
+  }
   if (u.host !== "www.googleapis.com") return null;
   (globalThis as any).__gcalls.push(auth + " " + u.pathname + u.search);
   if (!auth.startsWith("Bearer at")) return gj({ error: { message: "no auth" } }, 401);

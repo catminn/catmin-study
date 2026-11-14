@@ -20,6 +20,7 @@ const SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
   "https://www.googleapis.com/auth/drive.file",
   "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/tasks.readonly",
 ].join(" ");
 // 第二个账号（Cornell）：存文件，也让 AI 读学校 Drive 里的作业（电脑上的 Cornell 文件夹同步在这里）
 const CORNELL_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive.readonly"].join(" ");
@@ -138,7 +139,7 @@ export async function googleStatus(env: SiteEnv) {
   const cornell = configured && !!(await env.OAUTH_KV.get("google:cornell:refresh"));
   const email = connected ? (await env.OAUTH_KV.get(K_EMAIL)) || "" : "";
   return { configured, connected, email, wrongAcct: isSchool(email),
-    needsUpgrade: connected && (isSchool(email) || !(scope.includes("calendar.events") && scope.includes("drive.file") && scope.includes("gmail.readonly"))),
+    needsUpgrade: connected && (isSchool(email) || !(scope.includes("calendar.events") && scope.includes("drive.file") && scope.includes("gmail.readonly") && scope.includes("tasks.readonly"))),
     cornell, cornellEmail: cornell ? (await env.OAUTH_KV.get("google:cornell:email")) || "" : "",
     cornellRead: cornell && String((await env.OAUTH_KV.get("google:cornell:scope")) || "").includes("drive.readonly") };
 }
@@ -414,7 +415,25 @@ export async function gmailRead(env: SiteEnv, id: string) {
   const d = await gjson(env, `https://gmail.googleapis.com/gmail/v1/users/me/threads/${encodeURIComponent(id)}?format=full`);
   return (d.messages || []).map((m: any) => ({ from: hdr(m, "from"), to: hdr(m, "to"), date: hdr(m, "date"), subject: hdr(m, "subject"), body: plainOf(m.payload).slice(0, 6000) }));
 }
+// Google Tasks（她用 Assignments 清单记作业截止）：只读。due 只有日期（Google 不存具体时间）
+async function listTasks(env: SiteEnv, input: Record<string, any>) {
+  const lists = ((await gjson(env, "https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=100")).items || []) as any[];
+  const want = input.list ? String(input.list) : "";
+  const q = new URLSearchParams({ showCompleted: "true", showHidden: "true", maxResults: "100" });
+  if (input.dueMin) q.set("dueMin", toRfc3339(String(input.dueMin)));
+  if (input.dueMax) q.set("dueMax", toRfc3339(String(input.dueMax)));
+  const items: any[] = [];
+  for (const l of lists.filter((x) => !want || x.title === want).slice(0, 10)) {
+    const o = await gjson(env, `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(l.id)}/tasks?${q}`);
+    for (const t of o.items || []) {
+      if (!t.title || t.deleted) continue;
+      items.push({ id: t.id, title: t.title, due: t.due ? String(t.due).slice(0, 10) : null, done: t.status === "completed", completed: t.completed || null, notes: (t.notes || "").slice(0, 300), list: l.title });
+    }
+  }
+  return { items };
+}
 export async function googleTool(env: SiteEnv, server: string, tool: string, input: Record<string, any>): Promise<unknown> {
+  if (server === "Google Tasks" && tool === "list_tasks") return listTasks(env, input);
   if (server === "Google Calendar" && tool === "list_events") return listEvents(env, input);
   if (server === "Google Calendar" && tool === "create_event") return createEvent(env, input);
   if (server === "Google Calendar" && tool === "update_event") return updateEvent(env, input);

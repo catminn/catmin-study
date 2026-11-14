@@ -533,7 +533,7 @@ async function mcpHandler(req: Request, env: SiteEnv) {
       return err("tool_error", String(e?.message ?? e));
     }
   }
-  if (server === "Google Calendar" || server === "Google Drive") {
+  if (server === "Google Calendar" || server === "Google Drive" || server === "Google Tasks") {
     try {
       return json({ payload: await googleTool(env, server, String(tool), (input ?? {}) as Record<string, any>) });
     } catch (e: any) {
@@ -568,7 +568,7 @@ const PRIVACY_HTML = `<!doctype html><html lang="zh"><head><meta charset="utf-8"
 <p>最后更新：2026-10-27</p>
 <p>学习空间（study.catmin.io）是 Catherine Min 个人使用的学习工具，不对公众开放，没有其他用户。</p>
 <h2>我们访问哪些 Google 数据</h2>
-<p>只在她本人授权后，以<b>只读</b>方式读取：Google 日历的事件（用来显示课表和作业截止时间）、Google Drive 中她主动选择的文件（用来作为学习资料）。使用的权限是 calendar.readonly 和 drive.readonly，不会修改、删除或分享任何内容。</p>
+<p>只在她本人授权后，以<b>只读</b>方式读取：Google 日历的事件和 Google Tasks 待办（用来显示课表和作业截止时间）、Google Drive 中她主动选择的文件（用来作为学习资料）。使用的权限是 calendar.readonly 和 drive.readonly，不会修改、删除或分享任何内容。</p>
 <h2>数据如何使用和保存</h2>
 <p>读取到的内容只用于在她自己的页面里显示，或在她主动提问时发送给她选择的 AI 模型服务（Anthropic 或 OpenAI）来回答问题。授权令牌加密后保存在 Cloudflare。学习进度保存在 Cloudflare 的数据库中。</p>
 <h2>共享与披露</h2>
