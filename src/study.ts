@@ -98,6 +98,73 @@ export const STUDY_TOOLS = [
     },
   },
   {
+    name: "study_log_add",
+    description:
+      "Record that Catherine just learned something with you, so her 学习空间 site (study.catmin.io) awards points. " +
+      "Call it ONLY after she answered the final checkpoint question of the session correctly (right >= 1); never for a lesson she only read. " +
+      "kind: 'daily' = today's small daily lesson (counts as her daily check-in); 'lesson' = a whole lecture/section on her progress list " +
+      "(ref = the node ref the site gave you, e.g. 'math:161'); 'mistake' = she beat a revived mistake (ref = mistake id); " +
+      "'plan' = a day of her exam review plan (ref = the plan key the site gave you). If the site's prompt gave a ref, pass it exactly. " +
+      "subj: math / chem / engri / engl. topic: short Chinese name of what was learned. right/total: checkpoint questions answered correctly / asked. " +
+      "Duplicate refs for the same day are ignored by the site. Returns the saved entry.",
+    inputSchema: {
+      type: "object",
+      required: ["kind", "subj", "topic", "right", "total"],
+      properties: {
+        kind: { type: "string", enum: ["daily", "lesson", "mistake", "plan"] },
+        subj: { type: "string", enum: ["math", "chem", "engri", "engl"] },
+        topic: { type: "string" },
+        ref: { type: "string", description: "Node/mistake/plan ref from the site prompt; omit if none was given" },
+        right: { type: "integer", minimum: 0 },
+        total: { type: "integer", minimum: 1 },
+        note: { type: "string", description: "Optional one line: what she still finds shaky" },
+        source: { type: "string", description: "claude / chatgpt" },
+      },
+    },
+    async run(env: Env, a: Args) {
+      const kind = String(a.kind ?? "");
+      if (!["daily", "lesson", "mistake", "plan"].includes(kind)) throw new Error("kind must be daily / lesson / mistake / plan");
+      const subj = String(a.subj ?? "");
+      if (!["math", "chem", "engri", "engl"].includes(subj)) throw new Error("subj must be math / chem / engri / engl");
+      const total = Math.max(1, Math.min(50, Math.round(Number(a.total) || 0)));
+      const right = Math.max(0, Math.min(total, Math.round(Number(a.right) || 0)));
+      if (right < 1) throw new Error("only log after she answered at least the final checkpoint correctly (right >= 1)");
+      const entry: Record<string, unknown> = {
+        id: "L" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        at: Date.now(),
+        kind,
+        subj,
+        topic: String(a.topic ?? "").trim().slice(0, 60),
+        right,
+        total,
+      };
+      if (a.ref) entry.ref = String(a.ref).slice(0, 80);
+      if (a.note) entry.note = String(a.note).slice(0, 200);
+      entry.source = a.source ? String(a.source).slice(0, 20) : "claude";
+      // 追加到 learnlog（只留最近 200 条），带版本号重试，防止和网站同时写
+      for (let i = 0; i < 5; i++) {
+        const cur = await env.DB.prepare("SELECT value, version FROM study_state WHERE key='learnlog'").first<{ value: string; version: number }>();
+        let list: unknown[] = [];
+        try {
+          const v = cur ? JSON.parse(cur.value) : [];
+          if (Array.isArray(v)) list = v;
+        } catch {}
+        list = list.concat([entry]).slice(-200);
+        const text = JSON.stringify(list);
+        const t = now();
+        const res = cur
+          ? await env.DB.prepare("UPDATE study_state SET value=?, version=version+1, updated_at=?, updated_by=? WHERE key='learnlog' AND version=?")
+              .bind(text, t, entry.source as string, cur.version)
+              .run()
+          : await env.DB.prepare("INSERT OR IGNORE INTO study_state (key,value,version,updated_at,updated_by) VALUES ('learnlog',?,1,?,?)")
+              .bind(text, t, entry.source as string)
+              .run();
+        if (res.meta.changes) return JSON.stringify({ ok: true, entry, note: "Saved. Her site picks it up within a few seconds and awards the points." });
+      }
+      throw new Error("busy, try again");
+    },
+  },
+  {
     name: "chat_summary_add",
     description: "Save a short summary of one study conversation, so another mode or model can pick up where it left off.",
     inputSchema: {

@@ -69,7 +69,13 @@ button.pill{cursor:pointer}
 .themebtn{border:2px solid var(--line);background:var(--panel2);border-radius:999px;width:36px;height:36px;display:grid;place-items:center;color:var(--fg)}
 
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:9;background:var(--panel);border-top:2px solid var(--line);padding:6px max(16px,env(safe-area-inset-left,0px)) calc(6px + env(safe-area-inset-bottom,0px))}
-.tabbar .wrap{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.tabbar .wrap{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.pl{display:flex;flex-direction:column}.pl-row{display:flex;align-items:center;gap:10px;padding:10px 4px;border-top:1px solid var(--line)}.pl .pl-row:first-child{border-top:0}
+.pl-ic{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line2);color:var(--dim)}.pl-ic .i{width:16px;height:16px}
+.pl-row.done .pl-ic{background:var(--tint);border-color:var(--tint);color:#fff}.pl-row.cur .pl-ic{border-color:var(--tint);color:var(--tint)}.pl-row.boss .pl-ic{border-color:var(--late);color:var(--late)}.pl-row.debt .pl-t span{color:var(--late)}
+.pl-t{flex:1;min-width:0}.pl-t b{display:block;font-weight:700}.pl-t span{display:block;font-size:13px;color:var(--dim)}.pl-row.done .pl-t b{color:var(--dim)}
+a.btn{text-decoration:none;display:inline-flex;align-items:center}
+.cl-prompt{white-space:pre-wrap;font:inherit;font-size:13px;background:var(--panel2);border:1.5px solid var(--line);border-radius:12px;padding:10px;max-height:40vh;overflow:auto;margin:10px 0;user-select:text}
 .rd-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 8px}
 .rd-stats div{background:var(--panel2);border:2px solid var(--line);border-radius:12px;padding:6px 4px;text-align:center}
 .rd-stats b{display:block;font-size:22px;line-height:1.2}.rd-stats span{font-size:12px;color:var(--dim)}
@@ -689,15 +695,14 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
     </details>
     <h2>道具</h2>
     <div class="shop" id="shopItems"></div>
-    <div class="row between"><h2>剧情</h2><span class="dim small">故事随进度解锁</span></div>
-    <div class="shop" id="shopStory"></div>
+    <div class="shop" id="shopStory" hidden></div>
   </section>
 
   <section class="screen" id="v-read" hidden></section>
 
   <section class="screen" id="v-bag" hidden>
     <div class="card"><div class="row between"><h2>背包</h2><span class="dim small" id="bagSum"></span></div><div class="shop" id="bagItems" style="margin-top:12px"></div></div>
-    <div class="card"><div class="row between"><h2>剧情档案</h2><span class="dim small" id="arcSum"></span></div><div class="list" id="storyArchive" style="margin-top:12px"></div></div>
+    <div class="card" hidden><div class="row between"><h2>剧情档案</h2><span class="dim small" id="arcSum"></span></div><div class="list" id="storyArchive" style="margin-top:12px"></div></div>
     <div class="card"><h2 style="margin-bottom:10px">成绩档案</h2><div id="scoreList"></div></div>
     <div class="card"><div class="row between" style="margin-bottom:10px"><h2>错题图鉴</h2><button class="btn sm" id="mSyncBtn">同步到共享记忆</button></div><div class="list" id="mistakeList"></div></div>
     <div class="card"><h2 style="margin-bottom:10px">学习笔记</h2><div class="list" id="progressList"></div></div>
@@ -725,9 +730,8 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
 <canvas id="fxCv" aria-hidden="true"></canvas><div id="fxLayer" aria-hidden="true"></div>
 <nav class="tabbar" aria-label="页面"><div class="wrap">
   <a href="#now" data-v="now"><svg><use href="#i-star"/></svg>现在</a>
-  <a href="#map" data-v="map"><svg><use href="#i-map"/></svg>地图</a>
+  <a href="#map" data-v="map"><svg><use href="#i-map"/></svg>进度</a>
   <a href="#cal" data-v="cal"><svg><use href="#i-cal"/></svg>日历</a>
-  <a href="#dungeon" data-v="dungeon"><svg><use href="#i-sword"/></svg>副本</a>
   <a href="#read" data-v="read"><svg><use href="#i-book"/></svg>读书</a>
   <a href="#shop" data-v="shop"><svg><use href="#i-coin"/></svg>商店</a>
   <a href="#bag" data-v="bag"><svg><use href="#i-bag"/></svg>背包</a>
@@ -1605,7 +1609,7 @@ function openTaskSheet(o){const d=S.done[o.key];const early=(o.soft-Date.now())>
     d?doneBox("已完成 +"+d.pts):rewardBox(o.r.base,o.soft,o.r.grace||0,o.self),
     passed?h("div",{class:"row"},h("span",{class:"dim"},"这篇跳过了"),h("button",{class:"btn sm flat",onclick:()=>{delete S.skipped[o.key];save();renderAll();openTaskSheet(o)}},"撤销")):
     !d?h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>completeTask(o)},"完成，领奖励"),
-      h("button",{class:"btn flat",onclick:()=>{closeSheet();goDungeon(o.subj,taskPrompt(o))}},"进副本让系统帮忙"),
+      h("button",{class:"btn flat",onclick:()=>goDungeon(o.subj,taskPrompt(o))},"去 Claude 问"),
       disc?h("button",{class:"btn flat",onclick:()=>{if(S.cur&&S.cur.key===o.key){S.cur=null}S.skipped[o.key]={at:Date.now(),pass:1};save();closeSheet();renderAll();toast("跳过「"+o.title+"」")}},"跳过这篇"):
       h("button",{class:"btn flat",onclick:()=>skipTask(o)},"这次没有")):null,
     disc?(()=>{const n=discCount();return h("div",{class:"small "+(n>=DISC_NEED?"":"dim")},"这学期已写 "+n+" / "+DISC_NEED+" 篇"+(n>=DISC_NEED?"，写够了，剩下的不再出现":"，还差 "+(DISC_NEED-n)+" 篇，可以自己挑"))})():null,
@@ -1621,14 +1625,6 @@ function openNodeSheet(subj,n,idx){const done=nodeIsDone(subj,n);const cur=idx==
     nameIn?h("div",{class:"row"},nameIn,h("button",{class:"btn sm",onclick:()=>{const v=nameIn.value.trim().slice(0,30);if(v)S.nodeNames[subj+":"+n.id]=v;else delete S.nodeNames[subj+":"+n.id];save();renderAll();openNodeSheet(subj,n,idx)}},"改名")):null,
     h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>startNode(subj,n)},done?"再学一遍":n.write?"开始这一步":"进入剧情学这一课"),
       !done?h("button",{class:"btn",onclick:()=>completeNode(subj,n)},"学完了，领奖励"):null))}
-function startNode(subj,n){closeSheet();const name=nodeName(subj,n);QUEST[subj]={id:n.id,t:name};if(SAGA[subj]){sagaState(subj).begun=sagaState(subj).n;syncTale(subj)}if(subj!=="engl"){startBattle(subj,"quest",name.replace(/^§[\d.–]+\s*/,"")+" 守关者");S.battle[subj].node=n.id}
-  const msg=n.write?`【Essay Raid · ${name}】我们现在做 Assignment 3 的这一步：${name}。先看看我已经有什么，再带我完成这一步，需要的话直接帮我写。`
-    :(n.blank&&!S.nodeNames[subj+":"+n.id])?`【剧情学新课 · 主线关卡】开一个新的剧情关卡。先问我这节课讲了什么（我可以拍讲义），然后用当前世界的剧情教我。最后一个检查问题我答对了就算通关。`
-    :`【剧情学新课 · 主线关卡：${name}】用当前世界的剧情教我 ${name}。零基础，一小块一小块来，每块给一个检查问题，最后一个检查问题我答对了就算通关。`;
-  goDungeon(subj,msg);
-  if(SAGA[subj]){const st=sagaNow(subj);const sg=sagaState(subj);sg.briefed=sg.briefed||{};
-    if(st.ci===0&&!sg.briefed[st.w.id]){sg.briefed[st.w.id]=1;save();setTimeout(()=>{fxGlitch();openBriefSheet(subj)},500)}
-    else if(!st.end)setTimeout(()=>fxBanner("第 "+(st.ci+1)+" 章",st.c.tn,st.w.tint),600)}}
 function openBossSheet(id){const b=BOSSES()[id];const fin=S.done["boss:"+id+":final"];const now=Date.now();const canFinish=b.submit||(b.due&&now>=b.due-HOUR);
   sheet(b.subj,h("div",{class:"row"},h("span",{class:"kind boss"},icon("skull"),"Boss · "+SUBJ[b.subj].name)),h("h2",null,b.title),
     h("div",null,b.due?fmtDue(b.due)+" · ":"",h("b",null,b.due?fmtLeft(b.due-now):"时间待定，去背包的设置里填"),b.where?h("div",{class:"dim small"},b.where):null),
@@ -1636,7 +1632,7 @@ function openBossSheet(id){const b=BOSSES()[id];const fin=S.done["boss:"+id+":fi
     b.stages.length?h("div",null,h("div",{class:"eyebrow",style:{marginBottom:"6px"}},"考前复习任务"),h("div",{class:"checklist"},b.stages.map(s=>{const d=S.done["boss:"+id+":"+s.k];
       return h("button",{class:d?"done":"",disabled:!!d,onclick:()=>doStage(id,s)},h("span",null,(d?"✓ ":"")+s.t+(s.due&&!d?"（目标 "+fmtDue(s.due)+"）":"")),h("span",{class:"rw"},"+"+(d?d.pts:preview(s.pts,s.due||null,0).total)))}))):null,
     b.exam&&!fin?planBlock(id,b):null,
-    h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();goDungeon(b.subj,b.exam?helpMode(b.subj,/考前复习/):MODES.engl[1][1])}},b.exam?"进副本考前复习":"进副本推进论文"),
+    h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>goClaude(b.subj,b.exam?"帮我准备「"+b.title+"」（"+(b.due?fmtDue(b.due):"时间待定")+(b.scope?"，范围 "+b.scope:"")+"）。先问我最没把握的是哪部分，从那里开始。":"帮我推进「"+b.title+"」（"+(b.due?fmtDue(b.due)+" 截止":"")+"）。先看看我现在写到哪了，再带我往下写。",null)},b.exam?"去 Claude 考前复习":"去 Claude 推进论文"),
       !fin&&canFinish?h("button",{class:"btn ok",onclick:()=>finishBoss(id)},b.submit?"交了，领奖励":"考完了，领奖励"):null,
       fin&&b.exam&&!S.scores.some(e=>e.boss===id)?h("button",{class:"btn go",onclick:()=>openScoreSheet({subj:b.subj,name:b.title.replace(/^(MATH|CHEM|ENGRI) /,""),boss:id,max:id==="math-p2"?70:id==="engri-p2"?100:(id==="chem-e3"||id==="chem-p2")?150:""})},"出分了？录入成绩领奖励"):null),
     null)}
@@ -1698,8 +1694,7 @@ function openCheckin(){const today=dayKey();if(!CK_MONTH)CK_MONTH=today.slice(0,
     grid,mk,
     done?null
       :h("div",{class:"list"},h("div",null,"签到 +"+ckReward(streak()+1)),
-        h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();openDaily(sugg)}},"开始今日委托 · "+SUBJ[sugg].name),
-          h("button",{class:"btn flat",onclick:()=>doCheckin("在别处学了")},"今天在别处学过了"),
+        h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();openDaily(sugg)}},"去 Claude 做今日委托 · "+SUBJ[sugg].name),
           null)))}
 function shiftMonth(ym,n){const[y,m]=ym.split("-").map(Number);const d=new Date(y,m-1+n,1);return d.getFullYear()+"-"+pad(d.getMonth()+1)}
 function examInfo(subj){const now=Date.now();return Object.values(BOSSES()).filter(b=>b.subj===subj&&b.exam&&b.due>now).sort((a,b)=>a.due-b.due)[0]||null}
@@ -1707,57 +1702,80 @@ function subjWeight(subj){const b=examInfo(subj);if(!b)return 1;const d=(b.due-D
 function weightedPick(list,seed){const ws=list.map(subjWeight);const tot=ws.reduce((a,b)=>a+b,0);let r=(parseInt(hashStr(seed),36)%10007)/10007*tot;for(let i=0;i<list.length;i++){r-=ws[i];if(r<0)return list[i]}return list[list.length-1]}
 function suggestSubj(){return weightedPick(["math","chem","engri"],"ck"+dayKey())}
 
-/* ============ map ============ */
+/* ============ 在 Claude 里学：网站只记账 ============
+   点「去 Claude 学」→ 带一段提示词打开 claude.ai；学完、答对最后一道检查题后，Claude 用共享记忆的 study_log_add 记一笔（存在 learnlog）。
+   这里定时读 learnlog，没处理过的就按种类加分：daily 算签到，lesson 算进度表上那一讲学完，mistake 打掉错题怪，plan 完成考前计划那一天。 */
+const LESSON_FREE_CAP=2; /* 不在进度表上的课，一天最多算两节 */
+function claudePrompt(subj,teach,log){const sj=SUBJ[subj]?SUBJ[subj].full:"";
+  const how=log?`\n\n学完、我答对最后一道检查题以后，调用「共享记忆」的 study_log_add 记一笔：kind="${log.kind}"，subj="${subj}"${log.ref?`，ref="${log.ref}"`:""}，topic 写这次学的内容，right / total 写检查题我答对几道 / 一共几道。没答对就先别记，接着讲。`
+    :`\n\n如果这次是在学新知识（不是写作业），学完、我答对最后一道检查题以后，调用「共享记忆」的 study_log_add 记一笔：kind="lesson"，subj="${subj}"，topic 写学的内容，right / total 写检查题对了几道 / 一共几道。`;
+  return `【学习空间${sj?" · "+sj:""}】${teach}\n按我的老规矩教：假设零基础，一小块一小块讲，每块后面一个检查问题，等我回答再往下。`+how}
+function goClaude(subj,teach,log){closeSheet();const text=claudePrompt(subj,teach,log);const url="https://claude.ai/new?q="+encodeURIComponent(text);
+  const copy=()=>{try{navigator.clipboard.writeText(text).catch(()=>{})}catch(e){}};
+  sheet(subj,h("div",{class:"eyebrow"},"去 Claude 学"),h("h2",null,log&&log.title||"带上这段话去 Claude"),
+    h("div",{class:"dim small"},"学完、答对检查题后 Claude 会记一笔，这里几秒内自动打勾加分。"),
+    h("pre",{class:"cl-prompt"},text),
+    h("div",{class:"row"},h("a",{class:"btn go",href:url,target:"_blank",rel:"noopener",onclick:()=>{copy();setTimeout(closeSheet,300)}},"打开 Claude"),
+      h("button",{class:"btn",onclick:()=>{copy();toast("复制好了，贴到 Claude 里")}},"只复制")))}
+/* 旧入口（作业求助、考前复习、错题、计划）都改成去 Claude */
+function goDungeon(subj,msg){goClaude(SUBJ[subj]?subj:"math",msg||"我想学点东西，先问我想学什么。",null)}
+function startNode(subj,n){const nm=nodeName(subj,n);const blank=n.blank&&!S.nodeNames[subj+":"+n.id];
+  const teach=n.write?`我们推进 ${SUBJ[subj].name} 的写作任务：「${nm}」。先看看我已经有什么，再带我完成这一步，需要的话直接帮我写。`
+    :blank?`我想学 ${SUBJ[subj].full} 最近一节课的内容。先问我这节课讲了什么（我可以拍讲义），然后教我。`
+    :`教我 ${SUBJ[subj].full} 的「${nm}」${n.lec?"（课上 "+fmtDue(n.lec).replace(/ \d\d:\d\d$/,"")+(n.lec<Date.now()?" 已经讲过":" 要讲")+"）":""}。`;
+  goClaude(subj,teach,{kind:"lesson",ref:subj+":"+n.id,title:nm})}
+function fightMistake(m){goClaude(m.subj,"这是我以前做错的一道题："+m.text+(m.fix?"\n（当时的订正："+m.fix+"）":"")+"\n先帮我弄懂错在哪，再出一道同类型的新题给我做。",{kind:"mistake",ref:m.id,title:"错题复活"})}
+function planGo(id,d){const b=BOSSES()[id];if(!b)return;goClaude(b.subj,"按我的考前复习计划，今天复习「"+d.topic+"」"+(d.task?"（"+d.task+"）":"")+"，考试是「"+b.title+"」"+(b.scope?"，范围 "+b.scope:"")+"。",{kind:"plan",ref:planKey(id,d),title:d.topic})}
+function openDaily(subj){if(checkedToday()){openCheckin();return}const pt=planToday(subj||null);subj=subj||(pt?pt.b.subj:suggestSubj());if(subj==="engl")subj="math";
+  const pt2=planToday(subj),pk=pt2?null:dqPick(subj),ex=examInfo(subj);
+  const what=pt2?"今天考前计划里的「"+pt2.it.topic+"」（"+pt2.it.task+"）":pk?"「"+pk.t+"」（"+pk.why+"）":"一个我现在最需要的知识点"+(ex&&ex.due-Date.now()<10*DAY?"（优先「"+ex.title+"」的范围"+(ex.scope?"："+ex.scope:"")+"）":"");
+  goClaude(subj,`今天的每日委托：教我 ${SUBJ[subj].full} 的${what}。只教最核心的一个点，先一两句说清是什么、什么时候用，再用一道具体例题（最好是作业原题或考试题型）一步步做给我看，最后出一道 3 分钟能做完的检查题。`,{kind:"daily",ref:pk?pk.id:"",title:"每日委托 · "+SUBJ[subj].name})}
+function learnApply(list){if(!Array.isArray(list)||(EMBED&&EMBED!=="todo"))return;/* 桌面待办小窗也处理（它一直开着）；奖励在那里显示成一行提示 */S.learnSeen=S.learnSeen||{};const now=Date.now();let got=0;
+  for(const e of list.slice().sort((a,b)=>a.at-b.at)){if(!e||!e.id||S.learnSeen[e.id])continue;S.learnSeen[e.id]=now;
+    if(!(e.right>=1)||!SUBJ[e.subj]||now-e.at>14*DAY)continue;const top=String(e.topic||"").slice(0,40);const n0=S.ledger.length;let pts=0;
+    if(e.kind==="daily"){if(dayKey(e.at)!==dayKey()||checkedToday())continue;if(e.ref){S.dqCovered=S.dqCovered||{};(S.dqCovered[e.subj]=S.dqCovered[e.subj]||{})[e.ref]=e.at}doCheckin("在 Claude 学了 "+top);got++}
+    else if(e.kind==="lesson"){const id=String(e.ref||"").split(":")[1];const n=id&&(MAIN[e.subj]||[]).find(x=>!x.boss&&x.id===id);
+      if(n){const k=nodeKey(e.subj,n);if(S.done[k])continue;if(n.blank&&!S.nodeNames[e.subj+":"+n.id]&&top)S.nodeNames[e.subj+":"+n.id]=top;pts=award(n.pts||NODE_PTS,n.due||null,0,SUBJ[e.subj].name+" 学完 · "+nodeName(e.subj,n));S.done[k]={at:e.at,pts}}
+      else{const d=dayKey(e.at);S.freeLessons=S.freeLessons||{};if((S.freeLessons[d]||0)>=LESSON_FREE_CAP)continue;S.freeLessons[d]=(S.freeLessons[d]||0)+1;pts=award(NODE_PTS,null,0,SUBJ[e.subj].name+" 学完 · "+(top||"一节课"))}got++}
+    else if(e.kind==="mistake"){const m=S.mistakes.find(x=>x.id===e.ref);if(!m||m.killed)continue;m.killed=true;pts=award(15,null,0,"打掉错题怪 · "+(top||m.text.slice(0,16)));got++}
+    else if(e.kind==="plan"){const k=String(e.ref||"");if(!/^plan:/.test(k)||S.done[k])continue;pts=award(PLAN_PTS,null,0,"考前计划 · "+(top||""));S.done[k]={at:e.at,pts};got++}
+    /* 两台设备同时处理同一条记录时，账目时间一样才能合并去重 */
+    for(let i=n0;i<S.ledger.length;i++){S.ledger[i].at=e.at+(i-n0);S.ledger[i].lid=e.id}}
+  for(const k in S.learnSeen)if(now-S.learnSeen[k]>30*DAY)delete S.learnSeen[k];
+  if(S.freeLessons)for(const d in S.freeLessons)if(d<addDays(dayKey(),-20))delete S.freeLessons[d];
+  if(got){save();renderAll()}}
+let LEARN_BUSY=false;
+async function learnPull(){if((EMBED&&EMBED!=="todo")||LEARN_BUSY)return;LEARN_BUSY=true;let list=null;
+  try{if(window.__SITE&&DB&&UID){const d=await DB.doc("data/users/"+UID+"/learnlog").get();liveSaw("learnlog",d);list=d.exists?d.data():null}
+    else if(cloudOn()){const o=await cloudGet("learnlog");list=o.exists?o.value:null}}catch(e){}finally{LEARN_BUSY=false}
+  if(Array.isArray(list))learnApply(list)}
+if(!window.__SITE)setInterval(learnPull,30000);
+setTimeout(learnPull,4000);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")setTimeout(learnPull,800)});
+
+/* ============ 学习进度（原来的地图）：每一讲一行，去 Claude 学，学完自动打勾 ============ */
 let MAPSUBJ="math";
-function worldTabs(el,cur,onpick){el.replaceChildren(...Object.keys(SUBJ).map(k=>{const w=worldOf(k);const due=occurrences().filter(o=>o.subj===k&&isOpen(o)&&o.soft-Date.now()<2*DAY).length+reviveDue(k).length;
-  const b=h("button",{class:"wt","aria-pressed":String(k===cur),onclick:()=>onpick(k)},h("b",null,SUBJ[k].name,due?dueDot(k,due):null),h("span",{class:"w"},w.name));b.style.setProperty("--tint",w.tint);return b}))}
-function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.setProperty("--tint",w.tint);
-  worldTabs($("#worldTabs"),subj,k=>{MAPSUBJ=k;renderMap();setTimeout(scrollToCur,30)});
-  const arr=MAIN[subj];const ci=curIndex(subj);const doneN=arr.filter(n=>nodeIsDone(subj,n)).length;const now=Date.now();
-  const debtN=arr.filter(n=>n.lec&&n.lec<now&&!nodeIsDone(subj,n)).length;
-  $("#mEyebrow").textContent=SUBJ[subj].full+" · 第 "+worldNo(subj)+" 个世界 · 主线 "+doneN+"/"+arr.length+(debtN?" · 课上已讲、还没学的 "+debtN+" 关":"");$("#mWorld").textContent=w.name;$("#mDesc").textContent=w.desc;
-  const pub=SIDE.filter(q=>!q.subj&&!S.done["cv-"+q.id]);const pb=$("#pubBtn");pb.textContent="公共支线 "+pub.length;pb.hidden=!CAL_OK;
+function worldTabs(el,cur,onpick){el.replaceChildren(...Object.keys(SUBJ).map(k=>{const due=occurrences().filter(o=>o.subj===k&&isOpen(o)&&o.soft-Date.now()<2*DAY).length+reviveDue(k).length;
+  const b=h("button",{class:"wt","aria-pressed":String(k===cur),onclick:()=>onpick(k)},h("b",null,SUBJ[k].name,due?dueDot(k,due):null));b.style.setProperty("--tint",worldOf(k).tint);return b}))}
+function renderMap(){const subj=MAPSUBJ;$("#v-map").style.setProperty("--tint",worldOf(subj).tint);
+  worldTabs($("#worldTabs"),subj,k=>{MAPSUBJ=k;renderMap()});
+  const arr=MAIN[subj],now=Date.now(),lessons=arr.filter(n=>!n.boss);const doneN=lessons.filter(n=>nodeIsDone(subj,n)).length;const debtN=lessons.filter(n=>n.lec&&n.lec<now&&!nodeIsDone(subj,n)).length;
+  $("#mEyebrow").textContent=SUBJ[subj].full;$("#mWorld").textContent="已学 "+doneN+" / "+lessons.length+(debtN?" · 课上讲过还没学 "+debtN+" 节":"");
+  $("#mDesc").textContent="在 Claude 里学完、答对检查题，这里自动打勾加分。";
+  const pub=SIDE.filter(q=>!q.subj&&!S.done["cv-"+q.id]);const pb=$("#pubBtn");pb.textContent="公共支线 "+pub.length;pb.hidden=!CAL_OK||!pub.length;
+  const tc=$("#toCur");if(tc)tc.hidden=true;const lg=document.querySelector("#v-map .legend");if(lg)lg.hidden=true;
+  const ci=lessons.findIndex(n=>!nodeIsDone(subj,n));
+  const row=(ic,cls,title,sub,right)=>h("div",{class:"pl-row"+(cls?" "+cls:"")},h("span",{class:"pl-ic"},icon(ic)),h("div",{class:"pl-t"},h("b",null,title),sub?h("span",null,sub):null),right);
+  const rows=arr.map(n=>{if(n.boss){const b=BOSSES()[n.boss];if(!b)return null;const d=bossDone(n.boss);
+      return row(d?"crown":"skull",d?"done":"boss",b.title,d?"已击败":b.exam&&b.due&&b.due<now?"已考完，出分后在背包里录入":b.due?fmtDue(b.due).replace(/ \d\d:\d\d$/,"")+" · "+fmtLeft(b.due-now).replace("还剩 ","剩 "):"时间待定",h("button",{class:"btn sm",onclick:()=>openBossSheet(n.boss)},d?"看看":b.exam?"复习":"打开"))}
+    const d=nodeIsDone(subj,n),rec=S.done[nodeKey(subj,n)],debt=!d&&n.lec&&n.lec<now,cur=!d&&lessons[ci]===n;const nm=n.blank&&!S.nodeNames[subj+":"+n.id]?"下一节新课（学的时候告诉 Claude 讲了什么）":nodeName(subj,n);
+    const sub=d?"学完了"+(rec&&rec.pts?" · +"+rec.pts:""):n.lec?"课上 "+fmtDue(n.lec).replace(/ \d\d:\d\d$/,"")+(n.lec<now?" 讲过":" 要讲"):n.due?"目标 "+fmtDue(n.due).replace(/ \d\d:\d\d$/,""):"";
+    return row(d?"star":"book",(d?"done":"")+(debt?" debt":"")+(cur?" cur":""),nm,sub,d?h("button",{class:"btn sm flat",onclick:()=>startNode(subj,n)},"再学"):h("button",{class:"btn sm"+(cur?" go":""),onclick:()=>startNode(subj,n)},"去 Claude 学"+(" +"+preview(n.pts||NODE_PTS,n.due||null,0).total)))});
   const recent=k=>S.done[k]&&now-S.done[k].at<12*HOUR;
-  const sides=[...occurrences().filter(o=>o.subj===subj&&!S.skipped[o.key]&&(!S.done[o.key]||recent(o.key))).map(o=>({kind:"task",o})),
-    ...SIDE.filter(q=>q.subj===subj&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>({kind:"canvas",q})),
-    ...reviveDue(subj).slice(0,4).map(m=>({kind:"monster",m}))];
-  const c=chestStatus();if(c.of)sides.push({kind:"chest",c});
-  const map=$("#map");map.replaceChildren();const W=map.clientWidth||600;const narrow=W<520;const L=narrow?30:33,R=100-L,SL=narrow?20:16,SR=100-SL;
-  const STEP=narrow?160:150,TOP=160;const xOf=i=>(i%2?R:L)+(narrow?1.5:3)*Math.sin(i*1.7);const cm=SAGA[subj]?chapMap(subj):null;const extra=[];{let e=0,pw=null;arr.forEach((n,i)=>{const wi=(cm&&!n.boss)?worldIdxOfCh(subj,cm[n.id]):null;if(wi!=null){if(pw!=null&&wi!==pw)e+=70;pw=wi}extra[i]=e})}
-  const yOf=i=>TOP+i*STEP+(extra[Math.min(i,extra.length-1)]||0);
-  const pos=sides.map((s,k)=>{const a=ci+k;const y=yOf(a);const mx=a<arr.length?xOf(a):(a%2?R:L);return[mx>50?SL:SR,y,a]});
-  const lastY=Math.max(yOf(arr.length-1),pos.length?pos[pos.length-1][1]:0)+150;map.style.height=lastY+"px";
-  const svg=document.createElementNS(NS,"svg");svg.setAttribute("class","paths");svg.setAttribute("viewBox","0 0 100 "+lastY);svg.setAttribute("preserveAspectRatio","none");
-  const mk=(tag,a)=>{const e=document.createElementNS(NS,tag);for(const k in a)e.setAttribute(k,a[k]);return e};
-  const pathTo=n=>{let d="M"+xOf(0)+" "+(yOf(0)-90)+" L"+xOf(0)+" "+yOf(0);for(let i=1;i<=n;i++)d+=" C"+xOf(i-1)+" "+(yOf(i-1)+STEP/2)+" "+xOf(i)+" "+(yOf(i)-STEP/2)+" "+xOf(i)+" "+yOf(i);return d};
-  const full=pathTo(arr.length-1);
-  svg.append(mk("path",{d:full,fill:"none",stroke:"var(--path)","stroke-width":"14","stroke-linecap":"round","vector-effect":"non-scaling-stroke"}));
-  svg.append(mk("path",{d:pathTo(ci),fill:"none",stroke:w.tint,"stroke-width":"14","stroke-linecap":"round","vector-effect":"non-scaling-stroke",opacity:".9"}));
-  svg.append(mk("path",{d:full,fill:"none",stroke:"var(--panel)","stroke-width":"2.5","stroke-dasharray":"2 12","stroke-linecap":"round","vector-effect":"non-scaling-stroke"}));
-  for(const[x,y,a]of pos){if(a<arr.length)svg.append(mk("line",{x1:xOf(a),y1:y,x2:x,y2:y,stroke:"var(--line2)","stroke-width":"3","stroke-dasharray":"6 6","vector-effect":"non-scaling-stroke"}))}
-  map.append(svg);
-  {const fn=arr.find(n=>!n.boss);const fm=cm&&fn?mapWorldAt(subj,cm[fn.id]):null;map.append(h("div",{class:"node",style:{left:xOf(0)+"%",top:"34px"}},h("span",{class:"cap"},"传送点 · "+(fm?(fm.lock?"未知世界":fm.w.name):w.name))))}
-  arr.forEach((n,i)=>{const isDone=nodeIsDone(subj,n);const cls="node"+(n.boss?" boss":"")+(isDone?" done":i===ci?" cur":i>ci?" locked":"");let cap,sub,rw;
-    if(n.boss){const b=BOSSES()[n.boss];cap=b.title;sub=isDone?"已击败":b.due?fmtLeft(b.due-now).replace("还剩 ","剩 "):"时间待定";rw=isDone?null:"+"+PT(BOSS_PTS)}
-    else{cap=nodeName(subj,n);sub=isDone?"已通关":n.due?"目标 "+fmtDue(n.due).replace(/ \d\d:\d\d$/,""):i===ci?"当前关卡":"第 "+(i+1)+" 关";rw=isDone?null:"+"+preview(n.pts||NODE_PTS,n.due||null,0).total}
-    const debt=!isDone&&n.lec&&n.lec<now;
-    map.append(h("button",{class:cls+(debt?" debt":""),style:{left:xOf(i)+"%",top:yOf(i)+"px"},onclick:()=>n.boss?openBossSheet(n.boss):openNodeSheet(subj,n,i),"aria-label":cap},
-      h("span",{class:"disc"},icon(n.boss?(isDone?"crown":"skull"):isDone?"star":(i>ci&&!debt)?"lock":"book")),h("span",{class:"cap"},cap,h("span",{class:"sub"},sub)),debt?h("span",{class:"debtflag"},"课上已讲"):null,rw?h("span",{class:"rw"},rw):null));
-    if(i===ci)map.append(h("div",{class:"you",id:"youMark",style:{left:xOf(i)+"%",top:(yOf(i)-(n.boss?66:46))+"px"}},"你在这里"))});
-  if(cm)arr.forEach((n,i)=>{if(i>0&&extra[i]>(extra[i-1]||0)){const mw=mapWorldAt(subj,cm[n.id]);if(!mw)return;
-    const b=h("div",{class:"wbanner"+(mw.lock?" lock":""),style:{top:((yOf(i-1)+yOf(i))/2)+"px"}},icon(mw.lock?"lock":"portal"),mw.lock?"未知世界":mw.w.name,h("small",null,mw.lock?"通关前面的关卡后解锁":mw.w.desc));
-    if(!mw.lock)b.style.setProperty("--tint",mw.w.tint);map.append(b)}});
-  sides.forEach((s,k)=>{const[x,y]=pos[k];let el;
-    if(s.kind==="task"){const o=s.o;const d=S.done[o.key];const mf=multFor(o.soft,o.r.grace||0,Date.now(),o.self);
-      el=h("button",{class:"node side "+(d?"done":mf.cls),onclick:()=>openTaskSheet(o),"aria-label":o.title},h("span",{class:"disc"},icon(d?"star":"scroll")),
-        h("span",{class:"cap"},o.title,h("span",{class:"sub"},d?"已完成":fmtDue(o.soft).replace(/ \d\d:\d\d$/,"")+" · "+fmtLeft(o.soft-now).replace("还剩 ","剩 "))),h("span",{class:"rw"},d?"+"+d.pts:"+"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total+" "+mf.label.split(" ")[0]))}
-    else if(s.kind==="canvas"){const q=s.q;const d=S.done["cv-"+q.id];const mf=multFor(q.due,0);
-      el=h("button",{class:"node side "+(d?"done":mf.cls),onclick:()=>openSideQuestSheet(q)},h("span",{class:"disc"},icon(d?"star":"scroll")),h("span",{class:"cap"},q.title,h("span",{class:"sub"},"Canvas · "+fmtLeft(q.due-now).replace("还剩 ","剩 "))),h("span",{class:"rw"},d?"+"+d.pts:"+"+preview(SIDE_PTS,q.due,0).total))}
-    else if(s.kind==="monster"){const m=s.m;el=h("button",{class:"node side monster",onclick:()=>openMonsterSheet(m)},h("span",{class:"disc"},icon("skull")),h("span",{class:"cap"},"错题怪",h("span",{class:"sub"},m.text.slice(0,16)+(m.text.length>16?"…":""))),h("span",{class:"rw"},"+15"))}
-    else{const c=s.c;el=h("button",{class:"node side"+(c.opened?" done":c.ok?" ontime":""),onclick:()=>{if(c.ok)openChest();else toast(c.opened?"本周宝箱已开":"这周周常全部提前完成才能开（现在 "+c.n+"/"+c.of+"）")}},
-      h("span",{class:"disc"},icon("gift")),h("span",{class:"cap"},"全周提前宝箱",h("span",{class:"sub"},c.opened?"已开启":"提前完成 "+c.n+"/"+c.of)),h("span",{class:"rw"},"+80"))}
-    el.style.left=x+"%";el.style.top=y+"px";map.append(el)})}
-function scrollToCur(){const y=$("#youMark");if(!y||curView()!=="map")return;const r=y.getBoundingClientRect();window.scrollTo({top:Math.max(0,scrollY+r.top-innerHeight*0.3),behavior:reduced()?"auto":"smooth"})}
+  const extra=[...occurrences().filter(o=>o.subj===subj&&!S.skipped[o.key]&&(!S.done[o.key]||recent(o.key))).map(o=>{const d=S.done[o.key];return row(d?"star":"scroll",d?"done":"",o.title,d?"已完成":fmtDue(o.soft).replace(/ \d\d:\d\d$/,"")+" · "+fmtLeft(o.soft-now).replace("还剩 ","剩 "),h("button",{class:"btn sm",onclick:()=>openTaskSheet(o)},"打开"))}),
+    ...SIDE.filter(q=>q.subj===subj&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>{const d=S.done["cv-"+q.id];return row(d?"star":"scroll",d?"done":"",q.title,"Canvas · "+fmtLeft(q.due-now).replace("还剩 ","剩 "),h("button",{class:"btn sm",onclick:()=>openSideQuestSheet(q)},"打开"))}),
+    ...reviveDue(subj).slice(0,6).map(m=>row("skull","boss","错题："+m.text.slice(0,30)+(m.text.length>30?"…":""),"打掉 +15",h("button",{class:"btn sm",onclick:()=>fightMistake(m)},"去 Claude 打")))];
+  $("#map").replaceChildren(h("div",{class:"pl"},rows.filter(Boolean)),extra.length?h("div",{class:"pl"},h("div",{class:"eyebrow",style:{margin:"14px 0 4px"}},"作业和错题"),extra):null)}
+function scrollToCur(){}
 
 /* ============ calendar ============ */
 let CV="week",CANCHOR=localKey(new Date());const EVC=new Map();let calSeq=0;
@@ -1857,7 +1875,6 @@ async function smPump(){if(smBusy)return;smBusy=true;while(SMQ.length){const[too
 
 /* ============ dungeon ============ */
 let CUR="math",SAMPLE=null,CTL=null,IMGS=[],IMG_OK=false;const CHATS={math:[],chem:[],engri:[],engl:[]};const QUEST={};
-function goDungeon(subj,msg){CUR=subj;if(FOCUS&&FOCUS.subj!==subj)focusFail("换了科目");if(location.hash!=="#dungeon")location.hash="#dungeon";else renderDungeon();if(msg)setTimeout(()=>send(msg),80)}
 function measureBars(){const r=document.documentElement;r.style.setProperty("--hudH",$(".hud").getBoundingClientRect().bottom+"px");r.style.setProperty("--tabH",$(".tabbar").getBoundingClientRect().height+"px")}
 function renderDungeon(){const w=worldOf(CUR);{const b=S.battle[CUR];if(!QUEST[CUR]&&b&&b.kind==="quest"&&b.node){const n=MAIN[CUR].find(x=>x.id===b.node);if(n&&!nodeIsDone(CUR,n))QUEST[CUR]={id:n.id,t:nodeName(CUR,n)}}}
   const dg=$("#v-dungeon");dg.style.setProperty("--tint",w.tint);measureBars();
@@ -2276,7 +2293,7 @@ function zwSave(){const hist={};for(const k of Object.keys(SUBJ))hist[k]=zwT(k).
 async function zwLoad(){try{let d=null;if(DB&&UID){const c=await DB.doc("data/users/"+UID+"/chat-zero").get();liveSaw("chat-zero",c);if(c.exists)d=clone(c.data())}else d=JSON.parse(localStorage.getItem("zs-chat-zero")||"null");
   if(d){if(d.subj&&(SUBJ[d.subj]||d.subj==="life"))ZW.subj=d.subj;if(d.hist&&typeof d.hist==="object"){for(const k in d.hist)if((SUBJ[k]||k==="life")&&Array.isArray(d.hist[k]))ZW.hist[k]=d.hist[k]}else if(Array.isArray(d.turns))ZW.hist[ZW.subj]=d.turns}}catch(e){}zwRender()}
 /* 每轮都变的东西（几点、在哪页、共享记忆搜到的）放在最后一条消息里，前面的背景说明保持不变，才能命中提示缓存 */
-function zwNowNote(){const now=new Date();return"（现在 "+pad(now.getHours())+":"+pad(now.getMinutes())+"，她在网站的「"+({now:"现在",map:"地图",cal:"日历",dungeon:"副本",shop:"商店",bag:"背包"}[curView()]||"")+"」页）"}
+function zwNowNote(){const now=new Date();return"（现在 "+pad(now.getHours())+":"+pad(now.getMinutes())+"，她在网站的「"+({now:"现在",map:"进度",cal:"日历",read:"读书",shop:"商店",bag:"背包"}[curView()]||"")+"」页）"}
 /* 日常模式（非学习）：零当随身助手，不带科目和教学规则 */
 const LIFE_RULES=`你是「零」，Catherine 的随身小助手，现在是日常模式（不是学习模式）。她是 Cornell 大一新生；时间一律按她电脑现在的时区（${TZID}）说。
 - 用中文，简洁、直接、像靠谱的朋友。不写剧情，不出题，不讲课，不提醒学习，除非她问。
@@ -2324,55 +2341,6 @@ async function zwSend(text,show){text=(text||$("#zwInput").value).trim();const h
   finally{ZW.ctl=null;for(const k in ZW.hist)ZW.hist[k]=ZW.hist[k].slice(-30);zwSave();zwRender();if($("#zwPanel").hidden)$("#zwFab").classList.add("ping");if(DESK&&DESK.notify&&(document.hidden||!document.hasFocus()))DESK.notify()}}
 /* ---- 每日签到题（独立弹窗） ---- */
 let DQ_CTL=null;
-async function openDaily(subj){if(checkedToday()){openCheckin();return}subj=subj||(planToday()||{b:{}}).b.subj||suggestSubj();if(subj==="engl")subj="math";closeSheet();
-  document.querySelectorAll(".qz").forEach(x=>x.remove());const card=h("div",{class:"card2"});const ov=h("div",{class:"qz",role:"dialog","aria-modal":"true"},card);document.body.append(ov);
-  const close=()=>{if(DQ_CTL)DQ_CTL.abort();ov.remove()};
-  const head=()=>h("div",{class:"row between"},h("div",null,h("div",{class:"eyebrow"},"每日委托 · +"+ckReward(streak()+1)),h("h2",{style:{margin:0}},SUBJ[subj].full)),h("button",{class:"btn sm flat",onclick:close,"aria-label":"关闭"},"×"));
-  const swap=h("div",{class:"row",style:{gap:"6px"}},["math","chem","engri"].map(k=>h("button",{class:"btn sm"+(k===subj?" go":""),onclick:()=>{if(k!==subj){S.dailyQ=null;close();openDaily(k)}}},SUBJ[k].name)));
-  let dq=S.dailyQ&&S.dailyQ.day===dayKey()&&S.dailyQ.subj===subj?S.dailyQ:null;
-  const mon=null;
-  if(!dq){card.replaceChildren(head(),swap,h("div",{class:"muted"},"零正在备课…"));if(!SAMPLE){card.append(h("div",{class:"muted"},"需要在 Claude 里打开"));return}
-    DQ_CTL=new AbortController();
-    const ex=examInfo(subj);const exTxt=ex&&ex.due-Date.now()<10*DAY?`最近的考试：「${ex.title}」${fmtDue(ex.due)}${ex.scope?"，范围 "+ex.scope:ex.where?"（"+ex.where+"）":""}。`:"";
-    const hw=(S.hwArchive||[]).filter(a=>a.subj===subj).slice(-4).map(a=>"【"+a.title+"】\n"+a.items.map(q=>(q.no&&q.no!=="?"?q.no+"：":"")+q.text).join("\n")).join("\n\n").slice(0,5000);
-    try{const j=await SAMPLE.json(contextTurn(subj)+`\n\n现在是「每日委托」：像探索类剧情游戏里的支线委托，当前世界里某个 NPC 找她帮个小忙，这个忙正好要用到今天的知识点。目的是每天教她一点新东西，不是刷题。
-委托的写法：
-- 轻松、有人情味、日常，像游戏里的小支线：帮小女孩找丢了的风筝、帮小摊老板算一锅能煮几碗、帮送信的人规划最短路线、帮老匠人校准一个零件（这些只是举例，具体的人和事要换成当前世界里才会有的）。可以是好笑的、温暖的、古怪的，不要沉重，不要生死攸关，不要扯主线的危机（比如涨潮、撤离、倒计时）。
-- NPC 必须属于当前这个世界：可以是主线里已经出场的角色，也可以新编这个世界里的普通居民、小商贩、小孩、动物、会说话的机器，但身份、名字、说话方式、身边的东西都要符合这个世界的设定和地点，不能像从别的世界搬来的。给个有特点的名字或称呼，一句话就能看出性格。
-- 可以和主线有一点轻轻的关联：比如委托人认识主线里的某个角色，或者顺手透露一条和主线有关的小线索、小传闻，让她觉得世界是连着的；但委托本身还是轻松的小事，不要变成主线任务。
-- 委托背景一两句（60 字以内），有画面，和知识点直接相关。
-- 每天换不同的人、不同的事，不要和最近的委托重复。${(S.dqHist||[]).length?"最近的委托（别重复这些人和事）："+(S.dqHist||[]).slice(-6).join("；"):""}
-讲解正文里不要再写剧情和角色台词。
-${exTxt}
-${(()=>{const pt=planToday(subj);if(pt)return"今天考前计划里的知识点是「"+pt.it.topic+"」（"+pt.it.task+"），就教这个。\n";const pk=dqPick(subj);if(pk)return"今天要教的是「"+pk.t+"」（"+pk.why+"），就教这一节里最核心的一个点，topic 写成这一节的名字。\n";return"先挑一个她现在最需要的知识点：最近 10 天内有考试或 quiz 的，就从它的范围里挑她最可能不会的一个点；没有的话，挑主线上接下来要学的一个点。"})()}${hw?"\n她作业里的原题（可以直接拿一道来当例题教）：\n"+hw:""}
-然后像家教一样从零教这一个点：先一两句说清是什么、什么时候用，再用一道具体的例题（最好是作业原题或考试题型）一步一步做给她看，每一步说做什么、为什么。整体 300 字以内，分 3 到 5 小段，公式用 $...$。${subj==="chem"?"例题和术语用英文，讲解用中文。":""}
-最后出一道检查题，考刚教的这个点，换个数字或问法，3 分钟能做完。能用选择题考的就出 4 个选项的单选题；需要算一个数或写一句话的就出简答题。
-只回复 JSON：{"client":"委托人，当前世界里的一个人或势力，10 字以内","brief":"委托背景一两句，60 字以内","topic":"知识点名称，15 字以内","lesson":"教学内容，段落之间用 \\n\\n 隔开","q":"检查题","type":"choice 或 short","options":["A","B","C","D"],"answer":"选择题写正确选项的序号 0-3，简答题写标准答案","explain":"两三句讲解"}`,{modelTier:"complex",cache:false,signal:DQ_CTL.signal});
-      if(!j||!j.q)throw{code:"invalid_json"};dq={day:dayKey(),subj,q:String(j.q),type:j.type==="choice"&&Array.isArray(j.options)&&j.options.length>=2?"choice":"short",options:(j.options||[]).map(String),answer:j.answer,explain:String(j.explain||""),topic:String(j.topic||"").slice(0,30),tid:(()=>{const pt=planToday(subj);if(pt)return null;const pk=dqPick(subj);return pk?pk.id:null})(),lesson:String(j.lesson||""),client:String(j.client||"").slice(0,16),brief:String(j.brief||"").slice(0,120)};S.dqHist=[...(S.dqHist||[]),(dq.client?dq.client+"："+dq.brief:dq.brief).slice(0,60)].filter(Boolean).slice(-8);
-      if(dq.type==="choice"){const ci=+dq.answer;const right=dq.options[ci]!=null?dq.options[ci]:dq.options[0];const sh=dq.options.slice();for(let i=sh.length-1;i>0;i--){const r=Math.floor(Math.random()*(i+1));[sh[i],sh[r]]=[sh[r],sh[i]]}dq.options=sh;dq.answer=sh.indexOf(right)}
-      S.dailyQ=dq;save()}
-    catch(e){if(e&&e.code==="cancelled")return;card.replaceChildren(head(),swap,h("div",{class:"muted"},e&&e.code==="invalid_json"?"题目没生成好。":sampleErr(e)),h("button",{class:"btn go",onclick:()=>{close();openDaily(subj)}},"再出一道"));return}
-    finally{DQ_CTL=null}}
-  draw();
-  function finish(ok,fb){dq.done={ok,fb:fb||""};if(dq.tid){S.dqCovered=S.dqCovered||{};(S.dqCovered[subj]=S.dqCovered[subj]||{})[dq.tid]=Date.now()}if(dq.client||dq.brief){S.dqDone=[...(S.dqDone||[]),{subj,world:worldOf(subj).name,client:dq.client||"",brief:dq.brief||"",day:dayKey()}].slice(-20)}focusAct();save();
-    if(!ok){const nm={id:"m"+uid().slice(0,4),subj,text:dq.q.replace(/\s+/g," ").slice(0,160),fix:(dq.type==="choice"?"正确答案："+dq.options[dq.answer]+"。":"标准答案："+dq.answer+"。")+dq.explain.slice(0,150),added:dayKey(),at:Date.now(),revive:addDays(dayKey(),3),killed:false};S.mistakes.push(nm);syncMistake(nm)}
-    smEvent("签到题"+(ok?"做对":"做错"),subj);draw()}
-  function teach(){zwOpen(subj,"【签到题】题目："+dq.q+(dq.type==="choice"?"\n选项："+dq.options.map((o,k)=>String.fromCharCode(65+k)+". "+o).join("  "):"")+"\n我不会做，教我怎么做。先讲需要的知识，再带我做第一步，一步一问，先别告诉我答案。")}
-  function draw(){if(dq.lesson&&!dq.read&&!dq.done){const body=h("div",{class:"qexp",style:{fontSize:"16px",color:"var(--fg)",lineHeight:"1.8"}},renderMd(dq.lesson));card.replaceChildren(head(),swap,dq.brief?h("div",{class:"dq-brief"},h("div",{class:"dq-from"},"委托人 · "+(dq.client||"未署名")),h("div",null,dq.brief)):null,dq.topic?h("h3",null,dq.topic):null,body,h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{dq.read=true;save();draw()}},"看完了，做一道题"),h("button",{class:"btn sm flat",onclick:()=>zwOpen(subj,"【每日委托】"+(dq.topic||"")+"\n"+dq.lesson.slice(0,1500)+"\n\n这里我没看懂，再讲一遍，讲慢一点。")},"没看懂，问零")));typeset(card);return}
-    const kids=[head(),dq.done?null:swap,dq.topic?h("div",{class:"eyebrow"},dq.topic):null,h("div",{class:"qtext"},renderMd(dq.q))];
-    if(!dq.done)kids.push(h("button",{class:"btn sm",style:{alignSelf:"flex-start"},onclick:teach},"教我怎么做"));
-    if(dq.type==="choice"){const a=dq.done?dq.picked:null;kids.push(...dq.options.map((o,k)=>h("button",{class:"qopt"+(dq.done?(k===dq.answer?" right":k===a?" wrong":""):""),disabled:!!dq.done,onclick:()=>{dq.picked=k;finish(k===dq.answer)}},renderMd(o))))}
-    else if(!dq.done){const ta=h("textarea",{class:"dsearch",rows:3,placeholder:"写答案，或者拍照"});let img=null;const st=h("div",{class:"muted"});
-      const pic=IMG_OK?h("label",{class:"btn sm",style:{cursor:"pointer"}},"拍照作答",h("input",{type:"file",accept:"image/*",hidden:true,onchange:e=>{img=e.target.files[0]||null;st.textContent=img?"已附图片":""}})):null;
-      const go=h("button",{class:"btn go",onclick:async()=>{const ans=ta.value.trim();if(!ans&&!img)return;go.disabled=true;st.textContent="零在批改…";DQ_CTL=new AbortController();
-        try{const r=await SAMPLE.json(`批改一道学习题。题目：${dq.q}\n标准答案：${dq.answer}\n讲解：${dq.explain}\n学生的回答：${ans||"（见图片）"}\n判断她答得对不对（意思对、数值在合理误差内就算对；方法对但最后算错算错）。用中文写一两句反馈，指出错在哪。只回复 JSON：{"correct":true,"feedback":"…"}`,{modelTier:"complex",cache:false,signal:DQ_CTL.signal,...(img?{images:[img]}:{})});
-          dq.mine=ans||"（图片）";finish(!!(r&&r.correct),r&&r.feedback)}catch(e){go.disabled=false;st.textContent=e&&e.code==="cancelled"?"":sampleErr(e)}finally{DQ_CTL=null}}},"提交");
-      kids.push(ta,h("div",{class:"row",style:{gap:"8px"}},go,pic),st);setTimeout(()=>ta.focus(),30)}
-    if(dq.done){if(dq.type==="short"&&dq.mine)kids.push(h("div",{class:"muted"},"你的回答："+dq.mine));
-      kids.push(h("div",{class:"ln vd "+(dq.done.ok?"ok":"bad")},renderMd((dq.done.ok?"答对了。":"这次没对，已收进错题图鉴。")+(dq.done.fb?" "+dq.done.fb:""))),
-        h("div",{class:"ln skill"},renderMd((dq.type==="short"?"**标准答案**："+dq.answer+"\n\n":"")+dq.explain)),
-        checkedToday()?h("button",{class:"btn",onclick:close},"关闭"):h("button",{class:"btn go bigbtn",onclick:()=>{close();doCheckin(SUBJ[subj].name)}},"签到 +"+ckReward(streak()+1)))}
-    card.replaceChildren(...kids.filter(Boolean));typeset(card)}}
 /* ---- quiz ---- */
 const quizzesToday=()=>((S.quizLog||{})[dayKey()]||0);
 async function startQuiz(){if(!SAMPLE||CTL)return;const subj=CUR;CTL=new AbortController();renderDungeon();
@@ -2410,7 +2378,6 @@ function finishQuiz(t,subj){const z=t.quiz;z.done=true;const n=z.qs.length;const
   save();saveChat(subj);if(curView()==="dungeon")renderChat();
   setTimeout(()=>{if(c===n)fxBanner("全对！",c+"/"+n,"#5fd3b8");if(paid)setTimeout(()=>showReward(paid,"小测验 "+c+"/"+n,[c+" 题 × "+R(6)+(c===n?"，全对 +"+R(10):""),(c<n?"错的 "+(n-c)+" 题收进了错题图鉴":"")].filter(Boolean),0),c===n?1500:300);else toast("小测验 "+c+"/"+n+"，今天的奖励已领满")},400)}
 
-function fightMistake(m){goDungeon(m.subj,"【错题怪复活 编号 "+m.id+"】"+m.text+"。给我出一道同类型的题，我做对了才算击败它。")}
 async function saveChat(subj){const body={turns:CHATS[subj].slice(-30).map(t=>{const o={role:t.role,content:t.content};if(t.refs)o.refs=t.refs;if(t.at)o.at=t.at;return o})};
   body.turns=CHATS[subj].slice(-30).map(t=>{const o={role:t.role,content:t.content};if(t.quiz)o.quiz=t.quiz;if(t.choices)o.choices=t.choices;if(t.refs)o.refs=t.refs;if(t.at)o.at=t.at;return o});
   body.savedAt=Date.now();CHAT_AT[subj]=body.savedAt;cloudQueue("chat-"+subj,()=>body);
@@ -2470,7 +2437,7 @@ function spendBook(){const L=(S.spend||[]).slice().sort((a,b)=>b.at-a.at);if(!L.
     h("div",{class:"log"},rows.map(x=>{const d=new Date(x.at);return h("div",null,h("span",{class:"num dim"},(d.getMonth()+1)+"/"+d.getDate()),h("span",null,x.cat+(x.note?" · "+x.note:"")+" · "+(x.cur==="cny"?"¥":"$")+x.amt),
       h("span",{class:"num minus"},"-"+fp(x.pts),h("button",{class:"btn sm flat",style:{marginLeft:"6px",padding:"0 6px"},onclick:()=>del(x),"aria-label":"删除"},"×")))})))}
 function renderShop(){renderSpend();$("#shopReal").replaceChildren(playCard(),...SHOP_REAL.map(i=>itemCard(i,true)),...S.customRewards.map(i=>itemCard(Object.assign({custom:true,ic:"gift",desc:"自定义奖励"},i),true)));
-  $("#shopItems").replaceChildren(...SHOP_ITEMS.map(i=>itemCard(i,false)));$("#shopStory").replaceChildren(...storyShopCards());renderTimer()}
+  $("#shopItems").replaceChildren(...SHOP_ITEMS.map(i=>itemCard(i,false)));renderTimer()}
 function renderTimer(){const c=$("#timerCard");if(!S.timer){c.hidden=true;return}c.hidden=false;
   if(S.timer.meter){const {m,cost}=playNow();$("#tLabel").textContent=S.timer.label;c.classList.remove("over");$("#tLeft").textContent=pad(Math.floor(m))+":"+pad(Math.floor(m*60%60))+(S.timer.free?"":" · "+cost+" 分");$("#tStop").textContent="玩完了";return}const left=S.timer.end-Date.now();$("#tLabel").textContent=S.timer.label;c.classList.toggle("over",left<=0);
   if(left<=0){$("#tLeft").textContent="时间到";$("#tStop").textContent="收起"}else{$("#tLeft").textContent=pad(Math.floor(left/MIN))+":"+pad(Math.floor(left%MIN/1e3));$("#tStop").textContent="提前结束"}}
@@ -2532,18 +2499,17 @@ function nextSteps(){const out=[];const now=Date.now();
   if(sleepAwake())out.push({ic:"moon",title:"起床",meta:"真的起床了再点 · 睡够 7 小时、8 点前起都有奖励",btn:"起床",label:"起床打卡",say:"起床了就点一下，不要在床上点。",go:wakeUp,sleep:9});
   {const hr=new Date(now).getHours();if(!S.sleep&&(hr>=21||hr<6)){const ok=sleepWindow(now).ok,late=hr<21||hr>=23&&new Date(now).getMinutes()>=30;
     out.push({ic:"moon",title:"晚安",meta:ok?"00:30 前点 · 明早 +"+(sleepStreak()>=2?SLEEP_STREAK_PTS:SLEEP_PTS):"现在点也会记下来，比平时早有进步奖励",btn:"晚安",label:"晚安打卡",say:"准备睡了就点晚安。之后别再用电脑，明早打开自动记起床、发奖励。",go:goodnight,sleep:late?0.5:8})}}
-  if(!checkedToday()){const sg=suggestSubj();out.push({subj:sg,ic:"flame",title:"签到题",meta:SUBJ[sg].name+" · 3 分钟 · +"+ckReward(streak()+1),label:"做一道签到题",say:"今天还没签到。做一道"+SUBJ[sg].name+"小题，大约 3 分钟，+"+ckReward(streak()+1)+" 分。",go:()=>openDaily(sg)})}
+  if(!checkedToday()){const sg=suggestSubj();out.push({subj:sg,ic:"flame",title:"每日委托",meta:"去 Claude 学一小块 "+SUBJ[sg].name+" · +"+ckReward(streak()+1),label:"做一道签到题",say:"今天还没签到。去 Claude 学一小块"+SUBJ[sg].name+"，答对检查题自动签到，+"+ckReward(streak()+1)+" 分。",go:()=>openDaily(sg)})}
   const urgent=occurrences().filter(o=>isOpen(o)&&o.soft>now-HOUR&&o.soft-now<40*HOUR);
-  for(const o of urgent.slice(0,2))out.push({subj:o.subj,ic:"scroll",title:o.title,meta:SUBJ[o.subj].name+" · "+fmtLeft(o.soft-now)+" · +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total,label:SUBJ[o.subj].name+" "+o.title,say:SUBJ[o.subj].name+"的「"+o.title+"」"+fmtLeft(o.soft-now).replace("还剩","还剩")+"。先做第一步：把第一题发进来。",go:()=>{startBattle(o.subj,"hw",FOES.hw);goDungeon(o.subj,taskPrompt(o))}});
+  for(const o of urgent.slice(0,2))out.push({subj:o.subj,ic:"scroll",title:o.title,meta:SUBJ[o.subj].name+" · "+fmtLeft(o.soft-now)+" · +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total,label:SUBJ[o.subj].name+" "+o.title,say:SUBJ[o.subj].name+"的「"+o.title+"」"+fmtLeft(o.soft-now).replace("还剩","还剩")+"。先做第一步：把第一题发进来。",go:()=>openTaskSheet(o)});
   const mons=reviveDue();if(mons.length)out.push({subj:mons[0].subj,ic:"skull",title:"错题怪",meta:SUBJ[mons[0].subj].name+" · "+(/[$\\]/.test(mons[0].text)?"上次做错的题":mons[0].text.slice(0,24))+" · +"+R(15),label:"打一只错题怪",say:"有 "+mons.length+" 只错题怪复活了。打一只，+"+R(15)+" 分。",go:()=>{fightMistake(mons[0])}});
   for(const k of["math","chem","engri"]){const arr=MAIN[k];const i=curIndex(k);const n=arr[i];if(!n||n.boss||nodeIsDone(k,n))continue;const debt=n.lec&&n.lec<now;
-    out.push({subj:k,ic:"book",title:nodeName(k,n),meta:SUBJ[k].name+" 主线"+(debt?" · 课上已讲":"")+" · +"+R(NODE_PTS),label:SUBJ[k].name+"主线 · "+nodeName(k,n),say:(debt?"课上已经讲过「"+nodeName(k,n)+"」了，":"")+"进"+worldOf(k).name+"打这一关。每段只答一个小问题，打空守关者血条通关，+"+R(NODE_PTS)+" 分。",go:()=>startNode(k,n),pri:debt?1:0})}
-  if(quizzesToday()<QUIZ_CAP){const k=weightedPick(["math","chem","engri"],"qz"+dayKey()+":"+quizzesToday());const top=(S.progress[k]||[]).slice(-1)[0];const cn=MAIN[k][curIndex(k)];const topic=top?top.t:cn&&!cn.boss?nodeName(k,cn):SUBJ[k].full;QUIZ_TOPIC[k]=topic;out.push({subj:k,ic:"bulb",title:"小测验 · "+topic,meta:SUBJ[k].name+" · 5 题 · 最多 +"+R(40),label:SUBJ[k].name+"小测验 · "+topic,say:SUBJ[k].name+"小测验，考「"+topic+"」，5 道选择题。每题 +"+R(6)+"，全对 +"+R(10)+"。",go:()=>{goDungeon(k);setTimeout(startQuiz,150)}})}
-  {const pt=planToday();if(pt){const k=pt.b.subj;out.push({subj:k,ic:"crown",title:"今天的复习 · "+pt.it.topic,meta:SUBJ[k].name+" · "+pt.b.title+" 考前计划 · 约 "+(pt.it.min||60)+" 分钟"+(pt.all>1?" · 今天还剩 "+pt.left+" 项":""),label:"考前计划 "+pt.it.topic,say:pt.b.title+"的考前计划，今天是「"+pt.it.topic+"」。进副本，零直接从这里教起。",go:()=>planGo(pt.id,pt.it),plan:true})}}
+    out.push({subj:k,ic:"book",title:nodeName(k,n),meta:SUBJ[k].name+" · 去 Claude 学"+(debt?" · 课上已讲":"")+" · +"+R(NODE_PTS),label:SUBJ[k].name+"主线 · "+nodeName(k,n),say:(debt?"课上已经讲过「"+nodeName(k,n)+"」了，":"")+"去 Claude 学这一节，答对检查题自动打勾，+"+R(NODE_PTS)+" 分。",go:()=>startNode(k,n),pri:debt?1:0})}
+  {const pt=planToday();if(pt){const k=pt.b.subj;out.push({subj:k,ic:"crown",title:"今天的复习 · "+pt.it.topic,meta:SUBJ[k].name+" · "+pt.b.title+" 考前计划 · 约 "+(pt.it.min||60)+" 分钟"+(pt.all>1?" · 今天还剩 "+pt.left+" 项":""),label:"考前计划 "+pt.it.topic,say:pt.b.title+"的考前计划，今天是「"+pt.it.topic+"」。去 Claude 学，学完自动打勾。",go:()=>planGo(pt.id,pt.it),plan:true})}}
   for(const k of["math","chem","engri"]){const b=examInfo(k);if(!b)continue;const d=Math.ceil((b.due-now)/DAY);if(d>14)continue;if(planToday(k))continue;
     const bid=Object.keys(BOSSES()).find(x=>BOSSES()[x]===b||BOSSES()[x].title===b.title&&BOSSES()[x].due===b.due);const np=bid&&!(S.examPlan||{})[bid]&&d<=12;
     if(np){out.push({subj:k,ic:"crown",title:"排考前计划 · "+b.title,meta:"还有 "+d+" 天 · 先回答几个问题，零按天排好",label:"排考前计划 "+b.title,review:true,days:d,go:()=>planSetup(bid,BOSSES()[bid])});continue}
-    out.push({subj:k,ic:"crown",title:"备考 · "+b.title,meta:"还有 "+d+" 天 · 从最没把握的地方开始",label:"备考 "+b.title,review:true,days:d,go:()=>{startBattle(k,"review",FOES.review);goDungeon(k,helpMode(k,/考前复习/))}})}
+    out.push({subj:k,ic:"crown",title:"备考 · "+b.title,meta:"还有 "+d+" 天 · 从最没把握的地方开始",label:"备考 "+b.title,review:true,days:d,go:()=>goClaude(k,"帮我准备「"+b.title+"」（"+fmtDue(b.due)+(b.scope?"，范围 "+b.scope:"")+"）。先问我最没把握的是哪部分，从那里开始。",null)})}
   out.push({ic:"game",title:"今天的都做完了",meta:"有 "+fp(S.points)+" 分",btn:"去商店",label:"去商店兑换游戏时间",say:"今天该做的都做完了。现在有 "+fp(S.points)+" 分，可以去换游戏时间。",go:()=>{location.hash="#shop"},rest:true});
   // order: check-in, urgent, debt main, monsters, main, quiz, rest
   const pri=x=>x.sleep?x.sleep:x.plan?1.2:x.label==="做一道签到题"?0:urgent.some(o=>x.label.endsWith(o.title))?1:x.review?(x.days<=7?1.5:3.5):x.pri===1?2:x.label==="打一只错题怪"?3:x.rest?9:x.label.includes("小测验")?5:4;
@@ -2691,7 +2657,7 @@ function renderRead(){const box=$("#v-read");if(!box)return;const B=RD().books;c
 function renderHud(){renderGuideFab();{const b=$("#hSleep");if(b){b.textContent=sleepAwake()?"起床":S.sleep?"已晚安":"晚安";b.classList.toggle("go",sleepAwake());const a=sleepAvg();b.title=(S.sleep?"已经点过晚安，点错了就连点两下撤销":"准备睡了就点：记下几点睡，00:30 前有奖励")+(a!=null?"。最近 7 晚平均 "+fmtBed(a)+" 睡":"")}}const lv=levelOf(S.xp);$("#hLv").textContent=lv.L;$("#hTitle").textContent=lv.title;$("#hXp").textContent=(S.xp-lv.lo)+" / "+(lv.hi-lv.lo)+" XP";
   $("#hXpBar").style.width=Math.round((S.xp-lv.lo)/(lv.hi-lv.lo)*100)+"%";$("#hPts").textContent=fp(S.points);$("#hStreakN").textContent=streak()+(checkedToday()?"":" · 未签");
   $("#hStreak").title=checkedToday()?"今天已签到":"今天还没签到，点开签到日历";$("#hCards").textContent=S.cards.makeup}
-const VIEWS=["now","map","cal","dungeon","read","shop","bag"];
+const VIEWS=["now","map","cal","read","shop","bag"];
 function curView(){const v=(location.hash||"#now").slice(1);return VIEWS.includes(v)?v:"now"}
 let NI=0;
 function renderNow(){const steps=nextSteps();if(NI>=steps.length)NI=0;const st=steps[NI];const tint=st.subj?worldOf(st.subj).tint:"#2fa865";
@@ -2703,7 +2669,7 @@ function renderNow(){const steps=nextSteps();if(NI>=steps.length)NI=0;const st=s
     h("div",{class:"todaybar",title:"今天完成"},Array.from({length:Math.max(5,doneToday)},(_,i)=>h("i",{class:i<doneToday?"on":""}))))}
 function route(){const v=curView();document.body.classList.toggle("dg-on",v==="dungeon");measureBars();for(const x of VIEWS)$("#v-"+x).hidden=x!==v;document.querySelectorAll(".tabbar a").forEach(a=>a.setAttribute("aria-current",a.dataset.v===v?"page":"false"));renderHud();renderView(v);
   if(v==="map")setTimeout(scrollToCur,40);else window.scrollTo(0,0)}
-function renderView(v){if(v==="now")renderNow();else if(v==="map")renderMap();else if(v==="cal")renderCal();else if(v==="dungeon")renderDungeon();else if(v==="shop")renderShop();else if(v==="read")renderRead();else renderBag()}
+function renderView(v){if(v==="now")renderNow();else if(v==="map")renderMap();else if(v==="cal")renderCal();else if(v==="shop")renderShop();else if(v==="read")renderRead();else renderBag()}
 function renderAll(){if(EMBED==="zero")setTimeout(pendingPdfs,3000);renderHud();renderView(curView());if(EMBED==="todo")renderTodoEmbed();if(EMBED==="zero")deskBadge()}
 function softRefresh(){renderHud();const v=curView();if(v==="map"||v==="cal")renderView(v)}
 
@@ -2963,7 +2929,7 @@ function deskDeliver(target,list){const files=deskFiles(list);if(!files.length)r
   {const m=/^zero:(\w+)$/.exec(target);if(m&&SUBJ[m[1]]){ZW.subj=m[1];zwRender();target="zero"}}
   archiveFiles(SUBJ[target]?target:ZW.subj,list);
   if(target==="zero"||EMBED==="zero"){zwOpen();zwAddFiles(files);return}
-  if(SUBJ[target]){goDungeon(target);setTimeout(()=>addFiles(files),400)}}
+  if(SUBJ[target]){ZW.subj=target;zwOpen(target);zwAddFiles(files)}}
 
 
 /* 自己加的待办（S.todos）：有截止时间的同步成 Google 日历事件 */
@@ -3253,7 +3219,6 @@ function planBlock(id,b){const left=b.due-Date.now();if(left>12*DAY||left<0)retu
         h("span",null,(dn?"✓ ":"")+d.day.slice(5).replace("-","/")+" "+(d.kind==="mock"?"模拟卷 · ":d.kind==="final"?"错题和公式 · ":"")+d.topic+(td&&!dn&&d.task?" — "+d.task:"")),h("span",{class:"rw"},td&&!dn?"开始 →":"+"+(dn?dn.pts:R(PLAN_PTS))))})),
     h("div",{class:"dim small",style:{marginTop:"6px"}},"今天的那一项点一下直接进副本开始；别的日子的点一下算做完。"))}
 /* 从计划进副本：开打复习战，零直接教今天这一项 */
-function planGo(id,d){const b=BOSSES()[id];if(!b)return;startBattle(b.subj,"review",FOES.review);goDungeon(b.subj,"开始今天的计划：「"+d.topic+"」"+(d.task?"（"+d.task+"）":""))}
 /* 待办小窗 */
 function undoDone(key,label){const d=S.done[key];if(!d)return;delete S.done[key];S.undone=S.undone||{};S.undone[key]=Date.now();if(d.pts){earn(-d.pts,"撤销 · "+label);if(d.pts>0)S.xp=Math.max(0,S.xp-Math.round(d.pts*XP_PER))}
   if(d.sh){S.shards-=d.sh;while(S.shards<0&&S.cards.makeup>0){S.cards.makeup--;S.shards+=3}S.shards=Math.max(0,S.shards)}save();renderAll()}
@@ -3335,14 +3300,16 @@ function syncMerge(a,b){if(!a)return clone(b);if(!b)return clone(a);const o=clon
   o.undone=Object.assign({},b.undone||{},o.undone||{});for(const k in b.undone||{})o.undone[k]=Math.max(o.undone[k]||0,b.undone[k]);
   o.done=o.done||{};for(const k in b.done||{})if(!o.done[k]&&!((o.undone[k]||0)>=(b.done[k].at||0)))o.done[k]=b.done[k];
   for(const k in o.done)if((o.undone[k]||0)>(o.done[k].at||0))delete o.done[k];
-  for(const f of["skipped","started","pausedTasks","dueFix","chests","weekEarly","topicAt","topicFrom","nodeNames"]){if(b[f]&&typeof b[f]==="object"){o[f]=o[f]||{};for(const k in b[f])if(!(k in o[f]))o[f][k]=b[f][k]}}
-  const lk=e=>e.at+"|"+e.t+"|"+e.d;const have=new Set((o.ledger||[]).map(lk));let dp=0,dx=0;
-  for(const e of b.ledger||[])if(!have.has(lk(e))){(o.ledger=o.ledger||[]).push(e);dp+=e.d||0;if(e.d>0)dx+=Math.round(e.d*XP_PER);else if(/^撤销/.test(e.t||""))dx+=Math.round(e.d*XP_PER)}
+  for(const f of["skipped","started","pausedTasks","dueFix","chests","weekEarly","topicAt","topicFrom","nodeNames","learnSeen"]){if(b[f]&&typeof b[f]==="object"){o[f]=o[f]||{};for(const k in b[f])if(!(k in o[f]))o[f][k]=b[f][k]}}
+  const lk=e=>e.at+"|"+e.t+"|"+e.d;const have=new Set((o.ledger||[]).map(lk));const haveL=new Set((o.ledger||[]).filter(e=>e.lid).map(e=>e.lid+"|"+e.t));let dp=0,dx=0;
+  /* 同一条学习记录两台设备各发了一次奖励：只留一份（lid 是 learnlog 的记录 id） */
+  for(const e of b.ledger||[])if(!have.has(lk(e))&&!(e.lid&&haveL.has(e.lid+"|"+e.t))){(o.ledger=o.ledger||[]).push(e);dp+=e.d||0;if(e.d>0)dx+=Math.round(e.d*XP_PER);else if(/^撤销/.test(e.t||""))dx+=Math.round(e.d*XP_PER)}
   if(o.ledger)o.ledger.sort((x,y)=>x.at-y.at);o.points=r1((o.points||0)+dp);o.xp=Math.max(0,(o.xp||0)+dx);
   o.todoGone=Object.assign({},b.todoGone||{},o.todoGone||{});const tm=new Map((o.todos||[]).map(t=>[t.id,t]));
   for(const t of b.todos||[]){const m=tm.get(t.id);if(!m)tm.set(t.id,t);else if((t.mt||t.done||0)>(m.mt||m.done||0))tm.set(t.id,t)}o.todos=[...tm.values()].filter(t=>!o.todoGone[t.id]);
   const uni=(f,key)=>{const L=o[f]||[];const ks=new Set(L.map(key));for(const x of b[f]||[])if(!ks.has(key(x))){L.push(x);ks.add(key(x))}o[f]=L};
   uni("mistakes",m=>m.id);uni("scores",x=>x.id);uni("timeLog",x=>x.at+"|"+x.title);uni("sleepRec",x=>x.bed);uni("playLog",x=>x.at);uni("dqDone",x=>x.day+"|"+x.client);uni("hwArchive",x=>x.id);
+  if(b.freeLessons){o.freeLessons=o.freeLessons||{};for(const d in b.freeLessons)o.freeLessons[d]=Math.max(o.freeLessons[d]||0,b.freeLessons[d])}
   o.checkins=[...new Set([...(o.checkins||[]),...(b.checkins||[])])].sort();
   for(const m of o.mistakes||[]){const r=(b.mistakes||[]).find(x=>x.id===m.id);if(r&&r.killed)m.killed=r.killed}
   if((b.sleepMt||0)>(o.sleepMt||0)){o.sleep=b.sleep;o.sleepMt=b.sleepMt}
@@ -3364,10 +3331,10 @@ const LIVE={ver:{},busy:false};
 function liveSaw(key,r){if(r&&r.version)LIVE.ver[key]=Math.max(LIVE.ver[key]||0,r.version)}
 async function pullChat(k){if(!DB||!UID)return;if(CTL&&CUR===k)return false;try{const c=await DB.doc("data/users/"+UID+"/chat-"+k).get();liveSaw("chat-"+k,c);if(!c.exists||CTL&&CUR===k)return;const d=c.data();if(!d||!Array.isArray(d.turns)||(d.savedAt||0)<=(CHAT_AT[k]||0))return;CHATS[k]=clone(d.turns);CHAT_AT[k]=d.savedAt||0;if(curView()==="dungeon"&&CUR===k)route()}catch(e){}}
 async function liveTick(){if(!window.__SITE||!DB||!DB.meta||!UID||LIVE.busy)return;if(!DESK&&document.visibilityState!=="visible")return;LIVE.busy=true;
-  try{const keys=EMBED==="todo"?["state"]:["state","chat-zero"].concat(Object.keys(SUBJ).map(k=>"chat-"+k));/* 待办小窗只用存档 */const m=await DB.meta(keys);
+  try{const keys=EMBED==="todo"?["state","learnlog"]:EMBED?["state","chat-zero"]:["state","chat-zero","learnlog"];/* 待办小窗只用存档 */const m=await DB.meta(keys);
     for(const k of keys){const v=m[k]&&m[k].version;if(v==null)continue;const old=LIVE.ver[k];if(old!=null&&v<=old)continue;LIVE.ver[k]=v;if(old==null)continue;
       /* 正忙（没存完、正在拉、正在回答）就先不算看过，下一轮再拉 */
-      if(k==="state"){if(!(await pullState()))LIVE.ver[k]=old}else if(k==="chat-zero"){if(!ZW.ctl)await zwLoad();else LIVE.ver[k]=old}else if((await pullChat(k.slice(5)))===false)LIVE.ver[k]=old}}catch(e){}finally{LIVE.busy=false}}
+      if(k==="state"){if(!(await pullState()))LIVE.ver[k]=old}else if(k==="learnlog")await learnPull();else if(k==="chat-zero"){if(!ZW.ctl)await zwLoad();else LIVE.ver[k]=old}else if((await pullChat(k.slice(5)))===false)LIVE.ver[k]=old}}catch(e){}finally{LIVE.busy=false}}
 setInterval(liveTick,5000);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")liveTick()});
 if(DESK){DESK.onPull&&DESK.onPull(()=>pullState());if(EMBED==="zero"&&DESK.onSys)DESK.onSys(t=>zwSys(t));/* 桌面程序的系统提示（新版本下载好了等）显示成零聊天里的灰字 */DESK.onFiles&&DESK.onFiles((target,list)=>{if(DESK.log)DESK.log("files",target,(list||[]).length);if(target==="ask")pickTarget(list);else deskDeliver(target,list)});DESK.onCommand&&DESK.onCommand(c=>{if(c==="#task"&&S.cur){zwOpen(S.cur.subj);if(!ZW.turns.length||!/^开始做「/.test(ZW.turns[ZW.turns.length-1].content))zwSay("开始做「"+S.cur.title+"」。把第一题截图发给我（拖到小圆上、按快捷键，或者直接贴进来都行）。");return}if(c==="daily"){if(checkedToday())toast("今天已经签过了");else openDaily(suggestSubj())}else if(c&&c[0]==="#")location.hash=c});DESK.ready&&DESK.ready()}
 
