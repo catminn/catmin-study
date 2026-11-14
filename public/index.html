@@ -805,7 +805,9 @@ const pad=n=>String(n).padStart(2,"0");
 const TZID=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"}catch(e){return "America/New_York"}})();
 function tzOff(d){const m=-d.getTimezoneOffset(),a=Math.abs(m);return(m<0?"-":"+")+pad(Math.floor(a/60))+":"+pad(a%60)}
 const localKey=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
-const dayKey=(t=Date.now())=>localKey(new Date(t-4*HOUR));
+/* 一天从早上 5 点算起：5 点前还算前一天（签到、今天的读书、每日委托都按这个） */
+const DAY_CUT=5;
+const dayKey=(t=Date.now())=>localKey(new Date(t-DAY_CUT*HOUR));
 function keyToDate(k){const[y,m,d]=k.split("-").map(Number);return new Date(y,m-1,d)}
 function addDays(k,n){const d=keyToDate(k);d.setDate(d.getDate()+n);return localKey(d)}
 function weekKey(t=Date.now()){const d=keyToDate(dayKey(t));d.setDate(d.getDate()-(d.getDay()+6)%7);return localKey(d)}
