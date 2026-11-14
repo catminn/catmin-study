@@ -2468,25 +2468,25 @@ function openWorldPicker(it){const sel=h("select",{id:"wsub"},Object.keys(SUBJ).
 function openDesign(it){const n=h("input",{type:"text",id:"dname",placeholder:"世界名"});const d=h("textarea",{class:"plain",id:"ddesc",placeholder:"规则、氛围、怪物、结局，写多少都行",style:{minHeight:"120px"}});
   sheet(null,h("h2",null,"副本设计权"),n,d,
     h("button",{class:"btn go",onclick:()=>{if(!n.value.trim()||!d.value.trim()){toast("名字和设定都要写");return}S.customWorlds.push({name:n.value.trim().slice(0,30),desc:d.value.trim().slice(0,800)});earn(-it.price,"副本设计权 · "+n.value.trim());save();closeSheet();renderAll();toast("设定已收下")}},"写好了（"+it.price+"）"))}
-let SPEND={cur:"cny",amt:"",note:"",cat:"游戏"};
-const SPEND_CAT={cny:["游戏","其他"],usd:["外卖","奶茶","吃饭","购物","其他"]};
-/* 吃饭是刚需，只把「多花的那部分」算作奖励：外卖按 3 成扣、堂食 2 成、购物 6 成；奶茶、游戏充值这种纯享受全额扣 */
-const SPEND_W={"外卖":.3,"吃饭":.2,"购物":.6};const spendW=()=>SPEND.cur==="usd"&&SPEND_W[SPEND.cat]!=null?SPEND_W[SPEND.cat]:1;
+let SPEND={cur:"cny",amt:"",cat:""};
+const SPEND_CATS=["游戏","外卖","奶茶","吃饭","购物","其他"];
+const SPEND_DEF={cny:"游戏",usd:"外卖"};
+/* 吃饭是刚需，只把「多花的那部分」算作奖励：原因里有外卖按 3 成扣、吃饭 2 成、购物 6 成；其他（奶茶、游戏充值）全额扣 */
+const SPEND_W={"外卖":.3,"吃饭":.2,"购物":.6};
+const spendWhy=()=>SPEND.cat||SPEND_DEF[SPEND.cur];
+const spendW=()=>SPEND_W[spendWhy()]!=null?SPEND_W[spendWhy()]:1;
 function spendCost(){const a=+SPEND.amt;if(!(a>0))return 0;return Math.max(1,Math.round((SPEND.cur==="cny"?a/CNY_PER_PT:a*PER_USD)*spendW()))}
 let SPEND_EL=null; /* 现在页的记账弹窗借用这张卡 */
-function renderSpend(){const el=SPEND_EL&&SPEND_EL.isConnected?SPEND_EL:$("#spendCard");if(!el)return;const cost=spendCost();
-  const amt=h("input",{type:"number",min:"0",step:"0.01",placeholder:SPEND.cur==="cny"?"实付人民币":"实付美元（含税和小费）",value:SPEND.amt,style:{flex:"1 1 140px"},oninput:e=>{SPEND.amt=e.target.value;upd()}});
-  const note=h("input",{type:"text",placeholder:SPEND.cur==="cny"?"买了什么（可不填）":"比如：奶茶、外卖",value:SPEND.note,style:{flex:"2 1 160px"},oninput:e=>{SPEND.note=e.target.value}});
-  const out=h("div",{class:"small"});const go=h("button",{class:"btn sm go",onclick:()=>{const c=spendCost();if(!c){toast("先填实付金额");return}if(S.points<c){toast("积分不够，还差 "+fp(c-S.points));return}
-    const what=(SPEND.note.trim()||SPEND.cat).slice(0,30);
-    S.spend=S.spend||[];S.spend.push({id:uid(),at:Date.now(),cur:SPEND.cur,amt:+(+SPEND.amt).toFixed(2),cat:SPEND.cat,note:SPEND.note.trim().slice(0,30),pts:c});
-    earn(-c,"花费 · "+SPEND.cat+(SPEND.note.trim()?" · "+what:"")+" · "+(SPEND.cur==="cny"?"¥":"$")+(+SPEND.amt));SPEND.amt="";SPEND.note="";if(SPEND_EL&&SPEND_EL.isConnected){SPEND_EL=null;closeSheet()}save();renderAll();toast("已记账，扣 "+fp(c)+" 分")}},"记账扣分");
-  function upd(){const c=spendCost();out.textContent=c?"要扣 "+fp(c)+" 分"+(S.points<c?"，还差 "+fp(c-S.points):"，扣完剩 "+fp(S.points-c)):""+(c&&spendW()<1?"（"+SPEND.cat+"按 "+Math.round(spendW()*10)+" 成算）":"")}
-  const tab=(k,t)=>h("button",{class:"btn sm"+(SPEND.cur===k?" go":" flat"),onclick:()=>{SPEND.cur=k;SPEND.amt="";SPEND.cat=SPEND_CAT[k][0];renderSpend()}},t);
-  const cats=h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap",margin:"8px 0 0"}},SPEND_CAT[SPEND.cur].map(c=>h("button",{class:"btn sm"+(SPEND.cat===c?" go":" flat"),onclick:()=>{SPEND.cat=c;renderSpend()}},c)));
-  el.replaceChildren(h("div",{class:"row between"},h("h3",{style:{margin:0}},"花钱记账"),h("div",{class:"row"},tab("cny","人民币 · 游戏充值"),tab("usd","美元 · 外卖奶茶购物"))),
-    cats,SPEND.cur==="cny"?h("div",{class:"row",style:{flexWrap:"wrap",gap:"6px",margin:"8px 0"}},CNY_TIERS.map(([t,v])=>h("button",{class:"btn sm flat",onclick:()=>{SPEND.amt=String(v);if(!/^\d+$/.test(t))SPEND.note=t+" ¥"+v;renderSpend()}},/^\d+$/.test(t)?"¥"+t:t+" ¥"+v))):h("div",{style:{height:"8px"}}),
-    h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap"}},amt,note,go),out,spendBook());upd()}
+function renderSpend(){const el=SPEND_EL&&SPEND_EL.isConnected?SPEND_EL:$("#spendCard");if(!el)return;
+  const out=h("div",{class:"small dim"});
+  const amt=h("input",{type:"number",min:"0",step:"0.01",inputmode:"decimal",placeholder:"花了多少",value:SPEND.amt,style:{flex:"1 1 120px"},oninput:e=>{SPEND.amt=e.target.value;upd()}});
+  const note=h("select",{style:{flex:"1 1 100px"},onchange:e=>{SPEND.cat=e.target.value;upd()}},SPEND_CATS.map(c=>{const o=h("option",{value:c},c);if(c===spendWhy())o.selected=true;return o}));
+  const cur=h("button",{class:"btn sm",title:"切换币种",onclick:()=>{SPEND.cur=SPEND.cur==="cny"?"usd":"cny";SPEND.cat="";renderSpend()}},SPEND.cur==="cny"?"¥":"$");
+  const go=h("button",{class:"btn sm go",onclick:()=>{const c=spendCost();if(!c){toast("先填金额");return}if(S.points<c){toast("积分不够，还差 "+fp(c-S.points));return}
+    const why=spendWhy();S.spend=S.spend||[];S.spend.push({id:uid(),at:Date.now(),cur:SPEND.cur,amt:+(+SPEND.amt).toFixed(2),cat:why,note:"",pts:c});
+    earn(-c,"花费 · "+why+" · "+(SPEND.cur==="cny"?"¥":"$")+(+SPEND.amt));SPEND.amt="";SPEND.cat="";if(SPEND_EL&&SPEND_EL.isConnected){SPEND_EL=null;closeSheet()}save();renderAll();toast("记上了，扣 "+fp(c)+" 分")}},"记账");
+  function upd(){const c=spendCost();out.textContent=c?"扣 "+fp(c)+" 分"+(spendW()<1?"（按 "+Math.round(spendW()*10)+" 成）":"")+(S.points<c?" · 还差 "+fp(c-S.points):""):""}
+  el.replaceChildren(h("h3",{style:{margin:"0 0 8px"}},"记账"),h("div",{class:"row",style:{gap:"6px",flexWrap:"wrap"}},cur,amt,note,go),out,spendBook());upd();if(SPEND_EL===el)setTimeout(()=>amt.focus(),50)}
 function spendBook(){const L=(S.spend||[]).slice().sort((a,b)=>b.at-a.at);if(!L.length)return h("div");
   const mk=t=>{const d=new Date(t);return d.getFullYear()+"-"+pad(d.getMonth()+1)};const months=[...new Set(L.map(x=>mk(x.at)))];const sel=SPEND.month&&months.includes(SPEND.month)?SPEND.month:months[0];
   const rows=L.filter(x=>mk(x.at)===sel);const sum=c=>r1(rows.filter(x=>x.cur===c).reduce((s,x)=>s+x.amt,0)*10)/10;
