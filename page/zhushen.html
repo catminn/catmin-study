@@ -2607,7 +2607,7 @@ window.addEventListener("pagehide",()=>{if(FOCUS){S.focusLive={start:FOCUS.start
 
 /* ============ 读书 ============ */
 const RD_PH=["2026 秋","寒假（26–27）","2027 春","2027 暑假","2027 秋","寒假（27–28）","2028 春","2028 暑假","以后再说"];
-const RD_LANG=["中文","英文","古文"];
+const RD_LANG=["中文","英文"];
 const RD_CAP=25,RD_MAIN=80,RD_FRAG=40,RD_WEEK7=20;
 const RD_UNITS={"章":5,"篇":5,"回":5,"节":5,"%":1,"页":0.25};
 const rdRate=b=>RD_UNITS[b.unit]||5;
@@ -2618,16 +2618,17 @@ function rdSeed(){const L=[
  [0,"明朝那些事儿","当年明月","中文","","main"],[0,"解忧杂货店","东野圭吾","中文","","frag"],[0,"福尔摩斯探案集 · 冒险史","柯南·道尔","中文","解忧读完接上，当碎片书"],
  [1,"基督山伯爵","大仲马","中文","周克希或蒋学模译"],[1,"Animal Farm","George Orwell","英文","以前读过，忘了"],
  [2,"三体（第一部）","刘慈欣","中文","开头慢，读到三体游戏就好了"],[2,"Piranesi","Susanna Clarke","英文",""],[2,"我的阿勒泰","李娟","中文","碎片书"],[2,"长安的荔枝","马伯庸","中文","碎片书"],
- [3,"指环王","托尔金","中文","和《飘》二选一"],[3,"1984","George Orwell","英文",""],[3,"世说新语","","古文","白话对照"],[3,"东京梦华录","孟元老","古文","挑夜市、节日、美食的章节"],
+ [3,"指环王","托尔金","中文","和《飘》二选一"],[3,"1984","George Orwell","英文",""],[3,"世说新语","","中文","白话对照"],[3,"东京梦华录","孟元老","中文","挑夜市、节日、美食的章节"],
  [4,"活着","余华","中文",""],[4,"傲慢与偏见","简·奥斯汀","中文",""],[4,"Foundation","Isaac Asimov","英文","银河帝国 · 基地第一部"],[4,"人间草木","汪曾祺","中文","碎片书"],
  [5,"三体（第二、三部）","刘慈欣","中文","喜欢第一部的话"],[5,"大师与玛格丽特","布尔加科夫","中文","不读三体续集就读这本"],
- [6,"月亮与六便士","毛姆","中文",""],[6,"边城","沈从文","中文",""],[6,"棋王","阿城","中文",""],[6,"Klara and the Sun","Kazuo Ishiguro","英文",""],[6,"史记（选读）","司马迁","古文","白话对照"],
- [7,"飘","玛格丽特·米切尔","中文","和《指环王》二选一，读剩下那本"],[7,"看不见的城市","卡尔维诺","中文",""],[7,"虚构集","博尔赫斯","中文",""],[7,"古文观止（选篇）","","古文",""],
+ [6,"月亮与六便士","毛姆","中文",""],[6,"边城","沈从文","中文",""],[6,"棋王","阿城","中文",""],[6,"Klara and the Sun","Kazuo Ishiguro","英文",""],[6,"史记（选读）","司马迁","中文","白话对照"],
+ [7,"飘","玛格丽特·米切尔","中文","和《指环王》二选一，读剩下那本"],[7,"看不见的城市","卡尔维诺","中文",""],[7,"虚构集","博尔赫斯","中文",""],[7,"古文观止（选篇）","","中文",""],
  [8,"The Hobbit","J.R.R. Tolkien","英文","英文线备选"],[8,"挽救计划","安迪·威尔","中文","电影看过"],[8,"The Martian","Andy Weir","英文","电影看过"]];
  return L.map((x,i)=>({id:"b"+i.toString(36)+uid().slice(0,3),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:x[5]?"reading":"queue",slot:x[5]||"",at:Date.now(),start:x[5]==="main"?at(2026,11,13,1,40):null}))}
 function RD(){let r=S.reading;if(!r||!Array.isArray(r.books)){r=S.reading={books:rdSeed(),log:[],mt:Date.now()};save()}if(!Array.isArray(r.log))r.log=[];
   if(!r.v2){const pre={"明朝那些事儿":["章",0],"解忧杂货店":["章",5],"福尔摩斯探案集 · 冒险史":["篇",12]};for(const b of r.books){if(!b.unit){const p=pre[b.t]||["章",0];b.unit=p[0];if(p[1])b.total=p[1]}if(typeof b.read!=="number")b.read=0}r.v2=1;r.mt=Date.now();save()}
-  if(!r.v5){for(const b of r.books)if(b.unit==="页"&&b.total>0&&b.total<20)delete b.total;r.v5=1;r.mt=Date.now();save()}
+  if(!r.fixPg){for(const b of r.books)if(b.unit==="页"&&b.total>0&&b.total<20)delete b.total;r.fixPg=1;r.mt=Date.now();save()}
+  if(!r.fixLang){for(const b of r.books)if(b.lang==="古文")b.lang="中文";r.fixLang=1;r.mt=Date.now();save()}
   if(!r.v3){const m=r.books.find(b=>b.t==="明朝那些事儿");if(m&&m.unit==="%"){m.unit="章";delete m.total;m.read=0}r.v3=1;r.mt=Date.now();save()}
   if(!r.v4){const i=r.books.findIndex(b=>b.t==="明朝那些事儿");if(i>=0){const m=r.books[i];const N="一二三四五六七八九";m.t="明朝那些事儿 · 第一部";m.ser="明朝";m.no=1;const add=[];
     for(let k=2;k<=9;k++)add.push({id:"b"+uid(),ph:m.ph,t:"明朝那些事儿 · 第"+N[k-1]+"部",by:m.by,lang:"中文",note:"",st:"queue",slot:"",unit:"章",read:0,ser:"明朝",no:k,at:Date.now()});r.books.splice(i+1,0,...add)}r.v4=1;r.mt=Date.now();save()}
@@ -2643,12 +2644,12 @@ function RD(){let r=S.reading;if(!r||!Array.isArray(r.books)){r=S.reading={books
 function fmMove(f,dir){const L=RD().films;const open=L.filter(x=>x.st!=="done"&&x.st!=="drop");const i=open.indexOf(f),j=i+dir;if(j<0||j>=open.length)return;const a=L.indexOf(f),c=L.indexOf(open[j]);[L[a],L[c]]=[L[c],L[a]];rdSave()}
 function fmEdit(f){const isNew=!f;f=f||{t:"",kind:"电影",src:"",note:"",st:"queue"};
   const t=h("input",{type:"text",value:f.t,placeholder:"片名"});const kd=h("select",null,["电影","剧"].map(x=>{const o=h("option",{value:x},x);if(x===f.kind)o.selected=true;return o}));
-  const src=h("select",{style:{maxWidth:"100%"}},[h("option",{value:""},"没有原著 / 不在书单里"),...RD().books.map(b=>{const o=h("option",{value:b.t},"原著："+b.t);if(b.t===f.src)o.selected=true;return o})]);
+  const src=h("select",{style:{maxWidth:"100%"}},[h("option",{value:""},"没有原著"),...RD().books.map(b=>{const o=h("option",{value:b.t},"原著："+b.t);if(b.t===f.src)o.selected=true;return o})]);
   const nt=h("input",{type:"text",value:f.note||"",placeholder:"备注（版本、在哪看）"});
   const saveIt=()=>{const name=t.value.trim();if(!name){toast("片名没填");return}Object.assign(f,{t:name.slice(0,40),kind:kd.value,src:src.value,note:nt.value.trim().slice(0,80)});if(isNew){f.id="f"+uid();f.at=Date.now();RD().films.push(f)}rdSave();closeSheet()};
   let arm=false;const del=h("button",{class:"btn sm flat",onclick:e=>{if(!arm){arm=true;e.currentTarget.textContent="再点一下删除";return}RD().films=RD().films.filter(x=>x!==f);rdSave();closeSheet()}},"删除");
   const done=f.st==="done"||f.st==="drop";
-  const acts=isNew?null:h("div",{class:"row"},!done?h("button",{class:"btn sm ok",onclick:()=>{f.st="done";f.done=Date.now();rdSave();closeSheet()}},"看完了"):h("button",{class:"btn sm",onclick:()=>{f.st="queue";rdSave();closeSheet()}},"放回片单"),!done?h("button",{class:"btn sm flat",onclick:()=>{f.st="drop";rdSave();closeSheet()}},"不看了"):null,del);
+  const acts=isNew?null:h("div",{class:"row"},!done?h("button",{class:"btn sm ok",onclick:()=>{f.st="done";f.done=Date.now();rdSave();closeSheet()}},"看完了"):h("button",{class:"btn sm",onclick:()=>{f.st="queue";rdSave();closeSheet()}},"放回片单"),!done?h("button",{class:"btn sm flat",onclick:()=>{f.st="drop";rdSave();closeSheet()}},"不看了"):null,f.st==="drop"?del:null);
   const sh=sheet(null,h("h2",null,isNew?"加一部":f.t),t,h("div",{class:"row"},kd,src),nt,h("button",{class:"btn go",onclick:saveIt},"保存"),acts);sh.classList.add("rdsheet");if(isNew)setTimeout(()=>t.focus(),50)}
 function fmCard(){const r=RD();const F=r.films||[];const bt=t=>r.books.find(b=>b.t===t);
   const open=F.filter(f=>f.st!=="done"&&f.st!=="drop"),past=F.filter(f=>f.st==="done"||f.st==="drop");
@@ -2695,12 +2696,12 @@ function rdEdit(b){const isNew=!b;b=b||{ph:0,t:"",by:"",lang:"中文",note:"",st
   const saveIt=()=>{const name=t.value.trim();if(!name){toast("书名没填");return}Object.assign(b,{t:name.slice(0,40),by:by.value.trim().slice(0,30),ph:+ph.value,lang:lg.value,note:nt.value.trim().slice(0,80),unit:un.value,total:Math.max(0,+tot.value||0),read:Math.max(0,+rdn.value||0)});
     if(isNew){b.id="b"+uid();b.at=Date.now();RD().books.push(b)}rdSave();closeSheet()};
   let arm=false;const del=h("button",{class:"btn sm flat",onclick:e=>{if(!arm){arm=true;e.currentTarget.textContent="再点一下删除";return}RD().books=RD().books.filter(x=>x!==b);rdSave();closeSheet()}},"删除");
-  const rd=b.st==="reading";const acts=isNew?null:h("div",{class:"row"},
+  const rd=b.st==="reading";const acts=isNew?null:b.st==="drop"?h("div",{class:"row"},h("button",{class:"btn sm",onclick:()=>{b.st="queue";rdSave();closeSheet()}},"放回清单"),del):h("div",{class:"row"},
     !(rd&&b.slot==="main")?h("button",{class:"btn sm",onclick:()=>{rdSetSlot(b,"main");closeSheet()}},"设为主书"):null,
     !(rd&&b.slot==="frag")?h("button",{class:"btn sm",onclick:()=>{rdSetSlot(b,"frag");closeSheet()}},"设为碎片书"):null,
     rd?h("button",{class:"btn sm",onclick:()=>{b.st="queue";b.slot="";rdSave();closeSheet()}},"放回清单"):null,
     b.st!=="done"?h("button",{class:"btn sm ok",onclick:()=>rdFinish(b)},"读完了"+(b.paid?"":" +"+(b.slot==="main"?RD_MAIN:RD_FRAG))):h("button",{class:"btn sm",onclick:()=>{b.st="queue";rdSave();closeSheet()}},"改回没读完"),
-    b.st!=="drop"&&b.st!=="done"?h("button",{class:"btn sm flat",onclick:()=>{b.st="drop";b.slot="";rdSave();closeSheet()}},"不读了"):b.st==="drop"?h("button",{class:"btn sm flat",onclick:()=>{b.st="queue";rdSave();closeSheet()}},"放回清单"):null,del);
+    b.st!=="drop"&&b.st!=="done"?h("button",{class:"btn sm flat",onclick:()=>{b.st="drop";b.slot="";rdSave();closeSheet()}},"不读了"):b.st==="drop"?h("button",{class:"btn sm flat",onclick:()=>{b.st="queue";rdSave();closeSheet()}},"放回清单"):null,b.st==="drop"?del:null);
   const sh=sheet(null,h("h2",null,isNew?"加一本书":"《"+b.t+"》"),t,by,h("div",{class:"row"},ph,lg,un),nt,tot,isNew?null:rdn,h("button",{class:"btn go",onclick:saveIt},"保存"),acts);sh.classList.add("rdsheet");if(isNew)setTimeout(()=>t.focus(),50)}
 function renderRead(){const box=$("#v-read");if(!box)return;const B=RD().books;const today=rdToday();const tMin=today.reduce((s,x)=>s+x.min,0),tPts=today.reduce((s,x)=>s+(x.pts||0),0);
   const days=new Set(RD().log.map(x=>x.day));const last14=Array.from({length:14},(_,i)=>addDays(dayKey(),i-13));
