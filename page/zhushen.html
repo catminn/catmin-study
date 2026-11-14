@@ -1709,10 +1709,7 @@ function openCheckin(){const today=dayKey();if(!CK_MONTH)CK_MONTH=today.slice(0,
       h("div",{class:"pill fire",style:{fontSize:"20px"}},icon("flame"),n+" 天")),
     h("div",{class:"row between"},h("button",{class:"btn sm flat",onclick:()=>{CK_MONTH=shiftMonth(CK_MONTH,-1);openCheckin()},"aria-label":"上个月"},"‹"),h("b",null,y+" 年 "+m+" 月"),h("button",{class:"btn sm flat",onclick:()=>{CK_MONTH=shiftMonth(CK_MONTH,1);openCheckin()},"aria-label":"下个月"},"›")),
     grid,mk,
-    done?null
-      :h("div",{class:"list"},h("div",null,"签到 +"+ckReward(streak()+1)),
-        h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();openDaily(sugg)}},"去 Claude 做今日委托 · "+SUBJ[sugg].name),
-          null)))}
+    done?null:(()=>{const a=dailyArgs(sugg);return h("div",{class:"row"},claudeLink(a[0],a[1],a[2],"去 Claude · "+SUBJ[a[0]].name+" · +"+ckReward(streak()+1)))})())}
 function shiftMonth(ym,n){const[y,m]=ym.split("-").map(Number);const d=new Date(y,m-1+n,1);return d.getFullYear()+"-"+pad(d.getMonth()+1)}
 function examInfo(subj){const now=Date.now();return Object.values(BOSSES()).filter(b=>b.subj===subj&&b.exam&&b.due>now).sort((a,b)=>a.due-b.due)[0]||null}
 function subjWeight(subj){const b=examInfo(subj);if(!b)return 1;const d=(b.due-Date.now())/DAY;const w=d<=3?6:d<=7?4:d<=14?2.5:d<=21?1.6:1;const k=[0.4,1,2.2][S.examBias==null?1:S.examBias];return 1+(w-1)*k}
@@ -1728,13 +1725,9 @@ function claudePrompt(subj,teach,log){const sj=SUBJ[subj]?SUBJ[subj].full:"";
     :`\n\n如果这次是在学新知识（不是写作业），学完、我答对最后一道检查题以后，调用「共享记忆」的 study_log_add 记一笔：kind="lesson"，subj="${subj}"，topic 写学的内容，right / total 写检查题对了几道 / 一共几道。`;
   const fb=`\n（没有 study_log_add 这个工具的话：用 study_state_get 读 key "learnlog"（一个数组），在末尾加一条 {"id":"L"+时间戳,"at":毫秒时间戳,"kind","subj","ref","topic","right","total"}，再用 study_state_put 存回去，base_version 填刚读到的 version。）`;
   return `【学习空间${sj?" · "+sj:""}】${teach}\n按我的老规矩教：假设零基础，一小块一小块讲，每块后面一个检查问题，等我回答再往下。`+how+fb}
-function goClaude(subj,teach,log){closeSheet();const text=claudePrompt(subj,teach,log);const url="https://claude.ai/new?q="+encodeURIComponent(text);
-  const copy=()=>{try{navigator.clipboard.writeText(text).catch(()=>{})}catch(e){}};
-  sheet(subj,h("div",{class:"eyebrow"},"去 Claude 学"),h("h2",null,log&&log.title||"带上这段话去 Claude"),
-    h("div",{class:"dim small"},"学完、答对检查题后 Claude 会记一笔，这里几秒内自动打勾加分。"),
-    h("pre",{class:"cl-prompt"},text),
-    h("div",{class:"row"},h("a",{class:"btn go",href:url,target:"_blank",rel:"noopener",onclick:()=>{copy();setTimeout(closeSheet,300)}},"打开 Claude"),
-      h("button",{class:"btn",onclick:()=>{copy();toast("复制好了，贴到 Claude 里")}},"只复制")))}
+function claudeUrl(subj,teach,log){return "https://claude.ai/new?q="+encodeURIComponent(claudePrompt(subj,teach,log))}
+function claudeLink(subj,teach,log,label,cls){const text=claudePrompt(subj,teach,log);return h("a",{class:"btn "+(cls||"go"),href:"https://claude.ai/new?q="+encodeURIComponent(text),target:"_blank",rel:"noopener",onclick:()=>{try{navigator.clipboard.writeText(text).catch(()=>{})}catch(e){}setTimeout(closeSheet,300)}},label||"打开 Claude")}
+function goClaude(subj,teach,log){closeSheet();sheet(subj,h("div",{class:"eyebrow"},"去 Claude 学"),h("h2",null,log&&log.title||SUBJ[subj]&&SUBJ[subj].name||"Claude"),h("div",{class:"row"},claudeLink(subj,teach,log)))}
 /* 旧入口（作业求助、考前复习、错题、计划）都改成去 Claude */
 function goDungeon(subj,msg){goClaude(SUBJ[subj]?subj:"math",msg||"我想学点东西，先问我想学什么。",null)}
 function startNode(subj,n){const nm=nodeName(subj,n);const blank=n.blank&&!S.nodeNames[subj+":"+n.id];
@@ -1744,10 +1737,11 @@ function startNode(subj,n){const nm=nodeName(subj,n);const blank=n.blank&&!S.nod
   goClaude(subj,teach,{kind:"lesson",ref:subj+":"+n.id,title:nm})}
 function fightMistake(m){goClaude(m.subj,"这是我以前做错的一道题："+m.text+(m.fix?"\n（当时的订正："+m.fix+"）":"")+"\n先帮我弄懂错在哪，再出一道同类型的新题给我做。",{kind:"mistake",ref:m.id,title:"错题复活"})}
 function planGo(id,d){const b=BOSSES()[id];if(!b)return;goClaude(b.subj,"按我的考前复习计划，今天复习「"+d.topic+"」"+(d.task?"（"+d.task+"）":"")+"，考试是「"+b.title+"」"+(b.scope?"，范围 "+b.scope:"")+"。",{kind:"plan",ref:planKey(id,d),title:d.topic})}
-function openDaily(subj){if(checkedToday()){openCheckin();return}const pt=planToday(subj||null);subj=subj||(pt?pt.b.subj:suggestSubj());if(subj==="engl")subj="math";
+function dailyArgs(subj){const pt=planToday(subj||null);subj=subj||(pt?pt.b.subj:suggestSubj());if(subj==="engl")subj="math";
   const pt2=planToday(subj),pk=pt2?null:dqPick(subj),ex=examInfo(subj);
   const what=pt2?"今天考前计划里的「"+pt2.it.topic+"」（"+pt2.it.task+"）":pk?"「"+pk.t+"」（"+pk.why+"）":"一个我现在最需要的知识点"+(ex&&ex.due-Date.now()<10*DAY?"（优先「"+ex.title+"」的范围"+(ex.scope?"："+ex.scope:"")+"）":"");
-  goClaude(subj,`今天的每日委托：教我 ${SUBJ[subj].full} 的${what}。只教最核心的一个点，先一两句说清是什么、什么时候用，再用一道具体例题（最好是作业原题或考试题型）一步步做给我看，最后出一道 3 分钟能做完的检查题。`,{kind:"daily",ref:pk?pk.id:"",title:"每日委托 · "+SUBJ[subj].name})}
+  return [subj,`今天的每日委托：教我 ${SUBJ[subj].full} 的${what}。只教最核心的一个点，先一两句说清是什么、什么时候用，再用一道具体例题（最好是作业原题或考试题型）一步步做给我看，最后出一道 3 分钟能做完的检查题。`,{kind:"daily",ref:pk?pk.id:"",title:"每日委托 · "+SUBJ[subj].name}]}
+function openDaily(){openCheckin()}
 function learnApply(list){if(!Array.isArray(list)||(EMBED&&EMBED!=="todo"))return;/* 桌面待办小窗也处理（它一直开着）；奖励在那里显示成一行提示 */S.learnSeen=S.learnSeen||{};const now=Date.now();let got=0;
   for(const e of list.slice().sort((a,b)=>a.at-b.at)){if(!e||!e.id||S.learnSeen[e.id])continue;S.learnSeen[e.id]=now;
     if(!(e.right>=1)||!SUBJ[e.subj]||now-e.at>14*DAY)continue;const top=String(e.topic||"").slice(0,40);const n0=S.ledger.length;let pts=0;
@@ -2794,6 +2788,8 @@ applyTheme(THEME);
 
 window.addEventListener("hashchange",route);
 $("#guideFab").onclick=()=>{GI=0;openGuide(false)};
+/* 网页版不再显示零（学习都在 Claude 里）；只有桌面版的零窗口用它 */
+if(!/[?&]embed=zero/.test(location.search)){const z=document.querySelector(".zw");if(z)z.style.display="none"}
 $("#zwFab").onclick=()=>{if($("#zwPanel").hidden)zwOpen();else zwCloseP()};$("#zwHw").onclick=()=>openHwSheet(ZW.subj);$("#zwClose").onclick=()=>{if(EMBED==="zero"&&DESK)DESK.hide();else zwCloseP()};
 $("#zwClear").onclick=()=>{if(ZW.ctl)ZW.ctl.abort();ZW.turns=[];zwSave();zwRender()};
 $("#zwSubj").onchange=e=>{ZW.subj=e.target.value;zwSave();zwRender()};$("#zwMode").onclick=()=>{S.zwMode=S.zwMode==="ddl"?"teach":"ddl";save();zwRender();toast(S.zwMode==="ddl"?"赶 DDL 模式：只给答案":"教学模式：一步一步带")};$("#zwSend").onclick=()=>zwSend();
