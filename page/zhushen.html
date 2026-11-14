@@ -521,6 +521,15 @@ body.dg-on .zw-panel{height:min(520px,calc(100vh - var(--hudH,70px) - var(--tabH
 @media (min-width:1000px){body.zw-open .qz{justify-items:start;padding-left:max(16px,calc(50vw - 620px))}}
 @media (max-width:560px){.zw-panel{height:min(62vh,calc(100vh - var(--hudH,70px) - var(--tabH,70px) - 90px))}body.dg-on .zw{bottom:calc(var(--tabH,70px) + 190px)}}
 /* now screen */
+.nowwrap{width:100%;max-width:640px;display:flex;flex-direction:column;align-items:center;gap:36px}
+.quick{width:100%;display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.qk.rec{grid-column:1/-1;flex-direction:row;justify-content:flex-start;gap:14px;padding:16px 18px;text-align:left}.qk.rec .tx{display:flex;flex-direction:column;align-items:flex-start;min-width:0}.qk.rec small{min-height:0;text-align:left;-webkit-line-clamp:1}.qk.rec b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.qk{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 6px 16px;border-radius:18px;border:2px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;cursor:pointer;box-shadow:0 4px 0 var(--line);transition:transform .08s}
+.qk:active{transform:translateY(3px);box-shadow:0 1px 0 var(--line)}
+.qk .ic{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;background:var(--qc,#8b9cf0);color:#fff}.qk .ic svg{width:30px;height:30px}
+.qk b{font-size:18px;font-weight:800}.qk small{font-size:12px;color:var(--dim);line-height:1.3;text-align:center;min-height:2.6em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.qk.on{border-color:var(--qc);box-shadow:0 4px 0 var(--qc)}.qk.done .ic{background:var(--line2)}
+@media (max-width:640px){.quick{grid-template-columns:1fr 1fr}.qk{padding:22px 8px 16px}}
 .now{min-height:calc(100vh - var(--hudH,70px) - var(--tabH,70px));display:grid;place-items:center;padding-block:24px}
 .nowcard{width:100%;max-width:520px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px}
 .nowcard .big-ic{width:96px;height:96px;border-radius:28px;display:grid;place-items:center;background:var(--tint);color:#fff;box-shadow:0 6px 0 color-mix(in oklab,var(--tint) 55%,black)}
@@ -632,7 +641,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
   <div id="saveBanner" class="banner" style="margin-top:12px" hidden></div>
   <div id="cloudBar" class="cloudbar" hidden></div>
 
-  <section class="now" id="v-now" hidden><div class="nowcard" id="nowCard"></div></section>
+  <section class="now" id="v-now" hidden><div class="nowwrap"><div class="quick" id="quickRow"></div><div id="nowCard" hidden></div></div></section>
   <section class="screen" id="v-map" hidden>
     <div class="worldtabs" id="worldTabs"></div>
     <div class="maphead">
@@ -2545,10 +2554,6 @@ function sleepSettle(up){const s=S.sleep;if(!s)return;const now=up||Date.now();
   if(pts){const before=levelOf(S.xp).L;earn(pts,"早睡早起");save();setTimeout(()=>showReward(pts,"早上好",lines,levelOf(S.xp).L>before?levelOf(S.xp).L:0),900)}
   else{save();setTimeout(()=>toast("睡眠记下了："+lines[0]),1200)}renderAll()}
 function nextSteps(){const out=[];const now=Date.now();
-  if(sleepAwake())out.push({ic:"moon",title:"起床",meta:"真的起床了再点 · 睡够 7 小时、8 点前起都有奖励",btn:"起床",label:"起床打卡",say:"起床了就点一下，不要在床上点。",go:wakeUp,sleep:9});
-  {const hr=new Date(now).getHours();if(!S.sleep&&(hr>=21||hr<6)){const ok=sleepWindow(now).ok,late=hr<21||hr>=23&&new Date(now).getMinutes()>=30;
-    out.push({ic:"moon",title:"晚安",meta:ok?"00:30 前点 · 明早 +"+(sleepStreak()>=2?SLEEP_STREAK_PTS:SLEEP_PTS):"现在点也会记下来，比平时早有进步奖励",btn:"晚安",label:"晚安打卡",say:"准备睡了就点晚安。之后别再用电脑，明早打开自动记起床、发奖励。",go:goodnight,sleep:late?0.5:8})}}
-  if(!checkedToday()){const sg=suggestSubj();out.push({subj:sg,ic:"flame",title:"每日委托",meta:SUBJ[sg].name+" · +"+ckReward(streak()+1),label:"做一道签到题",say:"今天还没签到。去 Claude 学一小块"+SUBJ[sg].name+"，答对检查题自动签到，+"+ckReward(streak()+1)+" 分。",go:()=>openDaily(sg)})}
   const urgent=occurrences().filter(o=>isOpen(o)&&o.soft>now-HOUR&&o.soft-now<40*HOUR);
   for(const o of urgent.slice(0,2))out.push({subj:o.subj,ic:"scroll",title:o.title,meta:SUBJ[o.subj].name+" · "+fmtLeft(o.soft-now)+" · +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total,label:SUBJ[o.subj].name+" "+o.title,say:SUBJ[o.subj].name+"的「"+o.title+"」"+fmtLeft(o.soft-now).replace("还剩","还剩")+"。先做第一步：把第一题发进来。",go:()=>openTaskSheet(o)});
   const mons=reviveDue();if(mons.length)out.push({subj:mons[0].subj,ic:"skull",title:"错题怪",meta:SUBJ[mons[0].subj].name+" · "+(/[$\\]/.test(mons[0].text)?"上次做错的题":mons[0].text.slice(0,24))+" · +"+R(15),label:"打一只错题怪",say:"有 "+mons.length+" 只错题怪复活了。打一只，+"+R(15)+" 分。",go:()=>{fightMistake(mons[0])}});
@@ -2734,13 +2739,33 @@ function renderHud(){renderGuideFab();{const b=$("#hSleep");if(b){b.textContent=
 const VIEWS=["now","map","cal","read","shop","bag"];
 function curView(){const v=(location.hash||"#now").slice(1);return VIEWS.includes(v)?v:"now"}
 let NI=0;
-function renderNow(){const steps=nextSteps();if(NI>=steps.length)NI=0;const st=steps[NI];const tint=st.subj?worldOf(st.subj).tint:"#2fa865";
-  const doneToday=S.ledger.filter(e=>e.d>0&&dayKey(e.at)===dayKey()).length;
-  const card=$("#nowCard");card.style.setProperty("--tint",tint);
-  card.replaceChildren(h("div",{class:"big-ic"},icon(st.ic||"star")),h("div",{class:"nt"},st.title),h("div",{class:"nm"},st.meta),
-    h("button",{class:"btn go start",onclick:()=>{NI=0;st.go()}},st.btn||"开始"),
-    steps.length>1?h("div",{class:"later"},h("button",{onclick:()=>{NI=(NI+1)%steps.length;renderNow()}},"换一个")):null,
-    h("div",{class:"todaybar",title:"今天完成"},Array.from({length:Math.max(5,doneToday)},(_,i)=>h("i",{class:i<doneToday?"on":""}))))}
+/* 现在页顶上的四个快捷键：睡觉/起床、签到、读书、打游戏 */
+function quickTile(ic,col,title,sub,go,cls){const b=h("button",{class:"qk"+(cls?" "+cls:""),onclick:go},h("span",{class:"ic"},icon(ic)),h("b",null,title),h("small",null,sub||""));b.style.setProperty("--qc",col);return b}
+function renderQuick(){const el=$("#quickRow");if(!el)return;const now=Date.now();let sl;
+  if(sleepAwake())sl=quickTile("sun","#e8a33d","起床","睡了 "+fmtBed(bedMin(S.sleep.at)),wakeUp,"on");
+  else if(S.sleep)sl=quickTile("moon","#8b9cf0","已晚安",fmtBed(bedMin(S.sleep.at))+" · 点两下撤销",goodnight,"on");
+  else sl=quickTile("moon","#8b9cf0","晚安",sleepWindow(now).ok?"00:30 前 +"+(sleepStreak()>=2?SLEEP_STREAK_PTS:SLEEP_PTS):"记下几点睡",goodnight);
+  const ck=checkedToday()?quickTile("flame","#e8743d","已签到","连续 "+streak()+" 天",openCheckin,"done"):quickTile("flame","#e8743d","签到","+"+ckReward(streak()+1),()=>openDaily());
+  const R0=RD(),cur=["main","frag"].map(sl=>R0.books.find(b=>b.st==="reading"&&b.slot===sl)).filter(Boolean),rt=rdToday().reduce((a,x)=>a+(x.pts||0)+(x.bn||0),0);
+  const rd=quickTile("book","#2fa865","读书",cur.length?(rt?"今天 +"+rt+" · ":"")+"《"+cur[0].t.replace(/ · .*$/,"")+"》":"还没在读的书",rdQuickSheet,rt?"done":"");
+  let gm;if(playing()){const {m,cost}=playNow();gm=quickTile("game","#d0567a","玩完了","已玩 "+Math.round(m)+" 分"+(cost?" · -"+cost:""),stopPlay,"on")}
+  else if(S.timer&&S.timer.end>now)gm=quickTile("game","#d0567a","计时中","剩 "+Math.ceil((S.timer.end-now)/MIN)+" 分",()=>{location.hash="#shop"},"on");
+  else gm=quickTile("game","#d0567a","打游戏","够玩约 "+affordMin()+" 分",startPlay);
+  const steps=nextSteps().filter(x=>!x.rest),st=steps[0];
+  const rc=h("button",{class:"qk rec",onclick:()=>openRec(0)},h("span",{class:"ic"},icon(st?st.ic||"star":"star")),h("span",{class:"tx"},h("small",null,"推荐"),h("b",null,st?st.title:"今天没别的事了"),st?h("small",null,st.meta):null));
+  rc.style.setProperty("--qc",st&&st.subj?worldOf(st.subj).tint:"#2fa865");if(!st)rc.onclick=null;
+  el.replaceChildren(sl,ck,rd,gm,rc)}
+function openRec(i){const steps=nextSteps().filter(x=>!x.rest);if(!steps.length)return;i=i%steps.length;const st=steps[i];
+  sheet(st.subj||null,h("div",{class:"eyebrow"},"推荐 "+(i+1)+" / "+steps.length),h("h2",null,st.title),h("div",{class:"dim"},st.meta),
+    h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();st.go()}},st.btn||"开始"),steps.length>1?h("button",{class:"btn flat",onclick:()=>openRec(i+1)},"换一个"):null))}
+function rdQuickSheet(){const R0=RD(),cur=["main","frag"].map(sl=>R0.books.find(b=>b.st==="reading"&&b.slot===sl)).filter(Boolean);
+  if(!cur.length){location.hash="#read";return}const quick=b=>b.unit==="%"?[5,10]:b.unit==="页"?[10,30]:[1,2];
+  sheet(null,h("h2",null,"读书"),...cur.map(b=>h("div",{class:"card",style:{display:"flex",flexDirection:"column",gap:"10px"}},
+    h("div",null,h("b",null,"《"+b.t+"》"),h("div",{class:"dim small"},rdProg(b)||"还没开始")),
+    h("div",{class:"row"},...quick(b).map((n,i)=>h("button",{class:"btn"+(i?"":" go"),onclick:()=>{closeSheet();rdLog(b,n)}},"+"+rdFmt(b,n)))))),
+    h("button",{class:"btn flat",onclick:()=>{closeSheet();location.hash="#read"}},"去读书页"))}
+setInterval(()=>{if(curView()==="now"&&!document.querySelector(".scrim,.pop"))renderQuick()},30000);
+function renderNow(){renderQuick()}
 function route(){const v=curView();document.body.classList.toggle("dg-on",v==="dungeon");measureBars();for(const x of VIEWS)$("#v-"+x).hidden=x!==v;document.querySelectorAll(".tabbar a").forEach(a=>a.setAttribute("aria-current",a.dataset.v===v?"page":"false"));renderHud();renderView(v);
   if(v==="map")setTimeout(scrollToCur,40);else window.scrollTo(0,0)}
 function renderView(v){if(v==="now")renderNow();else if(v==="map")renderMap();else if(v==="cal")renderCal();else if(v==="shop")renderShop();else if(v==="read")renderRead();else renderBag()}
