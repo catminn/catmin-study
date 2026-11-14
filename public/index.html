@@ -1711,7 +1711,8 @@ const LESSON_FREE_CAP=2; /* 不在进度表上的课，一天最多算两节 */
 function claudePrompt(subj,teach,log){const sj=SUBJ[subj]?SUBJ[subj].full:"";
   const how=log?`\n\n学完、我答对最后一道检查题以后，调用「共享记忆」的 study_log_add 记一笔：kind="${log.kind}"，subj="${subj}"${log.ref?`，ref="${log.ref}"`:""}，topic 写这次学的内容，right / total 写检查题我答对几道 / 一共几道。没答对就先别记，接着讲。`
     :`\n\n如果这次是在学新知识（不是写作业），学完、我答对最后一道检查题以后，调用「共享记忆」的 study_log_add 记一笔：kind="lesson"，subj="${subj}"，topic 写学的内容，right / total 写检查题对了几道 / 一共几道。`;
-  return `【学习空间${sj?" · "+sj:""}】${teach}\n按我的老规矩教：假设零基础，一小块一小块讲，每块后面一个检查问题，等我回答再往下。`+how}
+  const fb=`\n（没有 study_log_add 这个工具的话：用 study_state_get 读 key "learnlog"（一个数组），在末尾加一条 {"id":"L"+时间戳,"at":毫秒时间戳,"kind","subj","ref","topic","right","total"}，再用 study_state_put 存回去，base_version 填刚读到的 version。）`;
+  return `【学习空间${sj?" · "+sj:""}】${teach}\n按我的老规矩教：假设零基础，一小块一小块讲，每块后面一个检查问题，等我回答再往下。`+how+fb}
 function goClaude(subj,teach,log){closeSheet();const text=claudePrompt(subj,teach,log);const url="https://claude.ai/new?q="+encodeURIComponent(text);
   const copy=()=>{try{navigator.clipboard.writeText(text).catch(()=>{})}catch(e){}};
   sheet(subj,h("div",{class:"eyebrow"},"去 Claude 学"),h("h2",null,log&&log.title||"带上这段话去 Claude"),
