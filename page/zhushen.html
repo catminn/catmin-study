@@ -125,6 +125,9 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center}
 .node.done .disc{background:var(--tint);border-color:var(--tint);color:#fff;box-shadow:0 5px 0 color-mix(in oklab,var(--tint) 60%,black)}
 .node.cur .disc{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 5px 0 color-mix(in oklab,var(--accent) 60%,black)}
 .node.locked .disc{opacity:.8}
+.node.sem.past .disc{background:var(--line2);border-color:var(--line2);color:#fff;box-shadow:0 5px 0 var(--line)}.node.sem.past .cap{color:var(--dim);font-weight:500}
+.node.sem.past.boss .disc{background:var(--line2);border-color:var(--line2);color:#fff;box-shadow:0 6px 0 var(--line)}
+.node.sem.future{opacity:.7}.node.sem.future .cap{font-weight:500}
 .node.boss .disc{width:84px;height:84px;border-radius:22px;transform:rotate(45deg);background:var(--late-soft);border-color:var(--late);box-shadow:0 6px 0 color-mix(in oklab,var(--late) 60%,black);color:var(--late)}
 .node.boss:hover .disc{transform:rotate(45deg) scale(1.06)}
 .node.boss .disc svg{transform:rotate(-45deg);width:38px;height:38px}
@@ -623,8 +626,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
 :root:not([data-theme="dark"]) .dg .turn .zw-figdl{background:rgba(27,31,59,.06);border-color:rgba(27,31,59,.2);color:#1b1f3b}
 }
 /* 现在 */
-.nowpanes{width:100%;display:grid;grid-template-columns:minmax(0,1fr);gap:14px}.nowwrap{min-width:0}.now>.nowwrap{justify-self:stretch}
-@media (max-width:640px){.nowpanes .ndrow{flex-wrap:wrap;gap:0 10px}.nowpanes .ndrow b{flex:1 1 100%}.nowpanes{margin-top:14px}}
+
 .pane{display:flex;flex-direction:column;min-height:0}
 .pane>.pane-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
 .pane>.pane-b{flex:1;min-height:0;overflow:auto}
@@ -646,20 +648,6 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
 .colhead{display:flex;align-items:center;justify-content:space-between;min-height:36px}
 .bagline{display:flex;gap:10px;flex-wrap:wrap}.bagline .it{display:inline-flex;align-items:center;gap:8px;border:2px solid var(--line);border-radius:12px;padding:6px 12px;background:var(--panel2);font-weight:700}.bagline .it svg{width:20px;height:20px;color:var(--warn)}
 @media (min-width:1100px){
-  .now{display:block;min-height:0;padding-block:16px 0}
-  .nowwrap{max-width:none;gap:16px;align-items:stretch}
-  .quick{grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}
-  .qk{padding:18px 8px 14px}.qk small{min-height:1.3em;-webkit-line-clamp:1}
-  .qk.rec{grid-column:span 2;padding:16px 20px}
-  .nowpanes{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
-  .nowpanes .pane{height:100%}
-  .rd-layout{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1.4fr) minmax(0,1fr);gap:16px;align-items:stretch}
-  .rd-layout>*{min-height:0}
-  .rd-c1{overflow:auto;padding-bottom:6px}
-  .rd-c1 .rd-stats{grid-template-columns:repeat(2,1fr)}
-  .shop-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
-  .bag-cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px;align-items:start}
-  .bag-side .log{max-height:40vh;overflow:auto}
 }
 /* 电脑横屏：铺开用两栏 */
 .cols2{display:flex;flex-direction:column;gap:16px}
@@ -672,19 +660,35 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
   .rd-side{position:sticky;top:120px;max-height:calc(100vh - 220px);overflow:auto}
 }
 /* 横屏：导航放到左边一竖栏（像 Canvas），顶上不再占一条 */
+.subnav{display:none}
 @media (min-width:1100px){
-  :root{--side:96px}
-  body{padding-left:calc(var(--side) + 24px);padding-right:24px;padding-bottom:16px}
-  .tabbar{top:0;bottom:0;right:auto;width:var(--side);border-top:0;border-right:2px solid var(--line);padding:104px 8px 150px;display:flex;flex-direction:column}
-  .tabbar .wrap{display:flex;flex-direction:column;gap:6px;max-width:none;margin:0}
-  .tabbar a{padding:10px 0;font-size:12px;gap:4px}.tabbar a svg{width:26px;height:26px}
-  .hud{position:fixed;left:0;top:0;bottom:0;width:var(--side);margin:0;padding:16px 0 18px;background:transparent;border:0;z-index:10;pointer-events:none}
-  .hud .wrap{height:100%;max-width:none;flex-direction:column;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:10px}
+  :root{--side:232px}
+  body{padding-left:calc(var(--side) + 28px);padding-right:28px;padding-bottom:16px}
+  .tabbar{top:0;bottom:0;right:auto;width:var(--side);border-top:0;border-right:2px solid var(--line);padding:92px 14px 16px;display:flex;flex-direction:column;overflow:auto}
+  .tabbar .wrap{display:flex;flex-direction:column;gap:2px;max-width:none;margin:0}
+  .tabbar a{flex-direction:row;justify-content:flex-start;gap:12px;padding:9px 12px;font-size:15px;font-weight:700}.tabbar a svg{width:22px;height:22px;flex:none}
+  .subnav{display:flex;flex-direction:column;margin:2px 0 8px 23px;padding-left:10px;border-left:2px solid var(--line)}
+  .tabbar .subnav a{font-size:14px;font-weight:500;padding:6px 12px;border-radius:9px;background:none}
+  .tabbar .subnav a[aria-current="page"]{color:var(--accent);font-weight:800;background:var(--accent-soft)}
+  .hud{position:fixed;left:0;top:0;width:var(--side);margin:0;padding:16px 14px 0;background:transparent;border:0;z-index:10;pointer-events:none}
+  .hud .wrap{max-width:none;display:block}
   .hud .wrap>*{pointer-events:auto}
-  .hud .lv{flex:none;flex-direction:column;gap:6px}.hud .lv .who{display:flex;flex-direction:column;align-items:center;width:64px}
-  .hud .lv .who b,.hud #hXp{display:none}.hud .xpbar{width:100%}
-  .hud .res{flex-direction:column;gap:8px}
+  .hud .lv{gap:10px}.hud .lv .badge{width:46px;height:46px}.hud #hXp{display:block;font-size:11px;line-height:1.3}.hud .lv .who b{font-size:14px}
+  .hud .res{position:fixed;left:14px;bottom:16px;width:calc(var(--side) - 28px);display:flex;flex-wrap:wrap;gap:8px;pointer-events:auto}
+  .hud .res>*{flex:1 1 100%;justify-content:center;min-width:0}
+  .hud .res>.pill.gold{flex:1 1 auto}.hud .res>.themebtn{flex:0 0 36px}
+  .hud .res #cmModelBox select{max-width:100%!important}
+  .tabbar{padding-bottom:var(--resH,150px)}
   main.wrap{padding-top:8px}
+  #worldTabs{display:none}
+  #v-now{max-width:900px;margin-inline:auto}
+  /* 二级菜单：一次只看一块 */
+  .screen [data-sub]:not(.on){display:none!important}
+  #v-read [data-sub],#v-bag [data-sub],#v-shop [data-sub]{max-width:1100px;width:100%;margin-inline:auto}
+  .shop-cols,.bag-cols{display:block}
+  .bag-cols>.col{display:contents}
+  .rd-now{grid-template-columns:1fr 1fr}
+  .sub-wrap{display:flex;flex-direction:column;gap:16px}
 }
 /* 大屏再放宽一点，别两边空一大片 */
 @media (min-width:1700px){.wrap{max-width:1640px}.tabbar .wrap{max-width:900px}
@@ -720,7 +724,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
   <div id="saveBanner" class="banner" style="margin-top:12px" hidden></div>
   <div id="cloudBar" class="cloudbar" hidden></div>
 
-  <section class="now" id="v-now" hidden><div class="nowwrap"><div class="quick" id="quickRow"></div><div class="nowpanes" id="nowPanes"><div class="card pane" id="nowDue"></div><div class="card pane" id="nowSpend"></div></div><div id="nowCard" hidden></div></div></section>
+  <section class="now" id="v-now" hidden><div class="nowwrap"><div class="quick" id="quickRow"></div><div id="nowCard" hidden></div></div></section>
   <section class="screen" id="v-map" hidden>
     <div class="worldtabs" id="worldTabs"></div>
     <div class="maphead">
@@ -782,7 +786,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
 
   <section class="screen" id="v-shop" hidden>
     <div class="card timer" id="timerCard" hidden><div><div class="eyebrow" id="tLabel">游戏时间</div><b id="tLeft">00:00</b></div><button class="btn sm" id="tStop">结束计时</button></div>
-    <div class="shop-cols"><div class="col"><div class="colhead"><h2>记账</h2></div><div class="card" id="spendCard"></div></div><div class="col">
+    <div class="shop-cols"><div class="col" data-sub="spend"><div class="colhead"><h2>记账</h2></div><div class="card" id="spendCard"></div></div><div class="col" data-sub="reward">
     <div class="colhead"><h2>现实奖励</h2></div>
     <div class="shop" id="shopReal"></div>
     <details class="card"><summary style="font-weight:700;cursor:pointer">添加自己的奖励</summary>
@@ -798,18 +802,18 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
 
   <section class="screen" id="v-bag" hidden>
     <div class="bag-cols"><div class="col">
-    <div class="card"><h2 style="margin-bottom:10px">成绩档案</h2><div id="scoreList"></div></div>
-    <div class="card"><div class="row between" style="margin-bottom:10px"><h2>错题图鉴</h2><button class="btn sm" id="mSyncBtn" hidden>同步到共享记忆</button></div><div class="list" id="mistakeList"></div></div>
+    <div class="card" data-sub="score"><h2 style="margin-bottom:10px">成绩档案</h2><div id="scoreList"></div></div>
+    <div class="card" data-sub="mistake"><div class="row between" style="margin-bottom:10px"><h2>错题图鉴</h2><button class="btn sm" id="mSyncBtn" hidden>同步到共享记忆</button></div><div class="list" id="mistakeList"></div></div>
     </div><div class="col bag-side">
-    <div class="card"><div class="row between"><h2>背包</h2><span class="dim small" id="bagSum"></span></div><div class="bagline" id="bagItems" style="margin-top:10px"></div></div>
-    <div class="card"><h2 style="margin-bottom:10px">积分流水</h2><div class="log" id="ledger"></div></div>
-    <div class="card"><h2 style="margin-bottom:10px">设置</h2>
+    <div class="card" data-sub="score"><div class="row between"><h2>背包</h2><span class="dim small" id="bagSum"></span></div><div class="bagline" id="bagItems" style="margin-top:10px"></div></div>
+    <div class="card" data-sub="ledger"><h2 style="margin-bottom:10px">积分流水</h2><div class="log" id="ledger"></div></div>
+    <div class="card" data-sub="settings"><h2 style="margin-bottom:10px">设置</h2>
       <div class="list">
         <div class="li"><div class="t"><b>课程信息</b><div class="dim small" id="syncNote"></div></div><button class="btn sm" id="syncBtn">立即同步</button></div>
         <div class="li"><div class="t"><label for="smToggle"><b>连接共享记忆</b></label><div class="dim small" id="smNote"></div><div class="dim small" id="smInfo"></div></div><button class="btn sm" id="smNowBtn" style="white-space:nowrap">现在同步</button><input type="checkbox" id="smToggle" style="width:22px;height:22px"></div>
         <div class="li" id="bakRow" hidden><div class="t"><b>存档备份</b></div><button class="btn sm" id="bakBtn">看备份</button></div>
         <div class="li"><div class="t"><b>考试临近时多推这门课</b><div class="dim small" id="biasNote"></div></div><div class="seg" id="biasSeg" style="flex:none"><button data-v="0">少</button><button data-v="1">中</button><button data-v="2">多</button></div></div></div>
-    </div>
+    </div></div>
     <div class="card" hidden><div class="row between"><h2>剧情档案</h2><span class="dim small" id="arcSum"></span></div><div class="list" id="storyArchive" style="margin-top:12px"></div></div>
     <div hidden><div class="list" id="progressList"></div></div>
     </div></div>
@@ -1851,9 +1855,29 @@ setTimeout(learnPull,4000);document.addEventListener("visibilitychange",()=>{if(
 let MAPSUBJ="math";
 function worldTabs(el,cur,onpick){el.replaceChildren(...Object.keys(SUBJ).map(k=>{const w=worldOf(k);const due=occurrences().filter(o=>o.subj===k&&isOpen(o)&&o.soft-Date.now()<2*DAY).length+reviveDue(k).length;
   const b=h("button",{class:"wt","aria-pressed":String(k===cur),onclick:()=>onpick(k)},h("b",null,SUBJ[k].name,due?dueDot(k,due):null),h("span",{class:"w"},w.name));b.style.setProperty("--tint",w.tint);return b}))}
+/* 整学期的路线：考试范围以外的部分只做展示（之前的灰色、之后的锁着），积分逻辑仍只看 MAIN */
+const SEM=(()=>{const L=(t,m,d,show=true)=>({t,d:at(2026,m,d,12,0),lab:show?m+"/"+d:""}),E=(t,key,m,d,hh=19,mi=30,lab)=>({t,key,exam:1,d:at(2026,m,d,hh,mi),lab:lab||m+"/"+d});
+  return{
+  math:[L("§13.1–13.2 平面与空间向量",8,26,0),L("§13.3 点积",8,31,0),L("§13.4 叉积",9,2,0),L("§13.5 直线与平面",9,4,0),L("§13.6 二次曲面",9,9,0),L("§13.7 柱坐标与球坐标",9,11,0),
+    L("§14.1–14.2 向量值函数",9,14,0),L("§14.3 弧长与速度",9,16,0),L("§15.1 多元函数",9,18,0),L("§15.2 极限与连续",9,21,0),L("§15.3 偏导数",9,23,0),L("§15.4 可微与切平面",9,25,0),E("Prelim 1","math-p1",10,1),
+    L("§15.5 梯度与方向导数",9,28),L("§15.6 链式法则",10,5),L("§15.7 最优化",10,7),L("§15.8 拉格朗日乘数",10,14),L("§16.1–16.2 二重积分",10,19),L("§16.3 三重积分",10,21),L("§16.4 极、柱、球坐标积分",10,23),L("§16.5 积分的应用",10,26),
+    L("§17.1–17.2 向量场与线积分",11,2),L("§17.3 保守向量场",11,4),L("§17.4 参数曲面与曲面积分",11,9),E("Prelim 2","math-p2",11,12),L("§17.5 向量场的曲面积分",11,16),L("§18.1 格林定理",11,18),L("§18.2 斯托克斯定理",11,23),L("§18.3 散度定理",12,2),E("期末","math-final",12,15,9,0,"考试周")],
+  chem:[L("原子理论与物态",8,24),L("原子结构与同位素",8,26),L("放射化学",8,28),L("周期表与化学方程式",8,31),L("摩尔与燃烧分析",9,2),L("限制试剂与产率",9,4),L("溶液反应与摩尔浓度",9,9),L("酸碱与滴定",9,11),L("波、光与原子",9,14),L("玻尔模型",9,16),L("不确定性与薛定谔方程",9,18),L("轨道的形状",9,21),L("电子排布与周期规律",9,23),E("Exam 1","chem-e1",9,24),
+    L("化学键入门",9,25),L("共价键与路易斯结构",9,28),L("VSEPR",9,30),L("杂化与价键理论",10,2),L("定域成键轨道",10,5),L("分子轨道理论",10,7),L("双原子分子 MO",10,9),L("反应类型与酸碱",10,14),L("氧化还原",10,16),L("气体定律",10,19),L("分压与动理论",10,21),E("Exam 2","chem-e2",10,22),
+    L("热力学第一定律",10,23),L("盖斯定律与键能",10,26),L("量热与热容",10,28),L("化学平衡",10,30),L("勒夏特列原理",11,2),L("弱酸弱碱 pH",11,4),L("缓冲溶液",11,6),L("自由能与熵",11,9),L("自由能与平衡常数",11,11),L("溶解度与沉淀",11,13),L("速率方程与反应级数",11,16),E("Exam 3","chem-e3",11,19),
+    L("碰撞理论",11,20),L("反应机理",11,23),L("酶动力学",11,30),L("电化学",12,2),L("电导",12,4),L("总复习",12,7),E("期末","chem-final",12,15,9,0,"考试周")],
+  engri:[L("课程介绍",8,24),L("向量数学",8,31),L("力与力矩",9,2),L("受力分析图",9,9),L("桁架分析",9,14),L("应力与应变",9,23),E("Prelim I","engri-p1",9,28,9,5),L("齿轮",9,30),L("材料响应与剪应力",10,5),L("安全系数",10,14),L("设计流程与工程材料",10,19),L("制造工艺",10,21),E("Prelim II","engri-p2",10,26,9,5),
+    L("流体与压强、压力计",11,2),L("浮力与液压",11,4),L("雷诺数",11,9),L("平板流与管流",11,11),L("比热与热力学第一定律",11,16),L("热传导",11,18),E("小车比赛","engri-car",11,21,9,0),L("热对流",11,23),L("其他传热话题",12,2),L("总复习",12,7),E("期末","engri-final",12,15,9,0,"考试周")],
+  engl:[E("A1 Trial Essay","engl-a1",8,30,23,59),E("A2 初稿","engl-a2r",9,25,23,59),E("A2 终稿","engl-a2f",10,9,23,59),E("A3 初稿","engl-a3r",10,30,23,59),E("A3 终稿","engl-a3f",11,13,23,59),E("A4 研究计划","engl-a4p",11,20,23,59),E("A4 研究论文","engl-a4f",12,8,23,59,"期末")]}})();
+function semExtra(subj,arr){const L=SEM[subj]||[];const B=BOSSES();const ds=[];const ids=new Set();const now=Date.now();
+  for(const n of arr){if(n.boss){ids.add(n.boss);const b=B[n.boss];if(b&&b.due)ds.push(b.due)}else{const t=n.lec||n.due;if(t)ds.push(t)}}
+  if(!ds.length)return{past:[],future:[]};let lo=Math.min(...ds)-6*HOUR;const hi=Math.max(...ds)+6*HOUR;
+  if(!arr.some(n=>!n.boss&&(n.lec||n.due))){const prev=L.filter(x=>x.exam&&x.d<hi-12*HOUR).map(x=>x.d);if(prev.length)lo=Math.max(...prev)+6*HOUR}
+  const names=new Set(arr.filter(n=>!n.boss).map(n=>String(nodeName(subj,n)).replace(/\s/g,"")));const dup=x=>ids.has(x.key)||names.has(x.t.replace(/\s/g,""));
+  return{past:L.filter(x=>!dup(x)&&(x.d<lo||(x.exam&&x.d<now&&x.d<hi))).sort((a,b)=>a.d-b.d),future:L.filter(x=>!dup(x)&&x.d>hi&&!(x.exam&&x.d<now))}}
 function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.setProperty("--tint",w.tint);
-  worldTabs($("#worldTabs"),subj,k=>{MAPSUBJ=k;renderMap();setTimeout(scrollToCur,30)});
-  const arr=MAIN[subj];const ci=curIndex(subj);const doneN=arr.filter(n=>nodeIsDone(subj,n)).length;const now=Date.now();
+  worldTabs($("#worldTabs"),subj,k=>{MAPSUBJ=k;renderMap();renderSideNav();setTimeout(scrollToCur,30)});
+  const arr=MAIN[subj];const ci=curIndex(subj);const SX=semExtra(subj,arr),P0=SX.past.length,NT=P0+arr.length+SX.future.length;const doneN=arr.filter(n=>nodeIsDone(subj,n)).length;const now=Date.now();
   const debtN=arr.filter(n=>n.lec&&n.lec<now&&!nodeIsDone(subj,n)).length;
   $("#mEyebrow").textContent=SUBJ[subj].full+" · "+doneN+"/"+arr.length;$("#mWorld").textContent=w.name;$("#mDesc").textContent="";
   const pub=SIDE.filter(q=>!q.subj&&!S.done["cv-"+q.id]);const pb=$("#pubBtn");pb.textContent="公共支线 "+pub.length;pb.hidden=!CAL_OK;
@@ -1866,24 +1890,29 @@ function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.
   /* 横屏：路线左右蛇形铺开，一屏看完；竖屏照旧上下走 */
   const wide=W>=900&&wideScreen();const PER=Math.max(4,Math.floor((W-80)/190)),ROWH=300,MX=7;
   const colX=c=>MX+(100-2*MX)*(c/(PER-1)),rowOf=i=>Math.floor(i/PER);
-  const STEP=narrow?160:150,TOP=wide?130:160;const xOf=wide?(i=>{const c=i%PER;return colX(rowOf(i)%2?PER-1-c:c)}):(i=>(i%2?R:L)+(narrow?1.5:3)*Math.sin(i*1.7));const cm=SAGA[subj]?chapMap(subj):null;const extra=[];{let e=0,pw=null;arr.forEach((n,i)=>{const wi=(cm&&!n.boss)?worldIdxOfCh(subj,cm[n.id]):null;if(wi!=null){if(pw!=null&&wi!==pw)e+=70;pw=wi}extra[i]=e})}
+  const STEP=narrow?160:150,TOP=wide?130:160;const gx=wide?(i=>{const c=i%PER;return colX(rowOf(i)%2?PER-1-c:c)}):(i=>(i%2?R:L)+(narrow?1.5:3)*Math.sin(i*1.7));const cm=SAGA[subj]?chapMap(subj):null;const extra=[];{let e=0,pw=null;arr.forEach((n,i)=>{const wi=(cm&&!n.boss)?worldIdxOfCh(subj,cm[n.id]):null;if(wi!=null){if(pw!=null&&wi!==pw)e+=70;pw=wi}extra[i]=e})}
   if(wide)extra.fill(0);
-  const yOf=wide?(i=>TOP+rowOf(i)*ROWH+14*Math.sin(i*1.3)):(i=>TOP+i*STEP+(extra[Math.min(i,extra.length-1)]||0));
+  const gy=wide?(i=>TOP+rowOf(i)*ROWH+14*Math.sin(i*1.3)):(i=>TOP+i*STEP+(extra[Math.max(0,Math.min(i-P0,extra.length-1))]||0));
+  const xOf=i=>gx(i+P0),yOf=i=>gy(i+P0);
   const pos=wide?sides.map((s,k)=>{const a=Math.min(ci+k,arr.length-1+k);return[xOf(a),yOf(a)+170,a]}):sides.map((s,k)=>{const a=ci+k;const y=yOf(a);const mx=a<arr.length?xOf(a):(a%2?R:L);return[mx>50?SL:SR,y,a]});
-  const lastY=Math.max(yOf(arr.length-1),pos.length?pos[pos.length-1][1]:0)+150;map.style.height=lastY+"px";
+  const lastY=Math.max(gy(NT-1),pos.length?pos[pos.length-1][1]:0)+150;map.style.height=lastY+"px";
   const svg=document.createElementNS(NS,"svg");svg.setAttribute("class","paths");svg.setAttribute("viewBox","0 0 100 "+lastY);svg.setAttribute("preserveAspectRatio","none");
   const mk=(tag,a)=>{const e=document.createElementNS(NS,tag);for(const k in a)e.setAttribute(k,a[k]);return e};
   const OFF=90/W*100;
-  const pathTo=wide?(n=>{let d="M"+(xOf(0)-4)+" "+yOf(0)+" L"+xOf(0)+" "+yOf(0);for(let i=1;i<=n;i++){const x0=xOf(i-1),y0=yOf(i-1),x1=xOf(i),y1=yOf(i);
+  const pathTo=wide?(n=>{let d="M"+(gx(0)-4)+" "+gy(0)+" L"+gx(0)+" "+gy(0);for(let i=1;i<=n;i++){const x0=gx(i-1),y0=gy(i-1),x1=gx(i),y1=gy(i);
       if(rowOf(i)===rowOf(i-1)){const m=(x0+x1)/2;d+=" C"+m+" "+y0+" "+m+" "+y1+" "+x1+" "+y1}else{const e=x0>50?OFF:-OFF;d+=" C"+(x0+e)+" "+y0+" "+(x1+e)+" "+y1+" "+x1+" "+y1}}return d}):
-    (n=>{let d="M"+xOf(0)+" "+(yOf(0)-90)+" L"+xOf(0)+" "+yOf(0);for(let i=1;i<=n;i++)d+=" C"+xOf(i-1)+" "+(yOf(i-1)+STEP/2)+" "+xOf(i)+" "+(yOf(i)-STEP/2)+" "+xOf(i)+" "+yOf(i);return d});
-  const full=pathTo(arr.length-1);
+    (n=>{let d="M"+gx(0)+" "+(gy(0)-90)+" L"+gx(0)+" "+gy(0);for(let i=1;i<=n;i++)d+=" C"+gx(i-1)+" "+(gy(i-1)+STEP/2)+" "+gx(i)+" "+(gy(i)-STEP/2)+" "+gx(i)+" "+gy(i);return d});
+  const full=pathTo(NT-1);
   svg.append(mk("path",{d:full,fill:"none",stroke:"var(--path)","stroke-width":"14","stroke-linecap":"round","vector-effect":"non-scaling-stroke"}));
-  svg.append(mk("path",{d:pathTo(ci),fill:"none",stroke:w.tint,"stroke-width":"14","stroke-linecap":"round","vector-effect":"non-scaling-stroke",opacity:".9"}));
+  svg.append(mk("path",{d:pathTo(P0+ci),fill:"none",stroke:w.tint,"stroke-width":"14","stroke-linecap":"round","vector-effect":"non-scaling-stroke",opacity:".9"}));
   svg.append(mk("path",{d:full,fill:"none",stroke:"var(--panel)","stroke-width":"2.5","stroke-dasharray":"2 12","stroke-linecap":"round","vector-effect":"non-scaling-stroke"}));
   for(const[x,y,a]of pos){if(a<arr.length)svg.append(mk("line",Object.assign(wide?{x1:x,y1:yOf(a)+40,x2:x,y2:y-40}:{x1:xOf(a),y1:y,x2:x,y2:y},{stroke:"var(--line2)","stroke-width":"3","stroke-dasharray":"6 6","vector-effect":"non-scaling-stroke"})))}
   map.append(svg);
   {const fn=arr.find(n=>!n.boss);const fm=cm&&fn?mapWorldAt(subj,cm[fn.id]):null;void fm}
+  {const now2=Date.now();const ext=(it,j,kind)=>{const ex=!!it.exam;const tip=it.t+(it.lab?" · "+it.lab:"");
+      return h("button",{class:"node sem "+kind+(ex?" boss":""),style:{left:gx(j)+"%",top:gy(j)+"px"},onclick:()=>toast(kind==="past"?tip+(ex&&it.d<now2?" · 已过":""):tip),"aria-label":it.t},
+        h("span",{class:"disc"},icon(ex?(kind==="past"?"crown":"skull"):kind==="past"?"star":"lock")),h("span",{class:"cap"},it.t,it.lab?h("span",{class:"sub"},it.lab):null))};
+    SX.past.forEach((it,j)=>map.append(ext(it,j,"past")));SX.future.forEach((it,j)=>map.append(ext(it,P0+arr.length+j,"future")))}
   arr.forEach((n,i)=>{const isDone=nodeIsDone(subj,n);const cls="node"+(n.boss?" boss":"")+(isDone?" done":i===ci?" cur":i>ci?" locked":"");let cap,sub,rw;
     if(n.boss){const b=BOSSES()[n.boss];cap=b.title;sub=isDone?"已击败":b.due?fmtLeft(b.due-now).replace("还剩 ","剩 "):"时间待定";rw=isDone?null:"+"+PT(BOSS_PTS)}
     else{cap=nodeName(subj,n);sub=isDone?"已通关":n.due?"目标 "+fmtDue(n.due).replace(/ \d\d:\d\d$/,""):"";rw=isDone?null:"+"+preview(n.pts||NODE_PTS,n.due||null,0).total}
@@ -2029,7 +2058,7 @@ async function smPump(){if(smBusy)return;smBusy=true;while(SMQ.length){const[too
 
 /* ============ dungeon ============ */
 let CUR="math",SAMPLE=null,CTL=null,IMGS=[],IMG_OK=false;const CHATS={math:[],chem:[],engri:[],engl:[]};const QUEST={};
-function measureBars(){const r=document.documentElement;const side=wideScreen();r.style.setProperty("--hudH",(side?0:$(".hud").getBoundingClientRect().bottom)+"px");r.style.setProperty("--tabH",(side?0:$(".tabbar").getBoundingClientRect().height)+"px")}
+function measureBars(){const r=document.documentElement;const side=wideScreen();{const rs=$(".hud .res");if(side&&rs)r.style.setProperty("--resH",(rs.getBoundingClientRect().height+32)+"px")}r.style.setProperty("--hudH",(side?0:$(".hud").getBoundingClientRect().bottom)+"px");r.style.setProperty("--tabH",(side?0:$(".tabbar").getBoundingClientRect().height)+"px")}
 function renderDungeon(){const w=worldOf(CUR);{const b=S.battle[CUR];if(!QUEST[CUR]&&b&&b.kind==="quest"&&b.node){const n=MAIN[CUR].find(x=>x.id===b.node);if(n&&!nodeIsDone(CUR,n))QUEST[CUR]={id:n.id,t:nodeName(CUR,n)}}}
   const dg=$("#v-dungeon");dg.style.setProperty("--tint",w.tint);measureBars();
   $("#dTabs").replaceChildren(...Object.keys(SUBJ).map(k=>{const due=occurrences().filter(o=>o.subj===k&&isOpen(o)&&o.soft-Date.now()<2*DAY).length+reviveDue(k).length;
@@ -2830,10 +2859,9 @@ function renderRead(){const box=$("#v-read");if(!box)return;const B=RD().books;c
   const done=B.filter(b=>b.st==="done").sort((a,b)=>(b.done||0)-(a.done||0)),drop=B.filter(b=>b.st==="drop");const md=t=>{const d=new Date(t);return(d.getMonth()+1)+"/"+d.getDate()};
   const fin=done.length||drop.length?h("details",{class:"rd-phase"},h("summary",{style:{fontWeight:700,cursor:"pointer"}},"读完 "+done.length+" 本"+(drop.length?" · 没读下去 "+drop.length+" 本":"")),
     h("div",{class:"rd-list",style:{marginTop:"8px"}},[...done,...drop].map(b=>h("div",{class:"rd-row"},h("div",{class:"rd-t",onclick:()=>rdEdit(b)},h("b",null,"《"+b.t+"》"),h("span",null,b.st==="done"?(b.done?md(b.done)+" 读完":"读完"):"没读下去")))))):null;
-  const fm=fmCard();fm.classList.add("pane");{const kids=[...fm.children];const hd=kids.shift();hd.classList.add("pane-h");fm.replaceChildren(hd,h("div",{class:"pane-b"},...kids))}
-  const lay=h("div",{class:"rd-layout"},h("div",{class:"rd-c1"},head,...(cur.length?cur.map(card):[h("div",{class:"card dim"},"现在没有在读的书")])),
-    h("div",{class:"card pane"},h("div",{class:"pane-h"},h("h2",null,"书单"),h("span",{class:"dim small"},B.filter(b=>b.st==="queue").length+" 本")),h("div",{class:"pane-b"},...phases.filter(Boolean),...[fin].filter(Boolean))),fm);
-  box.replaceChildren(lay);requestAnimationFrame(()=>fitPane(lay))}
+  const fm=fmCard();fm.dataset.sub="films";
+  box.replaceChildren(h("div",{class:"sub-wrap","data-sub":"now"},head,cur.length?h("div",{class:"rd-now"},cur.map(card)):h("div",{class:"card dim"},"现在没有在读的书")),
+    h("div",{class:"card","data-sub":"list"},h("div",{class:"row between"},h("h2",null,"书单"),h("span",{class:"dim small"},B.filter(b=>b.st==="queue").length+" 本")),...phases.filter(Boolean),...[fin].filter(Boolean)),fm);applySub()}
 const RD_OPEN=new Set();
 
 /* ============ HUD / routing ============ */
@@ -2841,7 +2869,15 @@ function renderHud(){renderGuideFab();{const b=$("#hSleep");if(b){b.textContent=
   $("#hXpBar").style.width=Math.round((S.xp-lv.lo)/(lv.hi-lv.lo)*100)+"%";$("#hPts").textContent=fp(S.points);$("#hStreakN").textContent=streak()+(checkedToday()?"":" · 未签");
   $("#hStreak").title=checkedToday()?"今天已签到":"今天还没签到，点开签到日历";$("#hCards").textContent=S.cards.makeup}
 const VIEWS=["now","map","cal","read","shop","bag"];
-function curView(){const v=(location.hash||"#now").slice(1);return VIEWS.includes(v)?v:"now"}
+function curView(){const v=(location.hash||"#now").slice(1).split("/")[0];return VIEWS.includes(v)?v:"now"}
+/* 侧栏二级菜单：#read/list 这种；手机上不分，整页照旧 */
+const SUBS={map:null,read:[["now","在读"],["list","书单"],["films","片单"]],shop:[["reward","奖励"],["spend","记账"]],bag:[["score","成绩"],["mistake","错题"],["ledger","积分流水"],["settings","设置"]]};
+function curSub(v=curView()){const s=(location.hash||"").slice(1).split("/")[1]||"";if(v==="map")return Object.keys(SUBJ).includes(s)?s:null;const L=SUBS[v];return L?(L.some(x=>x[0]===s)?s:L[0][0]):null}
+function applySub(){const v=curView(),sb=curSub(v);const sec=$("#v-"+v);if(!sec)return;sec.querySelectorAll("[data-sub]").forEach(e=>e.classList.toggle("on",e.dataset.sub===sb))}
+function renderSideNav(){const v=curView(),sb=curSub(v);document.querySelectorAll(".tabbar .subnav").forEach(e=>e.remove());
+  const a=document.querySelector('.tabbar a[data-v="'+v+'"]');if(!a)return;
+  const items=v==="map"?Object.keys(SUBJ).map(k=>[k,SUBJ[k].name]):SUBS[v];if(!items)return;const cur=v==="map"?MAPSUBJ:sb;
+  a.after(h("div",{class:"subnav"},items.map(([k,n])=>h("a",{href:"#"+v+"/"+k,"aria-current":k===cur?"page":"false"},n))))}
 let NI=0;
 /* 现在页顶上的四个快捷键：睡觉/起床、签到、读书、打游戏 */
 function quickTile(ic,col,title,sub,go,cls){const b=h("button",{class:"qk"+(cls?" "+cls:""),onclick:go},h("span",{class:"ic"},icon(ic)),h("b",null,title),h("small",null,sub||""));b.style.setProperty("--qc",col);return b}
@@ -2861,13 +2897,7 @@ function renderQuick(){const el=$("#quickRow");if(!el)return;const now=Date.now(
   const steps=nextSteps().filter(x=>!x.rest),st=steps[0];
   const rc=h("button",{class:"qk rec",onclick:()=>openRec(0)},h("span",{class:"ic"},icon(st?st.ic||"star":"star")),h("span",{class:"tx"},h("small",null,"推荐"),h("b",null,st?st.title:"今天没别的事了"),st?h("small",null,st.meta):null));
   rc.style.setProperty("--qc",st&&st.subj?worldOf(st.subj).tint:"#2fa865");if(!st)rc.onclick=null;
-  el.replaceChildren(sl,ck,rd,gm,rc);void dt;void sp;renderNowPanes()}
-/* 现在页下半：左边接下来要交的，右边记账和这个月的账 */
-function renderNowPanes(){const box=$("#nowDue"),sp=$("#nowSpend");if(!box||!sp)return;const now=Date.now();const L=dueList().slice(0,12);
-  box.replaceChildren(h("div",{class:"pane-h"},h("h3",null,"接下来要交"),h("button",{class:"btn sm flat",onclick:()=>{location.hash="#cal"}},"日历")),
-    h("div",{class:"pane-b"},L.length?L.map(x=>{const left=x.due-now;return h("div",{class:"ndrow",onclick:()=>x.go()},h("b",null,x.t),
-      h("span",{class:"when"+(left<0?" late":left<DAY?" soon":"")},fmtDue(x.due)+" · "+fmtLeft(left).replace("还剩 ","剩 ").replace("已超时 ","超时 ")))}):h("div",{class:"dim"},"最近没有要交的")));
-  renderSpend(sp);requestAnimationFrame(()=>fitPane($("#nowPanes"),300))}
+  el.replaceChildren(sl,ck,rd,gm,dt,sp,rc)}
 /* 接下来要交的：网站作业、Canvas 支线、要交的 Boss，按截止排 */
 function dueList(){const now=Date.now(),B=BOSSES();return[
   ...occurrences().filter(o=>isOpen(o)&&o.soft>now-3*DAY).map(o=>({t:SUBJ[o.subj].name+" "+o.title,due:o.soft,go:()=>openTaskSheet(o)})),
@@ -2889,7 +2919,7 @@ function rdQuickSheet(){const R0=RD(),cur=["main","frag"].map(sl=>R0.books.find(
     h("button",{class:"btn flat",onclick:()=>{closeSheet();location.hash="#read"}},"去读书页"))}
 setInterval(()=>{if(curView()==="now"&&!document.querySelector(".scrim,.pop"))renderQuick()},30000);
 function renderNow(){renderQuick()}
-function route(){const v=curView();document.body.classList.toggle("dg-on",v==="dungeon");measureBars();for(const x of VIEWS)$("#v-"+x).hidden=x!==v;document.querySelectorAll(".tabbar a").forEach(a=>a.setAttribute("aria-current",a.dataset.v===v?"page":"false"));renderHud();renderView(v);
+function route(){const v=curView();document.body.classList.toggle("dg-on",v==="dungeon");measureBars();for(const x of VIEWS)$("#v-"+x).hidden=x!==v;document.querySelectorAll(".tabbar a[data-v]").forEach(a=>a.setAttribute("aria-current",a.dataset.v===v?"page":"false"));{const ms=curSub("map");if(v==="map"&&ms&&ms!==MAPSUBJ){MAPSUBJ=ms;setTimeout(scrollToCur,60)}}renderHud();renderView(v);applySub();renderSideNav();
   if(v==="map")setTimeout(scrollToCur,40);else window.scrollTo(0,0)}
 function renderView(v){if(v==="now")renderNow();else if(v==="map")renderMap();else if(v==="cal")renderCal();else if(v==="shop")renderShop();else if(v==="read")renderRead();else renderBag()}
 function renderAll(){if(EMBED==="zero")setTimeout(pendingPdfs,3000);renderHud();renderView(curView());if(EMBED==="todo")renderTodoEmbed();if(EMBED==="zero")deskBadge()}
@@ -2986,7 +3016,7 @@ $("#smSaveBtn").onclick=()=>smFlushClick(CUR);$("#smNowBtn").onclick=()=>smFlush
 setInterval(()=>{tickFocus();if(S.timer){renderTimer();if(!S.timer.meter&&S.timer.end<=Date.now()&&!S.timer.rang){S.timer.rang=true;toast("游戏时间到");save()}}},1000);
 setInterval(()=>{if(document.querySelector(".scrim,.pop"))return;softRefresh()},60e3);
 window.addEventListener("pagehide",flush);
-let resizeT;window.addEventListener("resize",()=>{clearTimeout(resizeT);resizeT=setTimeout(()=>{if(["cal","now","read"].includes(curView()))renderView(curView());if(curView()==="map")renderMap();if(curView()==="dungeon"){measureBars();drawStage()}},200)});
+let resizeT;window.addEventListener("resize",()=>{clearTimeout(resizeT);resizeT=setTimeout(()=>{if(curView()==="cal")renderView("cal");if(curView()==="map")renderMap();if(curView()==="dungeon"){measureBars();drawStage()}},200)});
 
 /* ============ boot ============ */
 /* ============ 云端存档同步（测试版）：进度存到 共享记忆 的 study_state，网站和这里共用一份 ============ */
