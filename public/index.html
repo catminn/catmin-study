@@ -175,7 +175,27 @@ input[type=text],input[type=number],input[type=datetime-local],textarea.plain,se
 .seg{display:inline-flex;border:2px solid var(--line);border-radius:12px;overflow:hidden}
 .seg button{border:0;background:var(--panel);padding:5px 14px;font-weight:700;color:var(--dim)}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
-.weekscroll{overflow-x:auto;border:2px solid var(--line);border-radius:16px;background:var(--panel)}
+/* 周视图：像正常日历网站一样铺满一屏，不左右滑 */
+#v-cal:not([hidden]){display:flex;flex-direction:column;gap:8px;padding:10px 0 8px;width:min(100vw - 32px,1900px);margin-inline:calc((100% - min(100vw - 32px,1900px))/2)}
+#v-cal .calhead h2{font-size:22px}
+#v-cal .calhead+.row:has(#calNote:empty):has(#calConnect[hidden]){display:none}
+#calBody{flex:1;min-height:0;display:flex}
+.wk{flex:1;min-width:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
+.wk-head,.wk-body{display:grid;grid-template-columns:52px repeat(7,minmax(0,1fr));scrollbar-gutter:stable}
+.wk-head{flex:none;overflow:hidden;border-bottom:1px solid var(--line)}
+.wk-body{flex:1;min-height:0;overflow-y:auto}
+.wk-dh{text-align:center;padding:6px 2px 4px;border-left:1px solid var(--line);cursor:pointer;line-height:1.25}
+.wk-dh .wd{display:block;font-size:11px;font-weight:700;color:var(--dim);letter-spacing:.08em}
+.wk-dh b{display:block;margin:2px auto;width:36px;height:36px;line-height:36px;border-radius:50%;font-family:var(--mono);font-size:20px}
+.wk-dh.today .wd{color:var(--accent)}.wk-dh.today b{background:var(--accent);color:var(--accent-ink)}
+.wk-dh .ck{font-size:11px;font-weight:700}.wk-dh .ck.on{color:var(--early)}.wk-dh .ck.miss{color:var(--late)}
+.wk-lab{font-size:11px;color:var(--dim);text-align:right;padding:6px 6px 0;border-top:1px solid var(--line)}
+.wk-due{border-left:1px solid var(--line);border-top:1px solid var(--line);padding:4px;display:flex;flex-direction:column;gap:3px;min-width:0;min-height:30px}
+.wk-hrs{display:flex;flex-direction:column}.wk-hrs .hr{flex:1;min-height:0;font-size:11px;color:var(--dim);text-align:right;padding-right:8px;transform:translateY(-.7em)}
+.wk-col{position:relative;border-left:1px solid var(--line);background-image:linear-gradient(to bottom,var(--line) 1px,transparent 1px)}
+.wk-col.today{background-color:color-mix(in oklab,var(--accent) 5%,transparent)}
+.wk .ev{display:flex;flex-direction:column;gap:0;padding:2px 6px}.wk .ev b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wk .ev span{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:700px){.wk{overflow-x:auto}.wk-head,.wk-body{grid-template-columns:40px repeat(7,minmax(84px,1fr));min-width:640px}.wk-body{overflow:visible;flex:none}.wk{overflow-y:auto}}
 .week{display:grid;grid-template-columns:46px repeat(7,minmax(104px,1fr));min-width:780px}
 .week .dh{background:var(--panel);border-bottom:2px solid var(--line);padding:6px 4px;text-align:center;font-size:13px}
 .week .dh b{display:block;font-size:20px;font-family:var(--mono);line-height:1.2}
@@ -659,7 +679,6 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
     <div class="calhead">
       <h2 id="calTitle">日历</h2>
       <div class="row">
-        <div class="seg"><button id="cvWeek" aria-pressed="true">周</button><button id="cvMonth" aria-pressed="false">月</button></div>
         <button class="btn sm flat" id="calPrev" aria-label="上一页">‹</button>
         <button class="btn sm flat" id="calToday">今天</button>
         <button class="btn sm flat" id="calNext" aria-label="下一页">›</button>
@@ -1823,7 +1842,7 @@ function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.
 function scrollToCur(){const y=$("#youMark");if(!y||curView()!=="map")return;const r=y.getBoundingClientRect();window.scrollTo({top:Math.max(0,scrollY+r.top-innerHeight*0.3),behavior:reduced()?"auto":"smooth"})}
 
 /* ============ calendar ============ */
-let CV="week",CANCHOR=localKey(new Date());const EVC=new Map();let calSeq=0;
+let CV="week";let CANCHOR=localKey(new Date());const EVC=new Map();let calSeq=0;
 function calItemsOn(k){const items=[];
   for(const o of occOnDay(k)){if(S.skipped[o.key]||localKey(new Date(o.soft))!==k)continue;const d=S.done[o.key];items.push({t:SUBJ[o.subj].name+" "+o.title,cls:d?"done":multFor(o.soft,o.r.grace||0,Date.now(),o.self).cls,click:()=>openTaskSheet(o),time:o.soft})}
   for(const o of occOnDay(addDays(k,1)).concat(occOnDay(addDays(k,2))))if(o.r.target&&localKey(new Date(o.soft))===k&&!S.skipped[o.key]){const d=S.done[o.key];items.push({t:SUBJ[o.subj].name+" "+o.title,cls:d?"done":multFor(o.soft,o.r.grace||0,Date.now(),o.self).cls,click:()=>openTaskSheet(o),time:o.soft})}
@@ -1843,28 +1862,38 @@ async function fetchEvents(startK,endK){if(!MCP||!S.calendar)return null;const c
       for(const e of((r.payload&&r.payload.events)||[])){if(!e.start||!e.start.dateTime)continue;out.push({kind,t:e.summary||"",s:new Date(e.start.dateTime).getTime(),e:new Date((e.end&&e.end.dateTime)||e.start.dateTime).getTime(),loc:e.location||""})}}catch(e){err=e}}
   if(!okAny){CAL_NOTE=calCopy(err);return null}EVC.set(ck,out);return out}
 function calNoteText(){return!MCP?"在 Claude 里打开才能读 Google 日历。":!S.calendar?"":CAL_NOTE}
-function renderCal(){$("#cvWeek").setAttribute("aria-pressed",String(CV==="week"));$("#cvMonth").setAttribute("aria-pressed",String(CV==="month"));
+function renderCal(){
   $("#calConnect").hidden=!MCP||(S.calendar&&CAL_OK);$("#calNote").textContent=calNoteText();if(CV==="week")renderWeek();else renderMonth()}
 async function renderWeek(){const seq=++calSeq;const wk=weekKey(keyToDate(CANCHOR).getTime()+5*HOUR);const days=Array.from({length:7},(_,i)=>addDays(wk,i));
-  const a=keyToDate(days[0]),b=keyToDate(days[6]);$("#calTitle").textContent=(a.getMonth()+1)+"/"+a.getDate()+" – "+(b.getMonth()+1)+"/"+b.getDate();
-  const today=dayKey();const set=new Set(S.checkins),rest=new Set(S.restDays);const started=S.checkins.slice().sort()[0]||today;
-  const H0=7,H1=24,PX=44;const grid=h("div",{class:"week"});grid.append(h("div",{class:"dh gutter"}));
-  days.forEach((k,i)=>{const d=keyToDate(k);const ck=rest.has(k)?["on","休息日"]:set.has(k)?["on","✓ 已签到"]:(k<today&&k>=started)?["miss","漏签"]:["",""];
-    grid.append(h("div",{class:"dh"+(k===localKey(new Date())?" today":"")},"周"+"一二三四五六日"[i],h("b",null,d.getDate()),h("span",{class:"ck "+ck[0]},ck[1]||"\u00a0")))});
-  grid.append(h("div",{class:"due gutter dim",style:{fontSize:"11px",textAlign:"right"}},"截止"));
-  days.forEach(k=>grid.append(h("div",{class:"due"},calItemsOn(k).map(it=>h("button",{class:"chip "+it.cls,onclick:it.click,title:it.t},it.t)))));
-  const hrs=h("div",{class:"gutter"});for(let x=H0;x<H1;x++)hrs.append(h("div",{class:"hr"},x+":00"));grid.append(hrs);
-  const cols=days.map(()=>{const c=h("div",{class:"col",style:{height:(H1-H0)*PX+"px"}});grid.append(c);return c});
-  const sc=h("div",{class:"weekscroll"},grid);$("#calBody").replaceChildren(sc);
-  const nowT=new Date();const ni=days.indexOf(localKey(nowT));if(ni>=0){const y=(nowT.getHours()+nowT.getMinutes()/60-H0)*PX;if(y>0)cols[ni].append(h("div",{class:"nowline",style:{top:y+"px"}}))}
-  const B=BOSSES();for(const id in B){const bb=B[id];if(!bb.due||!bb.exam)continue;const ix=days.indexOf(localKey(new Date(bb.due)));if(ix<0)continue;const d=new Date(bb.due);
-    cols[ix].append(h("button",{class:"ev boss",style:{top:(d.getHours()+d.getMinutes()/60-H0)*PX+"px",height:PX*1.5+"px"},onclick:()=>openBossSheet(id)},bb.title))}
-  if(ni>=0)sc.scrollLeft=Math.max(0,(sc.scrollWidth-46)/7*ni-20);
+  const a=keyToDate(days[0]),b=keyToDate(days[6]);$("#calTitle").textContent=a.getFullYear()+" 年 "+(a.getMonth()+1)+" 月 "+a.getDate()+" 日 – "+(a.getMonth()===b.getMonth()?"":(b.getMonth()+1)+" 月 ")+b.getDate()+" 日";
+  const today=dayKey(),real=localKey(new Date());const set=new Set(S.checkins),rest=new Set(S.restDays);const started=S.checkins.slice().sort()[0]||today;
+  const H0=7,H1=24;
+  const head=h("div",{class:"wk-head"},h("div",{class:"wk-g"}),...days.map((k,i)=>{const d=keyToDate(k);const ck=rest.has(k)?["on","休息日"]:set.has(k)?["on","已签到"]:(k<today&&k>=started)?["miss","漏签"]:["",""];
+      return h("div",{class:"wk-dh"+(k===real?" today":""),onclick:()=>openDaySheet(k)},h("span",{class:"wd"},"周"+"一二三四五六日"[i]),h("b",null,d.getDate()),ck[1]?h("span",{class:"ck "+ck[0]},ck[1]):null)}),
+    h("div",{class:"wk-g wk-lab"},"截止"),...days.map(k=>h("div",{class:"wk-due"},calItemsOn(k).map(it=>h("button",{class:"chip "+it.cls,onclick:it.click,title:it.t},it.t)))));
+  const hrs=h("div",{class:"wk-g wk-hrs"});const cols=days.map(k=>h("div",{class:"wk-col"+(k===real?" today":"")}));
+  const body=h("div",{class:"wk-body"},hrs,...cols);
+  $("#calBody").replaceChildren(h("div",{class:"wk"},head,body));
+  fitCal();
+  /* 7 点到 24 点按百分比铺满剩下的高度；窗口太矮（每小时不到 28px）才滚动 */
+  const NH=H1-H0;body.style.gridTemplateRows="minmax("+NH*28+"px,1fr)";
+  for(let x=H0;x<H1;x++)hrs.append(h("div",{class:"hr"},x===H0?"":x+":00"));
+  cols.forEach(c=>{c.style.backgroundSize="100% calc(100% / "+NH+")"});
+  const pct=t=>{const d=new Date(t);return(d.getHours()+d.getMinutes()/60-H0)/NH*100};const PX=Math.max(28,body.clientHeight/NH);const pos=t=>pct(t)/100*NH*PX;
+  const nowT=Date.now();const ni=days.indexOf(real);if(ni>=0&&pos(nowT)>0)cols[ni].append(h("div",{class:"nowline",style:{top:pct(nowT)+"%"}}));
+  const B=BOSSES();const bossEl=[];for(const id in B){const bb=B[id];if(!bb.due||!bb.exam)continue;const ix=days.indexOf(localKey(new Date(bb.due)));if(ix<0)continue;
+    const el=h("button",{class:"ev boss",style:{top:Math.max(0,pct(bb.due))+"%",height:"calc("+1.5/NH*100+"% - 2px)"},onclick:()=>openBossSheet(id)},bb.title);bossEl.push({el,ix,t:bb.due});cols[ix].append(el)}
+  if(body.scrollHeight>body.clientHeight)body.scrollTop=Math.max(0,pos(ni>=0?nowT:keyToDate(days[0]).getTime()+9*HOUR)-PX*2);
   const evs=await fetchEvents(days[0],addDays(days[6],1));if(seq!==calSeq)return;$("#calNote").textContent=calNoteText();$("#calConnect").hidden=!MCP||(S.calendar&&CAL_OK);
   if(!evs)return;const byDay=days.map(()=>[]);for(const e of evs){const ix=days.indexOf(localKey(new Date(e.s)));if(ix>=0)byDay[ix].push(e)}
+  /* 日历里已经有这场考试，就不再叠一块 */
+  for(const x of bossEl)if(byDay[x.ix].some(e=>Math.abs(e.s-x.t)<2*HOUR))x.el.remove();
   byDay.forEach((list,ix)=>{list.sort((p,q)=>p.s-q.s);const lanes=[];for(const e of list){let l=lanes.findIndex(end=>end<=e.s);if(l<0){l=lanes.length;lanes.push(0)}lanes[l]=e.e;e.lane=l}
-    const nl=Math.max(1,lanes.length);for(const e of list){const s=new Date(e.s);const top=(s.getHours()+s.getMinutes()/60-H0)*PX;const ht=Math.max(20,(e.e-e.s)/HOUR*PX-2);if(top+ht<=0)continue;
-      cols[ix].append(h("div",{class:"ev "+e.kind,style:{top:Math.max(0,top)+"px",height:ht+"px",left:(e.lane*(100/nl))+"%",width:(100/nl)+"%",right:"auto"},title:e.t+(e.loc?" · "+e.loc:"")},e.t))}})}
+    const nl=Math.max(1,lanes.length);for(const e of list){const PXn=Math.max(28,body.clientHeight/NH);const top=pct(e.s);const hp=(e.e-e.s)/HOUR/NH*100;const ht=hp/100*NH*PXn;if(top+hp<=0)continue;const s0=new Date(e.s);
+      cols[ix].append(h("div",{class:"ev "+e.kind,style:{top:Math.max(0,top)+"%",height:"max(18px, calc("+hp+"% - 2px))",left:`calc(${e.lane*(100/nl)}% + 2px)`,width:`calc(${100/nl}% - 4px)`,right:"auto"},title:e.t+(e.loc?" · "+e.loc:"")},
+        ...(ht>=34?[h("b",null,e.t),h("span",null,s0.getHours()+":"+pad(s0.getMinutes())+(e.loc?" · "+e.loc:""))]:[h("b",null,e.t+" ",h("span",{style:{fontWeight:400}},s0.getHours()+":"+pad(s0.getMinutes())))])))}})}
+/* 日历区高度 = 窗口剩下的部分，正好一屏 */
+function fitCal(){const v=$("#v-cal");if(v.hidden)return;v.style.height="";const top=v.getBoundingClientRect().top+scrollY;const tb=$(".tabbar").getBoundingClientRect().height;v.style.height=Math.max(420,innerHeight-top-tb)+"px"}
 function renderMonth(){++calSeq;const[y,m]=CANCHOR.slice(0,7).split("-").map(Number);$("#calTitle").textContent=y+" 年 "+m+" 月";const first=new Date(y,m-1,1);const lead=(first.getDay()+6)%7;
   const start=addDays(localKey(first),-lead);const today=dayKey();const set=new Set(S.checkins),rest=new Set(S.restDays);const started=S.checkins.slice().sort()[0]||today;
   const g=h("div",{class:"month"},"一二三四五六日".split("").map(c=>h("div",{class:"wd"},"周"+c)));
@@ -2806,7 +2835,7 @@ $("#zwImg").onchange=e=>{const fs=[...e.target.files];e.target.value="";zwAddFil
 $("#zwInput").addEventListener("paste",e=>{const fs=pastedImages(e);if(fs.length&&IMG_OK){e.preventDefault();e.stopPropagation();for(const f of fs)if(ZW.imgs.length<5)ZW.imgs.push(f);zwRender()}});
 $("#hStreak").onclick=()=>{CK_MONTH=null;openCheckin()};
 $("#pubBtn").onclick=openPublicSheet;
-$("#cvWeek").onclick=()=>{CV="week";renderCal()};$("#cvMonth").onclick=()=>{CV="month";renderCal()};
+
 $("#calPrev").onclick=()=>{CANCHOR=CV==="week"?addDays(CANCHOR,-7):shiftMonth(CANCHOR.slice(0,7),-1)+"-01";renderCal()};
 $("#calNext").onclick=()=>{CANCHOR=CV==="week"?addDays(CANCHOR,7):shiftMonth(CANCHOR.slice(0,7),1)+"-01";renderCal()};
 $("#calToday").onclick=()=>{CANCHOR=localKey(new Date());renderCal()};$("#calConnect").onclick=()=>connectCalendar(true);
@@ -2878,7 +2907,7 @@ $("#smSaveBtn").onclick=()=>smFlushClick(CUR);$("#smNowBtn").onclick=()=>smFlush
 setInterval(()=>{tickFocus();if(S.timer){renderTimer();if(!S.timer.meter&&S.timer.end<=Date.now()&&!S.timer.rang){S.timer.rang=true;toast("游戏时间到");save()}}},1000);
 setInterval(()=>{if(document.querySelector(".scrim,.pop"))return;softRefresh()},60e3);
 window.addEventListener("pagehide",flush);
-let resizeT;window.addEventListener("resize",()=>{clearTimeout(resizeT);resizeT=setTimeout(()=>{if(curView()==="map")renderMap();if(curView()==="dungeon"){measureBars();drawStage()}},200)});
+let resizeT;window.addEventListener("resize",()=>{clearTimeout(resizeT);resizeT=setTimeout(()=>{if(curView()==="cal")renderCal();if(curView()==="map")renderMap();if(curView()==="dungeon"){measureBars();drawStage()}},200)});
 
 /* ============ boot ============ */
 /* ============ 云端存档同步（测试版）：进度存到 共享记忆 的 study_state，网站和这里共用一份 ============ */
