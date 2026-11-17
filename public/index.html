@@ -1349,7 +1349,11 @@ const SEED_SCORES=[
   {id:"seed-math-p1",subj:"math",name:"Prelim 1",got:43.5,max:70,kind:"exam",at:at(2026,10,1,21,0)},
   {id:"seed-math-q",subj:"math",name:"Discussion Quiz",got:24,max:25,kind:"quiz",at:at(2026,10,20,10,0)}];
 let S=defaultState();S.scores=SEED_SCORES.map(x=>Object.assign({bonus:null},x));
-function mergeState(raw){const x=raw?clone(raw):{};const o=Object.assign(defaultState(),x);
+/* 11/17 一次空白存档被合并进了云端：带回来的那两条账、几条「跳过」和重新生成的书单要剔除（哪台设备还留着旧副本，合并后都会在这里被清掉） */
+const POISON_AT=1794934223322,POISON_SKIP=1794934223325;
+function unpoison(o){if(Array.isArray(o.ledger)){let dp=0,dx=0;o.ledger=o.ledger.filter(e=>{if(e&&e.at===POISON_AT){dp+=e.d||0;if(e.d>0)dx+=Math.round(e.d*XP_PER);return false}return true});if(dp){o.points=r1((o.points||0)-dp);o.xp=Math.max(0,(o.xp||0)-dx)}}
+  if(o.skipped)for(const k in o.skipped)if(o.skipped[k]===POISON_SKIP)delete o.skipped[k];return o}
+function mergeState(raw){const x=raw?unpoison(clone(raw)):{};const o=Object.assign(defaultState(),x);
   o.cards=Object.assign(defaultState().cards,x.cards||{});o.progress=Object.assign(defaultState().progress,x.progress||{});o.world=Object.assign(defaultState().world,x.world||{});
   for(const k of["done","started","skipped","chests","weekEarly","nodeNames","battle","trainLog","quizLog","tale","saga","fate"])if(!o[k]||typeof o[k]!=="object"||Array.isArray(o[k]))o[k]={};
   for(const k of["checkins","restDays","ledger","mistakes","customRewards","customWorlds","scores","spend","sleepLog","todos","hwArchive"])if(!Array.isArray(o[k]))o[k]=[];if(!o.hwDraft||typeof o.hwDraft!=="object"||Array.isArray(o.hwDraft))o.hwDraft={};
@@ -3096,16 +3100,18 @@ async function cloudPoll(){if(!cloudOn()||!CLOUD.ready||CLOUD.conflict||dirty||C
   try{const o=await cloudGet("state");if(!o.exists||!o.value||(o.version||0)<=(CLOUD.ver.state||0))return;CLOUD.ver.state=o.version;const m=mergeState(syncMerge(o.value,S));if(!sameState(m,S))cloudApply("state",m);if(!sameState(m,mergeState(clone(o.value))))cloudQueue("state",()=>clone(S))}catch(e){}}
 setInterval(cloudPoll,30000);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")setTimeout(cloudPoll,500)});
 // 启动：谁新用谁。云端更新就载入，本地更新就上传
-async function cloudBoot(){if(!cloudOn())return;
+async function cloudBoot(fresh){if(!cloudOn())return;
   const st0=S.savedAt||0,ch0=Object.assign({},CHAT_AT);
   const keys=[["state",st0,()=>clone(S)]].concat(Object.keys(SUBJ).map(k=>["chat-"+k,ch0[k]||0,()=>({turns:CHATS[k].slice(-30),savedAt:CHAT_AT[k]||Date.now()})]));
   let pulled=[];
   for(const[key,localAt,getter]of keys){try{const o=await cloudGet(key);CLOUD.ver[key]=o.version||0;
       const remoteAt=o.exists&&o.value?(o.value.savedAt||o.updated_at*1000||0):0;
+      /* 这台设备是空白存档（第一次打开或本地存档读不到）：直接用云端的，绝不把空白存档合并上去 */
+      if(key==="state"&&o.exists&&o.value&&fresh){cloudApply("state",o.value);pulled.push("存档");continue}
       if(key==="state"&&o.exists&&o.value){const m=mergeState(syncMerge(remoteAt>localAt?o.value:S,remoteAt>localAt?S:o.value));const remoteOnly=!sameState(m,S);if(remoteOnly){cloudApply("state",m);pulled.push("存档")}if(!sameState(m,mergeState(clone(o.value))))CLOUD.pending[key]=getter}
       else if(o.exists&&remoteAt>localAt+1000){cloudApply(key,o.value);pulled.push(SUBJ[key.slice(5)].name+"对话")}
       else if(!o.exists||localAt>remoteAt+1000){CLOUD.pending[key]=CLOUD.pending[key]||getter}
-    }catch(e){cloudStatus("err",e);setTimeout(cloudBoot,60000);return}}
+    }catch(e){cloudStatus("err",e);setTimeout(()=>cloudBoot(fresh),60000);return}}
   CLOUD.ready=true;for(const k of Object.keys(CLOUD.pending))cloudQueue(k,CLOUD.pending[k]);
   cloudStatus("ok");if(pulled.length)toast("已载入云端的"+pulled.join("、"))}
 
@@ -3674,7 +3680,7 @@ route();
   if(!S.fixC1){S.fixC1=1;for(const e of S.scores)if(e.subj==="chem"&&e.got===64.5&&e.max===150&&!e.grade){e.grade="C";if(e.bonus!=null){const b=scoreBonus(e);const d=b.total-e.bonus;e.bonus=b.total;if(d)earn(d,"成绩更正 · 化学 "+e.name+" 按 curve 是 C")}}}
   if(!S.fixC2){S.fixC2=1;const fixOne=(e,got,grade,why)=>{e.got=got;e.grade=grade;if(e.bonus!=null){const b=scoreBonus(e);const d=b.total-e.bonus;e.bonus=b.total;if(d)earn(d,"成绩更正 · 化学 "+e.name+" "+why)}};
     for(const e of S.scores)if(e.subj==="chem"){if(e.got===77&&e.max===150)fixOne(e,77,"C","按 curve 是 C");else if(e.max===150&&(e.got===64.5||/prelim\s*2|exam\s*2/i.test(e.name)))fixOne(e,68.5,"C","regrade 后 68.5，C")}}
-  applyDyn();sleepCheck();save();S.mistakes.forEach(m=>delete m.smBusy);if(S.focus)S.focus=null;if(S.focusLive){S.focusLive=null;setTimeout(()=>toast("上次专注时网页关掉了，那一轮作废"),1500)}if(!EMBED){setTimeout(()=>smFlush(false),9000);setTimeout(()=>syncAllMistakes(false),6000)}zwLoad();if(EMBED==="zero")zwOpen();if(EMBED==="todo")renderTodoEmbed();Promise.all(Object.keys(SUBJ).map(loadLib)).then(()=>{if(curView()==="dungeon")renderLib()});if(S.calendar)connectCalendar(false);route();if(!EMBED)setTimeout(()=>syncCourses(false),4000);cloudBoot();
+  applyDyn();sleepCheck();save();S.mistakes.forEach(m=>delete m.smBusy);if(S.focus)S.focus=null;if(S.focusLive){S.focusLive=null;setTimeout(()=>toast("上次专注时网页关掉了，那一轮作废"),1500)}if(!EMBED){setTimeout(()=>smFlush(false),9000);setTimeout(()=>syncAllMistakes(false),6000)}zwLoad();if(EMBED==="zero")zwOpen();if(EMBED==="todo")renderTodoEmbed();Promise.all(Object.keys(SUBJ).map(loadLib)).then(()=>{if(curView()==="dungeon")renderLib()});if(S.calendar)connectCalendar(false);route();if(!EMBED)setTimeout(()=>syncCourses(false),4000);cloudBoot(fresh);
 
 })();
 </script>
