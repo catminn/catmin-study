@@ -3656,7 +3656,8 @@ addVoice("input","sendBtn","btn sm glass");addVoice("zwInput","zwSend","btn sm f
 route();
 (async()=>{
   const C=window.claude;let db=null,user=null,sample=null,mcp=null;
-  if(C&&C.use){try{[db,user,sample,mcp]=await Promise.all([C.use("db"),C.use("user"),C.use("sample"),C.use("mcp")])}catch(e){}}
+  /* 每个能力单独拿：某个连接器（比如 Google）出问题，不能连累存档也连不上 */
+  if(C&&C.use){const get=async n=>{try{return await C.use(n)}catch(e){console.warn("capability "+n+" unavailable",e);return null}};[db,user,sample,mcp]=await Promise.all(["db","user","sample","mcp"].map(get))}
   SAMPLE=sample;MCP=mcp;if(sample){try{const l=await sample.limits();IMG_OK=!!(l&&l.images)}catch(e){}}
   try{UID=user?await user.id():null}catch(e){UID=null}let fresh=false;
   if(db&&UID){DB=db;stateRef=db.doc("data/users/"+UID+"/state");
