@@ -201,7 +201,19 @@ input[type=text],input[type=number],input[type=datetime-local],textarea.plain,se
 .wk-col{position:relative;border-left:1px solid var(--line);background-image:linear-gradient(to bottom,var(--line) 1px,transparent 1px)}
 .wk-col.today{background-color:color-mix(in oklab,var(--accent) 5%,transparent)}
 .wk .ev{display:flex;flex-direction:column;gap:0;padding:2px 6px}.wk .ev b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wk .ev span{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@media (max-width:700px){.wk{overflow-x:auto}.wk-head,.wk-body{grid-template-columns:40px repeat(7,minmax(84px,1fr));min-width:640px}.wk-body{overflow:visible;flex:none}.wk{overflow-y:auto}}
+@media (max-width:700px){
+  /* 手机：一屏看 3 天，左右滑看其他天，时间和日期都钉住 */
+  .wk{overflow:auto;scroll-snap-type:x mandatory;scroll-padding-left:40px;--cw:calc((100vw - 34px - 40px) / 3)}
+  .wk-head,.wk-body{grid-template-columns:40px repeat(7,var(--cw));width:max-content}
+  .wk-head{position:sticky;top:0;z-index:4;background:var(--panel)}
+  .wk-body{overflow:visible;flex:none}
+  .wk-g{position:sticky;left:0;z-index:3;background:var(--panel)}
+  .wk-dh{scroll-snap-align:start}
+  .wk-dh b{width:30px;height:30px;line-height:30px;font-size:17px}
+  .wk .ev{padding:2px 4px;font-size:11px}.wk .ev b{white-space:normal;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+  .wk-due .chip{font-size:11px;padding:0 4px}
+  .wk .ev.short b{-webkit-line-clamp:1;word-break:break-all}.wk .ev.short b span{display:none}
+}
 .week{display:grid;grid-template-columns:46px repeat(7,minmax(104px,1fr));min-width:780px}
 .week .dh{background:var(--panel);border-bottom:2px solid var(--line);padding:6px 4px;text-align:center;font-size:13px}
 .week .dh b{display:block;font-size:20px;font-family:var(--mono);line-height:1.2}
@@ -1882,7 +1894,7 @@ function semExtra(subj,arr){const L=SEM[subj]||[];const B=BOSSES();const ds=[];c
   return{past:L.filter(x=>!dup(x)&&(x.d<lo||(x.exam&&x.d<now&&x.d<hi))).sort((a,b)=>a.d-b.d),future:L.filter(x=>!dup(x)&&x.d>hi&&!(x.exam&&x.d<now))}}
 function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.setProperty("--tint",w.tint);
   worldTabs($("#worldTabs"),subj,k=>{MAPSUBJ=k;renderMap();renderSideNav();setTimeout(scrollToCur,30)});
-  const arr=MAIN[subj];const ci=curIndex(subj);const SX=semExtra(subj,arr),P0=SX.past.length,NT=P0+arr.length+SX.future.length;const doneN=arr.filter(n=>nodeIsDone(subj,n)).length;const now=Date.now();
+  const arr=MAIN[subj];const ci=curIndex(subj);const SX=semExtra(subj,arr),P0=SX.past.length;let NT=P0+arr.length+SX.future.length,F0=P0+arr.length;const doneN=arr.filter(n=>nodeIsDone(subj,n)).length;const now=Date.now();
   const debtN=arr.filter(n=>n.lec&&n.lec<now&&!nodeIsDone(subj,n)).length;
   $("#mEyebrow").textContent=SUBJ[subj].full+" · "+doneN+"/"+arr.length;$("#mWorld").textContent=w.name;$("#mDesc").textContent="";
   const pub=SIDE.filter(q=>!q.subj&&!S.done["cv-"+q.id]);const pb=$("#pubBtn");pb.textContent="公共支线 "+pub.length;pb.hidden=!CAL_OK;
@@ -1891,15 +1903,18 @@ function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.
     ...SIDE.filter(q=>q.subj===subj&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>({kind:"canvas",q})),
     ...reviveDue(subj).slice(0,4).map(m=>({kind:"monster",m}))];
   const c=chestStatus();if(c.of)sides.push({kind:"chest",c});
+  /* 学期路线里的作业/考试，支线里已经有同一天的就不重复画；支线排到主线后面时，之后的节点往后挪，别叠在一起 */
+  {const sd=sides.map(x=>(x.o&&x.o.due)||(x.q&&x.q.due)).filter(Boolean);SX.future=SX.future.filter(it=>!(it.exam&&sd.some(d=>Math.abs(d-it.d)<14*HOUR)));
+    F0=P0+Math.max(arr.length,ci+sides.length);NT=F0+SX.future.length}
   const map=$("#map");map.replaceChildren();const W=map.clientWidth||600;const narrow=W<520;const L=narrow?30:33,R=100-L,SL=narrow?20:16,SR=100-SL;
   /* 横屏：路线左右蛇形铺开，一屏看完；竖屏照旧上下走 */
-  const wide=W>=900&&wideScreen();const PER=Math.max(4,Math.floor((W-80)/190)),ROWH=300,MX=7;
+  const wide=W>=900&&wideScreen();const PER=Math.max(4,Math.floor((W-80)/190)),ROWH=350,MX=7;
   const colX=c=>MX+(100-2*MX)*(c/(PER-1)),rowOf=i=>Math.floor(i/PER);
   const STEP=narrow?160:150,TOP=wide?130:160;const gx=wide?(i=>{const c=i%PER;return colX(rowOf(i)%2?PER-1-c:c)}):(i=>(i%2?R:L)+(narrow?1.5:3)*Math.sin(i*1.7));const cm=SAGA[subj]?chapMap(subj):null;const extra=[];{let e=0,pw=null;arr.forEach((n,i)=>{const wi=(cm&&!n.boss)?worldIdxOfCh(subj,cm[n.id]):null;if(wi!=null){if(pw!=null&&wi!==pw)e+=70;pw=wi}extra[i]=e})}
   if(wide)extra.fill(0);
   const gy=wide?(i=>TOP+rowOf(i)*ROWH+14*Math.sin(i*1.3)):(i=>TOP+i*STEP+(extra[Math.max(0,Math.min(i-P0,extra.length-1))]||0));
   const xOf=i=>gx(i+P0),yOf=i=>gy(i+P0);
-  const pos=wide?sides.map((s,k)=>{const a=Math.min(ci+k,arr.length-1+k);return[xOf(a),yOf(a)+170,a]}):sides.map((s,k)=>{const a=ci+k;const y=yOf(a);const mx=a<arr.length?xOf(a):(a%2?R:L);return[mx>50?SL:SR,y,a]});
+  const pos=wide?sides.map((s,k)=>{const a=Math.min(ci+k,arr.length-1+k);return[xOf(a),yOf(a)+160,a]}):sides.map((s,k)=>{const a=ci+k;const y=yOf(a);const mx=a<arr.length?xOf(a):(a%2?R:L);return[mx>50?SL:SR,y,a]});
   const lastY=Math.max(gy(NT-1),pos.length?pos[pos.length-1][1]:0)+150;map.style.height=lastY+"px";
   const svg=document.createElementNS(NS,"svg");svg.setAttribute("class","paths");svg.setAttribute("viewBox","0 0 100 "+lastY);svg.setAttribute("preserveAspectRatio","none");
   const mk=(tag,a)=>{const e=document.createElementNS(NS,tag);for(const k in a)e.setAttribute(k,a[k]);return e};
@@ -1917,7 +1932,7 @@ function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.
   {const now2=Date.now();const ext=(it,j,kind)=>{const ex=!!it.exam;const tip=it.t+(it.lab?" · "+it.lab:"");
       return h("button",{class:"node sem "+kind+(ex?" boss":""),style:{left:gx(j)+"%",top:gy(j)+"px"},onclick:()=>toast(kind==="past"?tip+(ex&&it.d<now2?" · 已过":""):tip),"aria-label":it.t},
         h("span",{class:"disc"},icon(ex?(kind==="past"?"crown":"skull"):kind==="past"?"star":"lock")),h("span",{class:"cap"},it.t,it.lab?h("span",{class:"sub"},it.lab):null))};
-    SX.past.forEach((it,j)=>map.append(ext(it,j,"past")));SX.future.forEach((it,j)=>map.append(ext(it,P0+arr.length+j,"future")))}
+    SX.past.forEach((it,j)=>map.append(ext(it,j,"past")));SX.future.forEach((it,j)=>map.append(ext(it,F0+j,"future")))}
   arr.forEach((n,i)=>{const isDone=nodeIsDone(subj,n);const cls="node"+(n.boss?" boss":"")+(isDone?" done":i===ci?" cur":i>ci?" locked":"");let cap,sub,rw;
     if(n.boss){const b=BOSSES()[n.boss];cap=b.title;sub=isDone?"已击败":b.due?fmtLeft(b.due-now).replace("还剩 ","剩 "):"时间待定";rw=isDone?null:"+"+PT(BOSS_PTS)}
     else{cap=nodeName(subj,n);sub=isDone?"已通关":n.due?"目标 "+fmtDue(n.due).replace(/ \d\d:\d\d$/,""):"";rw=isDone?null:"+"+preview(n.pts||NODE_PTS,n.due||null,0).total}
@@ -1982,6 +1997,7 @@ async function renderWeek(){const seq=++calSeq;const wk=weekKey(keyToDate(CANCHO
   const nowT=Date.now();const ni=days.indexOf(real);if(ni>=0&&pos(nowT)>0)cols[ni].append(h("div",{class:"nowline",style:{top:pct(nowT)+"%"}}));
   const B=BOSSES();const bossEl=[];for(const id in B){const bb=B[id];if(!bb.due||!bb.exam)continue;const ix=days.indexOf(localKey(new Date(bb.due)));if(ix<0)continue;
     const el=h("button",{class:"ev boss",style:{top:Math.max(0,pct(bb.due))+"%",height:"calc("+1.5/NH*100+"% - 2px)"},onclick:()=>openBossSheet(id)},bb.title);bossEl.push({el,ix,t:bb.due});cols[ix].append(el)}
+  {const wk=body.parentElement;if(ni>0&&wk.scrollWidth>wk.clientWidth){const dh=head.querySelectorAll(".wk-dh")[ni];wk.scrollLeft=dh.offsetLeft-40}}
   if(body.scrollHeight>body.clientHeight)body.scrollTop=Math.max(0,pos(ni>=0?nowT:keyToDate(days[0]).getTime()+9*HOUR)-PX*2);
   const evs=await fetchEvents(days[0],addDays(days[6],1));if(seq!==calSeq)return;$("#calNote").textContent=calNoteText();$("#calConnect").hidden=!MCP||(S.calendar&&CAL_OK);
   if(!evs)return;const byDay=days.map(()=>[]);for(const e of evs){const ix=days.indexOf(localKey(new Date(e.s)));if(ix>=0)byDay[ix].push(e)}
@@ -1989,12 +2005,12 @@ async function renderWeek(){const seq=++calSeq;const wk=weekKey(keyToDate(CANCHO
   for(const x of bossEl)if(byDay[x.ix].some(e=>Math.abs(e.s-x.t)<2*HOUR))x.el.remove();
   byDay.forEach((list,ix)=>{list.sort((p,q)=>p.s-q.s);const lanes=[];for(const e of list){let l=lanes.findIndex(end=>end<=e.s);if(l<0){l=lanes.length;lanes.push(0)}lanes[l]=e.e;e.lane=l}
     const nl=Math.max(1,lanes.length);for(const e of list){const PXn=Math.max(28,body.clientHeight/NH);const top=pct(e.s);const hp=(e.e-e.s)/HOUR/NH*100;const ht=hp/100*NH*PXn;if(top+hp<=0)continue;const s0=new Date(e.s);
-      cols[ix].append(h("div",{class:"ev "+e.kind,style:{top:Math.max(0,top)+"%",height:"max(18px, calc("+hp+"% - 2px))",left:`calc(${e.lane*(100/nl)}% + 2px)`,width:`calc(${100/nl}% - 4px)`,right:"auto"},title:e.t+(e.loc?" · "+e.loc:"")},
+      cols[ix].append(h("div",{class:"ev "+e.kind+(ht<34?" short":""),style:{top:Math.max(0,top)+"%",height:"max(18px, calc("+hp+"% - 2px))",left:`calc(${e.lane*(100/nl)}% + 2px)`,width:`calc(${100/nl}% - 4px)`,right:"auto"},title:e.t+(e.loc?" · "+e.loc:"")},
         ...(ht>=34?[h("b",null,e.t),h("span",null,s0.getHours()+":"+pad(s0.getMinutes())+(e.loc?" · "+e.loc:""))]:[h("b",null,e.t+" ",h("span",{style:{fontWeight:400}},s0.getHours()+":"+pad(s0.getMinutes())))])))}})}
 /* 让一块区域正好占满窗口剩下的高度（电脑横屏才用；手机照常往下滚） */
 function fitPane(el,min=420){if(!el||!el.isConnected)return;el.style.height="";if(!wideScreen())return;const top=el.getBoundingClientRect().top+scrollY;el.style.height=Math.max(min,innerHeight-top-16)+"px"}
 const wideScreen=()=>matchMedia("(min-width:1100px)").matches;
-function fitCal(){const v=$("#v-cal");if(v.hidden)return;v.style.height="";const top=v.getBoundingClientRect().top+scrollY;const tb=wideScreen()?8:$(".tabbar").getBoundingClientRect().height;v.style.height=Math.max(420,innerHeight-top-tb)+"px"}
+function fitCal(){const v=$("#v-cal");if(v.hidden)return;v.style.height="";if(scrollY)scrollTo(0,0);const top=v.getBoundingClientRect().top;const pb=parseFloat(getComputedStyle(document.body).paddingBottom)||0;v.style.height=Math.max(420,innerHeight-top-Math.max(pb,8))+"px"}
 function renderMonth(){++calSeq;const[y,m]=CANCHOR.slice(0,7).split("-").map(Number);$("#calTitle").textContent=y+" 年 "+m+" 月";const first=new Date(y,m-1,1);const lead=(first.getDay()+6)%7;
   const start=addDays(localKey(first),-lead);const today=dayKey();const set=new Set(S.checkins),rest=new Set(S.restDays);const started=S.checkins.slice().sort()[0]||today;
   const g=h("div",{class:"month"},"一二三四五六日".split("").map(c=>h("div",{class:"wd"},"周"+c)));
