@@ -1312,7 +1312,7 @@ const SHOP_REAL=[];
 const PLAY_TIERS=[[30,0.7],[60,0.9],[120,1.2],[1e9,1.6]];
 /* 忙闲定价：接下来 3 天要交的作业、7 天内的考试越多越贵；考试 1 天内单独就算很忙，3 天内不打折；没事的时候打折。开始计时那一刻定价，玩的中途不变 */
 function busyInfo(){const now=Date.now();let sc=0;const why=[];
-  let hw=0,hw1=0;try{for(const o of occurrences())if(isOpen(o)&&o.hard>now&&o.hard<=now+3*DAY){hw++;if(o.hard<=now+DAY)hw1++}}catch(e){}if(hw){sc+=hw*.5+hw1*.5;why.push(hw+" 个作业 3 天内截止"+(hw1?"（"+hw1+" 个明天前）":""))}
+  let hw=0,hw1=0;try{for(const o of occurrences()){if(!isOpen(o)||o.r.optional||!(o.hard>now))continue;const t=o.soft>now?o.soft:now;if(t<=now+3*DAY){hw++;if(t<=now+DAY)hw1++}}}catch(e){}if(hw){sc+=hw*.5+hw1*.5;why.push(hw+" 个作业 3 天内截止"+(hw1?"（"+hw1+" 个明天前）":""))}
   try{for(const b of Object.values(BOSSES())){if(!b.exam||!(b.due>now))continue;const d=(b.due-now)/DAY;const w=d<=1?6:d<=3?4:d<=7?2:0;if(w){sc+=w;why.push((b.name||b.title||"考试")+(new Date(b.due).toDateString()===new Date(now).toDateString()?" 就在今天":" 还有 "+Math.ceil(d)+" 天"))}}}catch(e){}
   const mult=sc<=0.5?0.6:sc<=1.5?0.7:sc<=3?0.8:sc<=5?1:sc<=7?1.2:1.4;const label=mult<1?"最近不忙 · "+Math.round(mult*10)+" 折":mult>1?"考前很忙 · 贵一点":"正常价";return{sc,mult,why,label}}
 const playMult=()=>S.timer&&S.timer.meter&&S.timer.mult?S.timer.mult:busyInfo().mult;
@@ -1388,7 +1388,7 @@ function mergeState(raw){const x=raw?unpoison(clone(raw)):{};const o=Object.assi
   staleTimer(o);o.v=2;return o}
 let DB=null,UID=null,stateRef=null,saveTimer=null,saving=Promise.resolve(),dirty=false;
 function save(){dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,400)}
-function trimState(){S.checkins=[...new Set(S.checkins)].slice(-300);S.restDays=S.restDays.slice(-80);S.ledger=S.ledger.slice(-400);S.mistakes=S.mistakes.slice(-100);
+function trimState(){S.checkins=[...new Set(S.checkins)].slice(-300);S.restDays=S.restDays.slice(-80);if(S.ledger.length>400){S.ledger=S.ledger.slice(-400);S.ledgerFloor=Math.max(S.ledgerFloor||0,S.ledger[0].at||0)}S.mistakes=S.mistakes.slice(-100);
   for(const k in S.progress)S.progress[k]=S.progress[k].slice(-15);const cut=Date.now()-90*DAY;for(const m of[S.started,S.skipped])for(const k in m)if(m[k]<cut)delete m[k]}
 function flush(){if(!dirty)return;dirty=false;trimState();S.savedAt=Date.now();if(window.zsDesktop&&window.zsDesktop.gameMode&&S.timer&&S.timer.end>Date.now())window.zsDesktop.gameMode(true,S.timer.end); /* 买了游戏时间立刻告诉桌面程序藏起小圆和待办 */const body=clone(S);cloudQueue("state",()=>clone(S));
   saving=saving.then(async()=>{if(stateRef){try{let out=body;if(window.__SITE){try{const r=await stateRef.get();if(r.exists&&(r.version||0)>(LIVE.ver.state||0)){const m=mergeState(syncMerge(S,r.data()));S=m;out=clone(m);liveSaw("state",r);applyDyn();renderAll()}}catch(e){}}liveSaw("state",await stateRef.set(out));if(DESK&&DESK.saved)DESK.saved();if($("#saveBanner").dataset.err)banner("")}catch(e){banner("存档没写进去（"+((e&&e.code)||"错误")+"），刷新后再试。",true)}}else{try{localStorage.setItem("zs-state",JSON.stringify(body))}catch(e){}}})}
@@ -1736,7 +1736,7 @@ function openTaskSheet(o){const d=S.done[o.key];const early=(o.soft-Date.now())>
       !d&&!passed?h("button",{class:"btn sm"+(act?" go":""),"aria-label":act?"暂停":"开始做",style:{minWidth:"44px"},onclick:()=>{if(act)pauseTask();else beginTask("occ",o.key,o.subj,SUBJ[o.subj].name+" "+o.title);openTaskSheet(o)}},act?"❚❚":"▶"):null),h("h2",null,o.title),
     h("div",null,"截止 "+fmtDue(o.soft)+" · ",h("b",null,fmtLeft(o.soft-Date.now())),o.r.grace?h("div",{class:"dim small"},"最终截止 "+fmtDue(o.hard)+"。"+(o.r.note||"")):null),
     d?doneBox("已完成 +"+d.pts):rewardBox(o.r.base,o.soft,o.r.grace||0,o.self),
-    passed?h("div",{class:"row"},h("span",{class:"dim"},"这篇跳过了"),h("button",{class:"btn sm flat",onclick:()=>{delete S.skipped[o.key];save();renderAll();openTaskSheet(o)}},"撤销")):
+    passed?h("div",{class:"row"},h("span",{class:"dim"},"这篇跳过了"),h("button",{class:"btn sm flat",onclick:()=>{delete S.skipped[o.key];(S.unskip=S.unskip||{})[o.key]=Date.now();save();renderAll();openTaskSheet(o)}},"撤销")):
     !d?h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>completeTask(o)},"完成，领奖励"),
       disc?h("button",{class:"btn flat",onclick:()=>{if(S.cur&&S.cur.key===o.key){S.cur=null}S.skipped[o.key]={at:Date.now(),pass:1};save();closeSheet();renderAll();toast("跳过「"+o.title+"」")}},"跳过这篇"):
       h("button",{class:"btn flat",onclick:()=>skipTask(o)},"这次没有")):null,
@@ -2788,30 +2788,30 @@ function rdSeed(){const L=[
  [7,"飘","玛格丽特·米切尔","中文","和《指环王》二选一，读剩下那本"],[7,"看不见的城市","卡尔维诺","中文",""],[7,"虚构集","博尔赫斯","中文",""],[7,"古文观止（选篇）","","中文",""],
  [8,"The Hobbit","J.R.R. Tolkien","英文","英文线备选"],[8,"挽救计划","安迪·威尔","中文","电影看过"],[8,"The Martian","Andy Weir","英文","电影看过"]];
  return L.map((x,i)=>({id:"b"+i.toString(36)+uid().slice(0,3),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:x[5]?"reading":"queue",slot:x[5]||"",at:Date.now(),start:x[5]==="main"?at(2026,11,13,1,40):null}))}
-function RD(){let r=S.reading;if(!r||!Array.isArray(r.books)){r=S.reading={books:rdSeed(),log:[],mt:Date.now()};save()}if(!Array.isArray(r.log))r.log=[];
-  if(!r.v2){const pre={"明朝那些事儿":["章",0],"解忧杂货店":["章",5],"福尔摩斯探案集 · 冒险史":["篇",12]};for(const b of r.books){if(!b.unit){const p=pre[b.t]||["章",0];b.unit=p[0];if(p[1])b.total=p[1]}if(typeof b.read!=="number")b.read=0}r.v2=1;r.mt=Date.now();save()}
-  if(!r.fixPg){for(const b of r.books)if(b.unit==="页"&&b.total>0&&b.total<20)delete b.total;r.fixPg=1;r.mt=Date.now();save()}
-  if(!r.fixLang){for(const b of r.books)if(b.lang==="古文")b.lang="中文";r.fixLang=1;r.mt=Date.now();save()}
-  if(!r.v3){const m=r.books.find(b=>b.t==="明朝那些事儿");if(m&&m.unit==="%"){m.unit="章";delete m.total;m.read=0}r.v3=1;r.mt=Date.now();save()}
+function RD(){let r=S.reading;if(!r||!Array.isArray(r.books)){r=S.reading={books:rdSeed(),log:[],mt:0};save()}if(!Array.isArray(r.log))r.log=[];
+  if(!r.v2){const pre={"明朝那些事儿":["章",0],"解忧杂货店":["章",5],"福尔摩斯探案集 · 冒险史":["篇",12]};for(const b of r.books){if(!b.unit){const p=pre[b.t]||["章",0];b.unit=p[0];if(p[1])b.total=p[1]}if(typeof b.read!=="number")b.read=0}r.v2=1;r.mt=(r.mt||0)+1;save()}
+  if(!r.fixPg){for(const b of r.books)if(b.unit==="页"&&b.total>0&&b.total<20)delete b.total;r.fixPg=1;r.mt=(r.mt||0)+1;save()}
+  if(!r.fixLang){for(const b of r.books)if(b.lang==="古文")b.lang="中文";r.fixLang=1;r.mt=(r.mt||0)+1;save()}
+  if(!r.v3){const m=r.books.find(b=>b.t==="明朝那些事儿");if(m&&m.unit==="%"){m.unit="章";delete m.total;m.read=0}r.v3=1;r.mt=(r.mt||0)+1;save()}
   if(!r.v4){const i=r.books.findIndex(b=>b.t==="明朝那些事儿");if(i>=0){const m=r.books[i];const N="一二三四五六七八九";m.t="明朝那些事儿 · 第一部";m.ser="明朝";m.no=1;const add=[];
-    for(let k=2;k<=9;k++)add.push({id:"b"+uid(),ph:m.ph,t:"明朝那些事儿 · 第"+N[k-1]+"部",by:m.by,lang:"中文",note:"",st:"queue",slot:"",unit:"章",read:0,ser:"明朝",no:k,at:Date.now()});r.books.splice(i+1,0,...add)}r.v4=1;r.mt=Date.now();save()}
+    for(let k=2;k<=9;k++)add.push({id:"b"+uid(),ph:m.ph,t:"明朝那些事儿 · 第"+N[k-1]+"部",by:m.by,lang:"中文",note:"",st:"queue",slot:"",unit:"章",read:0,ser:"明朝",no:k,at:Date.now()});r.books.splice(i+1,0,...add)}r.v4=1;r.mt=(r.mt||0)+1;save()}
   if(!r.v5){const A=[[1,"呼兰河传","萧红","中文","文笔推荐","章",7],[2,"倾城之恋","张爱玲","中文","碎片书 · 文笔推荐","章",0],[3,"额尔古纳河右岸","迟子建","中文","文笔推荐","章",0],[4,"台北人","白先勇","中文","碎片书 · 文笔推荐","篇",14],[5,"The Great Gatsby","F. Scott Fitzgerald","英文","文笔推荐","章",9],[6,"情人","杜拉斯","中文","王道乾译","页",0],[7,"雪国","川端康成","中文","节奏慢，放假读","章",0]];
-    for(const x of A)if(!r.books.some(b=>b.t===x[1])){const b={id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:"queue",slot:"",unit:x[5],read:0,at:Date.now()};if(x[6])b.total=x[6];r.books.push(b)}r.v5=1;r.mt=Date.now();save()}
+    for(const x of A)if(!r.books.some(b=>b.t===x[1])){const b={id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:"queue",slot:"",unit:x[5],read:0,at:Date.now()};if(x[6])b.total=x[6];r.books.push(b)}r.v5=1;r.mt=(r.mt||0)+1;save()}
   if(!r.v6){const A=[[1,"嫌疑人 X 的献身","东野圭吾","中文","东野入门首选，一口气读完","章",0],[2,"恶意","东野圭吾","中文","短，结构很妙","章",0],[3,"白夜行","东野圭吾","中文","代表作，长且压抑","章",13],[4,"新参者","东野圭吾","中文","碎片书 · 一章一个小故事","章",9]];
-    for(const x of A)if(!r.books.some(b=>b.t===x[1])){const b={id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:"queue",slot:"",unit:x[5],read:0,at:Date.now()};if(x[6])b.total=x[6];r.books.push(b)}r.v6=1;r.mt=Date.now();save()}
+    for(const x of A)if(!r.books.some(b=>b.t===x[1])){const b={id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:"queue",slot:"",unit:x[5],read:0,at:Date.now()};if(x[6])b.total=x[6];r.books.push(b)}r.v6=1;r.mt=(r.mt||0)+1;save()}
   if(!r.v7){const A=[[1,"射雕英雄传","金庸","中文","射雕三部曲①，和基督山伯爵二选一当主书","回",40],[3,"神雕侠侣","金庸","中文","射雕三部曲②","回",40],[5,"倚天屠龙记","金庸","中文","射雕三部曲③ · 元末明教，和明朝那些事儿接得上","回",40],[8,"笑傲江湖","金庸","中文","独立成篇","回",40],[8,"天龙八部","金庸","中文","独立成篇，很长","回",50]];
-    for(const x of A)if(!r.books.some(b=>b.t===x[1])){const b={id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:"queue",slot:"",unit:x[5],read:0,at:Date.now()};if(x[6])b.total=x[6];r.books.push(b)}r.v7=1;r.mt=Date.now();save()}
+    for(const x of A)if(!r.books.some(b=>b.t===x[1])){const b={id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:"queue",slot:"",unit:x[5],read:0,at:Date.now()};if(x[6])b.total=x[6];r.books.push(b)}r.v7=1;r.mt=(r.mt||0)+1;save()}
   if(!Array.isArray(r.films))r.films=[];
   if(!r.v8){const A=[["解忧杂货店","电影","解忧杂货店","选日本 2017 版"],["嫌疑人 X 的献身","电影","嫌疑人 X 的献身","日本 2008 版"],["我的阿勒泰","剧","我的阿勒泰","8 集，很短"],["长安的荔枝","剧","长安的荔枝",""],["三体","剧","三体（第一部）","腾讯版更贴原著"],["活着","电影","活着","张艺谋 1994"],["傲慢与偏见","电影","傲慢与偏见","2005 版"],["白夜行","电影","白夜行","日剧版口碑更好，但有 11 集"],["射雕英雄传","剧","射雕英雄传","版本很多，假期看"],["了不起的盖茨比","电影","The Great Gatsby","2013 版"],["倚天屠龙记","剧","倚天屠龙记","版本很多，假期看"]];
-    for(const x of A)if(!r.films.some(f=>f.t===x[0]))r.films.push({id:"f"+uid(),t:x[0],kind:x[1],src:x[2],note:x[3],st:"queue",at:Date.now()});r.v8=1;r.mt=Date.now();save()}
-  if(!r.v9){if(!r.films.some(f=>f.t==="亢奋"))r.films.push({id:"f"+uid(),t:"亢奋",kind:"剧",src:"",note:"Euphoria · 寒假看 · 冲着视觉和美学，内容偏重",st:"queue",at:Date.now()});r.v9=1;r.mt=Date.now();save()}
-  if(!r.v10){if(!r.films.some(f=>f.t==="伦敦生活"))r.films.push({id:"f"+uid(),t:"伦敦生活",kind:"剧",src:"",note:"Fleabag · 两季 12 集，每集 25 分钟，学期里也能看 · 看英文原声",st:"queue",at:Date.now()});r.v10=1;r.mt=Date.now();save()}
-  if(!r.v11){if(!r.books.some(b=>b.t==="The Hitchhiker's Guide to the Galaxy"))r.books.push({id:"b"+uid(),ph:1,t:"The Hitchhiker's Guide to the Galaxy",by:"Douglas Adams",lang:"英文",note:"银河系漫游指南 · 笑点在英文里，读原版",st:"queue",slot:"",unit:"章",total:35,read:0,at:Date.now()});r.v11=1;r.mt=Date.now();save()}
+    for(const x of A)if(!r.films.some(f=>f.t===x[0]))r.films.push({id:"f"+uid(),t:x[0],kind:x[1],src:x[2],note:x[3],st:"queue",at:Date.now()});r.v8=1;r.mt=(r.mt||0)+1;save()}
+  if(!r.v9){if(!r.films.some(f=>f.t==="亢奋"))r.films.push({id:"f"+uid(),t:"亢奋",kind:"剧",src:"",note:"Euphoria · 寒假看 · 冲着视觉和美学，内容偏重",st:"queue",at:Date.now()});r.v9=1;r.mt=(r.mt||0)+1;save()}
+  if(!r.v10){if(!r.films.some(f=>f.t==="伦敦生活"))r.films.push({id:"f"+uid(),t:"伦敦生活",kind:"剧",src:"",note:"Fleabag · 两季 12 集，每集 25 分钟，学期里也能看 · 看英文原声",st:"queue",at:Date.now()});r.v10=1;r.mt=(r.mt||0)+1;save()}
+  if(!r.v11){if(!r.books.some(b=>b.t==="The Hitchhiker's Guide to the Galaxy"))r.books.push({id:"b"+uid(),ph:1,t:"The Hitchhiker's Guide to the Galaxy",by:"Douglas Adams",lang:"英文",note:"银河系漫游指南 · 笑点在英文里，读原版",st:"queue",slot:"",unit:"章",total:35,read:0,at:Date.now()});r.v11=1;r.mt=(r.mt||0)+1;save()}
   if(!r.v12){const A=[[1,"琅琊榜","海宴","中文","病弱谋士换身份复仇，最对口味"],[2,"多情剑客无情剑","古龙","中文","李寻欢，病弱的天下第一"],[4,"天涯明月刀","古龙","中文","傅红雪，跛脚有隐疾的快刀"]];
-    for(const x of A)if(!r.books.some(b=>b.t===x[1]))r.books.push({id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:"queue",slot:"",unit:"章",read:0,at:Date.now()});r.v12=1;r.mt=Date.now();save()}
-  if(!r.v13){if(!r.books.some(b=>b.t==="银河英雄传说"))r.books.push({id:"b"+uid(),ph:3,t:"银河英雄传说",by:"田中芳树",lang:"中文",note:"莱因哈特 · 共 10 卷，先读第 1 卷",st:"queue",slot:"",unit:"章",read:0,at:Date.now()});r.v13=1;r.mt=Date.now();save()}
+    for(const x of A)if(!r.books.some(b=>b.t===x[1]))r.books.push({id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:"queue",slot:"",unit:"章",read:0,at:Date.now()});r.v12=1;r.mt=(r.mt||0)+1;save()}
+  if(!r.v13){if(!r.books.some(b=>b.t==="银河英雄传说"))r.books.push({id:"b"+uid(),ph:3,t:"银河英雄传说",by:"田中芳树",lang:"中文",note:"莱因哈特 · 共 10 卷，先读第 1 卷",st:"queue",slot:"",unit:"章",read:0,at:Date.now()});r.v13=1;r.mt=(r.mt||0)+1;save()}
   if(!r.v14){if(!r.books.some(b=>b.t==="沙丘"))r.books.push({id:"b"+uid(),ph:4,t:"沙丘",by:"弗兰克·赫伯特",lang:"中文",note:"开头名词多，善用书后词汇表",st:"queue",slot:"",unit:"章",read:0,at:Date.now()});
-    for(const x of[["沙丘","2021"],["沙丘 2","2024，和第一部一起讲完原著第一本"],["沙丘 3","改编续集《沙丘救世主》"]])if(!r.films.some(f=>f.t===x[0]))r.films.push({id:"f"+uid(),t:x[0],kind:"电影",src:"沙丘",note:x[1],st:"queue",at:Date.now()});r.v14=1;r.mt=Date.now();save()}return r}
+    for(const x of[["沙丘","2021"],["沙丘 2","2024，和第一部一起讲完原著第一本"],["沙丘 3","改编续集《沙丘救世主》"]])if(!r.films.some(f=>f.t===x[0]))r.films.push({id:"f"+uid(),t:x[0],kind:"电影",src:"沙丘",note:x[1],st:"queue",at:Date.now()});r.v14=1;r.mt=(r.mt||0)+1;save()}return r}
 function fmMove(f,dir){const L=RD().films;const open=L.filter(x=>x.st!=="done"&&x.st!=="drop");const i=open.indexOf(f),j=i+dir;if(j<0||j>=open.length)return;const a=L.indexOf(f),c=L.indexOf(open[j]);[L[a],L[c]]=[L[c],L[a]];rdSave()}
 function fmEdit(f){const isNew=!f;f=f||{t:"",kind:"电影",src:"",note:"",st:"queue"};
   const t=h("input",{type:"text",value:f.t,placeholder:"片名"});const kd=h("select",null,["电影","剧"].map(x=>{const o=h("option",{value:x},x);if(x===f.kind)o.selected=true;return o}));
@@ -3607,9 +3607,11 @@ function syncMerge(a,b){if(!a)return clone(b);if(!b)return clone(a);const o=clon
   o.done=o.done||{};for(const k in b.done||{})if(!o.done[k]&&!((o.undone[k]||0)>=(b.done[k].at||0)))o.done[k]=b.done[k];
   for(const k in o.done)if((o.undone[k]||0)>(o.done[k].at||0))delete o.done[k];
   for(const f of["skipped","started","pausedTasks","dueFix","chests","weekEarly","topicAt","topicFrom","nodeNames","learnSeen"]){if(b[f]&&typeof b[f]==="object"){o[f]=o[f]||{};for(const k in b[f])if(!(k in o[f]))o[f][k]=b[f][k]}}
-  const lk=e=>e.at+"|"+e.t+"|"+e.d;const have=new Set((o.ledger||[]).map(lk));const haveL=new Set((o.ledger||[]).filter(e=>e.lid).map(e=>e.lid+"|"+e.t));let dp=0,dx=0;
+  o.unskip=Object.assign({},b.unskip||{},o.unskip||{});for(const k in b.unskip||{})o.unskip[k]=Math.max(o.unskip[k]||0,b.unskip[k]);
+  if(o.skipped)for(const k in o.unskip){const v=o.skipped[k];const at=v&&typeof v==="object"?v.at||0:v||0;if(v!=null&&o.unskip[k]>at)delete o.skipped[k]}
+  const lfl=Math.max(o.ledgerFloor||0,b.ledgerFloor||0);if(lfl)o.ledgerFloor=lfl;const lk=e=>e.at+"|"+e.t+"|"+e.d;const have=new Set((o.ledger||[]).map(lk));const haveL=new Set((o.ledger||[]).filter(e=>e.lid).map(e=>e.lid+"|"+e.t));let dp=0,dx=0;
   /* 同一条学习记录两台设备各发了一次奖励：只留一份（lid 是 learnlog 的记录 id） */
-  for(const e of b.ledger||[])if(!have.has(lk(e))&&!(e.lid&&haveL.has(e.lid+"|"+e.t))){(o.ledger=o.ledger||[]).push(e);dp+=e.d||0;if(e.d>0)dx+=Math.round(e.d*XP_PER);else if(/^撤销/.test(e.t||""))dx+=Math.round(e.d*XP_PER)}
+  for(const e of b.ledger||[])if(!((e.at||0)<lfl)&&!have.has(lk(e))&&!(e.lid&&haveL.has(e.lid+"|"+e.t))){(o.ledger=o.ledger||[]).push(e);dp+=e.d||0;if(e.d>0)dx+=Math.round(e.d*XP_PER);else if(/^撤销/.test(e.t||""))dx+=Math.round(e.d*XP_PER)}
   if(o.ledger)o.ledger.sort((x,y)=>x.at-y.at);o.points=r1((o.points||0)+dp);o.xp=Math.max(0,(o.xp||0)+dx);
   o.todoGone=Object.assign({},b.todoGone||{},o.todoGone||{});const tm=new Map((o.todos||[]).map(t=>[t.id,t]));
   for(const t of b.todos||[]){const m=tm.get(t.id);if(!m)tm.set(t.id,t);else if((t.mt||t.done||0)>(m.mt||m.done||0))tm.set(t.id,t)}o.todos=[...tm.values()].filter(t=>!o.todoGone[t.id]);
