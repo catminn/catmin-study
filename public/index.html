@@ -2806,7 +2806,12 @@ function RD(){let r=S.reading;if(!r||!Array.isArray(r.books)){r=S.reading={books
     for(const x of A)if(!r.films.some(f=>f.t===x[0]))r.films.push({id:"f"+uid(),t:x[0],kind:x[1],src:x[2],note:x[3],st:"queue",at:Date.now()});r.v8=1;r.mt=Date.now();save()}
   if(!r.v9){if(!r.films.some(f=>f.t==="亢奋"))r.films.push({id:"f"+uid(),t:"亢奋",kind:"剧",src:"",note:"Euphoria · 寒假看 · 冲着视觉和美学，内容偏重",st:"queue",at:Date.now()});r.v9=1;r.mt=Date.now();save()}
   if(!r.v10){if(!r.films.some(f=>f.t==="伦敦生活"))r.films.push({id:"f"+uid(),t:"伦敦生活",kind:"剧",src:"",note:"Fleabag · 两季 12 集，每集 25 分钟，学期里也能看 · 看英文原声",st:"queue",at:Date.now()});r.v10=1;r.mt=Date.now();save()}
-  if(!r.v11){if(!r.books.some(b=>b.t==="The Hitchhiker's Guide to the Galaxy"))r.books.push({id:"b"+uid(),ph:1,t:"The Hitchhiker's Guide to the Galaxy",by:"Douglas Adams",lang:"英文",note:"银河系漫游指南 · 笑点在英文里，读原版",st:"queue",slot:"",unit:"章",total:35,read:0,at:Date.now()});r.v11=1;r.mt=Date.now();save()}return r}
+  if(!r.v11){if(!r.books.some(b=>b.t==="The Hitchhiker's Guide to the Galaxy"))r.books.push({id:"b"+uid(),ph:1,t:"The Hitchhiker's Guide to the Galaxy",by:"Douglas Adams",lang:"英文",note:"银河系漫游指南 · 笑点在英文里，读原版",st:"queue",slot:"",unit:"章",total:35,read:0,at:Date.now()});r.v11=1;r.mt=Date.now();save()}
+  if(!r.v12){const A=[[1,"琅琊榜","海宴","中文","病弱谋士换身份复仇，最对口味"],[2,"多情剑客无情剑","古龙","中文","李寻欢，病弱的天下第一"],[4,"天涯明月刀","古龙","中文","傅红雪，跛脚有隐疾的快刀"]];
+    for(const x of A)if(!r.books.some(b=>b.t===x[1]))r.books.push({id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:x[3],note:x[4],st:"queue",slot:"",unit:"章",read:0,at:Date.now()});r.v12=1;r.mt=Date.now();save()}
+  if(!r.v13){if(!r.books.some(b=>b.t==="银河英雄传说"))r.books.push({id:"b"+uid(),ph:3,t:"银河英雄传说",by:"田中芳树",lang:"中文",note:"莱因哈特 · 共 10 卷，先读第 1 卷",st:"queue",slot:"",unit:"章",read:0,at:Date.now()});r.v13=1;r.mt=Date.now();save()}
+  if(!r.v14){if(!r.books.some(b=>b.t==="沙丘"))r.books.push({id:"b"+uid(),ph:4,t:"沙丘",by:"弗兰克·赫伯特",lang:"中文",note:"开头名词多，善用书后词汇表",st:"queue",slot:"",unit:"章",read:0,at:Date.now()});
+    for(const x of[["沙丘","2021"],["沙丘 2","2024，和第一部一起讲完原著第一本"],["沙丘 3","改编续集《沙丘救世主》"]])if(!r.films.some(f=>f.t===x[0]))r.films.push({id:"f"+uid(),t:x[0],kind:"电影",src:"沙丘",note:x[1],st:"queue",at:Date.now()});r.v14=1;r.mt=Date.now();save()}return r}
 function fmMove(f,dir){const L=RD().films;const open=L.filter(x=>x.st!=="done"&&x.st!=="drop");const i=open.indexOf(f),j=i+dir;if(j<0||j>=open.length)return;const a=L.indexOf(f),c=L.indexOf(open[j]);[L[a],L[c]]=[L[c],L[a]];rdSave()}
 function fmEdit(f){const isNew=!f;f=f||{t:"",kind:"电影",src:"",note:"",st:"queue"};
   const t=h("input",{type:"text",value:f.t,placeholder:"片名"});const kd=h("select",null,["电影","剧"].map(x=>{const o=h("option",{value:x},x);if(x===f.kind)o.selected=true;return o}));
