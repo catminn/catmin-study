@@ -1974,8 +1974,10 @@ function scrollToCur(){const y=$("#youMark");if(!y||curView()!=="map")return;con
 
 /* ============ calendar ============ */
 let CV="week";let CANCHOR=localKey(new Date());const EVC=new Map();let calSeq=0;
+/* 截止日改过的作业（Google Tasks 或手动改）要显示在新的那天，不是原来那天 */
+function occDueOn(k){const out=[];for(let i=-14;i<=14;i++)for(const o of occOnDay(addDays(k,i)))if(localKey(new Date(o.soft))===k)out.push(o);return out}
 function calItemsOn(k){const items=[];
-  for(const o of occOnDay(k)){if(gone(o.key)||localKey(new Date(o.soft))!==k)continue;const d=S.done[o.key];if(!d&&isMiss(o.key)){items.push({t:SUBJ[o.subj].name+" "+o.title+" · 没交",cls:"miss",click:()=>openTaskSheet(o),time:o.soft});continue}items.push({t:SUBJ[o.subj].name+" "+o.title,cls:d?"done":multFor(o.soft,o.r.grace||0,Date.now(),o.self).cls,click:()=>openTaskSheet(o),time:o.soft})}
+  for(const o of occDueOn(k)){if(gone(o.key))continue;const d=S.done[o.key];if(!d&&isMiss(o.key)){items.push({t:SUBJ[o.subj].name+" "+o.title+" · 没交",cls:"miss",click:()=>openTaskSheet(o),time:o.soft});continue}items.push({t:SUBJ[o.subj].name+" "+o.title,cls:d?"done":multFor(o.soft,o.r.grace||0,Date.now(),o.self).cls,click:()=>openTaskSheet(o),time:o.soft})}
   for(const o of occOnDay(addDays(k,1)).concat(occOnDay(addDays(k,2))))if(o.r.target&&localKey(new Date(o.soft))===k&&!S.skipped[o.key]){const d=S.done[o.key];items.push({t:SUBJ[o.subj].name+" "+o.title,cls:d?"done":multFor(o.soft,o.r.grace||0,Date.now(),o.self).cls,click:()=>openTaskSheet(o),time:o.soft})}
   const B=BOSSES();for(const id in B){const b=B[id];if(b.due&&localKey(new Date(b.due))===k)items.push({t:b.title,cls:bossDone(id)?"done":"boss",click:()=>openBossSheet(id),time:b.due})}
   for(const subj in MAIN)MAIN[subj].forEach((n,i)=>{if(n.due&&localKey(new Date(n.due))===k)items.push({t:SUBJ[subj].name+" "+nodeName(subj,n),cls:nodeIsDone(subj,n)?"done":multFor(n.due,0).cls,click:()=>openNodeSheet(subj,n,i),time:n.due})});
@@ -2050,7 +2052,19 @@ function applyPersonal(payload){const today=dayKey();BUSY=((payload&&payload.eve
 /* Google Tasks（Assignments 等清单）：只在网站版读；网站已经有的同一份作业不重复显示 */
 let GTASKS=[];
 async function pullTasks(){if(!MCP||!window.__SITE)return;const now=Date.now();
-  try{const r=await MCP.callTool("Google Tasks","list_tasks",{dueMin:isoLocal(now-30*DAY),dueMax:isoLocal(now+90*DAY)},{cache:false});const o=r&&r.payload;GTASKS=(o&&o.items||[]).filter(t=>t.due);EVC.clear();softRefresh()}catch(e){}}
+  try{const r=await MCP.callTool("Google Tasks","list_tasks",{dueMin:isoLocal(now-30*DAY),dueMax:isoLocal(now+90*DAY)},{cache:false});const o=r&&r.payload;GTASKS=(o&&o.items||[]).filter(t=>t.due);gtApplyDues();EVC.clear();softRefresh()}catch(e){}}
+/* Assignments 清单里改了截止日：网站上对应的作业跟着改（地图、日历、提醒、倍率都按新的算），并存进存档让 artifact 也同步到。
+   只认得出科目+编号、且只对上一份作业时才改；把任务改回原来那天就恢复原样 */
+function gtApplyDues(){const now=Date.now();let ch=false;const occ=[];for(let i=-30;i<=90;i++)occ.push(...rawOcc(addDays(dayKey(),i)).map(o=>(o.title=o.r.dates?o.r.fmt(o.r.dates[o.day]):o.r.fmt(seqNum(o.r.num,o.day)),o)));
+  const sig=occ.map(o=>({o,g:gtSig(SUBJ[o.subj].name+" "+o.title)}));
+  for(const t of GTASKS){if(t.done)continue;const g=gtSig(t.title);if(!g.key)continue;const c=sig.filter(x=>x.g.key===g.key&&(!g.subj||x.g.subj===g.subj));if(c.length!==1)continue;
+    const o=c[0].o;if(S.done[o.key])continue;const fx=(S.dueFix||{})[o.key]||0;
+    /* 原始截止（没改过时）：把整套时间按天平移到任务那天，保留原来的几点 */
+    const sv=S.dueFix&&S.dueFix[o.key];if(fx)S.dueFix[o.key]=0;const orig=rawOcc(o.day).find(x=>x.key===o.key).soft;if(fx)S.dueFix[o.key]=sv;
+    const shift=Math.round((keyToDate(t.due).getTime()-keyToDate(localKey(new Date(orig))).getTime())/DAY);
+    const want=shift?(()=>{const d=new Date(orig);d.setDate(d.getDate()+shift);return d.getTime()})():0;
+    if((fx||0)!==want){putDueFix(o.key,want);ch=true}}
+  if(ch){save();renderAll()}}
 if(window.__SITE){setTimeout(pullTasks,3000);setInterval(pullTasks,10*MIN);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")pullTasks()})}
 const GT_SUBJ=[[/engri|机械|mech/i,"engri"],[/chem|化学/i,"chem"],[/math|数学|calc/i,"math"],[/engl|英文|英语|writing/i,"engl"]];
 function gtSig(t){const s=String(t).toLowerCase().replace(/\s+/g,"");const subj=(GT_SUBJ.find(([re])=>re.test(s))||[])[1]||"";const m=/(pre-?lab|lab|hw|ps|problemset|discussion|disc|quiz|report)#?(\d+)/.exec(s);
@@ -3460,7 +3474,8 @@ async function openBackups(){let list=[];try{list=(await (await fetch("/api/back
         localStorage.setItem("zs-before-restore",JSON.stringify(cur));toast("已退回到 "+day+" 的存档")}catch(err){toast("没退回去，稍后再试")}}},"退回")))}
   sheet(null,h("h2",null,"存档备份"),box)}
 /* 截止时间可以改：点待办右边的时间 */
-function setDueFix(key,v){S.dueFix=S.dueFix||{};if(v)S.dueFix[key]=v;else delete S.dueFix[key];NUMC.clear();save();renderAll();toast(v?"截止改到 "+new Date(v).toLocaleString("zh-CN",{month:"numeric",day:"numeric",weekday:"short",hour:"2-digit",minute:"2-digit"}):"截止时间恢复原样")}
+function putDueFix(key,v){S.dueFix=S.dueFix||{};S.dueFixMt=S.dueFixMt||{};S.dueFix[key]=v||0;S.dueFixMt[key]=Date.now();NUMC.clear()}
+function setDueFix(key,v){putDueFix(key,v);save();renderAll();toast(v?"截止改到 "+new Date(v).toLocaleString("zh-CN",{month:"numeric",day:"numeric",weekday:"short",hour:"2-digit",minute:"2-digit"}):"截止时间恢复原样")}
 function setTodoDue(t,v){t=tdRef(t);t.due=v||null;t.allDay=false;save();renderAll();refreshDaySheet();
   if(v){if(t.ev)gcalCall("update_event",Object.assign({eventId:t.ev},todoEvArgs(t)));else gcalCall("create_event",todoEvArgs(t)).then(p=>{if(p&&p.id){tdRef(t).ev=p.id;save()}})}else if(t.ev){gcalCall("delete_event",{eventId:t.ev});t.ev=null;save()}}
 function editDue(el,set){const inp=h("input",{type:"datetime-local",class:"td-due"});const d=new Date(Date.now()+DAY);d.setHours(23,59,0,0);
@@ -3619,7 +3634,9 @@ function syncMerge(a,b){if(!a)return clone(b);if(!b)return clone(a);const o=clon
   o.undone=Object.assign({},b.undone||{},o.undone||{});for(const k in b.undone||{})o.undone[k]=Math.max(o.undone[k]||0,b.undone[k]);
   o.done=o.done||{};for(const k in b.done||{})if(!o.done[k]&&!((o.undone[k]||0)>=(b.done[k].at||0)))o.done[k]=b.done[k];
   for(const k in o.done)if((o.undone[k]||0)>(o.done[k].at||0))delete o.done[k];
-  for(const f of["skipped","started","pausedTasks","dueFix","chests","weekEarly","topicAt","topicFrom","nodeNames","learnSeen"]){if(b[f]&&typeof b[f]==="object"){o[f]=o[f]||{};for(const k in b[f])if(!(k in o[f]))o[f][k]=b[f][k]}}
+  for(const f of["skipped","started","pausedTasks","chests","weekEarly","topicAt","topicFrom","nodeNames","learnSeen"]){if(b[f]&&typeof b[f]==="object"){o[f]=o[f]||{};for(const k in b[f])if(!(k in o[f]))o[f][k]=b[f][k]}}
+  {const A=o.dueFix||{},B=b.dueFix||{},Am=o.dueFixMt||{},Bm=b.dueFixMt||{};o.dueFix=Object.assign({},B,A);o.dueFixMt=Object.assign({},Bm,Am);
+    for(const k in B)if((Bm[k]||0)>(Am[k]||0)||!(k in A)){o.dueFix[k]=B[k];o.dueFixMt[k]=Bm[k]||0}}
   o.unskip=Object.assign({},b.unskip||{},o.unskip||{});for(const k in b.unskip||{})o.unskip[k]=Math.max(o.unskip[k]||0,b.unskip[k]);
   if(o.skipped)for(const k in o.unskip){const v=o.skipped[k];const at=v&&typeof v==="object"?v.at||0:v||0;if(v!=null&&o.unskip[k]>at)delete o.skipped[k]}
   const lfl=Math.max(o.ledgerFloor||0,b.ledgerFloor||0);if(lfl)o.ledgerFloor=lfl;const lk=e=>e.at+"|"+e.t+"|"+e.d;const have=new Set((o.ledger||[]).map(lk));const haveL=new Set((o.ledger||[]).filter(e=>e.lid).map(e=>e.lid+"|"+e.t));let dp=0,dx=0;
