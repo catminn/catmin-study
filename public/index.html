@@ -1454,6 +1454,10 @@ function startTask(o){if(S.started[o.key])return;S.started[o.key]=Date.now();
   if((o.soft-Date.now())/HOUR>=48){S.cards.makeup++;S.ledger.push({at:Date.now(),d:0,t:"开荒奖励 · "+SUBJ[o.subj].name+" "+o.title+" · 补签卡 +1"});toast("开荒奖励：补签卡 +1")}else toast("已开始，做完回来领奖励");
   save();renderAll();openTaskSheet(o)}
 function skipTask(o){S.skipped[o.key]=Date.now();save();closeSheet();renderAll()}
+/* 过了最终截止还没做：记成「没交」，不再挂在待办里（补不了了）；和「这次没有」分开记 */
+const pastHard=o=>!!o.hard&&Date.now()>o.hard;
+function missTask(o){if(S.cur&&S.cur.key===o.key)S.cur=null;S.skipped[o.key]={at:Date.now(),miss:1};earn(0,"没交 · "+SUBJ[o.subj].name+" "+o.title);save();renderAll();toast("记下了：「"+o.title+"」没交")}
+function skipOrMissBtn(o,cls,after){return pastHard(o)?h("button",{class:"btn "+cls,onclick:()=>{missTask(o);after&&after()}},"没交"):h("button",{class:"btn "+cls,onclick:()=>{S.skipped[o.key]=Date.now();save();renderAll();after&&after()}},"这次没有")}
 function chestStatus(){const wk=weekKey();const occ=weekOcc(wk).filter(o=>!o.r.optional&&!S.skipped[o.key]);
   const early=occ.filter(o=>S.done[o.key]&&S.done[o.key].pts>=R(o.r.base*1.5));
   return{ok:!S.chests[wk]&&occ.length>0&&early.length===occ.length,n:early.length,of:occ.length,opened:!!S.chests[wk]}}
@@ -1730,16 +1734,16 @@ function reviewPrompt(subj,t){const pt=planToday(subj);if(pt)return"开始今天
 function intentOf(t,img){if(/复习|今天的计划|开始计划|quiz|小测|考试|prelim|exam|期中|期末|模拟卷/i.test(t))return"review";if(img||/作业|hw\s*\d|homework|problem\s*set|\bps\s*\d|gradescope|lab|pre-?lab|实验报告/i.test(t))return"hw";if(/刷题|练习|出.{0,3}题|来.{0,2}道/.test(t))return"train";if(/学新|新课|新知识|下一节|往下学/.test(t))return"quest";return null}
 function helpMode(subj,re){return(MODES[subj].find(m=>re.test(m[0]))||MODES[subj][0])[1]}
 function openTaskSheet(o){const d=S.done[o.key];const early=(o.soft-Date.now())>=48*HOUR;
-  const act=!!(S.cur&&S.cur.key===o.key),disc=o.r.id==="engl-disc",passed=S.skipped[o.key]&&S.skipped[o.key].pass;
+  const act=!!(S.cur&&S.cur.key===o.key),disc=o.r.id==="engl-disc",sk=S.skipped[o.key],passed=sk&&(sk.pass||sk.miss);
   const cnt=k=>Object.keys(k).filter(x=>x.startsWith("engl-disc@")).length;
   sheet(o.subj,h("div",{class:"row",style:{justifyContent:"space-between"}},h("span",{class:"kind side"},icon("scroll"),"支线 · "+SUBJ[o.subj].name),
       !d&&!passed?h("button",{class:"btn sm"+(act?" go":""),"aria-label":act?"暂停":"开始做",style:{minWidth:"44px"},onclick:()=>{if(act)pauseTask();else beginTask("occ",o.key,o.subj,SUBJ[o.subj].name+" "+o.title);openTaskSheet(o)}},act?"❚❚":"▶"):null),h("h2",null,o.title),
     h("div",null,"截止 "+fmtDue(o.soft)+" · ",h("b",null,fmtLeft(o.soft-Date.now())),o.r.grace?h("div",{class:"dim small"},"最终截止 "+fmtDue(o.hard)+"。"+(o.r.note||"")):null),
-    d?doneBox("已完成 +"+d.pts):rewardBox(o.r.base,o.soft,o.r.grace||0,o.self),
-    passed?h("div",{class:"row"},h("span",{class:"dim"},"这篇跳过了"),h("button",{class:"btn sm flat",onclick:()=>{delete S.skipped[o.key];(S.unskip=S.unskip||{})[o.key]=Date.now();save();renderAll();openTaskSheet(o)}},"撤销")):
+    d?doneBox("已完成 +"+d.pts):sk&&sk.miss?null:rewardBox(o.r.base,o.soft,o.r.grace||0,o.self),
+    passed?h("div",{class:"row"},h("span",{class:"dim"},sk&&sk.miss?"这次没交":"这篇跳过了"),h("button",{class:"btn sm flat",onclick:()=>{delete S.skipped[o.key];(S.unskip=S.unskip||{})[o.key]=Date.now();save();renderAll();openTaskSheet(o)}},"撤销")):
     !d?h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>completeTask(o)},"完成，领奖励"),
       disc?h("button",{class:"btn flat",onclick:()=>{if(S.cur&&S.cur.key===o.key){S.cur=null}S.skipped[o.key]={at:Date.now(),pass:1};save();closeSheet();renderAll();toast("跳过「"+o.title+"」")}},"跳过这篇"):
-      h("button",{class:"btn flat",onclick:()=>skipTask(o)},"这次没有")):null,
+      pastHard(o)?h("button",{class:"btn flat",onclick:()=>{missTask(o);closeSheet()}},"没交"):h("button",{class:"btn flat",onclick:()=>skipTask(o)},"这次没有")):null,
     disc?(()=>{const n=discCount();return h("div",{class:"small "+(n>=DISC_NEED?"":"dim")},"这学期已写 "+n+" / "+DISC_NEED+" 篇"+(n>=DISC_NEED?"，写够了，剩下的不再出现":"，还差 "+(DISC_NEED-n)+" 篇，可以自己挑"))})():null,
     null)}
 function openNodeSheet(subj,n,idx){const done=nodeIsDone(subj,n);const cur=idx===curIndex(subj);const name=nodeName(subj,n);
@@ -1793,13 +1797,13 @@ function renderDuePanel(){const p=$("#duePanel");if(!p)return;const subj=CUR;con
   $("#dueSum").textContent="待处理 "+n+" 项";
   if(matchMedia("(max-width:820px)").matches&&!p.dataset.touched)p.open=false;p.ontoggle=()=>{p.dataset.touched="1"};
   $("#dueList").replaceChildren(...tasks.map(o=>h("div",{class:"duerow"},h("div",{class:"t"},h("b",null,o.title),h("div",null,fmtDue(o.soft)+" · "+fmtLeft(o.soft-Date.now()))),
-      h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>completeTask(o)},"完成 +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total),h("button",{class:"btn sm glass",onclick:()=>{S.skipped[o.key]=Date.now();save();renderAll()}},"这次没有")))),
+      h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>completeTask(o)},"完成 +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total),skipOrMissBtn(o,"sm glass")))),
     ...mons.map(m=>h("div",{class:"duerow"},h("div",{class:"t"},h("b",null,"错题怪"),h("div",{class:"mtext"},renderMd(m.text))),h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>fightMistake(m)},"去打"),h("button",{class:"btn sm glass",onclick:()=>{m.killed=true;save();renderAll()}},"已经会了")))))}
 function openDueSheet(subj){const{tasks,mons}=dueItems(subj);
   sheet(subj,h("h2",null,SUBJ[subj].name+" · 待处理"),
     tasks.length||mons.length?h("div",{class:"list"},
       tasks.map(o=>h("div",{class:"li"},h("div",{class:"t"},h("b",null,o.title),h("div",{class:"dim small"},fmtDue(o.soft)+" · "+fmtLeft(o.soft-Date.now()))),
-        h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>completeTask(o)},"完成 +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total),h("button",{class:"btn sm flat",onclick:()=>{S.skipped[o.key]=Date.now();save();renderAll();openDueSheet(subj)}},"这次没有")))),
+        h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>completeTask(o)},"完成 +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total),skipOrMissBtn(o,"sm flat",()=>openDueSheet(subj))))),
       mons.map(m=>h("div",{class:"li"},h("div",{class:"t"},h("b",null,"错题怪"),h("div",{class:"dim small mtext"},renderMd(m.text))),h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>{closeSheet();fightMistake(m)}},"去打"),h("button",{class:"btn sm flat",onclick:()=>{m.killed=true;save();renderAll();openDueSheet(subj)}},"已经会了")))))
       :h("div",{class:"dim"},"都处理完了。"))}
 
