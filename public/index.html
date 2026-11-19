@@ -1238,7 +1238,7 @@ engl:[["写 Discussion","【Discussion】帮我写今晚的 reading response dis
 
 const WEEKLY=[
   /* ENGL 1111 Discussion：按 Canvas 的实际日期（上课当天 9:00 前），编号按 Canvas 顺序；一学期写够 9 篇即可 */
-  {id:"engl-disc",subj:"engl",hh:9,mm:0,dates:{"2026-10-27":[17,"D&D 与 Le Guin"],"2026-10-29":[18,"BG3 鹦鹉螺教程"],"2026-11-03":[19,"BG3 Goblin Camp"],"2026-11-05":[20,"BG3 庆功宴与 Risen Road"],"2026-11-10":[21,"BG3 Crèche 与第一幕结局"],"2026-11-12":[22,"House of the Dragon S1E1"],"2026-11-17":[23,"Rogue One"],"2026-11-19":[24,"The Uses of Fantasy"],"2026-12-01":[25,"Spirited Away"]},fmt:v=>"Discussion "+v[0]+" · "+v[1],dow:[0,1,2,3,4,5,6],base:24},
+  {id:"engl-disc",subj:"engl",hh:9,mm:0,dates:{"2026-10-27":[17,"D&D 与 Le Guin"],"2026-10-29":[18,"BG3 鹦鹉螺教程"],"2026-11-03":[19,"BG3 Goblin Camp"],"2026-11-05":[20,"BG3 庆功宴与 Risen Road"],"2026-11-10":[21,"BG3 Crèche 与第一幕结局"],"2026-11-12":[22,"House of the Dragon S1E1"],"2026-11-17":[23,"Rogue One"],"2026-11-19":[24,"The Uses of Fantasy"],"2026-12-01":[25,"Spirited Away"]},fmt:v=>"Discussion "+v[0]+" · "+v[1],dow:[0,1,2,3,4,5,6],base:24,late:true},
   {id:"chem-ps",subj:"chem",num:"chem-ps",fmt:n=>"PS "+n,dow:[3],base:48},
   {id:"math-hw",subj:"math",dates:{"2026-10-22":8,"2026-10-29":9,"2026-11-05":10,"2026-11-19":11,"2026-11-24":12,"2026-12-03":13},fmt:n=>"HW "+n,dow:[0,1,2,3,4,5,6],base:48,grace:3,note:"周四截止，可以迟交三天，但每拖一天倍率下降。"},
   {id:"chem-lab3",subj:"chem",num:"chem-lab",fmt:n=>"Lab "+n+" report",dow:[0],base:40,real:[1,0,29]},
@@ -1401,6 +1401,7 @@ function levelOf(xp){let L=1;while(xp>=60*L*(L+1)/2)L++;const lo=60*(L-1)*L/2,hi
 function multFor(due,grace=0,now=Date.now(),self){/* 按墙上时间算（跨夏令时那周差的一小时不算） */const hrs=(due-now+(new Date(now).getTimezoneOffset()-new Date(due).getTimezoneOffset())*MIN)/HOUR;if(self&&now<=self&&hrs<48)return{m:1.5,cls:"early",label:"×1.5 自定 ddl 前",step:2};
   if(hrs>=72)return{m:2.5,cls:"early",label:"×2.5 提前 3 天+",step:0};if(hrs>=48)return{m:2,cls:"early",label:"×2 提前 2 天",step:1};if(hrs>=24)return{m:1.5,cls:"early",label:"×1.5 提前 1 天",step:2};
   if(hrs>=0)return{m:1,cls:"ontime",label:"×1 当天",step:3};
+  if(grace===-1)return{m:1,cls:"ontime",label:"×1 补勾，按时算",step:3};
   const late=Math.ceil(-hrs/24);if(grace&&late<=grace)return{m:0.8,cls:"late",label:"×0.8 迟交第 "+late+" 天",step:4};
   const lg=late-(grace||0);const m=lg<=1?0.7:lg<=3?0.6:0.5;return{m,cls:"late",label:"×"+m+" 超时 "+late+" 天",step:4}}
 function preview(base,due,grace,self){if(!due)return{m:1,total:R(base),mf:null,extra:[]};const mf=multFor(due,grace,Date.now(),self);const total=R(base*mf.m);const extra=[];
@@ -1449,7 +1450,9 @@ function occurrences(){const out=[];const discFull=discCount()>=DISC_NEED;const 
   return out.sort((a,b)=>a.soft-b.soft)}
 const weekOcc=wk=>{const o=[];for(let i=0;i<7;i++)o.push(...occOnDay(addDays(wk,i)));return o};
 const isOpen=o=>!S.done[o.key]&&!S.skipped[o.key];
-function completeTask(o){if(S.done[o.key])return;focusAct();closeSheet();const pts=award(o.r.base,o.soft,o.r.grace||0,SUBJ[o.subj].name+" "+o.title,o.self);S.done[o.key]={at:Date.now(),pts,sh:LAST_SH};save();renderAll()}
+/* 能迟交的（数学有 grace、FWS 有 late）超时按天降倍率；其余作业交不了晚的，超时完成只是忘了勾，按时算 */
+const lateG=r=>r.grace||(r.late?0:-1);
+function completeTask(o){if(S.done[o.key])return;focusAct();closeSheet();const pts=award(o.r.base,o.soft,lateG(o.r),SUBJ[o.subj].name+" "+o.title,o.self);S.done[o.key]={at:Date.now(),pts,sh:LAST_SH};save();renderAll()}
 function startTask(o){if(S.started[o.key])return;S.started[o.key]=Date.now();
   if((o.soft-Date.now())/HOUR>=48){S.cards.makeup++;S.ledger.push({at:Date.now(),d:0,t:"开荒奖励 · "+SUBJ[o.subj].name+" "+o.title+" · 补签卡 +1"});toast("开荒奖励：补签卡 +1")}else toast("已开始，做完回来领奖励");
   save();renderAll();openTaskSheet(o)}
@@ -1739,7 +1742,7 @@ function openTaskSheet(o){const d=S.done[o.key];const early=(o.soft-Date.now())>
   sheet(o.subj,h("div",{class:"row",style:{justifyContent:"space-between"}},h("span",{class:"kind side"},icon("scroll"),"支线 · "+SUBJ[o.subj].name),
       !d&&!passed?h("button",{class:"btn sm"+(act?" go":""),"aria-label":act?"暂停":"开始做",style:{minWidth:"44px"},onclick:()=>{if(act)pauseTask();else beginTask("occ",o.key,o.subj,SUBJ[o.subj].name+" "+o.title);openTaskSheet(o)}},act?"❚❚":"▶"):null),h("h2",null,o.title),
     h("div",null,"截止 "+fmtDue(o.soft)+" · ",h("b",null,fmtLeft(o.soft-Date.now())),o.r.grace?h("div",{class:"dim small"},"最终截止 "+fmtDue(o.hard)+"。"+(o.r.note||"")):null),
-    d?doneBox("已完成 +"+d.pts):sk&&sk.miss?null:rewardBox(o.r.base,o.soft,o.r.grace||0,o.self),
+    d?doneBox("已完成 +"+d.pts):sk&&sk.miss?null:rewardBox(o.r.base,o.soft,lateG(o.r),o.self),
     passed?h("div",{class:"row"},h("span",{class:"dim"},sk&&sk.miss?"这次没交":"这篇跳过了"),h("button",{class:"btn sm flat",onclick:()=>{delete S.skipped[o.key];(S.unskip=S.unskip||{})[o.key]=Date.now();save();renderAll();openTaskSheet(o)}},"撤销")):
     !d?h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>completeTask(o)},"完成，领奖励"),
       disc?h("button",{class:"btn flat",onclick:()=>{if(S.cur&&S.cur.key===o.key){S.cur=null}S.skipped[o.key]={at:Date.now(),pass:1};save();closeSheet();renderAll();toast("跳过「"+o.title+"」")}},"跳过这篇"):
@@ -1769,14 +1772,14 @@ function openBossSheet(id){const b=BOSSES()[id];const fin=S.done["boss:"+id+":fi
     null)}
 function openSideQuestSheet(q){const key="cv-"+q.id;const d=S.done[key];
   sheet(q.subj,h("div",{class:"row"},h("span",{class:"kind side"},icon("scroll"),"Canvas 支线 · "+q.course)),h("h2",null,q.title),h("div",null,"截止 "+fmtDue(q.due)+" · ",h("b",null,fmtLeft(q.due-Date.now()))),
-    d?doneBox("已完成 +"+d.pts):rewardBox(SIDE_PTS,q.due,0),
-    !d?h("button",{class:"btn go",onclick:()=>{closeSheet();const pts=award(SIDE_PTS,q.due,0,"支线 · "+q.title);S.done[key]={at:Date.now(),pts};save();renderAll()}},"完成，领奖励"):null)}
+    d?doneBox("已完成 +"+d.pts):rewardBox(SIDE_PTS,q.due,q.subj==="engl"?0:-1),
+    !d?h("button",{class:"btn go",onclick:()=>{closeSheet();const pts=award(SIDE_PTS,q.due,q.subj==="engl"?0:-1,"支线 · "+q.title);S.done[key]={at:Date.now(),pts};save();renderAll()}},"完成，领奖励"):null)}
 function openMonsterSheet(m){sheet(m.subj,h("div",{class:"row"},h("span",{class:"kind boss"},icon("skull"),"错题怪 · "+SUBJ[m.subj].name)),h("h2",null,"复活的错题"),h("div",{class:"mtext"},renderMd(m.text)),
   h("div",{class:"reward"},h("div",{class:"eyebrow"},"击败奖励"),h("div",{class:"big"},"+15 积分")),
   h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();fightMistake(m)}},"去打"),null))}
 function openPublicSheet(){const list=SIDE.filter(q=>!q.subj);sheet(null,h("h2",null,"公共支线"),
   list.length?h("div",{class:"list"},list.map(q=>{const d=S.done["cv-"+q.id];return h("div",{class:"li"},h("div",{class:"t"},h("div",null,h("span",{class:"tag"},q.course),q.title),h("div",{class:"dim small"},fmtDue(q.due)+" · "+fmtLeft(q.due-Date.now()))),
-    d?h("span",{class:"dim small"},"+"+d.pts):h("button",{class:"btn sm go",onclick:()=>openSideQuestSheet(q)},"+"+preview(SIDE_PTS,q.due,0).total))})):h("div",{class:"dim"},"暂无"))}
+    d?h("span",{class:"dim small"},"+"+d.pts):h("button",{class:"btn sm go",onclick:()=>openSideQuestSheet(q)},"+"+preview(SIDE_PTS,q.due,q.subj==="engl"?0:-1).total))})):h("div",{class:"dim"},"暂无"))}
 
 function topicStart(subj){const t=(CHATS[subj]||[])[topicFrom(subj)];return t&&t.at||0}
 function inTopic(subj){return(CHATS[subj]||[]).length>topicFrom(subj)}
@@ -1797,13 +1800,13 @@ function renderDuePanel(){const p=$("#duePanel");if(!p)return;const subj=CUR;con
   $("#dueSum").textContent="待处理 "+n+" 项";
   if(matchMedia("(max-width:820px)").matches&&!p.dataset.touched)p.open=false;p.ontoggle=()=>{p.dataset.touched="1"};
   $("#dueList").replaceChildren(...tasks.map(o=>h("div",{class:"duerow"},h("div",{class:"t"},h("b",null,o.title),h("div",null,fmtDue(o.soft)+" · "+fmtLeft(o.soft-Date.now()))),
-      h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>completeTask(o)},"完成 +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total),skipOrMissBtn(o,"sm glass")))),
+      h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>completeTask(o)},"完成 +"+preview(o.r.base,o.soft,lateG(o.r),o.self).total),skipOrMissBtn(o,"sm glass")))),
     ...mons.map(m=>h("div",{class:"duerow"},h("div",{class:"t"},h("b",null,"错题怪"),h("div",{class:"mtext"},renderMd(m.text))),h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>fightMistake(m)},"去打"),h("button",{class:"btn sm glass",onclick:()=>{m.killed=true;save();renderAll()}},"已经会了")))))}
 function openDueSheet(subj){const{tasks,mons}=dueItems(subj);
   sheet(subj,h("h2",null,SUBJ[subj].name+" · 待处理"),
     tasks.length||mons.length?h("div",{class:"list"},
       tasks.map(o=>h("div",{class:"li"},h("div",{class:"t"},h("b",null,o.title),h("div",{class:"dim small"},fmtDue(o.soft)+" · "+fmtLeft(o.soft-Date.now()))),
-        h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>completeTask(o)},"完成 +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total),skipOrMissBtn(o,"sm flat",()=>openDueSheet(subj))))),
+        h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>completeTask(o)},"完成 +"+preview(o.r.base,o.soft,lateG(o.r),o.self).total),skipOrMissBtn(o,"sm flat",()=>openDueSheet(subj))))),
       mons.map(m=>h("div",{class:"li"},h("div",{class:"t"},h("b",null,"错题怪"),h("div",{class:"dim small mtext"},renderMd(m.text))),h("div",{class:"row"},h("button",{class:"btn sm go",onclick:()=>{closeSheet();fightMistake(m)}},"去打"),h("button",{class:"btn sm flat",onclick:()=>{m.killed=true;save();renderAll();openDueSheet(subj)}},"已经会了")))))
       :h("div",{class:"dim"},"都处理完了。"))}
 
@@ -1956,9 +1959,9 @@ function renderMap(){const subj=MAPSUBJ;const w=worldOf(subj);$("#v-map").style.
   sides.forEach((s,k)=>{const[x,y]=pos[k];let el;
     if(s.kind==="task"){const o=s.o;const d=S.done[o.key];const mf=multFor(o.soft,o.r.grace||0,Date.now(),o.self);
       el=h("button",{class:"node side "+(d?"done":mf.cls),onclick:()=>openTaskSheet(o),"aria-label":o.title},h("span",{class:"disc"},icon(d?"star":"scroll")),
-        h("span",{class:"cap"},o.title,h("span",{class:"sub"},d?"已完成":fmtDue(o.soft).replace(/ \d\d:\d\d$/,"")+" · "+fmtLeft(o.soft-now).replace("还剩 ","剩 "))),h("span",{class:"rw"},d?"+"+d.pts:"+"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total+" "+mf.label.split(" ")[0]))}
+        h("span",{class:"cap"},o.title,h("span",{class:"sub"},d?"已完成":fmtDue(o.soft).replace(/ \d\d:\d\d$/,"")+" · "+fmtLeft(o.soft-now).replace("还剩 ","剩 "))),h("span",{class:"rw"},d?"+"+d.pts:"+"+preview(o.r.base,o.soft,lateG(o.r),o.self).total+" "+mf.label.split(" ")[0]))}
     else if(s.kind==="canvas"){const q=s.q;const d=S.done["cv-"+q.id];const mf=multFor(q.due,0);
-      el=h("button",{class:"node side "+(d?"done":mf.cls),onclick:()=>openSideQuestSheet(q)},h("span",{class:"disc"},icon(d?"star":"scroll")),h("span",{class:"cap"},q.title,h("span",{class:"sub"},"Canvas · "+fmtLeft(q.due-now).replace("还剩 ","剩 "))),h("span",{class:"rw"},d?"+"+d.pts:"+"+preview(SIDE_PTS,q.due,0).total))}
+      el=h("button",{class:"node side "+(d?"done":mf.cls),onclick:()=>openSideQuestSheet(q)},h("span",{class:"disc"},icon(d?"star":"scroll")),h("span",{class:"cap"},q.title,h("span",{class:"sub"},"Canvas · "+fmtLeft(q.due-now).replace("还剩 ","剩 "))),h("span",{class:"rw"},d?"+"+d.pts:"+"+preview(SIDE_PTS,q.due,q.subj==="engl"?0:-1).total))}
     else if(s.kind==="monster"){const m=s.m;el=h("button",{class:"node side monster",onclick:()=>openMonsterSheet(m)},h("span",{class:"disc"},icon("skull")),h("span",{class:"cap"},"错题怪",h("span",{class:"sub"},m.text.slice(0,16)+(m.text.length>16?"…":""))),h("span",{class:"rw"},"+15"))}
     else{const c=s.c;el=h("button",{class:"node side"+(c.opened?" done":c.ok?" ontime":""),onclick:()=>{if(c.ok)openChest();else toast(c.opened?"本周宝箱已开":"这周周常全部提前完成才能开（现在 "+c.n+"/"+c.of+"）")}},
       h("span",{class:"disc"},icon("gift")),h("span",{class:"cap"},"全周提前宝箱",h("span",{class:"sub"},c.opened?"已开启":"提前完成 "+c.n+"/"+c.of)),h("span",{class:"rw"},"+80"))}
@@ -2715,7 +2718,7 @@ function sleepSettle(up){const s=S.sleep;if(!s)return;const now=up||Date.now();
   else{save();setTimeout(()=>toast("睡眠记下了："+lines[0]),1200)}renderAll()}
 function nextSteps(){const out=[];const now=Date.now();
   const urgent=occurrences().filter(o=>isOpen(o)&&o.soft>now-HOUR&&o.soft-now<40*HOUR);
-  for(const o of urgent.slice(0,2))out.push({subj:o.subj,ic:"scroll",title:o.title,meta:SUBJ[o.subj].name+" · "+fmtLeft(o.soft-now)+" · +"+preview(o.r.base,o.soft,o.r.grace||0,o.self).total,label:SUBJ[o.subj].name+" "+o.title,say:SUBJ[o.subj].name+"的「"+o.title+"」"+fmtLeft(o.soft-now).replace("还剩","还剩")+"。先做第一步：把第一题发进来。",go:()=>openTaskSheet(o)});
+  for(const o of urgent.slice(0,2))out.push({subj:o.subj,ic:"scroll",title:o.title,meta:SUBJ[o.subj].name+" · "+fmtLeft(o.soft-now)+" · +"+preview(o.r.base,o.soft,lateG(o.r),o.self).total,label:SUBJ[o.subj].name+" "+o.title,say:SUBJ[o.subj].name+"的「"+o.title+"」"+fmtLeft(o.soft-now).replace("还剩","还剩")+"。先做第一步：把第一题发进来。",go:()=>openTaskSheet(o)});
   const mons=reviveDue();if(mons.length)out.push({subj:mons[0].subj,ic:"skull",title:"错题怪",meta:SUBJ[mons[0].subj].name+" · "+(/[$\\]/.test(mons[0].text)?"上次做错的题":mons[0].text.slice(0,24))+" · +"+R(15),label:"打一只错题怪",say:"有 "+mons.length+" 只错题怪复活了。打一只，+"+R(15)+" 分。",go:()=>{fightMistake(mons[0])}});
   for(const k of["math","chem","engri"]){const arr=MAIN[k];const i=curIndex(k);const n=arr[i];if(!n||n.boss||nodeIsDone(k,n))continue;const debt=n.lec&&n.lec<now;
     out.push({subj:k,ic:"book",title:nodeName(k,n),meta:SUBJ[k].name+" · 去 Claude 学"+(debt?" · 课上已讲":"")+" · +"+R(NODE_PTS),label:SUBJ[k].name+"主线 · "+nodeName(k,n),say:(debt?"课上已经讲过「"+nodeName(k,n)+"」了，":"")+"去 Claude 学这一节，答对检查题自动打勾，+"+R(NODE_PTS)+" 分。",go:()=>startNode(k,n),pri:debt?1:0})}
@@ -3375,7 +3378,7 @@ async function finishTask(){const c=S.cur;if(!c)return;const min=curMinutes();co
   if(draft.length&&!real.length){dropDraft(c.subj,c.key);save()}
   let pts="";
   if(c.kind==="occ"&&it&&!S.done[it.key]){const before=S.points;completeTask(it);pts="，+"+fp(S.points-before)}
-  else if(c.kind==="cv"&&it&&!S.done[c.key]){const p=award(SIDE_PTS,it.due,0,"支线 · "+it.title);S.done[c.key]={at:Date.now(),pts:p};pts="，+"+p}
+  else if(c.kind==="cv"&&it&&!S.done[c.key]){const p=award(SIDE_PTS,it.due,it.subj==="engl"?0:-1,"支线 · "+it.title);S.done[c.key]={at:Date.now(),pts:p};pts="，+"+p}
   else if(c.kind==="todo"&&it&&!it.done)toggleTodo(it);
   else if(c.kind==="boss"&&it&&!S.done[c.key]){const before=S.points;finishBoss(c.key.split(":")[1]);pts="，+"+fp(S.points-before)}
   zwSay("「"+c.title+"」做完了，用时 "+min+" 分钟"+pdf+pts+"。");save();renderAll();
@@ -3543,7 +3546,7 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
   if(!checkedToday())rows.push(line("签到","",false,false,()=>DESK?DESK.openZero("daily"):openDaily(suggestSubj())));
   const dueOf=o=>o.soft<now&&o.hard>now?o.hard:o.soft;
   const items=[...occurrences().filter(o=>!S.skipped[o.key]&&(!S.done[o.key]||recent(o.key))&&dueOf(o)<now+5*DAY).map(o=>{const t=SUBJ[o.subj].name+" "+o.title;return{t,due:dueOf(o),done:!!S.done[o.key],go:()=>S.done[o.key]?undoDone(o.key,t):completeTask(o),start:()=>beginTask("occ",o.key,o.subj,t),key:o.key,setDue:v=>setDueFix(o.key,v),due0:dueOf(o)}}),
-    ...SIDE.filter(q=>q.due<now+5*DAY&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>{const k="cv-"+q.id;return{t:q.title,due:q.due,done:!!S.done[k],go:()=>{if(S.done[k]){undoDone(k,q.title);return}const pts=award(SIDE_PTS,q.due,0,"支线 · "+q.title);S.done[k]={at:Date.now(),pts,sh:LAST_SH};save();renderAll()},start:()=>beginTask("cv",k,q.subj,q.title),key:k,setDue:v=>setDueFix(k,v)}}),
+    ...SIDE.filter(q=>q.due<now+5*DAY&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>{const k="cv-"+q.id;return{t:q.title,due:q.due,done:!!S.done[k],go:()=>{if(S.done[k]){undoDone(k,q.title);return}const pts=award(SIDE_PTS,q.due,q.subj==="engl"?0:-1,"支线 · "+q.title);S.done[k]={at:Date.now(),pts,sh:LAST_SH};save();renderAll()},start:()=>beginTask("cv",k,q.subj,q.title),key:k,setDue:v=>setDueFix(k,v)}}),
     /* 要交的 Boss（论文等）也进待办；Canvas 那条被去重滤掉了，不加就两边都没有 */
     ...Object.entries(BOSSES()).filter(([id,b])=>b.submit&&b.due&&b.due>now-DAY&&b.due<now+5*DAY&&(!S.done["boss:"+id+":final"]||recent("boss:"+id+":final"))).map(([id,b])=>{const k="boss:"+id+":final",t=SUBJ[b.subj].name+" "+b.title;return{t,due:b.due,done:!!S.done[k],go:()=>S.done[k]?undoDone(k,t):finishBoss(id),start:()=>beginTask("boss",k,b.subj,t),key:k}}),
     ...(S.todos||[]).filter(t=>!t.done||now-t.done<12*HOUR).map(t=>({t:t.t,due:t.due||now+30*DAY,nodue:!t.due,done:!!t.done,go:()=>toggleTodo(t),del:()=>removeTodo(t),start:()=>beginTask("todo",t.id,t.subj,t.t),key:t.id,setDue:v=>setTodoDue(t,v)}))].sort((a,b)=>(a.done-b.done)||(a.due-b.due));
