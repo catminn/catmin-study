@@ -1303,7 +1303,11 @@ ${mem}
  "engri":{"exams":[...],"topics":[...],"hw":null},
  "engl":{"disc":null}}
 规则：exams 只列今天之后还没考的考试（due 用本地时间，格式 YYYY-MM-DDTHH:MM）；topics 是下一场考试范围内按顺序排的知识点，每科最多 10 个，标题简短，有讲课日期就填 lec；math.hw 列出今天之后的作业编号和截止日期（YYYY-MM-DD）；ps、lab、hw、disc 是下一次的编号和截止日期，不知道就写 null。`,{cache:false,siteModel:"claude-haiku-5-5"});
-    if(!j||typeof j!=="object")throw{code:"invalid_json"};S.dyn={at:Date.now(),data:j};applyDyn();save();renderAll();toast("课程信息已从共享记忆更新")}
+    if(!j||typeof j!=="object")throw{code:"invalid_json"};
+    {const old=S.dyn&&S.dyn.data;if(old)for(const k of["math","chem","engri"]){const oe=(old[k]&&old[k].exams)||[];if(!oe.length)continue;const nd=j[k]&&typeof j[k]==="object"?j[k]:(j[k]={});if(!Array.isArray(nd.exams))nd.exams=[];
+      for(const e of oe){const d=Date.parse(e.due);if(!d||d<Date.now()-6*HOUR)continue;const m=nd.exams.find(x=>{const t=Date.parse(x&&x.due);return t&&Math.abs(t-d)<36*HOUR});
+        if(m){m.title=e.title;if(!m.scope)m.scope=e.scope;if(!m.where)m.where=e.where}else if(!nd.exams.some(x=>x&&x.title===e.title))nd.exams.push(e)}}}
+    S.dyn={at:Date.now(),data:j};applyDyn();save();renderAll();toast("课程信息已从共享记忆更新")}
   catch(e){S.dynErr=(e&&e.code)==="no_mem"?SM_STATE:sampleErr(e);if(S.dyn)S.dyn.at=Date.now();save()}
   finally{SYNCING=false;renderSyncRow()}}
 function renderSyncRow(){const el=$("#syncNote");if(!el)return;el.textContent=SYNCING?"同步中…":S.dyn&&S.dyn.data?"上次同步 "+fmtDue(S.dyn.at):S.dynErr||"还没同步"}
@@ -1358,6 +1362,9 @@ function mergeState(raw){const x=raw?unpoison(clone(raw)):{};const o=Object.assi
   for(const k of["done","started","skipped","chests","weekEarly","nodeNames","battle","trainLog","quizLog","tale","saga","fate"])if(!o[k]||typeof o[k]!=="object"||Array.isArray(o[k]))o[k]={};
   for(const k of["checkins","restDays","ledger","mistakes","customRewards","customWorlds","scores","spend","sleepLog","todos","hwArchive"])if(!Array.isArray(o[k]))o[k]=[];if(!o.hwDraft||typeof o.hwDraft!=="object"||Array.isArray(o.hwDraft))o.hwDraft={};
   delete o.story;
+  /* 11/20：Prelim 2 前的旧错题删掉（之前删了又被别的设备合并回来） */
+  if(!o.mig1120){o.mistGone=Object.assign(o.mistGone||{},Object.fromEntries(["mi7yx","mv73d","m2arb","mthga","mkrjj","mrzk0","mqs07"].map(k=>[k,1795150000000])));o.mig1120=1}
+  if(o.mistGone&&typeof o.mistGone==="object")o.mistakes=(o.mistakes||[]).filter(m=>!(m&&o.mistGone[m.id]));
   /* 只有题号、没认出题目的旧汇总删掉 */
   if(Array.isArray(o.hwArchive))o.hwArchive=o.hwArchive.filter(a=>!(a&&Array.isArray(a.items)&&a.items.length&&a.items.every(q=>/无法辨认|仅有题号/.test((q&&q.text)||""))));
   /* 休息券取消：手上剩的换成补签卡 */
@@ -2790,7 +2797,7 @@ document.addEventListener("visibilitychange",()=>{if(!FOCUS)return;if(document.v
 window.addEventListener("pagehide",()=>{if(FOCUS){S.focusLive={start:FOCUS.start,min:FOCUS.min};save()}});
 
 /* ============ 读书 ============ */
-const RD_PH=["2026 秋","寒假（26–27）","2027 春","2027 暑假","2027 秋","寒假（27–28）","2028 春","2028 暑假","以后再说"];
+const RD_PH=["2026 秋","寒假（26–27）","2027 春","2027 暑假","2027 秋","寒假（27–28）","2028 春","2028 暑假","书库 · 随时挑"];
 const RD_LANG=["中文","英文"];
 const RD_CAP=25,RD_MAIN=80,RD_FRAG=40,RD_WEEK7=20;
 const RD_STEP=2,RD_STEP_CAP=20,RD_MILES={7:30,14:50,30:100,60:150,100:300};
@@ -2835,6 +2842,10 @@ function RD(){let r=S.reading;if(!r||!Array.isArray(r.books)){r=S.reading={books
   if(!r.v13){if(!r.books.some(b=>b.t==="银河英雄传说"))r.books.push({id:"b"+uid(),ph:3,t:"银河英雄传说",by:"田中芳树",lang:"中文",note:"莱因哈特 · 共 10 卷，先读第 1 卷",st:"queue",slot:"",unit:"章",read:0,at:Date.now()});r.v13=1;r.mt=(r.mt||0)+1;save()}
   if(!r.v14){if(!r.books.some(b=>b.t==="沙丘"))r.books.push({id:"b"+uid(),ph:4,t:"沙丘",by:"弗兰克·赫伯特",lang:"中文",note:"开头名词多，善用书后词汇表",st:"queue",slot:"",unit:"章",read:0,at:Date.now()});
     for(const x of[["沙丘","2021"],["沙丘 2","2024，和第一部一起讲完原著第一本"],["沙丘 3","改编续集《沙丘救世主》"]])if(!r.films.some(f=>f.t===x[0]))r.films.push({id:"f"+uid(),t:x[0],kind:"电影",src:"沙丘",note:x[1],st:"queue",at:Date.now()});r.v14=1;r.mt=(r.mt||0)+1;save()}
+  if(!r.v19){const M=[[0,["折枝","化身博士"]],[1,["默读","琅琊榜","呼兰河传","局外人","动物农场","Animal Farm"]],[2,["Piranesi","皮拉奈西","提灯","阿勒泰"]],[3,["太岁","射雕","银河英雄","1984","世说新语"]],[4,["洄天","沙丘","活着","人间草木"]],[5,["神雕","Gatsby","盖茨比"]],[6,["倚天","月亮与六便士","边城","Klara","克拉拉"]],[7,["雪国","看不见的城市","史记"]]],MS={3:1,4:1,5:2,6:2,7:3,8:3,9:3};(r.books||[]).forEach(b=>{if(b.st!=="queue")return;const t=b.t||"";let p=8;if(b.ser==="明朝"&&MS[b.no]!=null)p=MS[b.no];else if(t.includes("三体"))p=/[二三Ⅱ]|黑暗|死神/.test(t.replace("三体",""))?5:2;else if(t.startsWith("飘"))p=7;else for(const[ph,ks]of M)if(ks.some(k=>t.includes(k))){p=ph;break}b.ph=p});r.v19=1}if(r.v16&&!r.v18){const w=r.books.find(b=>b.t==="洄天");if(w&&!w.by)w.by="淮上";r.v18=1;r.mt=(r.mt||0)+1;save()}
+  if(r.v16&&!r.v17){const z=r.books.find(b=>b.t==="折枝");if(z){z.by="困倚危楼";z.note="XP 小说 · 感恩节读 · 读完接《化身博士》"}const c=r.books.find(b=>b.t==="纯白恶魔");if(c&&c.st==="queue"){c.by="priest";c.ph=1;c.note="XP 小说 · 和《默读》二选一 · 读前确认完结"}r.v17=1;r.mt=(r.mt||0)+1;save()}
+  if(!r.v16){const A=[[0,"折枝","","XP 小说 · 感恩节候选"],[0,"纯白恶魔","","XP 小说 · 感恩节候选"],[1,"默读","priest","XP 小说 · 现代刑侦 · 读完接一本两小时短书"],[2,"提灯映桃花","淮上","XP 小说 · 春假读"],[3,"太岁","priest","XP 小说 · 超长，只放暑假"],[4,"洄天","","XP 小说 · 感恩节或假期读"]];
+    for(const x of A)if(!r.books.some(b=>b.t===x[1]))r.books.push({id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:"中文",note:x[3],st:"queue",slot:"",unit:"章",read:0,at:Date.now()});r.v16=1;r.mt=(r.mt||0)+1;save()}
   if(!r.v15){const A=[[0,"平面国","艾勃特","二维世界的数学寓言"],[0,"化身博士","史蒂文森","双重身份，最早的马甲故事"],[1,"一个陌生女人的来信","茨威格",""],[1,"局外人","加缪",""],[1,"变形记","卡夫卡",""],[1,"受戒","汪曾祺","好中文的样子"],[2,"人鼠之间","斯坦贝克",""],[2,"莫尔格街凶杀案","爱伦·坡","世界上第一篇侦探小说"],[2,"俗世奇人","冯骥才","碎片书 · 一篇一个奇人"],[3,"金锁记","张爱玲","张爱玲最好的中篇"],[3,"青蛇","李碧华",""],[4,"面纱","毛姆",""],[4,"命若琴弦","史铁生",""]];
     for(const x of A)if(!r.books.some(b=>b.t===x[1]))r.books.push({id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:"中文",note:("两小时短书"+(x[3]?" · "+x[3]:"")),st:"queue",slot:"",unit:"章",read:0,at:Date.now()});r.v15=1;r.mt=(r.mt||0)+1;save()}return r}
 function fmMove(f,dir){const L=RD().films;const open=L.filter(x=>x.st!=="done"&&x.st!=="drop");const i=open.indexOf(f),j=i+dir;if(j<0||j>=open.length)return;const a=L.indexOf(f),c=L.indexOf(open[j]);[L[a],L[c]]=[L[c],L[a]];rdSave()}
@@ -2969,9 +2980,9 @@ function renderQuick(){const el=$("#quickRow");if(!el)return;const now=Date.now(
   const dl=dueList(),d0=dl[0];
   const dt=quickTile("scroll","#3d8be8","截止",d0?d0.t+" · "+fmtLeft(d0.due-now).replace("还剩 ","剩 ").replace("已超时 ","超时 "):"最近没有",openDueSheet,d0&&d0.due-now<DAY?"on":"");
   const sp=quickTile("coin","#c9952b","记账","有 "+fp(S.points)+" 分",openSpendSheet);
-  const steps=nextSteps().filter(x=>!x.rest),st=steps[0];
-  const rc=h("button",{class:"qk rec",onclick:()=>openRec(0)},h("span",{class:"ic"},icon(st?st.ic||"star":"star")),h("span",{class:"tx"},h("small",null,"推荐"),h("b",null,st?st.title:"今天没别的事了"),st?h("small",null,st.meta):null));
-  rc.style.setProperty("--qc",st&&st.subj?worldOf(st.subj).tint:"#2fa865");if(!st)rc.onclick=null;
+  const TL=todayList(),tl=TL.filter(x=>!x.done),t0=tl[0];
+  const rc=h("button",{class:"qk rec",onclick:()=>openToday()},h("span",{class:"ic"},icon(t0?t0.plan?"crown":"scroll":"star")),h("span",{class:"tx"},h("small",null,"今天"+(TL.length?" · "+(TL.length-tl.length)+" / "+TL.length:"")),h("b",null,t0?t0.t:TL.length?"今天的都做完了":"今天没有排的事"),t0?h("small",null,t0.sub):null));
+  rc.style.setProperty("--qc",t0&&t0.subj?worldOf(t0.subj).tint:"#2fa865");if(!TL.length)rc.onclick=null;
   el.replaceChildren(sl,ck,rd,gm,dt,sp,rc)}
 /* 接下来要交的：网站作业、Canvas 支线、要交的 Boss，按截止排 */
 function dueList(){const now=Date.now(),B=BOSSES();return[
@@ -2983,6 +2994,21 @@ function openDueSheet(){const L=dueList().slice(0,8),now=Date.now();if(!L.length
   sheet(null,h("h2",null,"接下来要交的"),h("div",{class:"pl"},L.map(x=>h("div",{class:"pl-row",style:{cursor:"pointer"},onclick:()=>{closeSheet();x.go()}},
     h("div",{class:"pl-t"},h("b",null,x.t),h("span",{style:x.due<now?{color:"var(--late)"}:null},fmtDue(x.due)+" · "+fmtLeft(x.due-now)))))))}
 function openSpendSheet(){const box=h("div");SPEND_EL=box;sheet(null,box);renderSpend()}
+/* 今天的清单：各场考试的考前计划里排在今天的，加上今天到期的作业 */
+function todayList(){const k=dayKey(),now=Date.now(),B=BOSSES(),out=[];
+  for(const id in (S.examPlan||{})){const p=S.examPlan[id],b=B[id];if(!p||!b||!b.due||b.due<now||!Array.isArray(p.days))continue;planShift(id);
+    for(const d of p.days.filter(d=>d.day===k)){const key=planKey(id,d);
+      out.push({plan:1,id,d,b,key,subj:b.subj,done:!!S.done[key],t:(d.kind==="mock"?"模拟卷 · ":d.kind==="final"?"错题和公式 · ":"")+d.topic,sub:[SUBJ[b.subj].name+" "+b.title.replace(/^\S+ /,""),d.task,d.min?"约 "+d.min+" 分钟":""].filter(Boolean).join(" · ")})}}
+  const end=keyToDate(addDays(k,1)).getTime()+DAY_CUT*HOUR;
+  for(const x of dueList())if(x.due<end&&x.due>now-6*HOUR)out.push({t:x.t,sub:fmtDue(x.due)+" 截止",done:false,go:x.go});
+  return out}
+function openToday(){const L=todayList();if(!L.length){toast("今天没有排的事");return}const left=L.filter(x=>!x.done).length;const d=keyToDate(dayKey());
+  const row=x=>h("div",{class:"pl-row"+(x.done?" done":"")},h("div",{class:"pl-t"},h("b",null,(x.done?"✓ ":"")+x.t),x.sub?h("span",null,x.sub):null),
+    h("div",{class:"row",style:{gap:"6px",flexShrink:0}},x.plan?(x.done?h("button",{class:"btn sm flat",onclick:()=>{undoDone(x.key,"考前计划 · "+x.d.topic);openToday()}},"撤销"):[h("button",{class:"btn sm go",onclick:()=>{closeSheet();planGo(x.id,x.d)}},"开始"),h("button",{class:"btn sm",onclick:()=>{planDone(x.id,x.d);openToday()}},"做完 +"+R(PLAN_PTS))]):h("button",{class:"btn sm",onclick:()=>{closeSheet();x.go()}},"打开")));
+  sheet(null,h("div",{class:"eyebrow"},(d.getMonth()+1)+"/"+d.getDate()+" 周"+WD[d.getDay()]),h("h2",null,left?"今天还剩 "+left+" 项":"今天的都做完了"),h("div",{class:"pl"},L.map(row)))}
+/* 每天第一次打开网站时自己弹出来（每台设备一天一次） */
+function maybeTodayPop(){if(EMBED||document.querySelector(".scrim,.pop"))return;const k=dayKey();let seen="";try{seen=localStorage.getItem("zs-today-pop")||""}catch(e){}if(seen===k)return;
+  const L=todayList();if(!L.some(x=>!x.done))return;try{localStorage.setItem("zs-today-pop",k)}catch(e){}setTimeout(()=>{if(!document.querySelector(".scrim,.pop"))openToday()},700)}
 function openRec(i){const steps=nextSteps().filter(x=>!x.rest);if(!steps.length)return;i=i%steps.length;const st=steps[i];
   sheet(st.subj||null,h("div",{class:"eyebrow"},"推荐 "+(i+1)+" / "+steps.length),h("h2",null,st.title),h("div",{class:"dim"},st.meta),
     h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();st.go()}},st.btn||"开始"),steps.length>1?h("button",{class:"btn flat",onclick:()=>openRec(i+1)},"换一个"):null))}
@@ -2993,7 +3019,7 @@ function rdQuickSheet(){const R0=RD(),cur=["main","frag"].map(sl=>R0.books.find(
     h("div",{class:"row"},...quick(b).map((n,i)=>h("button",{class:"btn"+(i?"":" go"),onclick:()=>{closeSheet();rdLog(b,n)}},"+"+rdFmt(b,n)))))),
     h("button",{class:"btn flat",onclick:()=>{closeSheet();location.hash="#read"}},"去读书页"))}
 setInterval(()=>{if(curView()==="now"&&!document.querySelector(".scrim,.pop"))renderQuick()},30000);
-function renderNow(){renderQuick()}
+function renderNow(){renderQuick();maybeTodayPop()}
 function route(){const v=curView();document.body.classList.toggle("dg-on",v==="dungeon");measureBars();for(const x of VIEWS)$("#v-"+x).hidden=x!==v;document.querySelectorAll(".tabbar a[data-v]").forEach(a=>a.setAttribute("aria-current",a.dataset.v===v?"page":"false"));{const ms=curSub("map");if(v==="map"&&ms&&ms!==MAPSUBJ){MAPSUBJ=ms;setTimeout(scrollToCur,60)}}renderHud();renderView(v);applySub();renderSideNav();
   if(v==="map")setTimeout(scrollToCur,40);else window.scrollTo(0,0)}
 function renderView(v){if(v==="now")renderNow();else if(v==="map")renderMap();else if(v==="cal")renderCal();else if(v==="shop")renderShop();else if(v==="read")renderRead();else renderBag()}
@@ -3496,7 +3522,7 @@ function scopeSecs(b){const D=S.dyn&&S.dyn.data&&S.dyn.data[b.subj];const all=ne
   return L.sort((x,y)=>secN(x)-secN(y))}
 function planMissing(b,items){const need=scopeSecs(b);if(!need.length)return[];const have=new Set();for(const d of items.filter(d=>!d.kind||d.kind==="learn"))for(const x of secsOf(d.topic+" "+(d.task||"")))have.add(x);return need.filter(x=>!have.has(x))}
 function planDays(b){const days=[];for(let k=dayKey();keyToDate(k).getTime()<b.due-12*HOUR&&days.length<12;k=addDays(k,1))days.push(k);return days}
-function planShift(id){const p=(S.examPlan||{})[id];if(!p||!p.avail)return 0;const today=dayKey();
+function planShift(id){const p=(S.examPlan||{})[id];if(!p||!p.avail||!Array.isArray(p.days))return 0;if(!Object.keys(p.avail).length)for(const d of p.days)p.avail[d.day]=(p.avail[d.day]||0)+(d.min||60);const today=dayKey();
   const mv=p.days.filter(d=>!d.kind||d.kind==="learn");const late=mv.filter(d=>d.day<today&&!S.done[planKey(id,d)]);if(!late.length)return 0;
   const fixed=p.days.filter(d=>d.kind==="mock"||d.kind==="final").map(d=>d.day).sort();const stop=fixed[0]||"9999";
   let slots=Object.keys(p.avail).filter(k=>k>=today&&k<stop&&p.avail[k]>0).sort();if(!slots.length)slots=[today];
@@ -3566,6 +3592,7 @@ function renderTodoEmbed(){let el=$("#todoEmbed");if(!el){el=h("div",{id:"todoEm
     ...SIDE.filter(q=>q.due<now+5*DAY&&(!S.done["cv-"+q.id]||recent("cv-"+q.id))).map(q=>{const k="cv-"+q.id;return{t:q.title,due:q.due,done:!!S.done[k],go:()=>{if(S.done[k]){undoDone(k,q.title);return}const pts=award(SIDE_PTS,q.due,q.subj==="engl"?0:-1,"支线 · "+q.title);S.done[k]={at:Date.now(),pts,sh:LAST_SH};save();renderAll()},start:()=>beginTask("cv",k,q.subj,q.title),key:k,setDue:v=>setDueFix(k,v)}}),
     /* 要交的 Boss（论文等）也进待办；Canvas 那条被去重滤掉了，不加就两边都没有 */
     ...Object.entries(BOSSES()).filter(([id,b])=>b.submit&&b.due&&b.due>now-DAY&&b.due<now+5*DAY&&(!S.done["boss:"+id+":final"]||recent("boss:"+id+":final"))).map(([id,b])=>{const k="boss:"+id+":final",t=SUBJ[b.subj].name+" "+b.title;return{t,due:b.due,done:!!S.done[k],go:()=>S.done[k]?undoDone(k,t):finishBoss(id),start:()=>beginTask("boss",k,b.subj,t),key:k}}),
+    ...todayList().filter(x=>x.plan).map(x=>({t:SUBJ[x.subj].name+" 复习 · "+x.d.topic,due:now+25*HOUR,nodue:true,done:x.done,go:()=>x.done?undoDone(x.key,"考前计划 · "+x.d.topic):planDone(x.id,x.d),start:()=>planGo(x.id,x.d),key:x.key})),
     ...(S.todos||[]).filter(t=>!t.done||now-t.done<12*HOUR).map(t=>({t:t.t,due:t.due||now+30*DAY,nodue:!t.due,done:!!t.done,go:()=>toggleTodo(t),del:()=>removeTodo(t),start:()=>beginTask("todo",t.id,t.subj,t.t),key:t.id,setDue:v=>setTodoDue(t,v)}))].sort((a,b)=>(a.done-b.done)||(a.due-b.due));
   for(const it of items)rows.push(line(it.t,it.nodue?"":wk(it.due),it.due-now<24*HOUR,it.done,it.go,it.del,it.start,S.cur&&S.cur.key===it.key,it.setDue));
   if(sleepAwake())rows.push(line("起床","",true,false,wakeUp));
@@ -3644,7 +3671,7 @@ function syncMerge(a,b){if(!a)return clone(b);if(!b)return clone(a);const o=clon
   o.todoGone=Object.assign({},b.todoGone||{},o.todoGone||{});const tm=new Map((o.todos||[]).map(t=>[t.id,t]));
   for(const t of b.todos||[]){const m=tm.get(t.id);if(!m)tm.set(t.id,t);else if((t.mt||t.done||0)>(m.mt||m.done||0))tm.set(t.id,t)}o.todos=[...tm.values()].filter(t=>!o.todoGone[t.id]);
   const uni=(f,key)=>{const L=o[f]||[];const ks=new Set(L.map(key));for(const x of b[f]||[])if(!ks.has(key(x))){L.push(x);ks.add(key(x))}o[f]=L};
-  uni("mistakes",m=>m.id);uni("scores",x=>x.id);uni("timeLog",x=>x.at+"|"+x.title);uni("sleepRec",x=>x.bed);uni("playLog",x=>x.at);uni("dqDone",x=>x.day+"|"+x.client);uni("hwArchive",x=>x.id);
+  o.mistGone=Object.assign({},b.mistGone||{},o.mistGone||{});uni("mistakes",m=>m.id);o.mistakes=(o.mistakes||[]).filter(m=>!o.mistGone[m.id]);uni("scores",x=>x.id);uni("timeLog",x=>x.at+"|"+x.title);uni("sleepRec",x=>x.bed);uni("playLog",x=>x.at);uni("dqDone",x=>x.day+"|"+x.client);uni("hwArchive",x=>x.id);
   if(b.freeLessons){o.freeLessons=o.freeLessons||{};for(const d in b.freeLessons)o.freeLessons[d]=Math.max(o.freeLessons[d]||0,b.freeLessons[d])}
   o.checkins=[...new Set([...(o.checkins||[]),...(b.checkins||[])])].sort();
   for(const m of o.mistakes||[]){const r=(b.mistakes||[]).find(x=>x.id===m.id);if(r&&r.killed)m.killed=r.killed}
