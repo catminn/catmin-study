@@ -70,7 +70,19 @@ button.pill{cursor:pointer}
 .themebtn{border:2px solid var(--line);background:var(--panel2);border-radius:999px;width:36px;height:36px;display:grid;place-items:center;color:var(--fg)}
 
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:9;background:var(--panel);border-top:2px solid var(--line);padding:6px max(16px,env(safe-area-inset-left,0px)) calc(6px + env(safe-area-inset-bottom,0px))}
-.tabbar .wrap{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.tabbar .wrap{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.pp-exs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px}
+.pp-ex{border:2px solid var(--line);border-radius:14px;padding:8px 10px;display:flex;flex-direction:column;gap:3px}
+.pp-ex b{font-size:14px}.pp-ex span{font-size:13px;color:var(--c);font-weight:700}.pp-ex small{font-size:12px;color:var(--dim)}
+.pp-ex i,.pp-bar{display:block;height:6px;border-radius:3px;background:var(--line);overflow:hidden}.pp-ex i em,.pp-bar em{display:block;height:100%;background:var(--c,#2fa865);border-radius:3px;transition:width .3s}
+.pp-day h3{margin:0;font-size:16px}.pp-day.today{border-color:#2fa865}.pp-day.late h3{color:var(--late)}.pp-bar{margin:8px 0 2px}
+.pp-row{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+.pp-ck{flex:none;width:30px;height:30px;border-radius:50%;border:2.5px solid var(--c);background:none;color:#fff;font-weight:800;font-size:16px;line-height:1;cursor:pointer;margin-top:1px;padding:0}
+.pp-row.done .pp-ck{background:var(--c)}.pp-row.done .pp-body{opacity:.5}.pp-row.done .pp-tt b{text-decoration:line-through}
+.pp-tm{flex:none;width:42px;display:flex;flex-direction:column;font-variant-numeric:tabular-nums;padding-top:3px}.pp-tm b{font-size:14px}.pp-tm span{font-size:12px;color:var(--dim)}
+.pp-body{flex:1;min-width:0}.pp-tt{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding-top:3px}.pp-tt b{font-size:15px}
+.pp-sj,.pp-tag{font-size:11px;font-weight:800;padding:1px 7px;border-radius:8px;background:var(--c);color:#fff}.pp-tag{background:none;color:var(--c);border:1.5px solid var(--c)}
+.pp-task{font-size:13.5px;color:var(--dim);margin-top:4px;line-height:1.55}.pp-go{margin-top:4px;padding-left:0}
 .pl{display:flex;flex-direction:column}.pl-row{display:flex;align-items:center;gap:10px;padding:10px 4px;border-top:1px solid var(--line)}.pl .pl-row:first-child{border-top:0}
 .pl-ic{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line2);color:var(--dim)}.pl-ic .i{width:16px;height:16px}
 .pl-row.done .pl-ic{background:var(--tint);border-color:var(--tint);color:#fff}.pl-row.cur .pl-ic{border-color:var(--tint);color:var(--tint)}.pl-row.boss .pl-ic{border-color:var(--late);color:var(--late)}.pl-row.debt .pl-t span{color:var(--late)}
@@ -818,6 +830,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
   </section>
 
   <section class="screen" id="v-read" hidden></section>
+  <section class="screen" id="v-plan" hidden></section>
 
   <section class="screen" id="v-bag" hidden>
     <div class="bag-cols"><div class="col">
@@ -852,6 +865,7 @@ body.dg-on .dg{top:0}body.dg-on .dg-grid{padding-top:max(8px,env(safe-area-inset
 <canvas id="fxCv" aria-hidden="true"></canvas><div id="fxLayer" aria-hidden="true"></div>
 <nav class="tabbar" aria-label="页面"><div class="wrap">
   <a href="#now" data-v="now"><svg><use href="#i-star"/></svg>现在</a>
+  <a href="#plan" data-v="plan"><svg><use href="#i-crown"/></svg>复习</a>
   <a href="#map" data-v="map"><svg><use href="#i-map"/></svg>地图</a>
   <a href="#cal" data-v="cal"><svg><use href="#i-cal"/></svg>日历</a>
   <a href="#read" data-v="read"><svg><use href="#i-book"/></svg>读书</a>
@@ -2954,7 +2968,7 @@ const RD_OPEN=new Set();
 function renderHud(){renderGuideFab();{const b=$("#hSleep");if(b){b.textContent=sleepAwake()?"起床":S.sleep?"已晚安":"晚安";b.classList.toggle("go",sleepAwake());const a=sleepAvg();b.title=(S.sleep?"已经点过晚安，点错了就连点两下撤销":"准备睡了就点：记下几点睡，00:30 前有奖励")+(a!=null?"。最近 7 晚平均 "+fmtBed(a)+" 睡":"")}}const lv=levelOf(S.xp);$("#hLv").textContent=lv.L;$("#hTitle").textContent=lv.title;$("#hXp").textContent=(S.xp-lv.lo)+" / "+(lv.hi-lv.lo)+" XP";
   $("#hXpBar").style.width=Math.round((S.xp-lv.lo)/(lv.hi-lv.lo)*100)+"%";$("#hPts").textContent=fp(S.points);$("#hStreakN").textContent=streak()+(checkedToday()?"":" · 未签");
   $("#hStreak").title=checkedToday()?"今天已签到":"今天还没签到，点开签到日历";$("#hCards").textContent=S.cards.makeup}
-const VIEWS=["now","map","cal","read","shop","bag"];
+const VIEWS=["now","plan","map","cal","read","shop","bag"];
 function curView(){const v=(location.hash||"#now").slice(1).split("/")[0];return VIEWS.includes(v)?v:"now"}
 /* 侧栏二级菜单：#read/list 这种；手机上不分，整页照旧 */
 const SUBS={map:null,read:[["now","在读"],["list","书单"],["films","片单"]],shop:[["reward","奖励"],["spend","记账"]],bag:[["score","成绩"],["mistake","错题"],["ledger","积分流水"],["settings","设置"]]};
@@ -3005,7 +3019,7 @@ function todayList(){const k=dayKey(),now=Date.now(),B=BOSSES(),out=[];
 function openToday(){const L=todayList();if(!L.length){toast("今天没有排的事");return}const left=L.filter(x=>!x.done).length;const d=keyToDate(dayKey());
   const row=x=>h("div",{class:"pl-row"+(x.done?" done":"")},h("div",{class:"pl-t"},h("b",null,(x.done?"✓ ":"")+x.t),x.sub?h("span",null,x.sub):null),
     h("div",{class:"row",style:{gap:"6px",flexShrink:0}},x.plan?(x.done?h("button",{class:"btn sm flat",onclick:()=>{undoDone(x.key,"考前计划 · "+x.d.topic);openToday()}},"撤销"):[h("button",{class:"btn sm go",onclick:()=>{closeSheet();planGo(x.id,x.d)}},"开始"),h("button",{class:"btn sm",onclick:()=>{planDone(x.id,x.d);openToday()}},"做完 +"+R(PLAN_PTS))]):h("button",{class:"btn sm",onclick:()=>{closeSheet();x.go()}},"打开")));
-  sheet(null,h("div",{class:"eyebrow"},(d.getMonth()+1)+"/"+d.getDate()+" 周"+WD[d.getDay()]),h("h2",null,left?"今天还剩 "+left+" 项":"今天的都做完了"),h("div",{class:"pl"},L.map(row)))}
+  sheet(null,h("div",{class:"eyebrow"},(d.getMonth()+1)+"/"+d.getDate()+" 周"+WD[d.getDay()]),h("h2",null,left?"今天还剩 "+left+" 项":"今天的都做完了"),h("div",{class:"pl"},L.map(row)),h("a",{class:"btn flat",href:"#plan",style:{display:"block",textAlign:"center",marginTop:"8px"},onclick:()=>closeSheet()},"看整个复习计划 →"))}
 /* 每天第一次打开网站时自己弹出来（每台设备一天一次） */
 function maybeTodayPop(){if(EMBED||document.querySelector(".scrim,.pop"))return;const k=dayKey();let seen="";try{seen=localStorage.getItem("zs-today-pop")||""}catch(e){}if(seen===k)return;
   const L=todayList();if(!L.some(x=>!x.done))return;try{localStorage.setItem("zs-today-pop",k)}catch(e){}setTimeout(()=>{if(!document.querySelector(".scrim,.pop"))openToday()},700)}
@@ -3022,7 +3036,34 @@ setInterval(()=>{if(curView()==="now"&&!document.querySelector(".scrim,.pop"))re
 function renderNow(){renderQuick();maybeTodayPop()}
 function route(){const v=curView();document.body.classList.toggle("dg-on",v==="dungeon");measureBars();for(const x of VIEWS)$("#v-"+x).hidden=x!==v;document.querySelectorAll(".tabbar a[data-v]").forEach(a=>a.setAttribute("aria-current",a.dataset.v===v?"page":"false"));{const ms=curSub("map");if(v==="map"&&ms&&ms!==MAPSUBJ){MAPSUBJ=ms;setTimeout(scrollToCur,60)}}renderHud();renderView(v);applySub();renderSideNav();
   if(v==="map")setTimeout(scrollToCur,40);else window.scrollTo(0,0)}
-function renderView(v){if(v==="now")renderNow();else if(v==="map")renderMap();else if(v==="cal")renderCal();else if(v==="shop")renderShop();else if(v==="read")renderRead();else renderBag()}
+function renderView(v){if(v==="now")renderNow();else if(v==="map")renderMap();else if(v==="cal")renderCal();else if(v==="shop")renderShop();else if(v==="read")renderRead();else if(v==="plan")renderPlan();else renderBag()}
+/* 复习计划页：从今天往后一天一张卡，可以直接勾 */
+let PLAN_ALL=false;
+function planRows(){const B=BOSSES(),now=Date.now(),out=[];
+  for(const id in (S.examPlan||{})){const p=S.examPlan[id],b=B[id];if(!p||!b||!b.due||b.due<now||bossDone(id)||!Array.isArray(p.days))continue;planShift(id);
+    for(const d of p.days){const key=planKey(id,d),m=/^(\d{1,2}:\d{2})[–-](\d{1,2}:\d{2})｜/.exec(d.topic||"");
+      out.push({id,d,b,key,done:!!S.done[key],t0:m?m[1].padStart(5,"0"):"",t1:m?m[2]:"",title:m?d.topic.slice(m[0].length):d.topic})}}
+  return out.sort((a,b)=>a.d.day<b.d.day?-1:a.d.day>b.d.day?1:(a.t0||"99")<(b.t0||"99")?-1:(a.t0||"99")>(b.t0||"99")?1:0)}
+function renderPlan(){const box=$("#v-plan");if(!box)return;const today=dayKey(),now=Date.now(),R0=planRows(),B=BOSSES();
+  const ex=Object.keys(S.examPlan||{}).map(id=>({id,b:B[id],p:S.examPlan[id]})).filter(x=>x.b&&x.b.due&&x.b.due>now&&!bossDone(x.id)&&x.p&&Array.isArray(x.p.days)&&x.p.days.length).sort((a,b)=>a.b.due-b.b.due).map(x=>{
+    const n=x.p.days.length,dn=x.p.days.filter(d=>S.done[planKey(x.id,d)]).length,left=Math.ceil((keyToDate(localKey(new Date(x.b.due))).getTime()-keyToDate(today).getTime())/DAY);
+    return h("div",{class:"pp-ex",style:"--c:"+worldOf(x.b.subj).tint},h("b",null,SUBJ[x.b.subj].name+" "+x.b.title.replace(/^\S+ /,"")),h("span",null,left<=0?"今天考":"还有 "+left+" 天"),h("i",null,h("em",{style:{width:Math.round(dn/n*100)+"%"}})),h("small",null,dn+" / "+n+" 块"))});
+  const past=R0.filter(x=>x.d.day<today&&!x.done);
+  const days=[...new Set(R0.filter(x=>x.d.day>=today).map(x=>x.d.day))];const shown=PLAN_ALL?days:days.slice(0,7);
+  const row=x=>h("div",{class:"pp-row"+(x.done?" done":""),style:"--c:"+worldOf(x.b.subj).tint},
+    h("button",{class:"pp-ck","aria-label":x.done?"撤销":"做完",onclick:()=>{if(x.done){undoDone(x.key,"考前计划 · "+x.d.topic);save();renderAll()}else{planDone(x.id,x.d)}}},x.done?"✓":""),
+    h("div",{class:"pp-tm"},h("b",null,x.t0||"补做"),x.t1?h("span",null,x.t1):null),
+    h("div",{class:"pp-body"},h("div",{class:"pp-tt"},h("span",{class:"pp-sj"},SUBJ[x.b.subj].name),x.d.kind==="mock"?h("span",{class:"pp-tag"},"模考"):x.d.kind==="final"?h("span",{class:"pp-tag"},"考前"):null,h("b",null,x.title)),
+      x.d.task?h("div",{class:"pp-task"},x.d.task):null,x.done?null:h("button",{class:"btn sm flat pp-go",onclick:()=>planGo(x.id,x.d)},"让 Claude 带我做 →")));
+  const card=k=>{const L=R0.filter(x=>x.d.day===k),dn=L.filter(x=>x.done).length,min=L.reduce((s,x)=>s+(x.d.min||0),0),d=keyToDate(k);
+    return h("div",{class:"card pp-day"+(k===today?" today":"")},h("div",{class:"row between"},h("h3",null,(k===today?"今天 · ":k===addDays(today,1)?"明天 · ":"")+(d.getMonth()+1)+"/"+d.getDate()+" 周"+WD[d.getDay()]),
+      h("span",{class:"dim small"},dn+" / "+L.length+" 块 · 约 "+(min>=60?Math.floor(min/60)+" 小时":"")+(min%60?" "+min%60+" 分":""))),
+      h("div",{class:"pp-bar"},h("em",{style:{width:(L.length?Math.round(dn/L.length*100):0)+"%"}})),L.map(row))};
+  const alld=R0.filter(x=>x.done).length;
+  box.replaceChildren(...[h("div",{class:"card"},h("h2",null,"复习计划"),h("div",{class:"dim small"},"一共 "+R0.length+" 块，做完 "+alld+" 块 · 每勾一块 +"+R(PLAN_PTS)+" 分 · 没做完的学习块会自动挪到后面几天"),h("div",{class:"pp-exs"},ex)),
+    past.length?h("div",{class:"card pp-day late"},h("h3",null,"之前没做的 · "+past.length+" 块"),past.map(row)):null,
+    shown.length?shown.map(card):h("div",{class:"card"},"后面没有排的复习了"),
+    days.length>7?h("button",{class:"btn flat",style:{width:"100%"},onclick:()=>{PLAN_ALL=!PLAN_ALL;renderPlan()}},PLAN_ALL?"只看最近 7 天":"看后面 "+(days.length-7)+" 天"):null].flat().filter(Boolean))}
 function renderAll(){if(EMBED==="zero")setTimeout(pendingPdfs,3000);renderHud();renderView(curView());if(EMBED==="todo")renderTodoEmbed();if(EMBED==="zero")deskBadge()}
 function softRefresh(){renderHud();const v=curView();if(v==="map"||v==="cal")renderView(v)}
 
@@ -3522,14 +3563,11 @@ function scopeSecs(b){const D=S.dyn&&S.dyn.data&&S.dyn.data[b.subj];const all=ne
   return L.sort((x,y)=>secN(x)-secN(y))}
 function planMissing(b,items){const need=scopeSecs(b);if(!need.length)return[];const have=new Set();for(const d of items.filter(d=>!d.kind||d.kind==="learn"))for(const x of secsOf(d.topic+" "+(d.task||"")))have.add(x);return need.filter(x=>!have.has(x))}
 function planDays(b){const days=[];for(let k=dayKey();keyToDate(k).getTime()<b.due-12*HOUR&&days.length<12;k=addDays(k,1))days.push(k);return days}
-function planShift(id){const p=(S.examPlan||{})[id];if(!p||!p.avail||!Array.isArray(p.days))return 0;if(!Object.keys(p.avail).length)for(const d of p.days)p.avail[d.day]=(p.avail[d.day]||0)+(d.min||60);const today=dayKey();
-  const mv=p.days.filter(d=>!d.kind||d.kind==="learn");const late=mv.filter(d=>d.day<today&&!S.done[planKey(id,d)]);if(!late.length)return 0;
-  const fixed=p.days.filter(d=>d.kind==="mock"||d.kind==="final").map(d=>d.day).sort();const stop=fixed[0]||"9999";
-  let slots=Object.keys(p.avail).filter(k=>k>=today&&k<stop&&p.avail[k]>0).sort();if(!slots.length)slots=[today];
-  const todo=mv.filter(d=>!S.done[planKey(id,d)]).sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);
-  /* 按每天的时间装：1 小时装 1 项，装满了还有剩的，再从前往后每天多塞一项 */
-  const cap=slots.map(k=>Math.max(1,Math.round((p.avail[k]||60)/60)));const load=slots.map(()=>0);let si=0;
-  if(todo.length<=cap.reduce((x,y)=>x+y,0)){for(const d of todo){while(load[si]>=cap[si])si++;d.day=slots[si];load[si]++}}else{const per=Math.ceil(todo.length/slots.length);todo.forEach((d,i)=>{d.day=slots[Math.min(slots.length-1,Math.floor(i/per))]})}
+function planShift(id){const p=(S.examPlan||{})[id];if(!p||!Array.isArray(p.days))return 0;p.avail=p.avail||{};const today=dayKey();
+  const late=p.days.filter(d=>(!d.kind||d.kind==="learn")&&d.day<today&&!S.done[planKey(id,d)]);if(!late.length)return 0;
+  /* 过了日子没做完的学习块：去掉原来的时段，从今天起每天加一块，不排到考试那天以后 */
+  const b=BOSSES()[id],exam=b&&b.due?localKey(new Date(b.due)):"9999";
+  late.forEach((d,i)=>{let k=addDays(today,i);if(k>=exam)k=today;d.day=k;d.topic=String(d.topic||"").replace(/^\d{1,2}:\d{2}[–-]\d{1,2}:\d{2}｜/,"");d.late=1});
   p.days.sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);p.moved=(p.moved||0)+late.length;save();return late.length}
 function planToday(subj){const k=dayKey();for(const id in (S.examPlan||{})){const p=S.examPlan[id];const b=BOSSES()[id];if(!b||b.due<Date.now()||(subj&&b.subj!==subj))continue;planShift(id);
   const list=p.days.filter(d=>d.day===k);const it=list.find(d=>!S.done[planKey(id,d)]);if(it)return{id,b,it,p,left:list.filter(d=>!S.done[planKey(id,d)]).length,all:list.length}}return null}
