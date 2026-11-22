@@ -1257,8 +1257,8 @@ const WEEKLY=[
   {id:"engl-disc",subj:"engl",hh:9,mm:0,dates:{"2026-10-27":[17,"D&D 与 Le Guin"],"2026-10-29":[18,"BG3 鹦鹉螺教程"],"2026-11-03":[19,"BG3 Goblin Camp"],"2026-11-05":[20,"BG3 庆功宴与 Risen Road"],"2026-11-10":[21,"BG3 Crèche 与第一幕结局"],"2026-11-12":[22,"House of the Dragon S1E1"],"2026-11-17":[23,"Rogue One"],"2026-11-19":[24,"The Uses of Fantasy"],"2026-12-01":[25,"Spirited Away"]},fmt:v=>"Discussion "+v[0]+" · "+v[1],dow:[0,1,2,3,4,5,6],base:24,late:true},
   {id:"chem-ps",subj:"chem",num:"chem-ps",fmt:n=>"PS "+n,dow:[3],base:48},
   {id:"math-hw",subj:"math",dates:{"2026-10-22":8,"2026-10-29":9,"2026-11-05":10,"2026-11-19":11,"2026-11-24":12,"2026-12-03":13},fmt:n=>"HW "+n,dow:[0,1,2,3,4,5,6],base:48,grace:3,note:"周四截止，可以迟交三天，但每拖一天倍率下降。"},
-  {id:"chem-lab3",subj:"chem",num:"chem-lab",fmt:n=>"Lab "+n+" report",dow:[0],base:40,real:[1,0,29]},
-  {id:"chem-prelab",subj:"chem",num:"chem-lab",fmt:n=>"Pre-lab "+(n+1),dow:[0],base:16,real:[1,0,29]},
+  {id:"chem-lab3",max:10,subj:"chem",num:"chem-lab",fmt:n=>"Lab "+n+" report",dow:[0],base:40,real:[1,0,29]},
+  {id:"chem-prelab",max:9,subj:"chem",num:"chem-lab",fmt:n=>"Pre-lab "+(n+1),dow:[0],base:16,real:[1,0,29]},
   {id:"engri-hw",subj:"engri",num:"engri-hw",fmt:n=>"HW "+n,dow:[0],base:48}
 ];
 const BASE_MAIN={
@@ -1462,7 +1462,7 @@ function seqNum(grp,k){const def=Object.assign({},NUM_DEF[grp],(S.nums||{})[grp]
   if(k>=def.a){let day=def.a,g=0;while(day<k&&g++<400){if(has(day)&&!sk(day))n++;day=addDays(day,1)}}
   else{let day=addDays(def.a,-1),g=0;while(day>=k&&g++<400){if(has(day)&&!sk(day))n--;day=addDays(day,-1)}}
   n=Math.max(1,n);NUMC.set(ck,n);return n}
-function occOnDay(k){return rawOcc(k).map(o=>{o.title=o.r.dates?o.r.fmt(o.r.dates[k]):o.r.fmt(seqNum(o.r.num,k));return o})}
+function occOnDay(k){return rawOcc(k).filter(o=>!(o.r.max&&o.r.num&&seqNum(o.r.num,k)>o.r.max)).map(o=>{o.title=o.r.dates?o.r.fmt(o.r.dates[k]):o.r.fmt(seqNum(o.r.num,k));return o})}
 function setNum(o,n){if(!o.r.num||!(n>0))return;S.nums=S.nums||{};S.nums[o.r.num]={a:o.day,n,manual:true};NUMC.clear();save();renderAll()}
 const DISC_NEED=9;
 /* 截至 11/2 早上已写 6 篇（她亲口说的），之后每完成一篇 +1 */
