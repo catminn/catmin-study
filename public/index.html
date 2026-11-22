@@ -1255,11 +1255,11 @@ engl:[["写 Discussion","【Discussion】帮我写今晚的 reading response dis
 const WEEKLY=[
   /* ENGL 1111 Discussion：按 Canvas 的实际日期（上课当天 9:00 前），编号按 Canvas 顺序；一学期写够 9 篇即可 */
   {id:"engl-disc",subj:"engl",hh:9,mm:0,dates:{"2026-10-27":[17,"D&D 与 Le Guin"],"2026-10-29":[18,"BG3 鹦鹉螺教程"],"2026-11-03":[19,"BG3 Goblin Camp"],"2026-11-05":[20,"BG3 庆功宴与 Risen Road"],"2026-11-10":[21,"BG3 Crèche 与第一幕结局"],"2026-11-12":[22,"House of the Dragon S1E1"],"2026-11-17":[23,"Rogue One"],"2026-11-19":[24,"The Uses of Fantasy"],"2026-12-01":[25,"Spirited Away"]},fmt:v=>"Discussion "+v[0]+" · "+v[1],dow:[0,1,2,3,4,5,6],base:24,late:true},
-  {id:"chem-ps",subj:"chem",num:"chem-ps",fmt:n=>"PS "+n,dow:[3],base:48},
+  {id:"chem-ps",until:"2026-12-08",subj:"chem",num:"chem-ps",fmt:n=>"PS "+n,dow:[3],base:48},
   {id:"math-hw",subj:"math",dates:{"2026-10-22":8,"2026-10-29":9,"2026-11-05":10,"2026-11-19":11,"2026-11-24":12,"2026-12-03":13},fmt:n=>"HW "+n,dow:[0,1,2,3,4,5,6],base:48,grace:3,note:"周四截止，可以迟交三天，但每拖一天倍率下降。"},
   {id:"chem-lab3",max:10,subj:"chem",num:"chem-lab",fmt:n=>"Lab "+n+" report",dow:[0],base:40,real:[1,0,29]},
   {id:"chem-prelab",max:9,subj:"chem",num:"chem-lab",fmt:n=>"Pre-lab "+(n+1),dow:[0],base:16,real:[1,0,29]},
-  {id:"engri-hw",subj:"engri",num:"engri-hw",fmt:n=>"HW "+n,dow:[0],base:48}
+  {id:"engri-hw",until:"2026-12-08",subj:"engri",num:"engri-hw",fmt:n=>"HW "+n,dow:[0],base:48}
 ];
 const BASE_MAIN={
   math:[{id:"155",t:"§15.5 梯度与方向导数",lec:at(2026,9,28,11,0)},{id:"156",t:"§15.6 链式法则",lec:at(2026,10,5,11,0)},{id:"157",t:"§15.7 最优化",lec:at(2026,10,7,11,0)},{id:"158",t:"§15.8 拉格朗日乘数",lec:at(2026,10,14,11,0)},{id:"161",t:"§16.1–16.2 二重积分",lec:at(2026,10,19,11,0)},{id:"163",t:"§16.3 三重积分",lec:at(2026,10,21,11,0)},{id:"164",t:"§16.4 极、柱、球坐标积分",lec:at(2026,10,23,11,0)},{id:"165",t:"§16.5 积分的应用",lec:at(2026,10,26,11,0)},{id:"171",t:"§17.1–17.2 向量场与线积分",lec:at(2026,11,2,11,0)},{id:"173",t:"§17.3 保守向量场",lec:at(2026,11,6,11,0)},{boss:"math-p2"}],
@@ -1450,7 +1450,7 @@ function useMakeup(k){if(S.checkins.includes(k)||S.cards.makeup<1)return;S.cards
 
 /* ============ weekly side quests ============ */
 const NUM_DEF={"engl-disc":{a:"2026-10-26",n:18,lead:"engl-disc"},"chem-ps":{a:"2026-10-28",n:8,lead:"chem-ps"},"chem-lab":{a:"2026-10-25",n:8,lead:"chem-lab3"},"engri-hw":{a:"2026-10-25",n:7,lead:"engri-hw"}};
-function rawOcc(k){const out=[];const d=keyToDate(k);for(const r of WEEKLY){if(r.dates?!(k in r.dates):!r.dow.includes(d.getDay()))continue;
+function rawOcc(k){const out=[];const d=keyToDate(k);for(const r of WEEKLY){if(r.until&&k>r.until)continue;if(r.dates?!(k in r.dates):!r.dow.includes(d.getDay()))continue;
   const fin=r.dates&&k==="2026-11-24"?at(2026,11,24):at(d.getFullYear(),d.getMonth()+1,d.getDate(),r.hh??23,r.mm??59);const plusDays=(t,n)=>{const d=new Date(t);d.setDate(d.getDate()+n);return d.getTime()};let soft=r.target?plusDays(fin,r.target):fin;let hard=r.grace?plusDays(soft,r.grace):soft;const fx=(S.dueFix||{})[r.id+"@"+k];let self;
   /* real：截止落在第二天（化学是她自己定的周一 00:29；系统 13:25 关闭，过了就交不了，所以按她自己的 ddl 算迟交） */
   if(r.real){const dd=(a)=>at(d.getFullYear(),d.getMonth()+1,d.getDate()+a[0],a[1],a[2]);soft=hard=fx||dd(r.real);if(r.self)self=dd(r.self)}
@@ -3002,7 +3002,7 @@ function renderQuick(){const el=$("#quickRow");if(!el)return;const now=Date.now(
   el.replaceChildren(sl,ck,rd,gm,dt,sp,rc)}
 /* 接下来要交的：网站作业、Canvas 支线、要交的 Boss，按截止排 */
 function dueList(){const now=Date.now(),B=BOSSES();return[
-  ...occurrences().filter(o=>isOpen(o)&&o.soft>now-3*DAY).map(o=>({t:SUBJ[o.subj].name+" "+o.title,due:o.soft,go:()=>openTaskSheet(o)})),
+  ...occurrences().filter(o=>isOpen(o)&&(o.soft>now-3*DAY||o.hard>now)).map(o=>{const late=o.soft<now&&o.hard>now;return{t:SUBJ[o.subj].name+" "+o.title+(late?"（迟交）":""),due:late?o.hard:o.soft,go:()=>openTaskSheet(o)}}),
   ...SIDE.filter(q=>!S.done["cv-"+q.id]&&q.due>now-DAY).map(q=>({t:(q.subj?SUBJ[q.subj].name+" ":"")+q.title,due:q.due,go:()=>openSideQuestSheet(q)})),
   ...Object.entries(B).filter(([id,b])=>b.submit&&b.due&&b.due>now-DAY&&!bossDone(id)).map(([id,b])=>({t:SUBJ[b.subj].name+" "+b.title,due:b.due,go:()=>openBossSheet(id)}))
 ].sort((a,b)=>a.due-b.due)}
