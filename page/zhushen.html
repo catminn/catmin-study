@@ -2878,7 +2878,7 @@ function RD(){let r=S.reading;if(!r||!Array.isArray(r.books)){r=S.reading={books
   if(!r.v13){if(!r.books.some(b=>b.t==="银河英雄传说"))r.books.push({id:"b"+uid(),ph:3,t:"银河英雄传说",by:"田中芳树",lang:"中文",note:"莱因哈特 · 共 10 卷，先读第 1 卷",st:"queue",slot:"",unit:"章",read:0,at:Date.now()});r.v13=1;r.mt=(r.mt||0)+1;save()}
   if(!r.v14){if(!r.books.some(b=>b.t==="沙丘"))r.books.push({id:"b"+uid(),ph:4,t:"沙丘",by:"弗兰克·赫伯特",lang:"中文",note:"开头名词多，善用书后词汇表",st:"queue",slot:"",unit:"章",read:0,at:Date.now()});
     for(const x of[["沙丘","2021"],["沙丘 2","2024，和第一部一起讲完原著第一本"],["沙丘 3","改编续集《沙丘救世主》"]])if(!r.films.some(f=>f.t===x[0]))r.films.push({id:"f"+uid(),t:x[0],kind:"电影",src:"沙丘",note:x[1],st:"queue",at:Date.now()});r.v14=1;r.mt=(r.mt||0)+1;save()}
-  if(!r.v19){const M=[[0,["折枝","化身博士"]],[1,["默读","琅琊榜","呼兰河传","局外人","动物农场","Animal Farm"]],[2,["Piranesi","皮拉奈西","提灯","阿勒泰"]],[3,["太岁","射雕","银河英雄","1984","世说新语"]],[4,["洄天","沙丘","活着","人间草木"]],[5,["神雕","Gatsby","盖茨比"]],[6,["倚天","月亮与六便士","边城","Klara","克拉拉"]],[7,["雪国","看不见的城市","史记"]]],MS={3:1,4:1,5:2,6:2,7:3,8:3,9:3};(r.books||[]).forEach(b=>{if(b.st!=="queue")return;const t=b.t||"";let p=8;if(b.ser==="明朝"&&MS[b.no]!=null)p=MS[b.no];else if(t.includes("三体"))p=/[二三Ⅱ]|黑暗|死神/.test(t.replace("三体",""))?5:2;else if(t.startsWith("飘"))p=7;else for(const[ph,ks]of M)if(ks.some(k=>t.includes(k))){p=ph;break}b.ph=p});r.v19=1}if(r.v16&&!r.v18){const w=r.books.find(b=>b.t==="洄天");if(w&&!w.by)w.by="淮上";r.v18=1;r.mt=(r.mt||0)+1;save()}
+  if(!r.v27){r.books=r.books||[];r.books.forEach(b=>{if(b.st==="queue"&&(b.id==="b_zhaimen"||b.id==="b_sspl"))b.slot=""});if(!r.books.some(b=>(b.t||"").includes("霍乱时期")))r.books.push({id:"b_huoluan",ph:8,t:"霍乱时期的爱情",by:"马尔克斯 · 杨玲译",lang:"中",note:"节奏慢，适合假期；读不进就换",st:"queue",slot:"",unit:"%",total:100,read:0});r.v27=1}if(!r.v26){(r.books||[]).forEach(b=>{if(b.st==="queue"&&(b.t||"").includes("三体"))b.ph=1});r.v26=1}if(!r.v25){r.log=r.log||[];const ds=new Set(r.log.map(x=>x.day));let k=dayKey();if(!ds.has(k))k=addDays(k,-1);let g=0;while(ds.has(k)&&g<400){k=addDays(k,-1);g++}if(g>0&&ds.has(addDays(k,-1)))r.log.push({day:k,n:0,unit:"",id:"",pts:0,bn:0,at:Date.now(),fill:1});r.v25=1}if(!r.v24){const f=(r.films||[]).find(x=>(x.t||"").includes("爱·死·机器人"));if(f){f.t="爱·死·机器人 · 第3季起";f.note="第1季已看完。第3季最强：吉巴罗、蜂群、坏旅行者、墓穴之中；第2季可挑：雪中流浪者、巨人之死"}r.v24=1}if(!r.v23){r.films=r.films||[];const ref=r.films.find(f=>/伦敦生活|Fleabag/.test(f.t||""))||{};[["f_bm","黑镜","单集独立：圣朱尼佩罗、急转直下、马上回来、白熊、绞死DJ、白色圣诞；别从第1集开始"],["f_ldr","爱·死·机器人","碎片时间：齐马蓝、吉巴罗、证人、桑尼的优势、三个机器人"]].forEach(([id,t,note])=>{if(!r.films.some(f=>(f.t||"").includes(t)))r.films.push({id,t,kind:ref.kind||"剧",src:ref.src||"",note,st:"queue"})});r.v23=1}if(!r.v22){r.films=r.films||[];if(!r.films.some(f=>(f.t||"").includes("美国恐怖故事"))){const ref=r.films.find(f=>/伦敦生活|Fleabag/.test(f.t||""))||{};r.films.push({id:"f_ahs1",t:"美国恐怖故事 · 第1季《谋杀屋》",kind:ref.kind||"剧",src:ref.src||"",note:"喜欢再接第2季《疯人院》",st:"queue"})}r.v22=1}if(!r.v21){r.books=r.books||[];if(!r.books.some(b=>(b.t||"").includes("生死疲劳")))r.books.push({id:"b_sspl",ph:8,t:"生死疲劳",by:"莫言",lang:"中",note:"很长，适合假期主书",st:"queue",slot:"main",unit:"章",total:58,read:0});r.v21=1}if(!r.v20){r.books=r.books||[];if(!r.books.some(b=>(b.t||"").includes("窄门")))r.books.push({id:"b_zhaimen",ph:8,t:"窄门",by:"纪德 · 李玉民译",lang:"中",note:"很薄，几小时；压抑，适合当长书后的接力",st:"queue",slot:"main",unit:"%",total:100,read:0});r.v20=1}if(!r.v19){const M=[[0,["折枝","化身博士"]],[1,["默读","琅琊榜","呼兰河传","局外人","动物农场","Animal Farm"]],[2,["Piranesi","皮拉奈西","提灯","阿勒泰"]],[3,["太岁","射雕","银河英雄","1984","世说新语"]],[4,["洄天","沙丘","活着","人间草木"]],[5,["神雕","Gatsby","盖茨比"]],[6,["倚天","月亮与六便士","边城","Klara","克拉拉"]],[7,["雪国","看不见的城市","史记"]]],MS={3:1,4:1,5:2,6:2,7:3,8:3,9:3};(r.books||[]).forEach(b=>{if(b.st!=="queue")return;const t=b.t||"";let p=8;if(b.ser==="明朝"&&MS[b.no]!=null)p=MS[b.no];else if(t.includes("三体"))p=/[二三Ⅱ]|黑暗|死神/.test(t.replace("三体",""))?5:2;else if(t.startsWith("飘"))p=7;else for(const[ph,ks]of M)if(ks.some(k=>t.includes(k))){p=ph;break}b.ph=p});r.v19=1}if(r.v16&&!r.v18){const w=r.books.find(b=>b.t==="洄天");if(w&&!w.by)w.by="淮上";r.v18=1;r.mt=(r.mt||0)+1;save()}
   if(r.v16&&!r.v17){const z=r.books.find(b=>b.t==="折枝");if(z){z.by="困倚危楼";z.note="XP 小说 · 感恩节读 · 读完接《化身博士》"}const c=r.books.find(b=>b.t==="纯白恶魔");if(c&&c.st==="queue"){c.by="priest";c.ph=1;c.note="XP 小说 · 和《默读》二选一 · 读前确认完结"}r.v17=1;r.mt=(r.mt||0)+1;save()}
   if(!r.v16){const A=[[0,"折枝","","XP 小说 · 感恩节候选"],[0,"纯白恶魔","","XP 小说 · 感恩节候选"],[1,"默读","priest","XP 小说 · 现代刑侦 · 读完接一本两小时短书"],[2,"提灯映桃花","淮上","XP 小说 · 春假读"],[3,"太岁","priest","XP 小说 · 超长，只放暑假"],[4,"洄天","","XP 小说 · 感恩节或假期读"]];
     for(const x of A)if(!r.books.some(b=>b.t===x[1]))r.books.push({id:"b"+uid(),ph:x[0],t:x[1],by:x[2],lang:"中文",note:x[3],st:"queue",slot:"",unit:"章",read:0,at:Date.now()});r.v16=1;r.mt=(r.mt||0)+1;save()}
@@ -2965,7 +2965,7 @@ function renderRead(){const box=$("#v-read");if(!box)return;const B=RD().books;c
     (()=>{const s=rdStreak(),nk=s+1,b=rdStepBonus(nk),m=Object.keys(RD_MILES).map(Number).find(x=>x>s);return h("div",{class:"dim small"},(today.length?"明天":"今天")+"读书连读加成 +"+b+(m?" · 离连读 "+m+" 天还差 "+(m-s)+" 天（+"+RD_MILES[m]+"）":""))})(),
     today.length?h("button",{class:"btn sm flat",style:{marginTop:"8px"},onclick:rdUndo},"撤销刚才那次"):null);
   const cur=["main","frag"].map(sl=>B.find(b=>b.st==="reading"&&b.slot===sl)).filter(Boolean);
-  const quick=b=>b.unit==="%"?[5,10]:b.unit==="页"?[10,30]:[1,2];
+  const quick=b=>b.unit==="%"?[5,10]:b.unit==="页"?[10,30]:[1,2,0.5];
   const card=b=>{const inp=h("input",{type:"number",min:"0",placeholder:b.unit==="%"?"读到 %":"读到第几"+(b.unit||"章"),style:{width:"120px"}});const pc=rdPct(b);
     return h("div",{class:"rd-book"+(b.slot==="main"?" main":"")},
     h("div",{class:"row between",style:{flexWrap:"nowrap"}},h("div",{class:"rd-t",onclick:()=>rdEdit(b)},h("div",{class:"eyebrow"},b.slot==="main"?"主书":"碎片书"),h("b",null,"《"+b.t+"》"),h("span",null,[b.by,rdProg(b)].filter(Boolean).join(" · ")||" ")),h("button",{class:"btn sm flat",onclick:()=>rdEdit(b)},"编辑")),
@@ -3051,7 +3051,7 @@ function openRec(i){const steps=nextSteps().filter(x=>!x.rest);if(!steps.length)
   sheet(st.subj||null,h("div",{class:"eyebrow"},"推荐 "+(i+1)+" / "+steps.length),h("h2",null,st.title),h("div",{class:"dim"},st.meta),
     h("div",{class:"row"},h("button",{class:"btn go",onclick:()=>{closeSheet();st.go()}},st.btn||"开始"),steps.length>1?h("button",{class:"btn flat",onclick:()=>openRec(i+1)},"换一个"):null))}
 function rdQuickSheet(){const R0=RD(),cur=["main","frag"].map(sl=>R0.books.find(b=>b.st==="reading"&&b.slot===sl)).filter(Boolean);
-  if(!cur.length){location.hash="#read";return}const quick=b=>b.unit==="%"?[5,10]:b.unit==="页"?[10,30]:[1,2];
+  if(!cur.length){location.hash="#read";return}const quick=b=>b.unit==="%"?[5,10]:b.unit==="页"?[10,30]:[1,2,0.5];
   sheet(null,h("h2",null,"读书"),...cur.map(b=>h("div",{class:"card",style:{display:"flex",flexDirection:"column",gap:"10px"}},
     h("div",null,h("b",null,"《"+b.t+"》"),h("div",{class:"dim small"},rdProg(b)||"还没开始")),
     h("div",{class:"row"},...quick(b).map((n,i)=>h("button",{class:"btn"+(i?"":" go"),onclick:()=>{closeSheet();rdLog(b,n)}},"+"+rdFmt(b,n)))))),
@@ -3061,6 +3061,12 @@ function renderNow(){renderQuick();maybeTodayPop()}
 function route(){const v=curView();document.body.classList.toggle("dg-on",v==="dungeon");measureBars();for(const x of VIEWS)$("#v-"+x).hidden=x!==v;document.querySelectorAll(".tabbar a[data-v]").forEach(a=>a.setAttribute("aria-current",a.dataset.v===v?"page":"false"));{const ms=curSub("map");if(v==="map"&&ms&&ms!==MAPSUBJ){MAPSUBJ=ms;setTimeout(scrollToCur,60)}}renderHud();renderView(v);applySub();renderSideNav();
   if(v==="map")setTimeout(scrollToCur,40);else window.scrollTo(0,0)}
 function renderView(v){if(v==="now")renderNow();else if(v==="map")renderMap();else if(v==="cal")renderCal();else if(v==="shop")renderShop();else if(v==="read")renderRead();else if(v==="plan")renderPlan();else renderBag()}
+function planShift(id){const p=(S.examPlan||{})[id];if(!p||!Array.isArray(p.days))return 0;p.avail=p.avail||{};const today=dayKey();
+  const late=p.days.filter(d=>(!d.kind||d.kind==="learn")&&d.day<today&&!S.done[planKey(id,d)]);if(!late.length)return 0;
+  /* 过了日子没做完的学习块：去掉原来的时段，从今天起每天加一块，不排到考试那天以后 */
+  const b=BOSSES()[id],exam=b&&b.due?localKey(new Date(b.due)):"9999";
+  late.forEach((d,i)=>{let k=addDays(today,i);if(k>=exam)k=today;d.day=k;d.topic=String(d.topic||"").replace(/^\d{1,2}:\d{2}[–-]\d{1,2}:\d{2}｜/,"");d.late=1});
+  p.days.sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);p.moved=(p.moved||0)+late.length;save();return late.length}
 /* 复习计划页：从今天往后一天一张卡，可以直接勾 */
 let PLAN_ALL=false;
 function planRows(){const B=BOSSES(),now=Date.now(),out=[];
@@ -3587,11 +3593,14 @@ function scopeSecs(b){const D=S.dyn&&S.dyn.data&&S.dyn.data[b.subj];const all=ne
   return L.sort((x,y)=>secN(x)-secN(y))}
 function planMissing(b,items){const need=scopeSecs(b);if(!need.length)return[];const have=new Set();for(const d of items.filter(d=>!d.kind||d.kind==="learn"))for(const x of secsOf(d.topic+" "+(d.task||"")))have.add(x);return need.filter(x=>!have.has(x))}
 function planDays(b){const days=[];for(let k=dayKey();keyToDate(k).getTime()<b.due-12*HOUR&&days.length<12;k=addDays(k,1))days.push(k);return days}
-function planShift(id){const p=(S.examPlan||{})[id];if(!p||!Array.isArray(p.days))return 0;p.avail=p.avail||{};const today=dayKey();
-  const late=p.days.filter(d=>(!d.kind||d.kind==="learn")&&d.day<today&&!S.done[planKey(id,d)]);if(!late.length)return 0;
-  /* 过了日子没做完的学习块：去掉原来的时段，从今天起每天加一块，不排到考试那天以后 */
-  const b=BOSSES()[id],exam=b&&b.due?localKey(new Date(b.due)):"9999";
-  late.forEach((d,i)=>{let k=addDays(today,i);if(k>=exam)k=today;d.day=k;d.topic=String(d.topic||"").replace(/^\d{1,2}:\d{2}[–-]\d{1,2}:\d{2}｜/,"");d.late=1});
+function planShiftOld(id){const p=(S.examPlan||{})[id];if(!p||!p.avail||!Array.isArray(p.days))return 0;if(!Object.keys(p.avail).length)for(const d of p.days)p.avail[d.day]=(p.avail[d.day]||0)+(d.min||60);const today=dayKey();
+  const mv=p.days.filter(d=>!d.kind||d.kind==="learn");const late=mv.filter(d=>d.day<today&&!S.done[planKey(id,d)]);if(!late.length)return 0;
+  const fixed=p.days.filter(d=>d.kind==="mock"||d.kind==="final").map(d=>d.day).sort();const stop=fixed[0]||"9999";
+  let slots=Object.keys(p.avail).filter(k=>k>=today&&k<stop&&p.avail[k]>0).sort();if(!slots.length)slots=[today];
+  const todo=mv.filter(d=>!S.done[planKey(id,d)]).sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);
+  /* 按每天的时间装：1 小时装 1 项，装满了还有剩的，再从前往后每天多塞一项 */
+  const cap=slots.map(k=>Math.max(1,Math.round((p.avail[k]||60)/60)));const load=slots.map(()=>0);let si=0;
+  if(todo.length<=cap.reduce((x,y)=>x+y,0)){for(const d of todo){while(load[si]>=cap[si])si++;d.day=slots[si];load[si]++}}else{const per=Math.ceil(todo.length/slots.length);todo.forEach((d,i)=>{d.day=slots[Math.min(slots.length-1,Math.floor(i/per))]})}
   p.days.sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:0);p.moved=(p.moved||0)+late.length;save();return late.length}
 function planToday(subj){const k=dayKey();for(const id in (S.examPlan||{})){const p=S.examPlan[id];const b=BOSSES()[id];if(!b||b.due<Date.now()||(subj&&b.subj!==subj))continue;planShift(id);
   const list=p.days.filter(d=>d.day===k);const it=list.find(d=>!S.done[planKey(id,d)]);if(it)return{id,b,it,p,left:list.filter(d=>!S.done[planKey(id,d)]).length,all:list.length}}return null}
