@@ -154,6 +154,9 @@ let hotkey = "";
 const MAX_FILE = 25 * 1024 * 1024;
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
+// Windows 会把被别的窗口盖住、或刚藏起来的窗口判成「看不见」而不去画；待办平时藏着、鼠标移上去才显示，
+// 有时显示出来了里面却没画（整块透明，看着像什么都没有）。关掉这个判断，每次都照常画。
+app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
 app.setAppUserModelId("io.catmin.study");
 
 // ---------- 设置（窗口位置、开关） ----------
@@ -431,7 +434,8 @@ function setTodoMode(mode) {
   if (mode === "dock") mode = "mini";
   if (mode === todoState) return;
   if (mode === "mini") {
-    conf.todo = Object.assign({}, todo.getBounds()); saveConf();
+    { const b = todo.getBounds(), l = todo._fullRect; // 缩放 150% 时 setBounds/getBounds 来回差 1 像素：没真改过大小就不存，免得每展开一次长大一点
+      if (!l || Math.abs(b.x - l.x) > 2 || Math.abs(b.y - l.y) > 2 || Math.abs(b.width - l.width) > 2 || Math.abs(b.height - l.height) > 2) { conf.todo = Object.assign({}, b); saveConf(); } }
     todoState = "mini";
     const t = ensureTab(); t.setBounds(tabRect()); tabSend();
     fade(todo, 1, 0, 120, () => { if (todoState === "mini" && todo && !todo.isDestroyed()) { todo.hide(); applyOnTop(); } });
@@ -440,7 +444,10 @@ function setTodoMode(mode) {
     todoState = "full"; tellTodo();
     // 展开时一定放到最上面（就算没置顶 / 在玩游戏，鼠标移上去就是想看）；收起时再恢复
     todo.setAlwaysOnTop(true, "screen-saver");
-    todo.setBounds(fullRect()); todo.setOpacity(0); todo.showInactive(); todo.moveTop(); fade(todo, 0, 1, 140);
+    const fr = fullRect(); todo._fullRect = fr;
+    todo.setBounds(fr); todo.setOpacity(0); todo.showInactive(); todo.moveTop(); fade(todo, 0, 1, 140);
+    // 藏起来再显示时页面可能没重画：主动要一帧，过一会儿再要一次
+    try { todo.webContents.invalidate(); } catch (e) {} setTimeout(() => { try { if (todo && !todo.isDestroyed() && todoState === "full") todo.webContents.invalidate(); } catch (e) {} }, 200);
     dlog("todo expand", todo.getBounds(), todo.isVisible());
     if (tab && !tab.isDestroyed()) tab.hide();
   }
