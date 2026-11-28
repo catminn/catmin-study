@@ -1865,7 +1865,7 @@ function suggestSubj(){return weightedPick(["math","chem","engri"],"ck"+dayKey()
 /* ============ 在 Claude 里学：网站只记账 ============
    点「去 Claude 学」→ 带一段提示词打开 claude.ai；学完、答对最后一道检查题后，Claude 用共享记忆的 study_log_add 记一笔（存在 learnlog）。
    这里定时读 learnlog，没处理过的就按种类加分：daily 算签到，lesson 算进度表上那一讲学完，mistake 打掉错题怪，plan 完成考前计划那一天。 */
-const LESSON_FREE_CAP=2; /* 不在进度表上的课，一天最多算两节 */
+const LESSON_FREE_CAP=Infinity; /* 11/27：取消每天两节的上限 */
 function claudePrompt(subj,teach,log){const sj=SUBJ[subj]?SUBJ[subj].full:"";
   const how=log?`\n\n学完、我答对最后一道检查题以后，调用「共享记忆」的 study_log_add 记一笔：kind="${log.kind}"，subj="${subj}"${log.ref?`，ref="${log.ref}"`:""}，topic 写这次学的内容，right / total 写检查题我答对几道 / 一共几道。没答对就先别记，接着讲。`
     :`\n\n如果这次是在学新知识（不是写作业），学完、我答对最后一道检查题以后，调用「共享记忆」的 study_log_add 记一笔：kind="lesson"，subj="${subj}"，topic 写学的内容，right / total 写检查题对了几道 / 一共几道。`;
